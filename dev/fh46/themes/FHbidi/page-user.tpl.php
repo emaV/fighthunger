@@ -9,7 +9,7 @@
 
 <!-- tabs start -->
 <?php
-// Better to change theme_menu_item_link !!!!!!!
+// Better to change theme_menu_item_link !
 function MY_menu_secondary_local_tasks() {
   $menu = menu_get_menu(); 
   

@@ -1,0 +1,14 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: Hosting Package Module
+Author: Warren Brian Noronha < wnorrix at gmail dot com>
+********************************************************************
+INSTALLATION:
+
+1. Place the entire hosting directory into your Drupal
+   modules/store/ directory.
+
+2. Enable this module by navigating to:
+
+     administer > modules

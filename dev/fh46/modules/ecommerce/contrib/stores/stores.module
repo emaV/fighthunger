@@ -1,0 +1,144 @@
+<?php
+// $Id: stores.module,v 1.1 2005/04/24 15:08:38 mathias Exp $
+
+/**
+ * @file
+ * Enables users to have their own storefront.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function stores_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enables users to have their own storefront.');
+  }
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function stores_user($type, &$edit, &$user) {
+  if ($type == 'view' && user_access('edit own products', $user)) {
+    return array(t('History') => form_item(NULL, l(t('view %name\'s store', array('%name' => $user->name)), "stores/$user->uid", array('title' => t("View %username's latest products.", array('%username' => $user->name))))));
+  }
+}
+
+/**
+ * Menu callback; displays a Drupal page containing recent blog entries.
+ */
+function stores_page($a = NULL, $b = NULL) {
+
+  if (is_numeric($a)) { // $a is a user ID
+    $output = stores_page_user($a);
+  }
+  else {
+    $output = stores_page_last();
+  }
+
+  print theme('page', $output);
+}
+
+/**
+ * Displays a Drupal page containing recent blog entries of a given user.
+ */
+function stores_page_user($uid) {
+  global $user;
+
+  $output = '';
+  $account = user_load(array((is_numeric($uid) ? 'uid' : 'name') => $uid, 'status' => 1));
+
+  if ($account->uid) {
+    // Breadcrumb navigation
+    $breadcrumb[] = array('path' => 'stores', 'title' => t('stores'));
+    $breadcrumb[] = array('path' => 'stores/'. $account->uid, 'title' => t("%name's store", array('%name' => $account->name)));
+    menu_set_location($breadcrumb);
+
+    drupal_set_title($title = t("%name's store", array('%name' => $account->name)));
+
+    if (($account->uid == $user->uid) && user_access('edit own products')) {
+      $output = '<li>'. l(t('Add a new product.'), 'node/add/product') .'</li>';
+    }
+    $output .= '<li>'. l(t('View %name\'s profile', array('%name' => $account->name)), "user/$account->uid") .'</li>';
+    $output = $output ? '<ul>'. $output .'</ul>' : '';
+
+    $result = pager_query(db_rewrite_sql('SELECT n.nid FROM {node} n INNER JOIN {ec_product} p ON n.nid = p.nid WHERE n.status = 1 AND n.uid = %d ORDER BY n.sticky DESC, n.created DESC'), variable_get('default_nodes_main', 10), 0, NULL, $account->uid);
+    while ($node = db_fetch_object($result)) {
+      $output .= node_view(node_load(array('nid' => $node->nid)), 1);
+    }
+    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10));
+  }
+
+  return $output;
+}
+
+/**
+ * Displays a Drupal page containing recent blog entries of all users.
+ */
+function stores_page_last() {
+  global $user;
+
+  $output = '';
+
+  $result = pager_query(db_rewrite_sql('SELECT n.nid FROM {node} n INNER JOIN {ec_product} p ON n.nid = p.nid WHERE n.status = 1 ORDER BY n.created DESC'), variable_get('default_nodes_main', 10));
+
+  while ($node = db_fetch_object($result)) {
+    $output .= node_view(node_load(array('nid' => $node->nid)), 1);
+  }
+  $output .= theme('pager', NULL, variable_get('default_nodes_main', 10));
+
+  return $output;
+}
+
+/**
+ * Implementation of hook_link().
+ */
+function stores_link($type, $node = 0, $main = 0) {
+  $links = array();
+
+  if ($type == 'node' && $node->ptype) {
+    if (arg(0) != 'stores' && arg(1) != $node->uid) {
+      $links[] = l(t("%username's store", array('%username' => $node->name)), "stores/$node->uid");
+    }
+  }
+
+  return $links;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function stores_menu($may_cache) {
+  global $user;
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'stores', 'title' => t('stores'), 'callback' => 'stores_page', 'access' => user_access('access content'), 'type' => MENU_SUGGESTED_ITEM);
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_block().
+ *
+ * Displays the most recent 10 blog titles.
+ */
+function stores_block($op = 'list', $delta = 0) {
+  global $user;
+  if ($op == 'list') {
+    $block[0]['info'] = t('Recent products');
+    return $block;
+  }
+  else if ($op == 'view') {
+    if (user_access('access content')) {
+      $block['content'] = node_title_list(db_query_range(db_rewrite_sql("SELECT n.nid, n.title, n.created FROM {node} n INNER JOIN {ec_product} p ON p.nid = n.nid WHERE n.status = 1 ORDER BY n.created DESC"), 0, 10));
+      $block['content'] .= '<div class="more-link">'. l(t('more'), 'stores') .'</div>';
+      $block['subject'] = t('Recent products');
+    }
+    return $block;
+  }
+}
+
+?>

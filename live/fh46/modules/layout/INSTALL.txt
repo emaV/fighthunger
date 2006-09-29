@@ -1,0 +1,31 @@
+Readme
+------
+
+Module for making mixed content pages
+Send comments to nevets@tds.net
+
+Requirements
+------------
+
+This module requires Drupal 4.5.2 or higher (It may work on 4.5).
+
+Installation
+------------
+
+1. Create the SQL tables. This depends a little on your system, but the
+   most common method is:
+     mysql -u username -ppassword drupal < layout.mysql
+
+2. Place the layout module with all its files under modules/layout.
+
+3. Enable the module in admininster >>  modules 
+
+4. Build layout pages from admininster >> layout
+
+
+
+Author
+------
+
+Steve Ringwood <nevets@tds.net>
+ 

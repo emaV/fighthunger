@@ -1,0 +1,91 @@
+<?php
+// $Id: donate.module,v 1.2 2005/03/28 05:50:12 mathias Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+function donate_help($section = 'admin/help#donate') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Create donation products using the ecommerce package.');
+  }
+}
+
+/**
+ * Implementation of menu_hook()
+ */
+function donate_menu($may_cache) {
+  $items  = array();
+
+  if (!$may_cache) {
+    $items[] = array('path' => 'donate/cart', 'title' => t('cart checkout'),
+      'callback' => 'donate_cart_add_item', 'access' => true, 'type' => MENU_CALLBACK);
+  }
+
+  return $items;
+}
+
+function donate_cart_add_item() {
+  global $base_url;
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  switch ($op) {
+    case t('add to cart'):
+      $item = cart_get_items();
+      if (!$item[$edit['nid']]) {
+        cart_add_item($edit['nid'], 1, NULL, $edit['data']);
+      }
+      else {
+        cart_update_item($edit['nid'], 1, $edit['data']);
+      }
+      drupal_goto($edit['destination']);
+      break;
+  }
+}
+
+function donate_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  switch ($op) {
+    case 'adjust_price':
+      $items = cart_get_items();
+      if ($items[$node->nid]) {
+        return (float) $items[$node->nid]->donate_add_amount;
+      }
+      break;
+
+    case 'wizard_select':
+      return array('donate' => t('donation'));
+
+    case 'in_stock':
+        return true;
+
+    case 'is_shippable':
+      return array(false);
+  }
+}
+
+/**
+ * Display the form fields for an donation type product.
+ */
+function theme_product_donate_view(&$node, $teaser = 0, $page = 0) {
+  if (!$teaser) {
+    $output = '';
+    $item = cart_get_items();
+    if ($item[$node->nid]->qty) {
+      $output = t('<p>This item is in <a href="%cart_view">your shopping cart</a>.</p>', array('%cart_view' => url('cart/view')));
+    }
+    $group = form_textfield(t('Amount'), 'data][donate_add_amount', $item[$node->nid]->donate_add_amount, 10, 10, t('How much would you like to donate?'), null, true);
+    $fields = form_group(t('Options'), $group);
+    $fields .= form_hidden('nid', $node->nid);
+    $fields .= form_hidden('destination', "node/$node->nid");
+    $fields .= form_submit(t('add to cart'));
+    $output .= form($fields, 'post', url("donate/cart/$node->nid"));
+    $node->body .= $output;
+  }
+
+  return $node;
+}
+
+?>

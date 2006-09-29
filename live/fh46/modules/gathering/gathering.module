@@ -1,0 +1,2684 @@
+<?php
+
+/**
+ * @file
+ * Gathering node type.
+ * 
+ * Depends on:
+ * - CiviCRM
+ * 
+ * Referenced by:
+ * - wtw_map.module
+ */
+ 
+/**
+ * Implementation of hook_help().
+ * 
+ * Note: Added module description to previous help implementation
+ */
+function gathering_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Gathering node type. Interfaces with CiviCRM.');
+  }
+  $campaigns = _gathering_get_campaigns();
+  foreach ($campaigns as $c){
+    $out['node/add#'.$c['nodetype']] = $c['description'];
+  }
+  
+  return t($out[$section]);  
+}
+
+function gathering_init(){
+  global $user;
+  if ((!isset($user->first_name)) || (!isset($user->last_name)) || (!isset($user->country)) || (!isset($user->phone))){
+    _gathering_user_loadnames($user);
+  }
+}
+
+function gathering_settings(){
+  // TODO- make all of this editable per-campaign
+  $iform = form_textfield(t("Subject"),"gathering_invite_subj",variable_get("gathering_invite_subj",""),100,128);
+  
+  $iform .= form_textarea(t("Default Message"),"gathering_invite_message",variable_get("gathering_invite_message",""),80,20);
+
+  $out = form_group("Invitations",$iform);
+
+  $wform = form_textfield(t("Subject"),"gathering_welcome_subj",variable_get("gathering_welcome_subj",""),100,128);
+  
+  $wform .= form_textarea(t("Default Message"),"gathering_welcome_message",variable_get("gathering_welcome_message",""),80,20,"Use this codes: %confirmurl, %firstname, %lastname");
+
+  $roles = user_roles();
+  $wform .= form_select(t("Confirmed Role"),"gathering_confirmrole",variable_get("gathering_confirmrole",1),$roles,"This role will be assigned to users who have confirmed heir email address.<br/><b>Warning: Be very careful you do not assign users a role with too many permissions!</b>");
+
+  $wform .= "This email will be sent to users when they create a new event. Leave either of these fields blank to disable welcome messages.";
+
+  $out .= form_group("Welcome Message",$wform);
+
+  return $out;  
+}
+
+// implementation of hook_block
+function gathering_block($op = 'list', $delta = 0, $edit = array()){
+  if ($op == "list") {
+    $blocks[0]['info'] = "Gathering attendee list";
+    $blocks[1]['info'] = "Gathering related links";
+    $blocks[2]['info'] = "Gathering country list";
+    return $blocks;
+  } elseif($op == "view"){
+    switch ($delta) {
+      case 0:
+        return gathering_block_attendees();
+        break;
+      case 1:
+        return _gathering_block_related_links();
+        break;
+      case 2:
+        return _gathering_block_countries();
+        break;
+    }
+  } else if ($op == 'configure') {
+    switch ($delta) {
+      case 0:
+        return _gathering_block_attendees_settings();
+        break;
+      case 2:
+        return _gathering_block_countries_settings();
+        break;
+    }
+  } else if ($op == 'save') {
+    switch ($delta) {
+      case 0: 
+        variable_set('gathering_block_attendees_comments', $edit['gathering_block_attendees_comments']);
+        variable_set('gathering_block_attendees_max', $edit['gathering_block_attendees_max']);
+        variable_set('gathering_block_attendees_title', $edit['gathering_block_attendees_title']);
+        break;
+      case 2:
+        variable_set('gathering_block_countries_title', $edit['gathering_block_countries_title']);
+        variable_set('gathering_block_countries_campaign', $edit['gathering_block_countries_campaign']);
+        variable_set('gathering_block_countries_description_show', $edit['gathering_block_countries_description_show']);
+        $SQL = 'SELECT description FROM {gathering_campaign} where camid=%d;';
+        $row = db_fetch_object(db_query($SQL, $edit['gathering_block_countries_campaign']));
+        variable_set('gathering_block_countries_description', $row->description);
+        break;
+    }
+  }
+}
+
+/***
+ * Attendees block
+ * returns false when the block should be hidden
+ * called by gathering_block
+ *  
+ * options: 
+ * -  $only_comments (from block settings): show only user with comments
+ * -  $show_users (from gathering page): show block
+ *
+ * NOTE:
+ * if $show_user = false show the block if and only if we have:
+ * - $only_comments=true 
+ * - at least one comment
+ * max number of users (with or without comments) is ruled by gathering_block_attendees_max
+ ***/
+function gathering_block_attendees() {
+  // TODO make this more themeable
+  
+  $out = false;
+  
+  if ((arg(0) == "node") && (is_numeric(arg(1)))) {
+    $signups = _gathering_get_signups(arg(1));
+    if ($signups) {
+      // Shows users?
+      $show_users = db_result(db_query("SELECT signup_show FROM {gathering_node} WHERE nid=%d",arg(1)));
+      
+      // only show $max attendees gathering_block_attendees_comments
+      $max_no = variable_get('gathering_block_attendees_max', 0);
+      $max = ($max_no>0) ? $max_no : count($signups);
+      // Show only comments ?
+      $only_comments = variable_get('gathering_block_attendees_comments', 0);
+      $users_shown = 0;
+      for($i=0;$i<$max;$i++) {
+        $s = $signups[$i];
+        if (!empty($s)){
+          $user = user_load(array("uid"=>$s['uid']));
+          unset($item);
+          $item = theme("name",$user);
+          if ($s['guests'] > 0){
+            $item .= " (+".$s['guests']." ".t("guests").")";
+          }
+          if ($s['opencomment'] && $s['comment']) {
+            $item .= ":<div class='block comment'>".$s['comment'] . "</div>";
+          }
+          if($only_comments) {
+            if ($s['opencomment'] && $s['comment']) {
+              $items[] = $item;
+              $users_shown++;
+            } else {
+              $max++;
+            }
+          } else {
+            $items[] = $item;
+            $users_shown++;
+          }
+        }
+      }
+      if ( ($users_shown>0) && ($show_users || $only_comments)) {
+        $out['subject'] = variable_get('gathering_block_attendees_title', t('walkers'));
+        $out['content'] = theme("item_list",$items);
+        if ( ($users_shown < count($signups)) &&($show_users) ) {
+          $out['content'] .= t('and ') . " " . (count($signups) - $users_shown) . " " .t('walkers');
+        } 
+      }
+    }
+  }
+  return $out;
+}
+
+function _gathering_block_attendees_settings() {
+  $comment_description = "Show only user with comments.<br /> " .
+    "<b>Note</b>: when this option is selected users with comments are shown even if signup_show is set to no; " .
+    "in this case the total number of users is not shown";
+
+  $output  = form_textfield(t('Max Number of users shown'),'gathering_block_attendees_max', variable_get('gathering_block_attendees_max', 0),30,50,t('Select Maxim number of user shown in attendees block (0 for all)'));
+  $output .= form_select(t("Show users only with comments"),'gathering_block_attendees_comments',variable_get('gathering_block_attendees_comments', 0),array(0=>"No",1=>"Yes"),t($comment_description));
+  $output .= form_textfield(t('Block title'),'gathering_block_attendees_title', variable_get('gathering_block_attendees_title', t('walkers')),30,50,t('Select block title'));
+  return $output;
+} 
+
+// creates the related links block
+// returns false when the block should be hidden
+// called by gathering_block
+function _gathering_block_related_links() {
+  
+  $out = false;
+  $area_links = "";
+  
+  if ((arg(0) == "node") && (is_numeric(arg(1)))) {
+    $SQL = "SELECT * FROM {gathering_area_related} AS a INNER JOIN {gathering_node} AS n ON a.ccid=n.country WHERE nid = %d";
+    db_rewrite_sql($SQL);
+    $result = db_query($SQL, arg(1));
+    if(db_num_rows($result)>0) {
+      while ($area = db_fetch_object($result))  {
+        if (strpos($area->linkaddress, "http")===0) {
+          $area_links[] = l($area->name,$area->linkaddress);
+        } else {
+          $area_links[] = l($area->name,"local/$area->linkaddress");
+        }
+        $out['subject'] = t('Related links');
+        $out['content'] = theme("item_list",$area_links);
+      }
+    }
+  }
+  return $out;
+}
+
+// creates countries list block
+// returns false when the block should be hidden
+// called by gathering_block
+function _gathering_block_countries() {
+  
+  $out = false;
+  $country_list="";
+  $camid = variable_get('gathering_block_countries_campaign', 1);
+  $SQL = "SELECT c.name AS name, gn.country AS ccid, COUNT(gn.nid) AS count FROM {gathering_node} AS gn LEFT JOIN {countries} AS c ON gn.country=c.ccid WHERE gn.camid = %d GROUP BY (gn.country) ORDER BY c.name;";
+  db_rewrite_sql($SQL);
+  $result = db_query($SQL, $camid);
+  if(db_num_rows($result)>0) {
+    while ($row = db_fetch_object($result))  {
+      $country_list[] = l("$row->name ($row->count)","gathering/home/$camid/$row->ccid");
+    }
+    $out['subject'] = t(variable_get('gathering_block_countries_title', 'Countries'));
+    if (variable_get('gathering_block_countries_description_show', 1)) {
+      $out['content'] = '<p>' . t(variable_get('gathering_block_countries_description','')) . '</p>';
+    } else {
+      $out['content'] = '';
+    }
+    $out['content'] .= theme("item_list",$country_list);
+  } 
+  return $out;
+}
+
+function _gathering_block_countries_settings() {
+    $campaign_list = "";
+    $SQL = 'SELECT camid, name, description FROM {gathering_campaign};';
+    $result = db_query($SQL);
+    if(db_num_rows($result)>0) {
+      while ($row = db_fetch_object($result)) {
+        $campaign_list[$row->camid] = $row->name;
+      }
+    }
+    $output = form_textfield(t('Select Title'),'gathering_block_countries_title', variable_get('gathering_block_countries_title', 'Countries'),30,50,t('Select box title'));
+    $output .= form_select(t('Select Campaign'), 'gathering_block_countries_campaign', variable_get('gathering_block_countries_campaign', 1), $campaign_list, t('Select a campaign'));
+    $output .= form_checkbox(t('Show Description'), 'gathering_block_countries_description_show', 1, variable_get('gathering_block_countries_description_show', 1), t('Show default description'));
+    return $output;
+}
+
+function theme_name($user){  
+  $name = $user->first_name." ".substr($user->last_name,0,1).".";
+  
+  if (user_access("access user profiles")){
+    $out = l($name,"user/".$user->uid);
+  } else {
+    $out = $name;
+  }
+  
+  return $out;
+}
+
+// implementation of hook_user
+// enters walk list into user profiles
+function gathering_user($op, &$edit, &$user, $category = NULL){
+  switch ($op){
+    case "load":
+      _gathering_user_loadnames($user);
+      break;
+    case "view":
+      // return list of this user's gatherings
+      $campaigns = _gathering_get_campaigns();
+      foreach($campaigns as $c){
+        $status = _gathering_user_statusreport($c['camid'], $c['active'], $user);
+        if (!empty($status)){
+          $out[$c['name']] = $status;
+        }
+      } 
+      break;
+  }
+  return $out;
+}
+
+
+// utility function, adds name data to user object
+function _gathering_user_loadnames(&$user){
+  // our version of civicrm has a BUG in how it handles first_name and last_name
+  // http://objectledge.org/jira/browse/CRM-744
+  // so we must parse these variables out from display_name until this is fixed
+  if (module_exist('civicrm')) {
+    // get CivicRM data
+    // get contact object
+    civicrm_initialize(TRUE);
+    $param['email'] = $user->mail;
+    $c = crm_get_contact($param);
+
+    // get name data
+    $name_array = explode(", ",$c->sort_name);
+    $user->first_name = $name_array[1];
+    if (!valid_email_address($name_array[0])){
+      $user->last_name = $name_array[0];
+    }
+    
+    // get phone and country data, by parsing civicrm's obtuse data structure
+    $location_a = $c->location;
+    if (is_array($location_a)){
+      $location = array_pop($location_a);
+
+      $phone_a = $location->phone;
+      if (is_array($phone_a)){
+        $phone = array_pop($phone_a);
+        $user->phone = $phone->phone;
+      }
+      
+      $country = $location->address->country;
+      $countries = _gathering_get_countries();
+      $user->country = array_search($country,$countries);
+    }    
+  }
+}
+
+// implementation of hook_node_name
+function gathering_node_name($node){
+  if (is_string($node)){
+    $type = $node;
+  } else {
+    $type = $node->type;
+  }
+
+  // parse campaign_id from node->type
+  $camid = _gathering_get_camid($type);
+  
+  $campaigns = _gathering_get_campaigns();
+  $out = $campaigns[$camid]['eventname'] . " - " . $campaigns[$camid]['name'];
+  return $out;
+}
+
+// implementation of hook_node_types
+function gathering_node_types(){
+  $campaigns = _gathering_get_campaigns();
+  foreach ($campaigns as $c){
+    $out[] = "gathering-".$c['camid'];
+  } 
+  
+  return $out;
+}
+
+// implementation of hook_access
+// TODO make this correct
+function gathering_access($op, $node) {
+  global $user;
+  return _gathering_user_access($op,$node,$user);
+}
+
+// implementation of hook_menu
+function gathering_menu($mc){
+  if ($mc) {
+    $out[] = array(
+      'title'     => t('gathering campaigns'),
+      'callback'  => 'gathering_admin',
+      'access'    => user_access("administer site configuration"),
+      'type'      => MENU_NORMAL_ITEM,
+      'path'      => 'admin/gathering'
+    );
+    $out[] = array(
+      'title'     => t('gathering reports'),
+      'callback'  => 'gathering_reports',
+      'access'    => user_access("administer gathering campaigns"),
+      'type'      => MENU_NORMAL_ITEM,
+      'path'      => 'admin/gathering_reports'
+    );
+    $out[] = array(
+      'callback'  => 'gathering_page',
+      'access'    => true,
+      'type'      => MENU_CALLBACK,
+      'path'      => 'gathering'
+    );
+  } else {
+    $out = _gathering_menu_campaign();
+    if (arg(0) == 'node' && is_numeric(arg(1))) {
+      $node = node_load(array('nid' => arg(1)));
+      if ( ($node->nid) && (strncmp($node->type,'gathering',9)==0) ) {
+        $out[] = array('path' => 'node/'. arg(1) .'/refresh', 'title' => t('refresh album'),
+          'callback' => 'gathering_refresh_event',
+          'access' => user_access('administer gathering campaigns'),
+          'weight' => 1,
+          'type' => MENU_LOCAL_TASK);
+      }
+    }        
+  }
+  return $out;
+}
+
+// implementation of hook_perm
+function gathering_perm(){
+  $out = array("administer gathering campaigns",
+               "administer gathering signups",
+               "create gatherings",
+               "create multiple gatherings per campaign",
+               "send and receive GatheringMessages",
+               "edit own gatherings");
+  return $out;
+}
+
+// implementation of hook_validate
+function gathering_validate(&$node){
+  // build required fields
+  $required_fields[] = array(
+    'name' => "Start Time",
+    'variable'     => "starttime"
+  );
+  $required_fields[] = array(
+    'name' => "End Time",
+    'variable'     => "endtime"
+  );
+  $required_fields[] = array(
+    'name' => "Start Time",
+    'variable'     => "starttime"
+  );
+  $required_fields[] = array(
+    'name' => "Start Location",
+    'variable'     => "address1"
+  );
+  $required_fields[] = array(
+    'name' => "Street Address",
+    'variable'     => "address2"
+  );
+  $required_fields[] = array(
+    'name' => "City",
+    'variable'     => "city"
+  );
+/*
+  $required_fields[] = array(
+    'name' => "State",
+    'variable'     => "state"
+  );
+  */
+  foreach ($required_fields as $f){
+    $v = $f['variable'];
+    if (isset($node->$v) && (empty($node->$v))){
+      form_set_error($v,t("Please enter a ".$f['name']."."));
+    }
+  }
+  
+  // validate country field
+  if ($node->country == "--"){
+    form_set_error("country",t("Please select a Country."));
+  }
+
+  // TODO - validate time fields
+
+}
+
+// implementation of hook_form
+function gathering_form(&$node,$showtitle=false){
+  if ((!isset($node->country)) && isset($_GET['c'])){
+    $node->country = $_GET['c'];
+  }
+
+  if ($showtitle){
+    $form1  = form_textfield(t("Event Name"),"title","",40,64,"A title for your event.");
+  }
+  $form1 .= form_textfield(t("City"),"city",$node->city,30,50,t('If you are in the US, include your state here.<br/>For example: "Denver, CO"'),NULL,TRUE);
+  $form1 .= form_select(t("Country"),"country",$node->country,_gathering_get_countries(),NULL,NULL,NULL,TRUE);
+  
+  $output .= form_group(t("Basic Information"),$form1);
+
+  $starttime_display = _gathering_time_display($node->starttime);
+  $endtime_display = _gathering_time_display($node->endtime);
+  $form2  = form_textfield(t("Start Time"),"starttime",$starttime_display,20,10,"local time (ex. 11:00 AM)",NULL,TRUE);
+  $form2 .= form_textfield(t("End Time"),"endtime",$endtime_display,20,10,"local time (ex. 1:45 PM)",NULL,TRUE);
+    
+  $form2 .= form_textfield(t("Start Location"),"address1",$node->address1,30,50,"The name of the specific place where participants will meet (e.g. Central Fountain).",NULL,TRUE);
+  $form2 .= form_textfield(t("Street Address"),"address2",$node->address2,30,100,NULL,NULL,TRUE);
+  $form2 .= form_textarea("Route","route",$node->route,40,2,"Describe the general route for your walk, including approximate length and any landmarks.");
+//  $output .= form_textfield(t("State / Province"),"state",$node->state,30,50,NULL,NULL,TRUE);
+  $output .= form_group(t("When & Where"),$form2);
+
+  $form3 .= check_output(t("You can use basic HTML tags in these boxes."));
+
+  $form3 .= form_textarea(t("Local Partners"),"sponsors",$node->sponsors,40,2,"Enter any local event partners here (optional). Sponsors will listed after the text, \"Local partners:\"");
+        
+  $form3 .= form_textarea(t("Directions"),"directions",$node->directions,40,2,"What is the best way to find your start location?");
+  
+  $form3 .= form_textarea(t("Additional Information"),"description",$node->description,40,5,"Use this space to mention any unique information about your event, and logistical details for your participants.");
+
+  $output .= form_group(t("Details"),$form3);
+
+  if (user_access("administer gathering signups")){
+    $form4 .= form_select(t("Allow Signups"),"signup_status",$node->signup_status,array(0=>"No",1=>"Yes"));
+    $form4 .= form_textfield(t("Signup Padding"),"signup_pad",$node->signup_pad,30,10);
+    $form4 .= form_select(t("Show Signups"),"signup_show",$node->signup_show,array(0=>"No",1=>"Yes"));
+    $output .= form_group("Signup settings",$form4);
+  }
+  return $output;
+}
+
+// implementation of hook_view
+function gathering_view(&$node,$teaser=FALSE,$page=FALSE){
+  // get alias data
+  // (create alias if there isn't one)
+  $alias = _gathering_get_alias($node);
+      
+  // run themeing function here
+  $vars = object2array($node);
+  $themed = theme("gathering_node",object2array($node));
+
+  $node->donation->active = ($node->active > 0); //donation allowed for PreAction and PostAction not for Closed
+  $node->teaser = $themed;
+  $node->body = $themed;
+
+  if ($page && !$teaser){
+    $node->body .= "<em>"._gathering_node_message($node)."</em>";
+  }
+}
+
+function _gathering_node_message($node,$user=NULL){
+  if (is_null($user)){
+    global $user;
+  }
+  
+  $role = _gathering_get_user_relationship($node,$user);
+  switch ($role){
+    case 'owner':
+      $out = "You are organizing this event.";
+      break;
+    case 'attendee':
+      $out = "You are attending this event.";
+      break;
+    case "volunteer";
+      $out = "You are volunteering to help with this event.";
+      break;
+  }
+  return t($out);
+}
+
+// TODO- write a better generic theme function
+function theme_gathering_node($node){
+  $countries = _gathering_get_countries();
+  $out .= "<div class='node'>";
+  $out .= "<h3>".l($node->title,"node/".$node->nid)."</h3>";
+  $out .= $node->city.", ".$countries[$node->country];
+  $out .= "</div><br/>";
+  return $out;
+}
+
+function gathering_load($node) {
+  // get extra node data
+  $additions = db_fetch_object(db_query("SELECT * FROM {gathering_node} WHERE nid=%d",$node->nid));
+  $additions->campaign = db_fetch_object(db_query("SELECT * FROM {gathering_campaign} WHERE camid=%d", $additions->camid));
+  $additions->active = $additions->campaign->active;
+  $countries = _gathering_get_countries();
+  $additions->countryname = $countries[$additions->country];
+  list($tag_campaign, $tag_event) = split('/',  _gathering_get_alias($node) );
+  $additions->tag_campaign = $tag_campaign;
+  $additions->tag_event = $tag_event;
+  
+  // get signup data
+  $count = 1;
+  $signups = _gathering_get_signups($node->nid);
+  if (!empty($signups)){
+    foreach($signups as $s){
+      $count += 1;
+      $count += $s['guests'];
+    }
+  }
+  $count += $additions->signup_pad;
+  $additions->signupcount = $count;
+  
+  return $additions;
+}
+
+// implementation of hook_insert
+function gathering_insert($node,$oldnode=NULL){
+  $c = _gathering_get_campaign($node);
+  
+  // set signup defaults
+
+  if (!user_access("administer gathering signups") || empty($node->signup_pad)){
+    $node->signup_pad = 0;
+  }
+  
+  // TODO: timezone management?
+  $fields = array("nid"           => $node->nid,
+                  "camid"         => $c['camid'],
+                  "startdate"     => $c['startdate'],
+                  "enddate"       => $c['enddate'],
+                  "starttime"     => _gathering_time_sql($node->starttime),
+                  "endtime"       => _gathering_time_sql($node->endtime),
+                  "address1"      => $node->address1,
+                  "address2"      => $node->address2,
+                  "city"          => $node->city,
+                  "state"         => $node->state,
+                  "zipcode"       => $node->zipcode,
+                  "country"       => $node->country,
+                  "sponsors"      => $node->sponsors,
+                  "description"   => $node->description,
+                  "directions"    => $node->directions,
+                  "route"         => $node->route,
+                  "signup_pad"    => $node->signup_pad,
+                  "signup_show"   => $node->signup_show);
+  
+  if (user_access("administer gathering signups")){
+    // user is permissioned to set signup_status, so use submitted value
+    $fields['signup_status'] = $node->signup_status; 
+  } elseif(is_null($oldnode)){
+    // user is not permissioned to set signup_status
+    // this is a new node, so use default value
+    $fields['signup_status'] = 1;
+  } else {
+    // node is being updated, so use previous signup_status value
+    $fields['signup_status'] = $oldnode->signup_status;
+  }
+
+  
+  foreach($fields as $var=>$val){
+    $sql_vars[] = $var;
+    $sql_signs[] = "'%s'";
+    $args[] = $val;
+  }
+  
+  $q = "INSERT INTO {gathering_node} (".implode(",",$sql_vars).") VALUES (".implode(",",$sql_signs).")";
+  
+  array_unshift($args,$q);
+  call_user_func_array("db_query",$args);
+}
+
+// implementation of hook_update
+function gathering_update($node){
+  $oldnode = node_load(array("nid"=>$node->nid));
+  
+  db_query("DELETE FROM {gathering_node} WHERE nid=%d",$node->nid);
+  gathering_insert($node,$oldnode);
+}
+
+// implementation of hook_delete
+function gathering_delete($node){
+  db_query("DELETE FROM {gathering_node} WHERE nid=%d",$node->nid);
+}
+
+function gathering_nodeapi(&$node, $op, $teaser = NULL, $page = NULL){
+  switch ($op){
+    case 'subtabs':
+      if (node_get_module_name($node) == "gathering"){
+        return _gathering_subtabs($node);
+      }
+      break;
+  }
+}
+
+// campaign homepage
+function gathering_page($op,$arg1=NULL,$arg2=NULL){
+  switch ($op){
+    case "home":
+      gathering_page_campaign($arg1,arg(3));
+      break;
+    case "organize":
+      gathering_page_organize($arg1);
+      break;
+    case "signup":
+      gathering_page_signup($arg1);
+      break;
+    case "message":
+      gathering_page_message($arg1);
+      break;
+    case "invite":
+      gathering_page_invite($arg1);
+      break;
+    case "confirm":
+      gathering_page_confirm($arg1,$arg2);
+      break;
+    default:
+      drupal_not_found();
+  }
+}
+
+// sends invitations
+function gathering_page_invite($nid){
+  // collect variables
+  $edit = $_POST['edit'];
+  global $user;
+  global $base_url;
+  $node = node_load(array("nid"=>$nid));  
+  $countries = _gathering_get_countries();
+  $c = _gathering_get_campaign($node);
+
+  // check permissions
+  if (!_gathering_user_access("invite",$node)){
+    drupal_access_denied();
+    $out = false;
+  } else {
+    // validate
+    _gathering_invite_validate($edit);
+    if (form_get_errors()){
+      // validation failure
+      drupal_set_title(t("oops"));
+      $out = form(_gathering_invite_form($edit));
+    } else {
+      // validation success - send
+      $recipients = _gathering_invite_parse($edit['recipients']);
+      $from = $user->mail;
+      $subject = t(variable_get("gathering_invite_subj",""));
+      $postmessage = t("Click here for details and to register for this ".$c['name']." event:")."\n".$base_url."/node/".$node->nid;
+            
+      $text = strip_tags($edit['message']."\n\n".$postmessage);
+      $html = check_output($text);
+      mailqueue_enqueue($from,$recipients,$subject,$text,$html);
+      drupal_set_message(t("Your message has been sent!"));
+      drupal_goto("node/".$nid);
+      $out = false;
+    }
+  }
+
+  if ($out){
+    print theme("page",$out);
+  }
+}
+
+// sends GatheringMessages
+function gathering_page_message($nid){
+  $edit = $_POST['edit'];
+
+  if (!user_access("send and receive GatheringMessages")){
+    drupal_set_message(t("There has been an error. (#101)"));
+    $send = false;
+  } else {
+    // get data objects
+    global $user;
+    $node = node_load(array("nid"=>$nid));
+    $countries = _gathering_get_countries();
+    global $base_url;
+    
+    // check relationship
+    $rel = _gathering_get_user_relationship($node,$user);
+    // switch on sender relationships
+    switch ($rel){
+      case "owner":
+        // switch on recipient relationships
+        switch ($edit['recip']){
+          case "attendee":
+          case "volunteer":
+            $to = _gathering_message_get_recips($node,$edit['recip']);
+            $postmessage = "This message has been sent to you through FightHunger.org.\n\nYou are walking in the event in ".$node->city.", ".$countries[$node->country]."\n".$base_url."/node/".$node->nid;
+            $send = true;
+            break;
+          default:
+            drupal_set_message(t("There has been an error. (#102)"));
+            $send = false;
+            break;
+        }
+        break;
+      case "attendee":
+      case "volunteer":
+        // switch on recipient relationships
+        switch ($edit['recip']){
+          case 'coordinator':
+            $to = _gathering_message_get_recips($node,$edit['recip']);
+            $postmessage = "This message has been sent to you through FightHunger.org.\n\nYou are organizing the event in ".$node->city.", ".$countries[$node->country]."\n".$base_url."/node/".$node->nid;
+            $send = true;
+            break;
+          default:
+            drupal_set_message(t("There has been an error. (#103)"));
+            $send = false;
+            break;
+        }
+    }
+    
+    // should we send
+    if ($send) {
+      // yes- let's send
+      $from = $user->mail;
+      $text = strip_tags($edit['message']."\n\n".$postmessage);
+      $html = check_output($text);
+      $ok = mailqueue_enqueue($from,$to,$edit['subject'],$text,$html);
+// commenting out this logic because mailqueue is returning FALSE
+// even when it has succesfully queued
+// for now, always return 'message sent'
+// we should uncomment this logic when mailqueue is fixed
+//      if ($ok) {
+        drupal_set_message(t("Your message has been sent."));
+//      } else {
+//        drupal_set_message(t("We're sorry- There was an error sending your email."));
+//      }
+    }
+    
+  }
+  drupal_goto("node/".$nid);
+}
+
+function _gathering_message_get_recips($node,$mode){  
+  switch($mode){
+    case 'attendee':
+      $q =  "SELECT u.mail FROM {users} u, {gathering_signup} gs ".
+            "WHERE u.uid = gs.uid AND gs.wid = %d";
+      break;
+    case 'volunteer':
+      $q =  "SELECT u.mail FROM {users} u, {gathering_signup} gs ".
+            "WHERE u.uid = gs.uid AND gs.wid = %d";
+      $q .= " AND gs.role='volunteer'";
+      break;
+    case 'coordinator':
+      $q =  "SELECT u.mail FROM {users} u, {node} n ".
+            "WHERE n.uid = u.uid AND n.nid = %d";
+      break;
+  }
+    
+  $rs = db_query($q,$node->nid);
+  while ($a = db_fetch_array($rs)){
+    $out[] = $a['mail'];
+  }
+  
+  return $out;
+}
+
+
+function gathering_page_campaign($camid, $country='') {
+
+  $campaigns = _gathering_get_campaigns();
+  $c = $campaigns[$camid];
+
+  if (!isset($c)){
+    drupal_not_found();
+  } else {
+    global $user;
+    // fetch civicrm data if it is absent
+    if (!isset($user->first_name)){
+      $user = user_load(array("uid"=>$user->uid));
+    }
+
+    $edit = $_POST['edit'];
+    $status = _gathering_user_statusreport($camid,$c['active'],$user);
+    $country = isset($edit['c']) ? $edit['c'] : $country;
+
+    // country_search form
+    $onchange = 'onchange="submit()"';  
+    $form = form_select(t("Country"),"c",$country,_gathering_get_countries(),NULL,$onchange);
+    $country_search = form($form);
+
+    // build country_list
+    if ($country<>"") {
+      $nodes = _gathering_get_nodes_by_country($country,$camid);
+      if ($nodes){
+        foreach ($nodes as $nid){
+          $node= node_load(array("nid"=>$nid));
+          $items[] = $node->city.": ".l($node->title,"node/".$node->nid);
+        }
+        $country_list = theme("form_element","events in your country",theme("item_list",$items));
+        $country_msg = t("Don't see an event near you?"). "&nbsp;";
+      } else {
+        $country_list = t("There are no events scheduled in this country.");
+        $country_msg = t("Don't see an event in this country?"). "&nbsp;";
+      }
+    }
+
+    // country add event
+    if (($c['active']==2) && ($country<>""))  {
+      $country_add = '';
+      $uri = "gathering/organize/".$camid . ($country ? "?c=$country": "");
+      if (!$status) {
+        $country_add = $country_msg;
+        $p = l(t("Click here to start your own!"), $uri);
+        $country_add .= check_output($p);
+        $country_add .= theme("gathering_btn_create",$uri);
+      } else if (user_access("create multiple gatherings per campaign")) {
+        $country_add = $country_msg;
+        $p = t("You may also")." ".l(t("create another event!"),$uri);
+        $country_add .= check_output($p);
+        $country_add .= theme("gathering_btn_create",$uri);
+      }
+    }
+
+    // user section
+    if (empty($status)) {
+      $user_section = strtolower("<h4>".t($c['name'].": find a ".$c['eventname']." near you")."</h4>");
+      $user_section .= check_output(t($c['description']));
+    } else {
+      // participant user homepage -- links to events
+      $user_section = check_output($status);
+      $p = t("Visit your event page to download materials, update your details, and invite others to join you.");
+      $user_section .= check_output($p);
+    }
+
+    $out .= "<h2>".t("welcome").", ".$user->first_name."</h2>\n";
+    $out .= theme("wtw_map",$camid);
+    
+    if (module_exist("echo_action_transition") && ($c['camid'] == 1)){
+      $out .= $user_section;
+      $out .= $country_search;
+      $out .= $country_list;
+      $out .= echo_action_transition_wtw05home();
+    } else {
+      $out .= $user_section;
+      $out .= $country_search;
+      $out .= $country_list;
+      $out .= $country_add;
+    }
+    print theme("page",$out);
+  }
+}
+
+// event creation wizard
+function gathering_page_organize($camid,$edit=NULL){
+  if (is_null($edit)){
+    $edit = $_POST['edit'];
+  }
+
+  $campaigns = _gathering_get_campaigns();
+  $c = $campaigns[$camid];
+  $sitename = variable_get("site_name","Drupal");
+  
+  switch ($edit['step']){
+    case '':
+      // Initial page
+      // is a user logged in?
+      global $user;
+      if ($user->uid > 2){
+        // yes
+        $nodedummy->type = $c['nodetype'];
+        // may they create a new walk?
+        if (_gathering_user_access("create",$nodedummy)){
+          // yes they may, so continue
+        } else {
+          // no they may not, so redirect
+          drupal_goto("gathering/home/".$camid);
+          $stop = true;
+        }
+      } elseif($c['active']<2){
+        // if this is an inactive (close or post action) campaign, go to page-not-found
+        drupal_not_found();
+        $stop = true;
+      } 
+      
+      if (!$stop){
+        // request node data
+        
+        // create node form
+        $form .= gathering_form($null,true);
+        $form .= form_hidden("step",1);
+        $form .= form_submit("Next Step");
+        
+        drupal_set_title(t("create your own ".$c['eventname']));
+        $out .= check_output(t("Organise a ".$c['name']." ".t("event near you on").date(" j F!",strtotime($c['startdate']))));
+        
+        if ($user->uid == 0){
+          $out .= check_output("<strong>".t("Important").":</strong> ".t("If you already have an account with $sitename").", ".l(t("click here to log in"),"user/login")." ".t("before completing this form!"));
+        }
+        
+        $out .= "<h2>".t("step one: enter your ".$c['eventname']." information")."</h2>";
+        $out .= check_output(t("This information will be visible to anyone interested in joining your ".$c['name']));
+        $out .= form($form);
+      }
+      break;
+    case '1': 
+      // Step Two
+      
+      // check submitted data for errors
+      $edit['type'] = "gathering-".$camid;
+      node_validate($edit);
+      if (form_get_errors()){
+        // there are errors, so ask for corrections
+        $form  = form_textfield("Event Name","title",$edit['title'],40,64,"A title for your event.");
+        $form .= gathering_form(array2object($edit));
+        $form .= form_hidden("step",1);
+        $form .= form_submit("Next Step");      
+        $out .= form($form);
+      } else {
+        wtw_user_login(
+          'gathering',
+          array(
+            'first_name'      => array('required'=>1),
+            'last_name'       => array('required'=>1),
+            'phone'           => array('required'=>1),
+            'street_address'  => array('required'=>1),
+            'city'            => array('required'=>1),
+            'state'           => array('required'=>0),
+            'postal_code'     => array('required'=>1),
+            'country'         => array('required'=>1,'value'=>$edit['country'])
+          ),  //fields 
+          array(
+            "op"          => "organize",
+            "camid"       => $camid,
+            "event"       => $edit
+          ),  //variables
+          t("Create your event") // button
+        );
+      }
+      break;
+    case '2':
+      // final step
+      // deprecated and replaced by 
+      //    wtw_user.module and gathering_wtw_user_completed()      
+      break;
+  }
+  
+  // this "if" is necessary in case one of the utility functions has called drupal_goto
+  if ($out){
+    print theme("page",$out);
+  }
+}
+
+// builds campaign admin page
+function gathering_admin(){
+  // get all campaigns
+  $campaigns = _gathering_get_campaigns();
+  switch(arg(2)) {
+    case "edit":
+      $edit = $_POST['edit'];
+      $fields = array("eventname","description","shortname","startdate","active");
+      if ($edit['op'] == "save") {
+        foreach ($fields as $f){
+          $sql_sets[] = $f."='%s'";
+          $args[] = $edit[$f];
+        }
+        $q = "UPDATE {gathering_campaign} SET ".implode(",",$sql_sets)." WHERE camid=%d";        
+        $args[] = arg(3);
+        
+        array_unshift($args,$q);
+        call_user_func_array("db_query",$args);
+        drupal_set_message("The campaign has been edited.");
+        drupal_goto("admin/gathering");
+      } elseif ($edit['op'] == "add"){
+        foreach ($fields as $f){
+          $sql_sets[] = $f."='%s'";
+          $args[] = $edit[$f];
+        }
+        $q = "INSERT INTO {gathering_campaign} SET ".implode(",",$sql_sets);
+        
+        array_unshift($args,$q);
+        call_user_func_array("db_query",$args);
+        drupal_set_message("The campaign has been created.");
+        drupal_goto("admin/gathering");
+      } else {
+        $out .= form(gathering_admin_campaignform($campaigns[arg(3)],"save"));
+      }
+      break;
+//    TODO:
+//    case "delete":
+    default:
+      $fields = array("eventname","description","shortname","startdate","active");
+    
+      foreach ($campaigns as $c){
+        $out .= "<h3>Campaign #".$c['camid'].": ".$c['name']."</h3>";
+        $c['active'] = _gathering_admin_status($c['active']);
+        foreach ($fields as $var){
+          $out .= theme("form_element",$var,$c[$var]);
+        }
+        $out .= l("Edit","admin/gathering/edit/".$c['camid']);
+    //      $out .= l("Delete","admin/gathering/delete/".$c['camid']);
+        $out .= "<hr/>\n";
+      }
+    
+      $out .= "<h3>Create a New Campaign</h3>";
+      $out .= gathering_admin_campaignform(NULL,"add");
+      break;
+  }
+  
+  print theme("page",$out);
+}
+
+function gathering_admin_campaignform($data=array(),$op){
+  $out .= form_textfield("Name","name",$data['name'],40,64);
+  $out .= form_textfield("Event Name","eventname",$data['eventname'],40,64,"A one-word noun describing the type of events in this campaign. (e.g. 'walk' or 'concert')");
+  $out .= form_textfield("Short Name","shortname",$data['shortname'],40,64,"A one-word noun (e.g. 'wtw06') used for aliasing campaign and events (e.g. 'wtw06/london').");
+  $out .= form_textarea("Description","description",$data['description'],50,3,"This text appears beneath the map on the campaign homepage.");
+  $out .= form_textfield("Date","startdate",$data["startdate"],40,10,"Use the format YYYY-MM-DD");
+  
+  $status = _gathering_admin_status();
+  $status_help  = "<dl><dt><b>Campaign status</b></dt>";
+  $status_help .= "<dt>Closed</dt><dd><b>Prohibit</b> new events from being added <b>and</b> comments</dd>";
+  $status_help .= "<dt>Post Action</dt><dd><b>Prohibit</b> new events from being added <b>allows</b> comments</dd>";
+  $status_help .= "<dt>Active</dt><dd><b>Allows</b> new events</dd>";
+  $out .= form_select("Status","active",$data["active"], $status, $status_help);
+  
+  $out .= form_hidden("op",$op);
+  $out .= form_submit($op);
+  
+  return form($out,"POST","admin/gathering/edit");
+}
+
+function _gathering_admin_status ($status_id=NULL) {
+  $status = array( 0=>"Closed",1=>"Post Action",2=>"Active" );
+  return (is_null($status_id)) ? $status : $status[$status_id];
+}
+
+// utility function for hook_menu
+function _gathering_menu_campaign(){
+  // get all campaigns
+  $campaigns = _gathering_get_campaigns();
+  
+  foreach ($campaigns as $c){
+    $node->type = $c['nodetype'];
+    // node creation paths
+    $out[] = array(
+      'title'       => t($c['eventname']) ." - ". t($c['name']),
+      'path'        => 'node/add/'.$c['nodetype'],
+      // TODO fix this user_access call with new permissions
+      'access'      => user_access("administer gathering campaigns")
+    );
+    
+    
+    // campaign home paths
+    if (!empty($c['shortname'])){
+      $out[] = array(
+        'title'               => t($c['name']),
+        'path'                => $c['shortname'],
+        'access'             => true,
+        'type'                => MENU_CALLBACK,
+        'callback'            => "gathering_page_campaign",
+        'callback arguments'  => array($c['camid'])
+      );
+    }
+    
+  }
+
+  return $out;
+}
+
+// utility function to fetch gathering campaigns
+function _gathering_get_campaigns(){
+  static $campaigns;
+  
+  if (!$campaigns){
+    $rs = db_query("SELECT * FROM {gathering_campaign} ORDER BY startdate ASC");
+    while ($c = db_fetch_array($rs)){
+      $campaigns[$c['camid']] = $c;
+      $campaigns[$c['camid']]['nodetype'] = "gathering-".$c['camid'];
+    }
+  }
+  
+  return $campaigns;
+}
+
+// fetch a list of all available countries, indexed by two-letter ISO codes
+function _gathering_get_countries(){
+  static $countries;
+  if (empty($countries)){
+    $rs = db_query("SELECT * FROM {countries} ORDER BY name ASC");
+    while ($c = db_fetch_array($rs)){
+      $countries[$c['ccid']] = ucwords(strtolower($c['name']));
+    }
+    $s = array("--"=>"(choose your home country)");
+    $countries = array_merge($s,$countries);
+  }
+  return $countries;
+}
+
+// utility function fetches campaign data for a node
+function _gathering_get_campaign($node){
+  $camid = _gathering_get_camid($node->type);
+  $campaigns = _gathering_get_campaigns();
+  return $campaigns[$camid];
+}
+
+// utility function parses campaign-id from node-type
+function _gathering_get_camid($type){
+  return substr($type,10);
+}
+
+// subtabs.module API function
+// called through gathering_nodeapi
+function _gathering_subtabs($node) {
+  $rel = _gathering_get_user_relationship($node);
+  if( $node->active == 2) {
+    switch ($rel) {
+      case "owner":
+        $out[] = array( 
+          "title"     => t("invite"),
+          "content"   => _gathering_subtab_invite($node,$rel),
+          "access"    => _gathering_user_access("invite",$node),
+          "weight"    => -5
+        );
+        $out[] = array( 
+          "title"     => t("contact participants"),
+          "content"   => _gathering_subtab_messages($node,$rel),
+          "access"    => _gathering_user_access("message",$node),
+          "weight"    => 0
+        );
+        $out[] = array(
+          "title"     => t("edit"),
+          "content"   => _gathering_subtab_edit($node),
+          "access"    => _gathering_user_access("update",$node),
+          "weight"    => 10
+        );
+        break;
+      case "attendee":
+      case "volunteer":
+        $out[] = array( 
+          "title"     => t("invite"),
+          "content"   => _gathering_subtab_invite($node,$rel),
+          "access"    => _gathering_user_access("invite",$node),
+          "weight"    => -5
+        );
+        $out[] = array( 
+          "title"     => t("contact organizer"),
+          "content"   => _gathering_subtab_messages($node,$rel),
+          "access"    => _gathering_user_access("message",$node),
+          "weight"    => 0
+        );
+        break;
+      default:
+        $out[] = array(
+          "title"     => t("signup"),
+          "content"   => _gathering_subtab_signup($node),
+          "access"    => _gathering_user_access("signup",$node),
+          "weight"    => -10
+        );
+        break;
+    }
+  } else {
+    switch ($rel) {
+      case "owner":
+      case "attendee":
+      case "volunteer":
+        $content = "share your history";
+      break;
+    }
+    $out[] = array(
+      'title'     => t("scrapbook"),
+      'content'   => _gathering_subtab_scrapbook($node),
+      'access'    => true,
+      'weight'    => -15
+    );
+  }
+  
+  $details = _gathering_subtab_details($node);
+  $out[] = array(
+    "title"     => t("details"),
+    "content"   => $details,
+    // hide if details is empty
+    "access"    => !empty($details),
+    "weight"    => 8
+  );
+  
+  return $out;
+}
+
+// remove _ and / from tag for flickr search
+function _tags4flickr ($tag) {
+  return str_replace(array("/","_"), "", $tag);
+}
+
+function theme_event_album_flash($node) {
+
+  list($tag_campaign, $tag_event) = split('/',  _gathering_get_alias($node) );
+  $tags = "$tag_campaign,$tag_event";
+  
+  $qry_params  = "user_id=62728578@N00";
+  $qry_params .= "&tags=$tags&tag_mode=all";
+  $qry_params .= "&nsid=&text=&firstId=&v=1.6&codeV=1.26";
+  $src = "http://www.flickr.com/slideShow/index.gne?$qry_params";
+  $style  = "style='margin-top:10px' ";
+  $style .= "frameBorder='0' width='500' height='500' scrolling='no'";
+  $out = "<iframe src='$src' $style></iframe>";
+//  $out .= "<p>$src</p>";
+  return $out;
+}
+
+function theme_event_album_plain($node) {
+//  global $flickr;
+
+  list($tag_campaign, $tag_event) = split('/',  _gathering_get_alias($node) );
+  $tags = "$tag_campaign $tag_event";
+/*  
+  $photos = $flickr->searchForTags('rome', 'all', 300);
+  for ($j = 0; $j < count($photos); $j++) {
+    $out .= print_r($photos[$j],true) . "<br />\n";
+  }
+*/
+//  $out = print_r(_echo_slideshow_list_photos('cus'),true);
+  $tag_flickr = _tags4flickr ($tag_event); 
+  $query  = "SELECT * FROM {wtw_gallery_tags} WHERE tag = '$tag_flickr'";
+
+  $photos_x_rows = 5;
+  $num_rows = 6;
+  $photos_x_page = $photos_x_rows * $num_rows;
+  $result = pager_query($query, $photos_x_page);
+//  $result = db_query($query);
+  
+  $out_album = "\n<!-- event_album_plain START -->\n";
+  $out_album .= "<table class='photo_album' style='padding:5px; margin: auto;'>\n";
+  $i = 0;
+  while ($row = db_fetch_array($result)) {
+    $pid = $row['photo_id'];
+    $secret = $row['secret'];
+    $server = $row['server'];
+    
+    $flickr_link = "http://www.flickr.com/photos/walktheworld/$pid/";
+    $flickr_square = "http://static.flickr.com/$server/" . $pid . "_" . $secret . "_s.jpg";
+/*
+<img src="http://static.flickr.com/15/18866088_94e31da099_s.jpg" width="75" height="75" alt="Nyc registration" />    
+*/
+//    $base = 'http://www1.fighthunger.org/modules/echo_slideshow/photo.php/';
+    if (($i%$photos_x_rows)==0) $out_album.= "  <tr class='photo_album'>\n";
+    
+    $out_album .= "    <td class='photo_album'>\n";
+    $out_album .= "<a href='$flickr_link'><img src='$flickr_square' width='75' height='75' vspace='5' hspace='5'></a>\n";
+    $out_album .= "    </td>\n";
+//    $out_album .= "    <td style='border: 1px; solid #ddd; padding: 5px'><a href='$flickr_link'><img src='' width='75' height='75'></a></td>\n";
+//    $out_album .= "    <td><img src=''><br />$i</td>\n";
+    if (($i%$photos_x_rows)==($photos_x_rows-1)) $out_album .= "  </tr>\n";
+    $i++;
+  }
+  $out_album .= "</table>\n";
+  $out_album .= theme('pager', NULL, $photos_x_page);
+  $out_album .= "\n<!-- event_album_plain END -->\n";
+  
+//  $photo_info = $flickr->getPhotoInfo(18873349);
+  
+//  $out_album .= $pid . " - " . print_r($photo_info,true);
+//  $out_album .= print_r($flickr,true);
+  
+
+//  $out .= $out_album . theme('pager', 10, 0, array('noflash' => 'value'));
+
+  return $out_album;
+}
+
+
+function _gathering_get_photos($node, $instructions=NULL) {
+  $flash = (isset($_GET['flash']));
+//  $out .= echo_slideshow_slideshow($tags, $instructions, $flash);
+  $out ='';
+  if ($flash) {
+    $out = theme('event_album_flash',$node);
+    $msg = "If you'd like to see these photos without Flash, " .
+      "<a href='" . _gathering_get_alias($node) . "' class='active'>click here</a>";
+    $out .= "<p align='center'><font size='-2'>$msg</font></p>";
+  } else {
+    $out = theme('event_album_plain',$node);
+    $msg .= "If you'd like to see these photos in Flash, " .
+      "<a href='" . _gathering_get_alias($node) . "?flash' class='active'>click here</a>";
+    $out .= "<p align='center'><font size='-2'>$msg</font></p>";
+  }
+  return $out;
+}
+
+function theme_event_story($story) {
+  $out  = "  <div class='comment'>\n";
+  $out .= "    <div class='content'>\n";
+  $out .= check_output($story['comment'], $story['format']);
+  $out .= "    </div>\n";
+  $out .= "    <div class='author'>\n";
+  $author = ($story['homepage']) ? l($story['name'], $story['homepage']) : $story['name'];
+  $out .= $author . " - " .  strftime("%c",$story['timestamp']);
+  $out .= "    </div>\n";
+//  $out .= htmlentities ( print_r($story, true));
+  $out .= "  </div>\n";
+  return $out;
+}
+
+function _gathering_get_stories($mode, $data) {
+
+  switch($mode) {
+    case 'node': // $data is a $node object
+      $rs = db_query("SELECT c.* FROM {comments} c WHERE nid = %d AND c.status=0 ORDER BY timestamp DESC", $data->nid);
+      break;
+    case 'home': // $data is a $camid integer
+      $sql = "SELECT c.*, n.*, gn.* FROM {gathering_node} gn " .
+        "LEFT JOIN {node} n ON n.nid = gn.nid " . 
+        "LEFT JOIN {comments} c ON c.nid= n.nid " . 
+        "WHERE gn.camid = %d AND c.status=0 ORDER BY c.timestamp DESC"; 
+      $rs = db_query($sql,$data);
+      break;
+    case 'country': // $data is an array $data['country'] text and $data['camid'] integer
+      $sql = "SELECT c.*, n.*, gn.* FROM {gathering_node} gn " .
+        "LEFT JOIN {node} n ON n.nid = gn.nid " . 
+        "LEFT JOIN {comments} c ON c.nid= n.nid " . 
+        "WHERE gn.camid = %d AND gn.country = '%s' AND c.status=0 ORDER BY c.timestamp DESC"; 
+      $rs = db_query($sql, $data['camid'], $data['country']);
+      break;
+  }
+  if (db_num_rows($rs) == 0) {
+    switch($mode) {
+      case 'node':
+        $out = "<i>There are no stories from this event.</i>";
+        break;
+      case 'home':
+      case 'country':
+        $out = "<i>No stories yet. If you attended a walk share your story.</i>";
+        break;
+    }
+  } else {
+    while ($story_data = db_fetch_array($rs)) {
+      if ($story_data['uid']) $story_data['homepage'] = "user/" . $story_data['uid'];
+      $out .= theme("event_story", $story_data);
+    }
+//    $out .= theme("pager");
+  }
+  return $out;
+}
+
+function _gathering_subtab_scrapbook($node) {
+  if ($node->camid == 1) return NULL;
+  
+  if($node->active > 0) {
+  
+  }
+  if (is_null($user)){
+    global $user;
+  }
+  $rel = _gathering_get_user_relationship($node);
+
+  list($tag_campaign, $tag_event) = split('/',  _gathering_get_alias($node) );
+  $mail_to = "$tag_event.$tag_campaign@raban.bluegecko.net";
+
+  $country_link = "gathering/home/$node->camid/$node->country";
+//  $out_country = "<p class='comment'><a href='$country_link'>Click here to see other events in $node->countryname</a><p>";
+
+  $out_photo  = "<div class='event_photo_album'>\n";
+  $out_photo .= "<h2>Photos</h2>\n";
+  $out_photo .= "<p><b>Share your photos!</b><br />\n" .
+    "<em>Did you take photos of this Walk? Do you want to share them? " . 
+    "Add pictures to our collection email them to <a href='mailto:$mail_to'>$mail_to</a></em></p>\n";
+  $out_photo .= _gathering_get_photos($node);
+  $out_photo .= "\n</div>\n";
+  
+  $out_stories  = "<div class='event_story_list'>\n";
+  $out_stories .= "<h2>Stories</h2>\n";
+  $out_stories .= "<p><b>Share your stories!</b><br />\n" .
+    "<em>Did you want to tell something about your walk? " . 
+    "Here's what people at this walk had to say:</em></p>\n";
+  $out_stories .= _gathering_get_stories('node', $node);
+  if( (node_comment_mode($node->nid)==2) && user_access('post comments') )
+    $out_stories .= theme('comment_form', array('pid' => 0, 'nid' => $node->nid), t('post your story')); ;
+  $out_stories .= "\n</div>\n";
+
+//  $out_stories .= $node->nid . " -> CommMode: " .node_comment_mode($node->nid);  
+//  $out_stories .= $node->nid . " -> User: " . user_access('post comments');  
+/*
+  $out_share  = "<p>If you walked at this event, tell the world about it here! Your comments will be appear in the scrapbook, below the photos.</p>";
+  $share_stories  .= form($form,"POST","action/storysend/".$node->nid);
+  if($user) {
+    $formvals['name'] = ($formvals['name']) ? $formvals['fname'] : trim ("$user->first_name $user->last_name");
+    $formvals['email'] = ($formvals['email']) ? $formvals['email'] : $user->mail;
+  }
+  
+  $form .= form_textfield("Your name","name",$formvals['name'],40,50,"The name you enter here will be displayed with your comment.",NULL,true);
+  $form .= form_textfield("Your email address","email",$form_comment['email'],40,50,"Your email address will not appear on the website.",NULL,true);
+  $form .= form_textarea("Your story","comment",$form_comment['comment'],40,10,NULL,NULL,true);
+  $form .= "<p><em>Items marked with a ".theme("mark")." are required.</em></p>";
+  $form .= form_submit("Add story");    
+
+  $out_share .= theme('comment_form', array('pid' => 0, 'nid' => $node->nid), t('post your story')); ;
+  $out_debug = user_access('post comments') . " -> " . node_comment_mode($node->nid);
+*/
+  $out  = "<!-- scrapbook start -->\n";
+  $out .= "$out_country\n\n$out_photo\n\n$out_stories\n\n$out_debug\n";
+  $out .= "<!-- scrapbook end -->\n";
+  
+//  $out .= "<br />" . print_r($node,true) . "<br /><br />"; 
+  
+/*
+  $out .= $node->nid . " -> " . _gathering_get_alias($node)  . " -> " . $mail_to  . "<br />"; 
+  $out .= print_r($user,true) . "<br /><br />"; 
+
+  $atag = "a".$node->nid;
+  $ctag = "c".$node->country;
+
+  $loc = wtw_parse_location($node,true);
+  $cname = wtw_countryname($node->country);
+*/
+
+
+/*
+  if (db_result(db_query("SELECT count(*) FROM echo_action_node WHERE country='%s'",$node->country)) > 1 ){
+    $s .= "<p><i>".l("Click here to see other events in $cname.","country/".strtolower($node->country))."</i></p>";
+  }
+*/
+//  $s .= wtw_over_gallery($atag,$i);
+//  $s .= wtw_over_stories("node",$atag,"Here's what people at this walk had to say:",$node);
+  
+  
+/*
+// Show last blog entry
+  $sql = "SELECT nid FROM {node} WHERE type = 'blog' AND status = 1 AND uid = %d ORDER BY created ASC LIMIT 0,1";
+  $blog_nid = db_result(db_query($sql, $user->uid ));
+  $blog_node = node_load(array('nid' => $blog_nid));
+  $output = node_view($blog_node, 1, 0, 0);
+// Show comments (if any)
+/*
+  $max = 10;
+  $query = "SELECT nid, cid, subject FROM {comments} WHERE nid = $blog_nid  AND status = 0 ORDER BY timestamp DESC";
+  $result = db_query_range($query, 0, $max);
+  $items = array ();
+  while ($comment = db_fetch_object($result)) {
+      $items[] = l($comment->subject, "node/$comment->nid", NULL, NULL, "comment-$comment->cid");
+  }
+  if (count($items)) {
+      $output .= theme('item_list', $items);
+  }
+*/
+/*
+  $out = comment_render($node);
+  $out = "<h3>Campaign: " . $node->camid . "</h3>" . $out;
+*/
+
+  return $out;
+}
+
+// return a user's relationship to a node
+// result will probably be "owner","attendee","volunteer", or NULL
+// if no $user is passed, this function will use the currently logged-in user
+function _gathering_get_user_relationship($node,$user=NULL){
+  static $relationships;
+
+  if (is_null($user)){
+    global $user;
+  }
+  
+  if (!isset($relationships[$user->uid][$node->nid])){
+    if ($node->uid == $user->uid){
+      $relationships[$user->uid][$node->nid] = "owner";
+    } else {
+      $s = db_fetch_array(db_query("SELECT * FROM {gathering_signup} WHERE uid=%d AND wid=%d",$user->uid,$node->nid));
+      $relationships[$user->uid][$node->nid] = $s['role'];
+    }
+  }
+  
+  return $relationships[$user->uid][$node->nid];
+}
+
+
+// utility for gathering_subtabs()
+function _gathering_subtab_invite($node){
+  $formvals['message'] = t(variable_get("gathering_invite_message",""));
+  
+  $out = "<h3>".t("Invite others to walk with you")."</h3>";
+  $out .= form(_gathering_invite_form($formvals),"POST","gathering/invite/".$node->nid); 
+  
+  return $out;
+}
+
+function _gathering_invite_form($data) {
+  global $user;
+  $out .= theme("form_element",t("Your First Name"),$user->first_name);
+  $out .= theme("form_element",t("Your Last Name/Surname"),$user->last_name);
+  $out .= theme("form_element",t("Your email address"),$user->mail);
+  $out .= theme("form_element",t("Subject"),t(variable_get("gathering_invite_subj","")));
+  
+  $out .= form_textarea(t("recipients"),"recipients",$data['recipients'],30,4,t("Enter as many email addresses as you like, one per line."));
+  
+  $out .= form_textarea(t("message"),"message",$data['message'],30,8);
+  
+  $out .= theme("gathering_btn_sendinvites");
+  
+  return $out;
+}
+
+// validate submitted invite form data
+// return recipient array if no errors
+function _gathering_invite_validate($data){
+  if (empty($data['message'])){
+    form_set_error("message",t("Please enter a message."));
+    $out = false;
+  }
+
+  if ($data['recipients']) {
+    $recipients = _gathering_invite_parse($data['recipients']);
+    foreach ($recipients as $email) {
+      if (!valid_email_address($email)) {
+        form_set_error('recipients', t('There is a problem with this address: ').$email);
+      }
+    }
+  } else {
+    form_set_error('recipients', t('Please enter your recipients.'));
+  }
+
+  return $out;
+}
+
+// utility function for parsing invite recipients from user input
+function _gathering_invite_parse($recips){
+  static $parsed;
+  
+  if (empty($parsed)){
+    $parsed = preg_split("/[\s,;]+/", $recips);
+  } 
+  
+  return $parsed;
+}
+
+function theme_gathering_btn_sendinvites(){
+  return form_submit(t("Send Invites"));
+}
+
+// utility for gathering_subtabs()
+// must return empty (ie, no title) if there is no content 
+function _gathering_subtab_details($node){
+  if (!empty($node->directions)){
+    $out .= theme("form_element","directions",$node->directions);
+  }
+  
+  if (!empty($node->description)){
+    $out .= theme("form_element","additional info",$node->description);
+  }
+
+  if (!empty($out)){
+    $out = "<h3>Event Details</h3>".$out;
+  }
+  
+  global $user;
+  if (($user->uid == $node->uid) || user_access("administer gathering signups")){
+    $out .= _gathering_subtab_details_signups($node);
+  }
+  
+  return $out;
+}
+
+function _gathering_subtab_details_signups($node){
+
+  $head = array(
+    t("First Name"),
+    t("Last Name"),
+    t("Email"),
+    t("Phone"),
+    t("Role")
+  );
+  
+  $signups = _gathering_get_signups($node->nid);
+
+//  $conn=mysql_connect("db.echoditto.com", "fighthunger_www", "alsdajfd7sas") or die(mysql_error());
+//  mysql_select_db("fighthunger_crm", $conn) or die(mysql_error());
+  db_set_active('crm');
+  
+  foreach ($signups as $s){
+
+//$result = mysql_query("SELECT * FROM civicrm_contact INNER JOIN civicrm_phone ON civicrm_location.id=civicrm_phone.location_id INNER JOIN civicrm_individual ON civicrm_contact.id=civicrm_individual.contact_id INNER JOIN civicrm_location on civicrm_contact.id=civicrm_location.entity_id INNER JOIN civicrm_email ON civicrm_location.id=civicrm_email.location_id WHERE civicrm_email.email='".$s['mail']."'", $conn) or die(mysql_error()); 
+    $sql = "SELECT * FROM {civicrm_contact} " .
+      "INNER JOIN {civicrm_phone} ON civicrm_location.id=civicrm_phone.location_id " .
+      "INNER JOIN {civicrm_individual} ON civicrm_contact.id=civicrm_individual.contact_id " .
+      "INNER JOIN {civicrm_location} ON civicrm_contact.id=civicrm_location.entity_id " . 
+      "INNER JOIN {civicrm_email} ON civicrm_location.id=civicrm_email.location_id " . 
+      "WHERE civicrm_email.email='".$s['mail']."'"; 
+    $result = db_query($sql);
+
+//while($row = mysql_fetch_array( $result )) {
+while($row = db_fetch_array( $result )) {
+  
+    $rows[] = array(
+      $row['first_name'],
+      $row['last_name'],
+      "<a mailto='".$row['email']."'>".$row['email']."</a>",
+      $row['phone'],
+      $s['role']
+    );
+  }
+  }
+  db_set_active();
+  
+  $out = "<h3>".t("Attending This Event")."</h3>";
+  $out .= theme("table",$head,$rows);
+  
+  return $out;
+}
+
+
+function _gathering_subtab_messages($node){
+  global $user;
+  $rel = _gathering_get_user_relationship($node,$user);
+  
+  switch ($rel){
+    case "owner":
+      $out = "<h3>".t("Send messages to attendees")."</h3>";
+      $count = _gathering_count_attendance_by_role($node);
+      if ($count['total'] > 0){
+        $options["attendee"] = t("Send to all users attending this event.")." (".$count['total']." ".(($count['total'] > 1) ? t("recipients") : t("recipient")).")";
+      }
+      if ($count['volunteer'] > 0){
+        $options["volunteer"] = t("Send only to the users who have volunteered to help with this event.")." (".$count['volunteer']." ".(($count['attendee'] > 1) ? t("recipients") : t("recipient")).")";
+      }
+      if (empty($options)){     
+        $out .= check_output(t("No one has signed up for this event yet. You can use this page to contact attendees and volunteers when they have signed up."));
+        $donotsend = true;
+      } else {
+        $form = form_radios("Send To","recip","attendee",$options);
+      }
+      break;    
+    case "attendee":
+    case "volunteer":
+      $out = "<h3>".t("Send a message to the event coordinator")."</h3>";
+      $form = form_hidden("recip","coordinator");
+      break;
+  }
+  
+  $form .= form_textfield("Subject","subject","",40,64);
+  $form .= form_textarea("Message","message","",30,8);
+  $form .= form_submit(t("Send"));
+  
+  if (!$donotsend){
+    $out .= form($form,"POST","gathering/message/".$node->nid);
+  }
+  return $out;
+}
+
+function _gathering_subtab_signup($node){
+  $form = _gathering_signup_form($node);
+
+  $out  = "<h3>".t("Walk with us!")."</h3>";
+  $out .= $form;
+  return $out;
+}
+
+function _gathering_signup_form($node){
+  $sform .= form_textfield(t("My guests"),"guests","",5,5,"I am bringing this many others to walk with me.");
+  
+  $sform .= form_textarea(t("Comment (optional)"),"comment","",40,5,"Feel free to leave a comment for the other attendees.");
+  $sform .= form_checkbox(t("Show my comment in the attendee list."),"opencomment",1,"")."<br/>";
+
+  $sform .= form_checkbox(t("I would like to volunteer to help organize this event."),"volunteer",1,"");
+  
+  $sform = theme("form_group","Signup Information",$sform);
+
+  // is a user logged in?
+  $out = wtw_user_login(
+    'gathering',  // module
+    array(
+      'first_name'      => array('required'=>1),
+      'last_name'       => array('required'=>1),
+      'phone'           => array('required'=>0)
+    ),            // fields
+    array(
+      'op'          => 'signup',
+      'nid'         => $node->nid
+    ),            // variables
+    t("Walk"), // button
+    $sform,        // extra form
+    true           //return
+  );
+  
+  return $out;
+}
+
+function _gathering_subtab_edit($node){
+  $c = _gathering_get_campaign($node);
+  $out .= "<h3>Edit this ".$c['eventname']."</h3>";
+  $out .= node_form($node);
+  return $out;
+}
+
+// returns a form of user and civicrm fields
+function _gathering_user_form($vals=array(),$signup=false,$loggingin=false){
+
+  // email
+  $form1 .= form_textfield(t("EMail"),"mail",$vals['mail'],40,64,"",NULL,TRUE);
+  
+  $form1 .= form_password(t("Password"),"pass",$vals['pass'],40,64,"",NULL,TRUE);
+  if (!$loggingin){
+    $form1 .= "<div id='pass2'>";
+    $form1 .= form_password(t("Password (repeat)"),"pass2",$vals['pass2'],40,64,t("Enter your password a second time."),NULL,TRUE);
+    $form1 .= "</div>";
+  }
+  
+  $out .= theme("form_group",t("Login Information"),$form1,array("id"=>"form_login"));
+
+  if (!$loggingin){
+    // first_name
+    $form2 .= form_textfield(t("First Name"),"first_name",$vals['first_name'],40,64,"",NULL,TRUE);
+    
+    // last_name
+    $form2 .= form_textfield(t("Last Name / Surname"),"last_name",$vals['last_name'],40,64,"",NULL,TRUE);
+  
+    // phone
+    // (only required for organizing, not signups
+    $form2 .= form_textfield(t("Phone number"),"phone",$vals['phone'],40,64,"",NULL,!$signup);
+  
+    if (!$signup){
+      // street address
+      $form2 .= form_textfield(t("Street Address"),"street_address",$vals['street_address'],40,64,"",NULL,FALSE);
+    
+      // city
+      $form2 .= form_textfield(t("City"),"city",$vals['city'],40,64,"",NULL,FALSE);
+    
+      // state_province
+      $form2 .= form_textfield(t("State / Province"),"state_province",$vals['state_province'],40,64,"",NULL,FALSE);
+    
+      // postal_code
+      $form2 .= form_textfield(t("Postal Code"),"postal_code",$vals['postal_code'],10,64,"",NULL,FALSE);
+    
+      // country
+      $form2 .= form_select(t("Country"),"country",$vals['country'],_gathering_get_countries(),NULL,NULL,NULL,FALSE);
+    }
+  }
+  
+  if ($form2){
+    $out .= theme("form_group",t("Contact Information"),$form2,array("id"=>"form_contact"));
+  }
+
+  return $out;
+}
+
+// validates user fields
+// TODO: should this be moved to hook_user somehow?
+function _gathering_user_validate($data,$signup=false){
+  // check email
+  if ($error = user_validate_mail($data['mail'])){
+    form_set_error('mail',$error);
+  }
+
+  // build required fields
+  $required_fields[] = array(
+    'name' => "Password 1",
+    'variable'     => "pass"
+  );
+  $required_fields[] = array(
+    'name' => "Password 2",
+    'variable'     => "pass2"
+  );
+  $required_fields[] = array(
+    'name' => "First Name",
+    'variable'     => "first_name"
+  );
+  $required_fields[] = array(
+    'name' => "Last Name / Surname",
+    'variable'     => "last_name"
+  );
+  if (!$signup){
+    $required_fields[] = array(
+      'name' => "Phone Number",
+      'variable'     => "phone"
+    );
+  }
+  
+  foreach ($required_fields as $f){
+    $v = $f['variable'];
+    if (isset($data[$v]) && (empty($data[$v]))){
+      form_set_error($v,t("Please enter a ".$f['name']."."));
+    }
+  }
+  
+  // validate country field
+  if ($data['country'] == "--"){
+    form_set_error("country",t("Please select a Country."));
+  }
+  
+  // check password
+  if (($data['pass'] != $data['pass2']) && (isset($data['pass']) && !empty($data['pass'])) && (isset($data['pass2']) && !empty($data['pass2']))){
+    form_set_error("pass",t("Your passwords must match."));  
+  }
+}
+
+// utility function saves a user from submitted data
+function _gathering_save_user($edit){
+  $user_to_save = array(  'name'    => $edit['mail'], 
+                          'init'    => $edit['mail'], 
+                          'mail'    => $edit['mail'], 
+                          'roles'   => array(2),
+                          'status'  => 1,
+                          'pass'    => $edit['pass']
+                          );
+  $new_user = user_save('', $user_to_save);
+  
+  // login user
+  global $user;
+  $user = $new_user;
+
+  // save CRM data
+  $c = _gathering_save_user_crm($edit);
+  
+  return array('user' => $user,
+               'crm'  => $c);
+}
+
+function _gathering_save_user_crm($edit){
+  if (module_exist('civicrm')) {
+    // get contact object
+    civicrm_initialize(TRUE);
+    $param['email'] = $edit['mail'];
+    $c = crm_get_contact($param);
+
+    // update contact object
+    $crm_data = array('first_name'      => $edit['first_name'],
+                      'last_name'       => $edit['last_name'],
+                      'phone'           => $edit['phone'],
+                      'street_address'  => $edit['street_address'],
+                      'city'            => $edit['city'],
+                      'state_province'  => $edit['state_province'],
+                      'postal_code'     => $edit['postal_code'],
+                      'country'         => $edit['country']);
+    crm_update_contact($c,$crm_data);
+  } else {
+    $c = NULL;
+  }
+
+  return $c;
+}
+
+// utility function for gathering_page_organize
+// parses posted data into a new node
+// saves civicrm data if crm data is passed
+function _gathering_save_node($edit,$user=NULL,$crm=NULL){
+  if (is_null($user)){
+    global $user;
+  }
+
+  $edit['uid'] = $user->uid;
+  // save node
+  $nid = node_save(array2object($edit));
+  
+  if (is_null($crm) && module_exist('civicrm')){
+    // try to find the crm if it hasn't been passed
+    civicrm_initialize(TRUE);
+    $param['email'] = $user->mail;
+    $crm = crm_get_contact($param);
+  }
+  
+  // now try to add the contact record
+  if (module_exist('civicrm') && !is_null($crm)){
+    $campaigns = _gathering_get_campaigns();
+    $camp = $campaigns[arg(2)];
+    
+    // save crm action
+    $action = array('entity_id'         => $crm->id,
+                    'entity_table'      => 'civicrm_contact',
+                    'activity_date'     => date("YmdHis"),
+                    
+// activity_type: 
+//  sortable label for this activity assigned be registering module or user (e.g. Phone Call)
+                    'activity_type'     => 'gathering',
+// module:
+// Display name of module which registered this activity
+                    'module'            => 'gathering',
+// callback|method
+// function to call which will return URL for viewing details
+                    'callback|method'   => 'gathering_civicrm_action_callback',                                 
+// activity_id
+// FK to details item - passed to callback
+                    'activity_id'       => $nid,
+// activity_summary
+// brief description of activity for summary display - as populated by registering module
+                    'activity_summary'  => 'created a '.$camp['eventname'].' ('.$camp['name'].')',
+                    );
+    $activity = crm_create_activity_history($action);                
+  }
+  
+  // return new node id
+  return $nid;
+}
+
+function gathering_civicrm_action_callback($nid){
+  drupal_goto("node/".$nid);
+}
+
+// utility function- used by gathering_access and others
+// $op can be "create","delete","update","insert" or "signup"
+function _gathering_user_access($op,$node,$user=NULL){
+  if (is_null($user)){
+    global $user;
+  }
+
+  $c = _gathering_get_campaign($node);
+  switch ($op){
+    case "create":
+      if ($c['active'] < 2) {
+        // nobody can create a gathering for an inactive (closed or post action) campaign
+        $out = false;
+      } elseif (user_access("create multiple gatherings per campaign",$user)){
+        // users with this permission can always create a new gathering for an active campaign
+        $out = true;
+      } else {
+        // check whether this user is already attending or organizing and event
+        $nodes = _gathering_get_user_nodes($user->uid,$c['camid']);
+        if ($nodes){
+          $out = false;
+        } else {
+          // these users can create an event only if they have the "create gatherings" permission
+          $out = user_access("create gatherings",$user);
+          break;
+        }
+      }
+      break;
+    case "delete":
+      // only admins can delete gatherings
+      $out = user_access("administer nodes",$user);
+      break;
+    case "update":
+      if (user_access("administer nodes",$user)){
+        // users with "administer nodes" can edit any gathering
+        $out = true;
+      } elseif (($node->uid == $user->uid) && user_access("edit own gatherings",$user)){
+        // users with "edit own gatherings" can edit gatherings they own only for campaigns that are active
+        $out = ($c['active']==2);
+      } else {
+        // nobody else can edit a gathering
+        $out = false;
+      }
+      break;
+    case "view":
+      // everyone can view gatherings
+      $out = true;
+      break;
+    case "signup":
+      if (($c['active']==2) && $node->signup_status) {
+        if ($user->uid == 0){
+          // anonymous can always signup for active campaigns
+          $out = true;
+        } else {
+          // what gatherings in this campaign is this user associated with ?
+          $gatherings = _gathering_get_user_nodes($user->uid,$c['camid']);
+          
+          // the user must be associated with no gatherings
+          $out = (!$gatherings);
+        }
+      } else {
+        //nobody can sign up for inactive campaigns
+        //nobody can sign up for events with closed signups
+        $out = false;
+      }
+      break;
+    case "message":
+      if (user_access("send and receive GatheringMessages")){
+        $role = _gathering_get_user_relationship($node,$user);
+        $out = !is_null($role);
+      } else {
+        // user is not permissioned
+        $out = false;
+      }
+      break;
+    case "invite":
+      $role = _gathering_get_user_relationship($node,$user);
+      $out = !is_null($role);
+      break;
+  }
+  return $out;
+}
+
+// what nodes does this user attend / organize
+function _gathering_get_user_nodes($uid,$camid=NULL){
+  // fetch owned
+  $q1 = "SELECT n.nid FROM {node} n, {gathering_node} gn WHERE n.type LIKE 'gathering-%%' AND n.uid=%d";
+  $args[] = $uid;
+  if ($camid){
+    $q1 .= " AND n.nid = gn.nid AND gn.camid = %d";
+    $args[] = $camid;
+  }
+  array_unshift($args,$q1);
+  $rs1 = call_user_func_array("db_query",$args);
+  while ($a = db_fetch_array($rs1)){
+    $out['owner'][] = $a['nid'];
+  }
+  
+  // fetch signups
+  unset($args);
+  $q2 = "SELECT gs.wid FROM {gathering_signup} gs, {gathering_node} gn WHERE gs.uid=%d AND gs.wid=gn.nid";
+  $args[] = $uid;
+  if ($camid) {
+    $q2 .= " AND gn.camid = %d";
+    $args[] = $camid;
+  }
+  $q2 .= " ORDER BY gs.timestamp DESC";
+  array_unshift($args,$q2);
+  $rs2 = call_user_func_array("db_query",$args);
+  while ($a = db_fetch_array($rs2)){
+    $out['attendee'][] = $a['wid'];
+  }
+  
+  return $out;
+}
+
+// utility- returns an array of all signup objects for a given node
+function _gathering_get_signups($nid){
+  static $actions_signups;
+  $signups = array();
+  if (empty($action_signups[$nid])){
+    $rs = db_query("SELECT * FROM {gathering_signup} INNER JOIN users ON gathering_signup.uid=users.uid WHERE wid=%d ORDER BY timestamp DESC",$nid);
+    while ($s = db_fetch_array($rs)){
+      $signups[] = $s;
+    }
+    $action_signups[$nid] = $signups;
+  }
+  
+  return $action_signups[$nid];
+}
+
+Function _gathering_count_attendance_by_role($node){
+  $rs = db_query("SELECT role,count(*) as count FROM {gathering_signup} WHERE wid=%d GROUP BY role",$node->nid);
+  while ($a = db_fetch_array($rs)){
+    $out[$a['role']] = $a['count'];
+  }
+  // count total
+  if (is_array($out)){
+    foreach ($out as $role=>$c){
+      $total += $c;
+    }
+    $out['total'] = $total;
+  }
+  
+  return $out;
+}
+
+function _gathering_format_title($node,$nocountry=false){
+  // TODO make this themeable
+  if (is_numeric($node)){
+    $node = node_load(array("nid"=>$node));
+  }
+  
+  $cs = _gathering_get_countries();
+  $out = "<strong>".l($node->title,"node/".$node->nid) . " ".t("in")." ".$node->city;
+  if (!$nocountry){
+    $out .= ", ".$cs[$node->country];
+  }
+  $out .= "</strong>";
+  return $out;
+}
+
+function _gathering_user_statusreport($camid,$status,$user=NULL){
+  if (is_null($user)){
+    global $user;
+  }
+  
+  if ($user->uid > 0){
+    $nodes = _gathering_get_user_nodes($user->uid,$camid);
+  }
+  
+  if ($nodes['owner']){
+    foreach ($nodes['owner'] as $nid){
+      $node = node_load(array("nid"=>$nid));
+      $items[] = ( ($status == 2) ?  t("I'm organizing") : t("I organized") ) . " " . _gathering_format_title($node);
+    }
+  }
+  if ($nodes['attendee']){
+    foreach ($nodes['attendee'] as $nid){
+      $node = node_load(array("nid"=>$nid));
+      $items[] = ( ($status == 2) ?  t("I'm walking in") : t("I walked in") ) . " " . _gathering_format_title($node);
+    }
+  }
+  
+  if ($items){
+    $out = theme("item_list",$items);
+  } else {
+    $out = "";
+  }
+  
+  return $out;
+}
+
+// fetches all gathering nids in a certain country
+function _gathering_get_nodes_by_country($c,$camid=NULL){
+  $q = "SELECT nid FROM {gathering_node} WHERE country='%s'";
+  $args[] = $c;
+  if (!is_null($camid)){
+    $q .= " AND camid=%d";
+    $args[] = $camid;
+  }
+  $q .= " ORDER BY city";
+  
+  array_unshift($args,$q);
+  $rs = call_user_func_array("db_query",$args);
+  while ($a = db_fetch_array($rs)){
+    $out[] = $a['nid'];
+  }
+  return $out;
+}
+
+// adds id attributes to form_group calls
+// (this is native in 4.7, but a hack for our 4.6)
+function theme_form_group($title,$content,$atts=""){
+  $out = "<div".drupal_attributes($atts).">".form_group($title,$content)."</div>";
+  return $out;
+}
+
+// format SQL time into human-readable time
+function _gathering_time_display($in){
+  if (empty($in)){
+    $out = "";
+  } else {
+    $out = date("g:i A",strtotime($in));
+  }
+  return $out;
+}
+
+// format human-written time into SQL time
+function _gathering_time_sql($in=NULL){
+  
+  $out = date("YmdHis",strtotime($in));
+  return $out;
+}
+
+// fetch or create a URL alias for this node
+function _gathering_get_alias($node) {
+  // check if there is already an alias
+  $alias = db_result(db_query("SELECT dst FROM {url_alias} WHERE src='node/%d'",$node->nid));
+  
+  if ($alias) {
+    $out = $alias;
+  } else {
+    // create a new alias
+    $alias = _gathering_get_alias_newname($node);
+  }
+  
+  return $out;
+}
+
+// iterative function to find a new url_alias for a gathering node
+function _gathering_get_alias_newname($node,$i=1){
+  $c = _gathering_get_campaign($node);
+  if (empty($c['shortname'])){
+    $pre = "";
+  } else {
+    $pre = $c['shortname'].'/';
+  }
+
+  // switch on iteration
+  switch ($i){
+    case '1':
+      // first iteration, try city
+      $alias = $pre._gathering_get_alias_clean($node->city);
+      break;
+    default:
+      // other iterations, use city and number
+      $alias = $pre._gathering_get_alias_clean($node->city).$i;
+      break;
+  }
+  
+  // is this value ok?
+  if (_gathering_get_alias_newname_validate($alias)){
+    // it is ok, so save it and return it
+    db_query("INSERT INTO {url_alias} SET src='%s',dst='%s'","node/".$node->nid,$alias);
+    $out = $alias;
+  } elseif ($i == 10) {
+    // give up after 10 tries
+    // (hopefully we will never have 10 events in the same city)
+    $out = false;
+  } else {
+    // try another name
+    $out = _gathering_get_alias_newname($node,$i+1);
+  }
+  
+  return $out;
+}
+
+// clean a city or country field into a nice human-readable potential uri
+function _gathering_get_alias_clean($in){
+  // lowercase only
+  $in = strtolower($in);
+  
+  // remove all non-alphabetic characters
+  for($c=0; $c<strlen($in); $c++){
+    $char = substr($in,$c,1);
+    $ascii = ord($char);
+    $alphabetic = (($ascii > 96) && ($ascii < 123));
+    if ($alphabetic){
+      $out .= $char;
+    } elseif ($char == " "){
+      $out .= "_";
+    } elseif ($char == "/"){
+      $out .= "/";
+    }
+  }
+  
+  return $out;
+}
+
+// check whether this alias is already used
+function _gathering_get_alias_newname_validate($alias){
+  $out = true;
+  
+  // does it already exist?
+  $x = db_fetch_array(db_query("SELECT * FROM {url_alias} WHERE dst='%s'",$alias));
+  if ($x){
+    $out = false;
+  }
+
+  // is it empty?
+  if (empty($alias)){
+    $out = false;
+  }
+  
+  return $out;
+}
+
+// API callback for wtw_user.module
+function gathering_wtw_user_completed($vars){
+  $node_data = $vars['event'];
+  
+  switch ($vars['op']){
+    case 'organize':
+      // creating a new node
+      $campaigns = _gathering_get_campaigns();
+      $c = $campaigns[$vars['camid']];
+      
+      // is the user permissioned to create this node?
+      $nodedummy->type = $c['nodetype'];
+      if (_gathering_user_access("create",$nodedummy)){      
+        // yes, they are permissioned
+        // re-validate node data
+        node_validate($node_data);
+        if (form_get_errors()){
+          // there are node errors-- 
+          // this branch should only happen if someone is hacking, so ignoring for now
+          // TODO add appropriate error handling here
+        } else {
+          // save node
+          $nid = _gathering_save_node($node_data);
+          
+          // send a welcome message
+          _gathering_send_welcome($nid);
+          
+          // finish
+          drupal_set_message(t("You have created your event! Please follow the link in the email we have sent you to confirm your user-id."));
+          drupal_goto("node/".$nid);
+        }
+      } else {
+        // no, user is not permissioned to create this node
+        drupal_set_message(t("Sorry- This user account is not allowed to create this event."));
+        drupal_goto($c['shortname']);
+      }
+      break;
+    case 'signup':
+      // signing up for an existing gathering
+      
+      // is this user permissioned?
+      global $user;
+      $node = node_load(array("nid"=>$vars['nid']));
+      if (_gathering_user_access("signup",$node,$user)){
+        // yes, they are permissioned
+        _gathering_create_signup($user,$vars['nid'],$vars['edit']);
+        drupal_set_message(t("You are signed up."));
+      } else {
+        // user is not permissioned, so set message
+        drupal_set_message(t("You are not permissioned to sign up for this event."));
+      }
+      drupal_goto("node/".$vars['nid']);    
+      break;
+  }
+}
+
+// utility function
+// creates signup record
+// called by gathering_page_signup()
+function _gathering_create_signup($user,$nid,$edit){
+  if ($edit['volunteer']){
+    $role = "volunteer";
+  } else {
+    $role = "attendee";
+  }
+  db_query("INSERT INTO {gathering_signup} SET wid=%d,uid=%d,role='%s',comment='%s',opencomment=%d,timestamp=now(),guests=%d",$nid,$user->uid,$role,$edit['comment'],$edit['opencomment'],$edit['guests']);
+}
+
+
+
+function gathering_reports($op=NULL){
+  $campaigns = _gathering_get_campaigns();
+  if (is_null($op)){
+    foreach ($campaigns as $c){
+      $items[] = l($c['name'],"admin/gathering_reports/".$c['camid']);
+    }
+    $camps .= "<h3>Choose a campaign:</h3>";
+    $camps .= theme("item_list",$items);
+    $out .= form_group("Event Reports",$camps);
+    
+    $out .= gathering_report_usersearch();
+  } elseif ($op == "users"){
+    $out = gathering_report_usersearch();
+  } else {
+    drupal_set_title("reports - ".$campaigns[$op]['name']);
+    $out = gathering_report_campaign($op);
+  }
+  
+  print theme("page",$out);
+}
+
+function gathering_report_usersearch(){
+  $edit = $_POST['edit'];
+  
+  if (!is_null($edit)){
+    // search user table
+    $uid = db_result(db_query("SELECT uid FROM users WHERE mail='%s'",$edit['email']));    
+    if ($uid){
+      $u = user_load(array("uid"=>$uid));
+      $uf .= theme("form_element","Email",$u->mail);
+//      $uf .= theme("form_element","First Name",$u->first_name);
+//      $uf .= theme("form_element","Last Name",$u->last_name);
+//      $uf .= theme("form_element","Phone",$u->phone);
+
+      $links = l("Drupal Profile","user/".$u->uid);
+      civicrm_initialize(TRUE);
+      $param['email'] = $user->mail;
+      $c = crm_get_contact($param);
+      if ($c){
+        $links .= "<br/>".l("CiviCRM Profile","civicrm/contact/view","cid=861");
+      }
+      
+      $uf .= theme("form_element","Links",$links);
+      
+      $campaigns = _gathering_get_campaigns();
+      foreach($campaigns as $c){
+        $status = _gathering_user_statusreport($c['camid'],$u);
+        if (!empty($status)){
+          $uf .= theme("form_element",t($c['name']),$status);
+        }
+      } 
+      
+      $out .= form_group(t("Search Result"),$uf);
+    }
+  }
+
+  $form1 .= form_textfield("Email Address","email",$edit['email'],20,25,"Enter an email address.");
+  $form1 .= form_hidden("op","keyword");
+  $form1 .= form_submit("Search");
+  $form .= form_group("Find Users",$form1);
+  $out .= form($form,"POST","admin/gathering_reports/users");
+
+  return $out;
+}
+
+function gathering_report_campaign($camid){
+  $edit = $_POST['edit'];
+  
+  if (is_null($edit)){    
+    $form1 .= form_textfield("Keywords","keywords","",20,25,"Enter keywords seperated by commas.");
+    $form1 .= form_hidden("op","keyword");
+    $form1 .= form_submit("Search");
+    $form .= form_group("Events- Keyword Search",$form1);
+    $out = form($form);
+    
+    $out .= gathering_report_campaign_lists($camid);
+    $out .= gathering_report_campaign_email($camid);
+    
+  } else {
+    switch($edit['op']){
+      case 'keyword':
+        $out = gathering_report_campaign_search($camid,$edit);
+        break;
+    }
+  }
+  
+  
+  return $out;
+}
+
+function gathering_report_campaign_search($camid,$edit){
+  drupal_set_title(drupal_get_title()." - search results: '".$edit['keywords']."'");
+
+  $keys = explode(",",$edit['keywords']);
+  $q = "SELECT * FROM {node} n, gathering_node {gn} WHERE n.nid = gn.nid AND ";
+  $fields = array("n.title","gn.city","gn.description","gn.directions","gn.route","gn.sponsors");
+  foreach($keys as $k){
+    $k_sql = mysql_escape_string($k);
+    unset($qsub);
+    foreach($fields as $f){
+      $qsub[] = $f." LIKE '%".$k_sql."%'";
+    }
+    $qs[] = "(".implode(" OR ",$qsub).")";
+  }
+  $q .= implode(" AND ",$qs)." ORDER BY n.nid ASC";
+  
+  $rs = db_query($q);
+  while ($o = db_fetch_object($rs)){
+    $nodes[] = $o;
+  }
+  
+  $out = gathering_report_list($nodes);
+  
+  return $out;
+}
+
+function gathering_report_list($nodes){
+  $countries = _gathering_get_countries();
+  $header = array("ID","City","Country","Coordinator","Walkers","Created","Confirmed");
+  foreach ($nodes as $n){
+    if (!isset($n->signups)){
+      $n->signups = count(_gathering_get_signups($n->nid));
+    }
+    
+    $u = user_load(array("uid"=>$n->uid));
+    $rows[] = array(
+      l($n->nid,"node/".$n->nid),
+      $n->city,
+      $countries[$n->country],
+      l($u->mail,"user/".$u->uid),
+      $n->signups,
+      format_date($n->created,"small"),
+      _gathering_checkconfirm_node($n->nid) ? "Yes" : "No"
+    );
+  }
+  
+  drupal_set_html_head("
+  <style>
+  table td {
+    padding-right: 20px;
+  }
+  </style>
+  ");
+  $out = theme("table",$header,$rows);
+  
+  return $out;
+}
+
+function gathering_report_campaign_lists($camid){
+  $rs = db_query("SELECT * FROM {node} n, {gathering_node} gn ".
+                 "WHERE n.nid = gn.nid ".
+                 "AND gn.camid=%d ".
+                 "ORDER BY n.created DESC ".
+                 "LIMIT 20",$camid);
+  while ($o = db_fetch_object($rs)){
+    $nodes[] = $o;
+  }
+  $out .= form_group("Newest Events",gathering_report_list($nodes));
+  
+  unset($nodes);
+  $rs = db_query("SELECT n.*,gn.*, count(gs.uid) as signups ".
+                    "FROM {node} n, {gathering_signup} gs, {gathering_node} gn ".
+                    "WHERE n.type = 'gathering-%d' ".
+                    "AND n.nid = gn.nid ".
+                    "AND n.nid = gs.wid ".
+                    "GROUP BY n.nid ".
+                    "ORDER BY signups DESC LIMIT 20",$camid);
+  while ($o = db_fetch_object($rs)){
+    $nodes[] = $o;
+  }
+  $out .= form_group("Most Attended Events",gathering_report_list($nodes));
+  
+  return $out; 
+}
+
+function gathering_report_campaign_email($camid){
+  $rs = db_query("SELECT u.mail FROM {node} n, {users} u WHERE u.uid = n.uid AND n.type='gathering-%d' GROUP BY u.mail",$camid);
+  while ($a = db_fetch_array($rs)){
+    $coords[] = $a['mail'];
+  }
+  $coords_out = implode(", ",$coords);
+
+  $out = check_output(t("Copy/paste this into your email program to contact coordinators for all events."));
+  $out .= form_textarea("","",$coords_out,40,20);
+  return form_group("Coordinator Emails",$out);
+}
+
+// send a welcome message to the organizer of a new node
+function _gathering_send_welcome($nid){
+  $subject = variable_get("gathering_welcome_subj",false);
+  $text = variable_get("gathering_welcome_message",false);
+  
+  if ($subject && $text){
+    $uid = db_result(db_query("SELECT uid FROM {node} WHERE nid=%d",$nid));
+    $user = user_load(array("uid"=>$uid));
+    $text = _gathering_send_welcome_vars($text,$user);
+    $from = variable_get("site_mail","");
+    $to = $user->mail;
+    mailqueue_enqueue($from, $to, $subject, $text);
+  }
+}
+
+function _gathering_send_welcome_vars($text,$user){
+  $hash = md5($user->pass."confirm");
+  $vars = array(
+    "%confirmurl" => url("gathering/confirm/".$user->uid."/".$hash,NULL,NULL,true),
+    "%firstname" => $user->first_name,
+    "%lastname" => $user->last_name
+  );
+  
+  $out = str_replace(array_keys($vars),$vars,$text);
+  
+  return $out;
+}
+
+// callback for user confirmation
+function gathering_page_confirm($uid,$hash){
+  $user = user_load(array("uid"=>$uid));
+  switch ($hash){
+    case (md5($user->pass."confirm")):
+      $newrole = variable_get("gathering_confirmrole","");
+      if ($newrole){
+        db_query("INSERT IGNORE INTO {users_roles} SET uid=%d,rid=%d",$uid,$newrole);
+      }
+      drupal_set_message("<b>".t("Thanks! Your account has been confirmed.")."</b>");
+      break;
+    default:
+      drupal_set_message(t("Confirmation error"));
+      break;
+  }
+  drupal_goto("user/".$uid);
+}
+
+function _gathering_checkconfirm_user($uid){
+  $role = variable_get("gathering_confirmrole",false);
+  if ($role){
+    $out = db_num_rows(db_query("SELECT * FROM {users_roles} WHERE uid=%d AND rid=%d",$uid,$role));
+  } else {
+    $out = false;
+  }
+  return $out;
+}
+
+function _gathering_checkconfirm_node($nid){
+  $role = variable_get("gathering_confirmrole",false);
+  if ($role){
+    $out = db_num_rows(db_query("SELECT * FROM {users_roles} ur, {node} n WHERE n.nid=%d AND ur.uid=n.uid AND ur.rid=%d",$nid,$role));
+  } else {
+    $out = false;
+  }
+  return $out;
+}
+
+function gathering_cron() {
+  global $flickr;
+  $start_time = variable_get('last_cron', 1147651200);
+  variable_set('last_cron', time()-2);
+  $photos = $flickr->searchFromTime($start_time);
+  _gathering_refresh_gallery($photos);
+}
+
+function gathering_refresh_event($nid = NULL ) {
+  if(!$nid) $nid = arg(1);
+  if(!$nid) drupal_goto('home'); 
+
+  global $flickr;
+  $cache_time_tmp = $flickr->cacheTime;
+  $flickr->cacheTime = 10;
+  $node = node_load(array('nid' => $nid));
+  $tag = _tags4flickr ($node->tag_event);
+  $photos = $flickr->searchForTags($tag, 'all', 300);
+  db_query("DELETE FROM {wtw_gallery_tags} WHERE tag = '%s'", $tag);
+  _gathering_refresh_gallery($photos);
+  
+  foreach($photos as $photo) {
+    $msg .= $photo['id'] . "<br />";
+  }
+  $flickr->cacheTime = $cache_time_tmp;
+  $msg  = '<h3>Photos (' . count($photos) .') :</h3><br />' .
+    'TAG FH: ' . $node->tag_event . '<br />' . 
+    " TAG flickr: $tag<br />" . $msg;
+  drupal_set_message($msg);
+  drupal_goto("node/$nid");
+}
+
+function gathering_refresh_campaign($cid) {
+  global $flickr;
+  $sql = "SELECT shortname FROM {gathering_campaign} WHERE camid=$cid";
+  $tag = db_result(db_query($sql));
+  $photos = $flickr->searchForTags($tag, 'all', 300);
+  _gathering_refresh_gallery($photos);
+  drupal_goto("gathering/home/$cid");
+}
+
+
+function _gathering_refresh_gallery($photos) {
+  global $flickr;
+  foreach($photos as $photo) {
+    $pid = $photo['id'];
+    $secret = $photo['secret'];
+    $server = $photo['server'];
+    db_query("DELETE FROM {wtw_gallery_tags} WHERE photo_id = '%s'", $pid);
+    $data = $flickr->getPhotoInfo($pid);
+    foreach($data['tags'] as $tag) {
+      db_query("INSERT INTO {wtw_gallery_tags} VALUES " .
+        "('$tag', '$pid', UNIX_TIMESTAMP(), '$secret', '$server')");
+    }
+  }
+  return $photos;
+}    
+
+/**
+ * Fix some country codes
+ * YU > CS
+ * CD > ZR
+ * UK > GB
+ * GG > GB
+ * IM > GB
+ * JE > GB
+ */
+function gathering_fix2ISO_countrycode($code) {
+  switch($code) {
+    case 'UK':
+    case 'GG':
+    case 'IM':
+    case 'JE':
+      return 'GB';
+    case 'YU':
+      return 'CS';
+    case 'CD':
+      return 'ZR';
+    default:
+      return $code;
+  }
+}
+
+
+
+?>

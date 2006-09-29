@@ -1,0 +1,17 @@
+Authorize_net module
+
+Mar 2, 2005
+  * Bugfix #18280: authorize.net form submission not sent over ssl. Patch by crunchywelch.
+
+Dec 17, 2004
+  * Added feature #14486: Make the Authorize.Net reciept optional.
+
+Dec 15, 2004
+  * Added feature #14361: Additional authorize.net fields.
+
+Dec 14, 2004
+  * Require the user be connected via SSL for accessing the credit card form or the processing page.
+  * Add month and year descriptions to the credit card form.
+
+Dec 12, 2004
+  * Initial release. Sponsored by Cameron Barrett of http://camworld.com/

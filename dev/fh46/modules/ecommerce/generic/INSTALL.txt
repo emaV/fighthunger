@@ -1,0 +1,14 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: Generic module
+Author: Matt Westgate <drupal at asitis dot org>
+********************************************************************
+INSTALLATION:
+
+1. Place the entire generic directory into your Drupal
+   modules/store/ directory.
+
+2. Enable this module by navigating to:
+
+     administer > modules

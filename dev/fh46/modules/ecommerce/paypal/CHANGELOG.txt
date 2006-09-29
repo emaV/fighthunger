@@ -1,0 +1,10 @@
+Paypal module
+
+Jan 14, 2005
+  * For PayPal transactions, when the payment status is completed and the transaction consists of only non-shippable items, set the transaction workflow to complete. This allows product such as file downloads to be available immediately to the user. Authorize.net module needs to be updated as well.
+
+Dec 14, 2004
+  * Minor bugfix and code cleanup.
+
+Apr 19, 2004
+  * Fixed bug #6974: Make PayPal respect currency of the site. Reported by Anonymous.

@@ -1,0 +1,536 @@
+<?php
+// $Id: address.module,v 1.16.2.8 2006/03/13 04:58:19 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_help()
+ */
+function address_help($section = 'admin/help#address') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enable address books for users.');
+  }
+}
+
+/**
+ * Implementation of menu_hook()
+ */
+function address_menu($may_cache) {
+  global $user;
+  $uid = $user->uid;
+  $items = array();
+
+  if (!$may_cache) {
+    if (arg(0) == 'user') {
+      if (user_access('administer users')) {
+        $uid = arg(1);
+      }
+      if ($uid) {
+        $items[] = array('path' => "user/$uid/address", 'title' => t('address book'), 'callback' => 'address_page', 'access' => TRUE, 'type' => MENU_LOCAL_TASK, 'weight' => 1);
+      }
+    }
+  }
+
+  return $items;
+}
+
+/**
+ * implementation of hook_settings()
+ */
+function address_settings() {
+  return form_select(t('Default country'), 'ec_country', variable_get('ec_country', ''), address_build_countries(), t('Choose the default country for addresses.'));
+}
+
+/**
+ * Implementation of hook_checkoutapi().
+ */
+function address_checkoutapi(&$txn, $op, $post_op = NULL, $arg4 = NULL) {
+  global $user;
+
+  if ($txn == 'address') return TRUE;
+  $output = '';
+
+  switch ($op) {
+    case 'form':
+      if ($txn->shippable) {
+        drupal_set_title(t('Choose a shipping and billing address'));
+      }
+      else {
+        drupal_set_title(t('Choose a billing address'));
+      }
+      $output .= theme('address_checkout_form', $txn);
+      $output .= form_submit(t('Continue'));
+      return $output;
+      
+    case 'validate' :
+      //Logged in users
+      if ($user->uid > 0) {
+        if ($txn->shippable && !$txn->shipping_address) {
+          form_set_error('shipping_address', t('You need to select a shipping address.'));        
+        }
+        if (!$txn->billing_address) {
+          form_set_error('billing_address', t('You need to select a billing address.'));
+        }
+      }
+      //anonymous users
+      else {
+        if (!valid_email_address($txn->mail)) {
+          form_set_error('mail', t('Please enter a valid email address'));
+        }
+      }
+      break;
+
+    case 'save':
+      $txn->screen++;
+      break;
+
+    case 'review':
+      if ($txn->shippable) {
+        $box['subject'] = t('Shipping and billing address');
+      }
+      else {
+        $box['subject'] = t('Billing address');
+      }
+      $box['content'] = theme('address_review', $txn);
+      return $box;
+  }
+}
+
+/**
+ * The form to set the shipping and billing address in the checkout procedure.
+ */
+function theme_address_checkout_form($txn) {
+  $op = $_POST['op'];
+  $output = '';
+
+  global $user;
+
+  /* Configure the how to render addresss info */
+  if ($user->uid > 0) {
+
+    /* Grab the user's addressbook */
+    $address = address_get_addresses($user->uid);
+
+    if (empty($address)) {
+      drupal_set_message(t('There are no addresses in your addressbook.  Please add a shipping/delivery address now.'));
+      drupal_goto('user/'. $user->uid. '/address/add', 'destination='. $_GET['q']);
+    }
+
+    if (!empty($address))  {
+      $options = array();
+      foreach ($address as $value) {
+        $options[$value->aid] = "$value->firstname $value->lastname, $value->street1 in $value->city";
+      }
+      if ($txn->shippable) {
+        $shipping_form = form_select(t('Shipping to'), 'shipping_address', $txn->shipping_address, $options, t('Please choose where you would like the items to be delivered. You can also %add_address.', array('%add_address' => l(t('add an address'), "user/$user->uid/address/add"))));
+      }
+      $billing_form = form_select(t('Billing to'), 'billing_address', $txn->billing_address, $options, t('Please choose where you would like the invoice to be sent. You can also %add_address.', array('%add_address' => l(t('add an address'), "user/$user->uid/address/add"))));
+    }
+  }
+  else {
+
+    /* Don't use the addressbook if the user can buy anonymously */
+    if ($txn->shippable) {
+      $shipping_form = store_transaction_addresses_form($txn, 'shipping');
+      $billing_form = store_transaction_addresses_form($txn, 'billing');
+    }
+    else {
+      $billing_form = store_transaction_addresses_form($txn, 'billing');
+    }
+    $output .= form_textfield(t('E-mail address'), 'mail', $txn->mail, 30, 64, t('Please double-check to make sure you email address is correct.'));
+  }
+  $output .= $shipping_form . $billing_form;
+  
+  return $output;
+}
+
+/**
+ * The controller for managing addresses.  Callback happens via menu().
+ */
+function address_page($action = null, $aid = null) {
+  global $user;
+  $uid = $user->uid;
+  if (user_access('administer users')) {
+    $uid = arg(1);
+  }
+  $name = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $uid));
+  drupal_set_title(t('%username\'s address book', array('%username' => $name)));
+
+  $output = t('<p>Your address book is used to save addresses for billing and shipping of items from our store.</p>');
+
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  switch ($op ? $op : $action) {
+    case t('Create new address'):
+    case t('Update address'):
+      if (address_validate($edit)) {
+        $edit['uid'] = $uid;
+        $output .= address_save($edit);
+        drupal_goto("user/$user->uid/address");
+      }
+      else {
+        $output .= address_form($edit);
+      }
+      break;
+
+    case 'add':
+    case 'edit':
+      $edit = $aid && !$edit ? address_load($aid) : array();
+      $output .= address_form($edit);
+      break;
+
+    case 'delete':
+      address_delete($aid);
+      drupal_goto("user/$uid/address");
+      break;
+
+    default:
+      $output .= address_overview();
+  }
+
+  print theme('page', $output);
+}
+
+function address_load($aid) {
+  return db_fetch_array(db_query('SELECT * FROM {ec_address} WHERE aid = %d', $aid));
+}
+
+function address_fields() {
+  static $fields;
+
+  if (!$fields) {
+    $result = db_query('SELECT * FROM {ec_address} WHERE aid = 1');
+    if (db_num_rows($result)) {
+      $fields = array_keys(db_fetch_array($result));
+    }
+    else {
+      // Make sure we return the default fields at least
+      $fields = array('aid', 'uid', 'firstname', 'lastname', 'street1', 'street2', 'zip', 'city', 'state', 'country', 'phone');
+    }
+  }
+
+  return $fields;
+}
+
+function address_form($edit = array()) {
+  $form = address_form_fields($edit);
+  $form .= ($edit['aid']) ? form_submit(t('Update address')) : form_submit(t('Create new address'));
+
+  return form($form);
+}
+
+function address_form_fields($edit = '') {
+  if (is_numeric($edit['country'])) {
+    // alert users with old-style addresses
+    drupal_set_message(t('<strong>Please update your <em>country</em> and <em>state/province</em></strong>.<br />We apologize for the inconvenience.'));
+  }
+  else if (!$edit['province']) {
+    $edit['province'] = $edit['state'];
+  }
+  $country = address_build_countries();
+  array_unshift($country, t('Please choose...'));
+  $fields .= form_select(t('Country'), 'country', ($edit['country'] ? $edit['country'] : variable_get('ec_country', '')), $country, null, 'onChange="provORstate(this.options[this.selectedIndex].value)"', false, true);
+  $fields .= form_textfield(t('First Name'), 'firstname', $edit['firstname'], 50, 75, null, null, true);
+  $fields .= form_textfield(t('Last Name'), 'lastname', $edit['lastname'], 50, 75, null, null, true);
+  $fields .= form_textfield(t('Address Line 1'), 'street1', $edit['street1'], 50, 75, null, null, true);
+  $fields .= form_textfield(t('Address Line 2'), 'street2', $edit['street2'], 50, 75, null, null, false);
+  $fields .= form_textfield(t('City'), 'city', $edit['city'], 30, 64, null, null, true);
+  $state = address_build_states();
+  array_unshift($state, t('Please choose...'));
+  $fields .= form_select(t('State'), 'state', $edit['state'], $state, null, null, false, true);
+  $fields .= form_textfield(t('Province / Region'), 'province', $edit['province'], 30, 64, null, null, true);
+  $fields .= form_textfield(t('Zip / Postal Code'), 'zip', $edit['zip'], 20, 20, null, null, true);
+  $fields .= form_textfield(t('Phone Number'), 'phone', $edit['phone'], 50, 100, null, null, false);
+
+  if ($edit['aid']) {
+    $fields .= form_hidden('aid', $edit['aid']);
+  }
+  if ($edit['uid']) {
+    $fields .= form_hidden('uid', $edit['uid']);
+  }
+  $fields .= "<script type='text/javascript'>
+    function provORstate(val) {
+      if (val == 'us') {
+        document.getElementById('edit-province').parentNode.style.display = 'none';
+        document.getElementById('edit-province').value = '';
+        document.getElementById('edit-state').parentNode.style.display = 'inline';
+      }
+      else {
+        document.getElementById('edit-province').parentNode.style.display = 'inline';
+        document.getElementById('edit-state').parentNode.style.display = 'none';
+      }
+    }
+    //this stuff allows functionality for non-JavaScript browsers
+    ctry = document.getElementById('edit-country');
+    provORstate(ctry.options[ctry.selectedIndex].value);
+    document.getElementById('edit-state').remove(document.getElementById('edit-state').length-1);
+  </script>";
+  return $fields;
+}
+
+function address_overview() {
+  global $user;
+  $uid = $user->uid;
+
+  if (user_access('administer users')) {
+    $uid = arg(1);
+  }
+
+  $output = "<p>". l(t('Click here to add a new address'), "user/$uid/address/add") .'.</p>';
+
+  $header = array(t('address'), t('options'));
+  $address = address_get_addresses($uid);
+  foreach($address as $data) {
+    $addr = array();
+    $addr[] = check_plain($data->firstname). ' '. check_plain($data->lastname);
+    $addr[] = check_plain($data->street1);
+    $addr[] = ($data->street2) ? check_plain($data->street2) : "";
+    $addr[] = check_plain($data->city). ', '. check_plain($data->state). ' '. check_plain($data->zip);
+    $addr[] = address_get_country(check_plain($data->country));
+    $addr[] = ($data->phone) ? t('tel: %phone', array('%phone' => check_plain($data->phone))) : '';
+    foreach ($addr as $k => $v) {
+      if (!$v) unset($addr[$k]);
+    }
+    $row[] = array(implode('<br />', $addr), l(t('edit'), "user/$uid/address/edit/$data->aid"). " / ". l(t("delete"), "user/$uid/address/delete/$data->aid"));
+  }
+
+  return $output . theme('table', $header, $row);
+}
+
+function address_get_addresses($uid = null) {
+  global $user;
+  $address = array();
+
+  $result = db_query('SELECT * FROM {ec_address} WHERE uid = %d', ($uid) ? $uid : $user->uid);
+  while($data = db_fetch_object($result)) {
+    $address[] = $data;
+  }
+
+  return $address;
+}
+
+function address_get_address($aid) {
+  return db_fetch_object(db_query('SELECT * FROM {ec_address} WHERE aid = %d', $aid));
+}
+
+/**
+ * Validate an address.
+ */
+function address_validate(&$edit) {
+  $errors = array();
+
+  $address_fields = address_fields();
+  foreach ($edit as $key => $value) {
+    if (in_array($key, $address_fields) && $key != 'street2' && $key != 'phone' && $value == '') {
+      $errors[$key] = t('Invalid %key.', array('%key' => $key));
+    }
+  }
+
+  if (!$edit['country']) {
+    $errors['country'] = t('Please select a country.');
+  }
+  else {
+    if (!$edit['province'] && !$edit['state']) {
+      $errors['country'] = t('Please enter a state/province/region.');
+    }
+  }
+
+  foreach ($errors as $name => $message) {
+    form_set_error($name, $message);
+  }
+  return count($errors) == 0;
+}
+
+/*
+ * Format an address into html
+ *
+ * @param $data
+ *   Object containing users address information
+ *   typically obtained with address_get_address()
+ */
+function address_format_address($data) {
+    
+  $break = '<br />';
+  
+  $address .= ucfirst($data->firstname) . ' ' . ucfirst($data->lastname). $break;
+  $address .= ($data->street2) ? $data->street1 . $break . $data->street2. $break : $data->street1. $break;
+  $address .= ($data->city) ? ucfirst($data->city) . ', ' : '';
+  $address .= strtoupper($data->state). " ". $data->zip. $break;
+  $address .= address_get_country($data->country). $break;
+  $address .= $data->phone. $break . $break;
+  
+  return $address;
+}
+
+/**
+ * Format an address for review in the checkout procedure.
+ */
+function theme_address_review($txn) {
+  $output = '';
+  
+  global $user;
+
+  // If address book required then grab address from it and format
+  if ($user->uid > 0) {
+
+    if ($txn->shippable) {
+      $ship_to = address_get_address($txn->shipping_address);
+      $shipping_view = address_format_address($ship_to);
+    }
+    $bill_to = address_get_address($txn->billing_address);
+    $billing_view = address_format_address($bill_to);
+  }
+  else {
+    // Handle anonymous purchase
+    if ($txn->shippable) {
+      $shipping_view = store_format_address($txn,'shipping','html');
+    }
+    
+    $billing_view = store_format_address($txn,'billing','html');
+    
+    $output .= "<div>E-mail address: " . $txn->mail . "</div><br />";
+  }
+
+  if ($shipping_view) {
+    $output .= "<div class=\"address-shipping\"><strong>Ship to:</strong> " . l(t('(change)'), "cart/checkout") . "<br />$shipping_view</div>";
+  }
+  
+  $output .= "<div class=\"address-billing\"><strong>Billing to:</strong> " . l(t('(change)'), "cart/checkout") . "<br />$billing_view</div>";
+
+  return $output;
+}
+
+function address_save($edit) {
+  if (!$edit['state']) {
+    $edit['state'] = $edit['province'];
+  }
+  $aid = $edit['aid'];
+
+  if (!$edit['uid']) {
+    global $user;
+    $edit['uid'] = $user->uid;
+  }
+  $fields = address_fields();
+
+  if ($aid) {
+    foreach ($edit as $key => $value) {
+      if (in_array($key, $fields)) {
+        $q[] = db_escape_string($key) ." = '%s'";
+        $v[] = $value;
+      }
+    }
+    db_query('UPDATE {ec_address} SET '. implode(', ', $q) ." WHERE aid = $aid", $v);
+  }
+  else {
+    foreach ($edit as $key => $value) {
+      if (in_array($key, $fields)) {
+        $k[] = db_escape_string($key);
+        $v[] = $value;
+        $s[] = "'%s'";
+      }
+    }
+    db_query('INSERT INTO {ec_address} ('. implode(', ', $k) .') VALUES('. implode(', ', $s) .')', $v);
+  }
+
+  drupal_set_message(t('The address has been saved.'));
+}
+
+function address_delete($aid) {
+  db_query('DELETE FROM {ec_address} WHERE aid = %d', $aid);
+  drupal_set_message(t('The address has been deleted.'));
+}
+
+function address_get_country_id($name) {
+  return array_search(strtolower($name), array_map('strtolower', address_build_countries()));
+}
+
+function address_get_country($id) {
+  $country = address_build_countries();
+  return $country[$id];
+}
+
+function address_build_countries() {
+  static $country;
+  if (!$country) {
+    // Fix for wtw country list
+    $country = _gathering_get_countries();
+  }
+  return $country;
+}
+
+function address_build_states() {
+  static $states;
+  if (!$states) {
+    $states = array(
+      'AL' => 'Alabama',
+      'AK' => 'Alaska',
+      'AZ' => 'Arizona',
+      'AR' => 'Arkansas',
+      'CA' => 'California',
+      'CO' => 'Colorado',
+      'CT' => 'Connecticut',
+      'DE' => 'Delaware',
+      'DC' => 'District Of Columbia',
+      'FL' => 'Florida',
+      'GA' => 'Georgia',
+      'HI' => 'Hawaii',
+      'ID' => 'Idaho',
+      'IL' => 'Illinois',
+      'IN' => 'Indiana',
+      'IA' => 'Iowa',
+      'KS' => 'Kansas',
+      'KY' => 'Kentucky',
+      'LA' => 'Louisiana',
+      'ME' => 'Maine',
+      'MD' => 'Maryland',
+      'MA' => 'Massachusetts',
+      'MI' => 'Michigan',
+      'MN' => 'Minnesota',
+      'MS' => 'Mississippi',
+      'MO' => 'Missouri',
+      'MT' => 'Montana',
+      'NE' => 'Nebraska',
+      'NV' => 'Nevada',
+      'NH' => 'New Hampshire',
+      'NJ' => 'New Jersey',
+      'NM' => 'New Mexico',
+      'NY' => 'New York',
+      'NC' => 'North Carolina',
+      'ND' => 'North Dakota',
+      'OH' => 'Ohio',
+      'OK' => 'Oklahoma',
+      'OR' => 'Oregon',
+      'PA' => 'Pennsylvania',
+      'RI' => 'Rhode Island',
+      'SC' => 'South Carolina',
+      'SD' => 'South Dakota',
+      'TN' => 'Tennessee',
+      'TX' => 'Texas',
+      'UT' => 'Utah',
+      'VT' => 'Vermont',
+      'VA' => 'Virginia',
+      'WA' => 'Washington',
+      'WV' => 'West Virginia',
+      'WI' => 'Wisconsin',
+      'WY' => 'Wyoming',
+      'AS' => 'American Samoa',
+      'FM' => 'Federated States of Micronesia',
+      'GU' => 'Guam',
+      'MH' => 'Marshall Islands',
+      'MP' => 'Northern Mariana Islands',
+      'PW' => 'Palau',
+      'PR' => 'Puerto Rico',
+      'VI' => 'Virgin Islands'
+    );
+    natcasesort($states);
+    $states[1] = t('Outside U.S.');
+    //array_unshift($states, t('Please choose...'));
+  }
+  return $states;
+}
+
+?>

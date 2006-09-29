@@ -1,0 +1,474 @@
+<?php
+// $Id: file.module,v 1.23.2.2 2006/01/09 11:16:04 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_help().
+ */
+function file_help($section = 'admin/help#file') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Creates a file product. Dependency: product.module');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function file_menu($may_cache) {
+
+  $items  = array();
+  $access = user_access('access content');
+
+  global $user;
+
+  $uid = $user->uid;
+  if (user_access('administer store')) {
+    if (arg(2) > 0) {
+      $uid = arg(2);
+    }
+  }
+
+  if ($may_cache) {
+
+    if ($user->uid) {
+      $items[] = array('path' => 'ec_file/autocomplete', 'title' => t('file autocomplete'),
+                       'callback' => 'ec_file_autocomplete', 'access' => $access, 'type' => MENU_CALLBACK);
+
+      $items[] = array('path' => "store/myfiles/$uid", 'title' => t('my files'),
+                       'callback' => 'file_my_overview', 'access' => user_access('access content'),
+                       'type' => MENU_DYNAMIC_ITEM);
+
+      $items[] = array('path' => "store/myfiles/$uid/download", 'title' => t('download'),
+                       'callback' => 'ec_product_download', 'access' => user_access('access content'),
+                       'type' => MENU_CALLBACK);
+    }
+
+    $items[] = array('path' => 'admin/store/products/files', 'title' => t('product file quicklist'),
+        'callback' => 'file_quicklist', 'access' => $access, 'type' => MENU_CALLBACK);
+  }
+  else {
+    $items[] = array('path' => "store/myfiles/$uid/expired", 'title' => t('expired'),
+                     'callback' => 'file_my_expired', 'access' => user_access('access content'),
+                     'type' => MENU_LOCAL_TASK);
+  }
+
+  return $items;
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+
+/**
+ * Implementation of the productapi_hook()
+ */
+function file_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  if (user_access('access content')) {
+
+    switch ($op) {
+
+      /* Due to the way we have to build our node, we have to pass an array of values this module collects. */
+      case 'fields':
+        return array('fpath' => $node->fpath, 'size' => $node->size);
+        break;
+
+      case 'validate':
+        // is_null provides a mechanism for us to determine if this is the first viewing of the form.
+        if (!is_null($node->fpath)) {
+
+          if ($node->fpath == "") {
+            form_set_error('fpath', t('Please enter the path to the file.'));
+          }
+          else {
+            $full_path = ec_file_create_path($node->fpath);
+            if (!file_exists($full_path)) {
+              form_set_error('fpath', t('The file doesn\'t exist.'));
+            }
+            else {
+              $node->size    = filesize($full_path);
+              $node->expires = variable_get('file_expired', '7');
+            }
+          }
+        }
+        break;
+
+      /* Not necessary, but this offers a chance to provide an user-friendly
+         name for the product type selection box. So in this
+         case, instead of showing 'file', we show 'shippable product' */
+      case 'wizard_select':
+        return array('file' => t('file download'));
+        break;
+
+      case 'in_stock':
+        return true;
+        break;
+
+      case 'is_shippable':
+        return array(false);
+        break;
+
+      case 'form':
+        if ($a3['fpath']) {
+          drupal_set_message($a3['fpath'], 'error');
+        }
+        $group  = form_textfield(t('File path'), 'fpath', $node->fpath, 50, 200, t('Enter the filesystem path to this file (not the URL). This path will be prefixed with <b>%file_path/</b> Here is a <a href="%file_quicklist" onclick="window.open(this.href, \'%file_quicklist\', \'width=480,height=480,scrollbars=yes,status=yes\'); return false">list of files</a> in this directory. You may need to FTP your file to this directory before you can create the file product.', array('%file_quicklist' => url('admin/store/products/files'), '%file_path' => variable_get('file_directory_path', 'files'))), NULL, TRUE);
+        $output = form_group(t('File settings'), $group);
+
+        return $output;
+        break;
+
+       /* Similar to node_load */
+      case 'load':
+        return db_fetch_object(db_query('SELECT * FROM {ec_product_file} WHERE nid = %d', $node->nid));
+        break;
+
+      /* Node has been saved, write to product tables. */
+      case 'insert':
+        return db_query("INSERT INTO {ec_product_file} (nid, fpath, size) VALUES (%d, '%s', '%s')", $node->nid, $node->fpath, $node->size);
+        break;
+
+      case 'update':
+        return db_query("UPDATE {ec_product_file} SET fpath = '%s', size = '%s' WHERE nid = %d", $node->fpath, $node->size, $node->nid);
+        break;
+
+      case 'delete':
+        return db_query("DELETE FROM {ec_product_file} WHERE nid = %d", $node->nid);
+        break;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function file_settings() {
+  drupal_set_title(t('Ecommerce file download settings (%revision)', array('%revision' => '$Revision: 1.23.2.2 $')));
+  $output = form_textfield(t('Number of days before file expires'), 'file_expired', variable_get('file_expired', '7'), 5, 5, t('The number of days an user has to login and download their files. This expiration date can be overridden on a per transaction basis when viewing individual transactions.'));
+  $directory_path = variable_get('ec_file_directory_path', 'files');
+  file_check_directory($directory_path);
+  $output .= form_textfield(t('File path for products'), 'ec_file_directory_path', variable_get('ec_file_directory_path', 'files'), 70, 255, t('A file system path where the product files are stored. This directory has to exist and be writable by Drupal. This directory should not be accessible over the web. Changing this location after the site has been in use will cause problems so only change this setting on an existing site if you know what you are doing.'));
+  return $output;
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function file_user($type, &$edit, &$user) {
+  // Only display the link for the user who owns it.
+  if ($type == 'view' && $GLOBALS['user']->uid == $user->uid) {
+    return array(t('History') => form_item(t('Downloads'), l(t('View your downloads'), "store/myfiles/$user->uid")));
+  }
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+
+/**
+ * Scan the file directory and list the files it finds.
+ */
+function file_quicklist() {
+
+  global $base_url;
+  $base_url .= '/';
+
+  $html = "<html>\n<head>\n<base href=\"$base_url\" />\n<style type=\"text/css\" media=\"all\">\n@import url(misc/drupal.css);\n</style>\n</head>\n<body>\n";
+  $html .= "<p>Full path: ". variable_get('ec_file_directory_path', 'files')  ."</p>\n";
+
+  $header = array(t('name'), t('size'), t('changed'));
+  $rows = array();
+
+  $files = file_scan_directory(variable_get('ec_file_directory_path', 'files'), '.*');
+  foreach ($files as $f) {
+    $f->size    = filesize("$f->filename");
+    $f->changed = filemtime("$f->filename");
+    $filename = str_replace(variable_get('ec_file_directory_path', 'files'), '', $f->filename);
+    $rows[] = array(trim($filename, '/'), format_size($f->size), format_date($f->changed, 'small'));
+  }
+
+  $html .= theme("table", $header, $rows). '</body></html>';
+
+  print $html;
+}
+
+/**
+ * Print the files for the user to download.
+ *
+ * If the expired parameter is true, this will output a list of expired files instead.
+ *
+ * Note:
+ * Expiration date is found via the sitewide file expiration date OR the
+ * special case where a store admin has extended the expiration date for a given
+ * transaction. The 'special case' always take precedence, so you can disable
+ * downloads before the sitewide expiration date is reached.
+ */
+function file_my_overview($expired = false) {
+  global $user;
+
+  $uid = $user->uid;
+  if (user_access('administer store')) {
+    $uid = arg(2);
+  }
+  $name = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $uid));
+
+  if ($expired) {
+    $output = t('<p><a href="%files-uri">Click here to view your files.</a></p>', array('%files-uri' => url("store/myfiles/$uid")));
+    $title = t('%username\'s expired files', array('%username' => $name));
+  }
+  else {
+    $output = t('<p><a href="%expired-files-uri">Click here to view your expired files.</a></p>', array('%expired-files-uri' => url("store/myfiles/$uid/expired")));
+    $title = t('%username\'s files', array('%username' => $name));
+  }
+  drupal_set_title($title);
+
+  $header = array(
+    array('data' => t('filename'), 'field' => 'st.txnid', 'sort' => 'desc'),
+    array('data' => t('size'), 'field' => 'pf.size'),
+    array('data' => ($expired) ? t('expired') : t('expires'), 'field' => 'st.changed'),
+    t('operations')
+  );
+
+  $expired_length = variable_get('file_expired', '7') * 86400; // Convert expiration to seconds
+  $max_expired_date   = time() + $expired_length; // Absolute longest expiration date.
+
+  // Checking for file to download involves at least 2 queries to the store
+  // transaction table. 1) Check if the user explicitly purchased a file download
+  // as 2) Check if the user purchased a multi-product which contains a file download.
+
+  // Check 1: Grab all explicit file downloads
+  $result = db_query('SELECT st.created, st.expires, stp.title, pf.size, pf.fpath FROM {ec_transaction} AS st, {users} AS u, {ec_product} AS p, {ec_product_file} AS pf, {ec_transaction_product} AS stp WHERE u.uid = st.uid AND st.uid = %d AND p.nid = stp.nid AND st.txnid = stp.txnid AND pf.nid = p.nid AND st.payment_status = 2'. tablesort_sql($header), $uid);
+  while ($data = db_fetch_object($result)) {
+    $dload_link = t('<a href="%file-download-uri">download</a>', array('%file-download-uri' => ec_file_create_url($data->fpath)));
+    if ($expired) {
+      if (($data->created + $expired_length > $max_expired_date && !$data->expires) || ($data->expires && $data->expires < time())) {
+        $time_left = (!$data->expires) ? time() - ($data->created + $expired_length) : time() - $data->expires;
+        $rows[] = array($data->title, format_size($data->size), t('%interval ago', array('%interval' => format_interval($time_left, 3))), '');
+      }
+    }
+    else {
+      if (($data->created + $expired_length < $max_expired_date && !$data->expires) || ($data->expires && $data->expires > time())) {
+        $time_left = (!$data->expires) ? ($data->created + $expired_length) - time() : $data->expires - time();
+        $rows[] = array($data->title, format_size($data->size), format_interval($time_left, 3), $dload_link);
+      }
+    }
+  }
+
+  // Check 2: Check for multi products that contain file downloads.
+  $result = db_query('SELECT st.created, st.expires, stp.title, pp.mnid, p.nid FROM {ec_transaction} AS st, {users} AS u, {ec_product} AS p, {ec_product_parcel} AS pp, {ec_transaction_product} AS stp WHERE u.uid = st.uid AND st.uid = %d AND p.nid = stp.nid AND st.txnid = stp.txnid AND pp.nid = p.nid AND st.payment_status = 2'. tablesort_sql($header), $uid);
+  while ($data = db_fetch_object($result)) {
+    // Load each individual product and determine if it's a file download.
+    $node = node_load(array('nid' => $data->mnid));
+    if ($node->ptype == 'file') {
+      foreach ($node as $key => $value) {
+        if (!$data->$key) {
+          $data->$key = $node->$key;
+        }
+      }
+      // Since the product title is stored at transaction, we only have the title
+      // of the product package. Grab the individual product title which is more userful.
+      $data->node_title = $node->title;
+
+      $dload_link = t('<a href="%file-download-uri">download</a>', array('%file-download-uri' => ec_file_create_url($data->fpath)));
+      if ($expired) {
+        if (($data->created + $expired_length > $max_expired_date && !$data->expires) || ($data->expires && $data->expires < time())) {
+          $time_left = (!$data->expires) ? time() - ($data->created + $expired_length) : time() - $data->expires;
+          $rows[] = array("$data->title ($data->node_title)", format_size($data->size), t('%interval ago', array('%interval' => format_interval($time_left, 3))), '');
+        }
+      }
+      else {
+        if (($data->created + $expired_length < $max_expired_date && !$data->expires) || ($data->expires && $data->expires > time())) {
+          $time_left = (!$data->expires) ? ($data->created + $expired_length) - time() : $data->expires - time();
+          $rows[] = array("$data->title ($data->node_title)", format_size($data->size), format_interval($time_left, 3), $dload_link);
+        }
+      }
+    }
+  }
+  $output .= ($rows) ? theme('table', $header, $rows) : t('You have no files to download.');
+
+  print theme('page', $output);
+}
+
+/**
+ * Print the expired files for the user to view
+ */
+function file_my_expired() {
+  return file_my_overview(true);
+}
+
+/**
+ * IE for Mac chokes on long filenames. This function determines if the user is using IE for Mac.
+ */
+function file_iemac_hack() {
+  global $HTTP_USER_AGENT;
+
+  if ((strpos($HTTP_USER_AGENT, 'MSIE 4') === false) && (strpos($HTTP_USER_AGENT, 'MSIE 5') === false) && (strpos($HTTP_USER_AGENT, 'Mac') === false)) {
+    return false;
+  }
+  else {
+    return true;
+  }
+}
+
+/********************************************************************
+ * Module Functions :: File Downloads
+ ********************************************************************/
+/**
+ * Create the download path to a file.
+ *
+ * @param $path Path to the file to generate URL for
+ * @return URL pointing to the file
+ */
+function ec_file_create_url($path) {
+  global $user;
+
+  $uid = $user->uid;
+  if (user_access('administer store')) {
+    $uid = arg(2);
+  }
+
+  if (strpos($path, variable_get('ec_file_directory_path', 'files')) !== false) {
+    $path = trim(substr($path, strlen(variable_get('ec_file_directory_path', 'files'))), '\\/');
+  }
+  return url("store/myfiles/$uid/download", 'file='. urlencode($path));
+}
+
+/**
+ * Make sure the destination is a complete path and resides in the
+ * file system directory, if it is not prepend the
+ * file system directory.
+ *
+ * @param $dest Path to verify
+ * @return Path to file with file system directory appended if necessary.
+ *         Returns FALSE if the path is invalid (i.e. outside the configured 'files'-directory).
+ */
+function ec_file_create_path($dest = 0) {
+  $file_path = variable_get('ec_file_directory_path', 'files');
+  if (!$dest) {
+    return $file_path;
+  }
+  // file_check_location() checks whether the destination is inside the Drupal files directory.
+  if (file_check_location($dest, $file_path)) {
+    return $dest;
+  }
+  // check if the destination is instead inside the Drupal temporary files directory.
+  else if (file_check_location($dest, variable_get('file_directory_temp', FILE_DIRECTORY_TEMP))) {
+    return $dest;
+  }
+  // Not found, try again with prefixed dirctory path.
+  else if (file_check_location($file_path . '/' . $dest, $file_path)) {
+    return $file_path . '/' . $dest;
+  }
+  // File not found.
+  return FALSE;
+}
+
+/**
+ * Call modules to find out if a file is accessible for a given user.
+ */
+function ec_product_download() {
+  $file = $_GET['file'];
+  if (file_exists(ec_file_create_path($file))) {
+    $list = module_list();
+    foreach ($list as $module) {
+      $headers = ec_file_build_download($file);
+      if (!$headers) {
+        drupal_access_denied();
+      }
+      elseif (is_array($headers)) {
+        ec_file_transfer($file, $headers);
+      }
+    }
+  }
+  drupal_not_found();
+}
+
+/**
+ * Implementation of the file_download_hook() to find out if a file is accessible for a given user.
+ */
+function ec_file_build_download($file) {
+
+  global $user;
+
+  $uid = $user->uid;
+  if (user_access('administer store')) {
+    $uid = arg(2);
+  }
+
+  /* Check invoice and expiration dates... */
+
+  $expired_length = variable_get('file_expired', '7') * 86400; // Convert expiration to seconds
+  $max_expired_date   = time() + $expired_length; // Absolute longest expiration date.
+
+  $data = db_fetch_object(db_query("SELECT st.created, st.expires FROM {ec_transaction} AS st, {users} AS u, {ec_product} AS p, {ec_product_file} AS pf, {ec_transaction_product} AS stp WHERE u.uid = st.uid AND st.uid = %d AND p.nid = stp.nid AND st.txnid = stp.txnid AND pf.nid = p.nid AND st.payment_status = '2' AND pf.fpath = '%s'", $uid, $file));
+
+  /* Expiration date is found via the sitewide file expiration date OR
+      the special case where a store admin has extended the expiration date for
+      a given transaction. The 'special case' always take precedence, so you can
+      disable downloads before the sitewide expiration date is reached. */
+  if (($data->created + $expired_length < $max_expired_date && !$data->expires) ||
+      ($data->expires && $data->expires > time())) {
+
+    $filename = basename($file);
+    if (file_iemac_hack()) {
+      if (strlen($filename) > 30) {
+        $filename = substr($filename, strlen($filename) - 30);
+      }
+    }
+
+    $file = ec_file_create_path($file);
+    $header[] = 'Content-type: application/x-download';
+    $header[] = 'Content-Disposition: attachment; filename="'. $filename .'";';
+    $header[] = 'Accept-Ranges: bytes';
+    $header[] = 'Content-Length: '. filesize($file);
+
+    return $header;
+  }
+  else {
+    return false;
+  }
+}
+
+/**
+ * Transfer file using http to client. Pipes a file through Drupal to the
+ * client.
+ *
+ * @param $source File to transfer.
+ * @param $headers An array of http headers to send along with file.
+ */
+function ec_file_transfer($source, $headers) {
+  ob_end_clean();
+
+  foreach ($headers as $header) {
+    header($header);
+  }
+
+  $source = ec_file_create_path($source);
+
+  // Transfer file in 1024 byte chunks to save memory usage.
+  $fd = fopen($source, 'rb');
+  while (!feof($fd)) {
+    print fread($fd, 1024);
+  }
+  fclose($fd);
+  exit();
+}
+
+/**
+ * Retrieve a pipe delimited string of autocomplete suggestions for existing files
+ */
+function ec_file_autocomplete($string) {
+  $matches = array();
+  $files = file_scan_directory(variable_get('ec_file_directory_path', 'files'), '^'. $string);
+  foreach ($files as $f) {
+    $filename = trim(str_replace(variable_get('ec_file_directory_path', 'files'), '', $f->filename), '/');
+    $matches[$filename] = $filename;
+  }
+  print drupal_implode_autocomplete($matches);
+  exit();
+}
+?>

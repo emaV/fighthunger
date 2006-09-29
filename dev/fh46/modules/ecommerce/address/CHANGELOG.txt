@@ -1,0 +1,7 @@
+Address module
+
+Dec 3, 2004
+  * Street 2 should not be marked as required.
+
+Feb 17, 2004
+  * Initial release

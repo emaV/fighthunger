@@ -1,0 +1,94 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Submanage Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-10-24 00:56+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: submanage.module:13
+msgid "Interface to manage subscribers."
+msgstr "Interface de gestion des abonnements."
+
+#: submanage.module:25
+msgid "subscriptions"
+msgstr "abonnements"
+
+#: submanage.module:28
+msgid "subscriptions notification test"
+msgstr "test de notification des abonnements"
+
+#: submanage.module:47
+msgid "No payment notifications to send."
+msgstr "Aucune notification de paiement à envoyer."
+
+#: submanage.module:54
+msgid "<p><a href=\"%subscriber-export-link\">Click here to export the subscriber list.</a></p>"
+msgstr "<p><a href=\"%subscriber-export-link\">Exporter la liste des abonnés.</a></p>"
+
+#: submanage.module:55
+msgid "<p><a href=\"%subscriber-notify-test\">Click here to test subscriber payment notifications.</a></p>"
+msgstr "<p><a href=\"%subscriber-notify-test\">Tester la notification de paiement aux abonnés.</a></p>"
+
+#: submanage.module:58
+msgid "uid"
+msgstr "id utilisateur"
+
+#: submanage.module:59
+msgid "First name"
+msgstr "Prénom"
+
+#: submanage.module:60
+msgid "Last name"
+msgstr "Nom"
+
+#: submanage.module:61
+msgid "Address 1"
+msgstr "Adresse"
+
+#: submanage.module:62
+msgid "Address 2"
+msgstr "Complément d'adresse"
+
+#: submanage.module:63
+msgid "City"
+msgstr "Ville"
+
+#: submanage.module:64
+msgid "State"
+msgstr "Département"
+
+#: submanage.module:65
+msgid "Zip"
+msgstr "Code Postal"
+
+#: submanage.module:66
+msgid "Country"
+msgstr "Pays"
+
+#: submanage.module:67
+msgid "E-mail"
+msgstr "E-mail"
+
+#: submanage.module:68
+#: ;94
+msgid "Expires"
+msgstr "Expiration"
+
+#: submanage.module:69
+msgid "nid"
+msgstr "id node"
+
+#: submanage.module:88
+msgid "There are no active subscriptions."
+msgstr "Il n'y aucun abonnement actif."
+
+#: submanage.module:0
+msgid "submanage"
+msgstr "gestion abonnements"
+

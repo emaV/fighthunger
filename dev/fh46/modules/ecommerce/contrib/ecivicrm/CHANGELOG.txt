@@ -1,0 +1,7 @@
+December 23, 2005:
+Remove need for cart.module.patch, using existing ec_transactionapi hook to
+record donations and other activities.
+
+October 28, 2005:
+Initial ecivicrm module commit.
+

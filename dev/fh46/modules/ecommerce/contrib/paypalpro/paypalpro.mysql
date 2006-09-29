@@ -1,0 +1,7 @@
+CREATE TABLE ec_paypalpro (
+  txnid int(11) NOT NULL default '0',
+  proid varchar(30) NOT NULL default '0',
+  amount decimal(10,2) NOT NULL default '0.00',
+  PRIMARY KEY  (txnid),
+  UNIQUE KEY proid (proid)
+) TYPE=MyISAM;

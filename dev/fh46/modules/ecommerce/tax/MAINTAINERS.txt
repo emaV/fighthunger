@@ -1,0 +1,3 @@
+TAX MODULE
+M: Matt Westgate <drupal at asitis dot org>
+S: maintained

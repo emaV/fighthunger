@@ -1,0 +1,271 @@
+<?php
+// $Id: payflow_link.module,v 1.1.2.2 2006/01/25 05:18:11 thehunmonkgroup Exp $
+
+// WISH LIST
+//  1. telecheck capability
+//  2. make sure POST can be returned via https:, too (need port 443 specified in return url
+
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook help().
+ */
+function payflow_link_help($section = 'admin/help#payflow_link') {
+
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Process payments using Verisign\'s Payflow Link.');
+    case 'admin/settings/payflow':
+      return t("<p>In order to use this module, you need to create an account with Payflow Link.</p>");
+  }
+}
+
+/**
+ * Implementation of menu_hook()
+ */
+function payflow_link_menu($may_cache) {
+
+  $items = array();
+  if ($may_cache) {
+    $items[] = array('path' => 'payflow_link/silent_post', 'title' => t('Payflow Link Silent POST'),
+      'callback' => 'payflow_link_silent_post', 'access' => true, 'type' => MENU_CALLBACK);
+
+    $items[] = array('path' => 'payflow_link/return_page', 'title' => t('Payflow Link Return Page'),
+      'callback' => 'payflow_link_return_page', 'access' => true, 'type' => MENU_CALLBACK);
+  }
+  return $items;
+}
+
+/**
+ * Implementation of settings_hook()
+ */
+function payflow_link_settings() {
+  $output = '';
+  $output .= form_textfield(t('Login'), 'payflow_link_login', variable_get('payflow_link_login', ''), 70, 180, t('The login name that you chose when you enrolled for your Payflow account'));
+  $output .= form_textfield(t('Partner'), 'payflow_link_partner', variable_get('payflow_link_partner', ''), 70, 180, t('The name of your partner was provided by your Verisign reseller. If you are registered with Verisign directly then enter <b>Verisign</b>.'));
+  $output .= form_textfield(t('Payflow Link processing URL'), 'payflow_link_url', variable_get('payflow_link_url', 'https://payments.verisign.com/payflowlink'), 70, 180, t('URL of the secure payment page customers are sent to for payment processing.  Please see the Payflow Link guide before changing this, or if your install is on a a secure server'));
+  $output .= form_textfield(t('Successful payment URL'), 'payflow_link_return_url', variable_get('payflow_link_return_url', '%order-history'), 70, 180, t("This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'. You may also enter '%order-history' to link to the user's order history."));
+  $output .= form_radios(t('Debug'), 'payflow_link_debug', variable_get('payflow_link_debug', 0), array(t('Disabled'), t('Enabled')), t('If enabled, you\'ll receive an email whenever the Payflow Link server posts a response to your site.'));
+  $output .= form_textfield(t('Debug Email'), 'payflow_link_debug_email', variable_get('payflow_link_debug_email', variable_get('site_mail', ini_get('sendmail_from'))), 70, 180, t('Primary email address of the payment recipent. This is also your main payflow_link email address.'));  // NEED THIS?
+  $output .= form_textfield(t('Minimum purchase amount'), 'payflow_link_min_amount', variable_get('payflow_link_min_amount', '5.00'), 10, 10, t('What is the minimum amount an user must purchase for when checking out with Payflow Link?  Note: Payflow Link does not allow transaction amounts under $1.00 USD.'));
+
+  return $output;
+}
+
+/**
+ * Implementation of hook_paymentapi().
+ */
+function payflow_link_paymentapi(&$txn, $op) {
+
+  switch ($op) {
+    case 'display name':
+      return t('Pay with credit card');
+  }
+  if ($txn->payment_method != 'payflow_link') return NULL;
+  switch ($op) {
+    case 'on checkout':
+      payflow_link_verify_checkout($txn);
+      break;
+    case 'payment page':
+      if ($txn->gross > 1) {
+        return payflow_link_goto($txn);
+      } else {
+        drupal_set_message(t('Your purchase must exceed $1.00 to pay via credit card'), 'error');
+        drupal_goto();
+      }
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_ec_transactionapi().
+ */
+function payflow_link_ec_transactionapi(&$txn, $op) {
+
+  switch ($op) {
+    case 'update':
+    case 'insert':
+      payflow_link_save($txn);
+      break;
+    case 'delete':
+      payflow_link_delete($txn);
+      break;
+  }
+}
+
+// Verify transaction amount is above minimum prior to checkout
+function payflow_link_verify_checkout($txn) {
+  if (variable_get('payflow_link_min_amount', '5.00') > $txn->gross) {
+    form_set_error('gross', t('Your purchase total must be at least %min-purchase-amount for payflow_link purchases.', array('%min-purchase-amount' => payment_format(variable_get('payflow_link_min_amount', '5.00')))));
+  }
+}
+
+// Delete tranaction from payflow_link table
+function payflow_link_delete($txn) {
+  db_query('DELETE FROM {ec_payflow_link} WHERE txnid = %d', $txn->txnid);
+}
+
+/**
+ * Called immediately after the user has clicked the checkout button.
+ *
+ * Redirect the user to the secure server to collect credit card information.
+ */
+function payflow_link_goto($txn) {
+
+  global $base_url;
+  global $user;
+  $login = variable_get('payflow_link_login', '');
+  $uri_array = array('ADDRESS'    => $txn->billing_street1. ' ' .$txn->billing_street2,
+                     'ADDRESSTOSHIP'    => $txn->shipping_street1. ' ' .$txn->shipping_street2,
+                     'AMOUNT'    => $txn->gross,
+                     'CITY'    => $txn->billing_city,
+                     'CITYTOSHIP'    => $txn->shipping_city,
+                     'COUNTRY'    => $txn->billing_country,
+                     'COUNTRYTOSHIP'    => $txn->shipping_country,
+                     'EMAIL'    => $user->mail,
+                     'LOGIN'    => $login,
+                     'METHOD'    => 'CC',
+                     'NAME'    => $txn->billing_firstname. ' ' .$txn->billing_lastname,
+                     'NAMETOSHIP'    => $txn->shipping_firstname. ' ' .$txn->shipping_lastname,
+                     'ORDERFORM'    => 'True',
+                     'PARTNER'    => variable_get('payflow_link_partner', ''),
+                     'PHONE'    => $txn->billing_phone,
+                     'PHONETOSHIP'    => $txn->shipping_phone,
+                     'SHOWCONFIRM'    => 'False',
+                     'STATE'    => $txn->billing_state,
+                     'STATETOSHIP'    => $txn->shipping_state,
+                     'TYPE'    => 'S',
+                     'USER1'    => $login .'_txnid_'. $txn->txnid,
+                     'ZIP'    => $txn->billing_zip,
+                     'ZIPTOSHIP'    => $txn->shipping_zip
+                     );
+
+  foreach($uri_array as $key => $value) {
+    $uri .= "&$key=". urlencode($value);
+  }
+  $url = variable_get('payflow_link_url', 'https://payments.verisign.com/payflowlink') .'?'. substr($uri, 1);
+  header("Location: $url");
+}
+
+/**
+ * Handle payflow link's silent post.
+ *
+ * Used to generate debug email, and more payment status and transaction workflow.
+ */
+function payflow_link_silent_post() {
+
+  $txnid = false;
+  $pnref = false;
+  $result = false;
+  $has_shippable_item = false;
+  $i = array();
+  $debug = "Payflow Link Silent POST Results\n";
+  $debug .= "==================\n";
+
+  ksort($_POST); //easier for debugging
+  foreach ($_POST as $key => $value) {
+
+    $debug .= "$key = $value\n";
+
+    if (strstr($key, 'USER1')) {
+      $txkey = variable_get('payflow_link_login', '') .'_txnid_';
+      if (strstr($value, $txkey)) {
+        $has_txn_key = true;
+        $txnid = substr($value, strlen($txkey));
+        $data['txnid'] = $txnid;
+        $debug .= t("A Transaction ID exists and is #%key\n.", array('%key' => $txnid));
+      }
+    }
+    if (strstr($key, 'PNREF')) {
+      $data['pnref'] = $value;
+      $debug .= t("A PNREF exists and is #%key\n.", array('%key' => $pnref));
+    }
+    if (strstr($key, 'RESULT')) {
+      if ($value == '0') {
+        $result = 'processed';
+      } elseif ($value == '12' || $value == '125') {
+        $result = 'declined';
+      }
+    }
+    if (strstr($key, 'RESPMSG')) {
+      $respmsg = $value;
+    }
+  }
+
+  if ($result && $has_txn_key) {
+    $debug .= t("Payflow Link successfully processed the transaction");
+    $data['payment_method'] = 'payflow_link';
+    if ($result == 'processed') {
+      $data['payment_status'] = payment_get_status_id('completed');
+
+      //load the transaction and determine if anything is shippable
+      $t = store_transaction_load($txnid);
+      if ($t->items) {
+        foreach ($t->items as $p) {
+          $product = product_load($p);
+          if (product_is_shippable($product->nid)) {
+            $has_shippable_item = true;
+          }
+        }
+      }
+      if (!$has_shippable_item) {
+        $data['workflow'] = 6;
+      }
+      $is_new = (db_result(db_query("SELECT COUNT(txnid) FROM {ec_payflow_link} WHERE txnid = %d", $txnid))) ? false : true;
+      $data = array_merge((array) $t, $data);
+      $save = store_transaction_save($data);
+      if ($is_new && $save) {
+        /* Compose and send confirmation email to the user */
+        store_send_invoice_email($txnid);
+      }
+    } elseif ($result == 'declined') {
+      $data['payment_status'] = payment_get_status_id('denied');
+      $data['workflow'] = 5;
+    }
+    if ($txnid) {
+    watchdog('payflow_link', t('successful payment for <a href="%txn-url">txn: %txnid</a>', array('%txnid' => theme('placeholder', $txnid), '%txn-url' => url('admin/store/search&txnid='. $txnid))));
+    }
+
+  } else {
+    $debug .= t("Error processing the transaction: %error", array('%error' => $respmsg));
+    if ($txnid) {
+      watchdog('payflow_link', t('failed payment for <a href="%txn-url">txn: %txnid</a>', array('%txnid' => theme('placeholder', $txnid), '%txn-url' => url('admin/store/search&txnid='. $txnid))));
+    }
+    else {
+      watchdog('payflow_link', t('Silent Post hit, no transaction ID given.'));
+    }
+  }
+
+  if (variable_get('payflow_link_debug', 0)) {
+    $from       = variable_get('site_mail', ini_get('sendmail_from'));
+    $to         = $from;
+    $subject    = t('payflow_link debug results for'). ' '. variable_get('site_name', 'drupal');
+    $body       = $debug;
+    $headers    = "From: $from\nReply-to: $from\nX-Mailer: PHP\nReturn-path: $from\nErrors-to: $from";
+    user_mail($to, $subject, $body, $headers);
+  }
+}
+
+// Save data to the payflow_link table
+function payflow_link_save($txn) {
+
+  if ($txn->txnid) {
+    if (db_result(db_query("SELECT COUNT(txnid) FROM {ec_payflow_link} WHERE txnid = %d", $txn->txnid))) {
+      db_query("UPDATE {ec_payflow_link} SET pnref = '%s' WHERE txnid = %d", $txn->pnref, $txn->txnid);
+    } else {
+      db_query("INSERT INTO {ec_payflow_link} (txnid) VALUES (%d)", $txn->txnid);
+    }
+  }
+}
+
+// Route user to the selected return page after payflow link returns the user to the site
+function payflow_link_return_page() {
+  global $user;
+  $return_url = variable_get('payflow_link_return_url', '%order-history') == '%order-history' ? ($user->uid ? "store/history/$user->uid" : 'node') : variable_get('paypal_return_url', '%order-history');
+  drupal_goto($return_url);
+}
+
+?>

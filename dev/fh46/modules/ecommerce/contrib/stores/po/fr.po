@@ -1,0 +1,60 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Stores module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-10-24 00:55+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: stores.module:15
+msgid "Enables users to have their own storefront."
+msgstr "Permet aux utilisateurs de créer leur propre boutique."
+
+#: stores.module:24
+msgid "History"
+msgstr "Historique"
+
+#: stores.module:24
+msgid "view %name's store"
+msgstr "voir la boutique de %name"
+
+#: stores.module:24
+msgid "View %username's latest products."
+msgstr "Voir les derniers produits de %username."
+
+#: stores.module:54
+#: ;117;0
+msgid "stores"
+msgstr "boutiques"
+
+#: stores.module:55
+#: ;58
+msgid "%name's store"
+msgstr "boutique de %name"
+
+#: stores.module:61
+msgid "Add a new product."
+msgstr "Ajouter un nouveau produit."
+
+#: stores.module:63
+msgid "View %name's profile"
+msgstr "Voir le profil de %name"
+
+#: stores.module:102
+msgid "%username's store"
+msgstr "boutique de %username"
+
+#: stores.module:131
+#: ;138
+msgid "Recent products"
+msgstr "Produits récents"
+
+#: stores.module:137
+msgid "more"
+msgstr "plus"
+

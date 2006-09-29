@@ -1,0 +1,74 @@
+<?php
+// $Id: hosting.module,v 1.1 2005/09/14 17:36:04 wnorrix Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+function hosting_help($section = 'admin/help#hosting') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Creates a hosting packagee. Dependency: product.module');
+  }
+}
+
+function hosting_productapi(&$node, $op, $a3 = null, $a4 = null) {
+  switch ($op) {
+    case 'wizard_select':
+      return array('hosting' => t('hosting package'));
+
+    case 'is_shippable':
+      return false;
+      
+    case 'in_stock':
+      return true;
+  }
+}
+
+function hosting_menu($may_cache) {
+  $items  = array();
+  if (!$may_cache) {
+    $items[] = array('path' => 'hosting/cart', 'title' => t('cart checkout'),
+      'callback' => 'hosting_cart_add_item', 'access' => true, 'type' => MENU_CALLBACK);
+  }
+  return $items;
+}
+
+function hosting_cart_add_item() {
+  global $base_url;
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  switch ($op) {
+    case t('add to cart'):
+      $item = cart_get_items();
+      if (!$item[$edit['nid']]) {
+        cart_add_item($edit['nid'], 1, NULL, $edit['data']);
+      }
+      else {
+        cart_update_item($edit['nid'], 1, $edit['data']);
+      }
+      drupal_goto($edit['destination']);
+      break;
+  }
+}
+
+function theme_product_hosting_view(&$node, $teaser = 0, $page = 0) {
+  if (!$teaser) {
+    $output = '';
+    $item = cart_get_items();
+    if ($item[$node->nid]->qty) {
+      $output = t('<p>This item is in <a href="%cart_view">your shopping cart</a>.</p>', array('%cart_view' => url('cart/view')));
+    }
+    $group = form_textfield('Domain', 'data][domain', $item[$node->nid]->domain, 40, 255, 'Please enter the domain(s) you would like to host. Please separate multiple domains using ","', FALSE, TRUE);
+    $group .= form_textarea('Instructions', 'data][instructions', $item[$node->nid]->instructions, 74, 10,  'Please enter the other information you would like us to keep in mind while setting up your account. Also dont forget to add the application you would like us to setup for you. Click '.l('here', 'hosting-applications').' for the list of applications.', FALSE, TRUE);
+    $fields = form_group(t('Options'), $group);
+    $fields .= form_hidden('nid', $node->nid);
+    $fields .= form_hidden('destination', "node/$node->nid");
+    $fields .= form_submit(t('add to cart'));
+    $output .= form($fields, 'post', url("hosting/cart/$node->nid"));
+    $node->body .= $output;                                                     
+  }
+  return $node;                                                                 
+}
+?>

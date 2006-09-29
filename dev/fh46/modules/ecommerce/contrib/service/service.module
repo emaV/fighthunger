@@ -1,0 +1,94 @@
+<?php
+// $Id: service.module,v 1.1 2005/10/24 04:19:40 kbahey Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+function service_help($section = 'admin/help#service') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Create service products using the ecommerce package.');
+  }
+}
+
+/**
+ * Implementation of menu_hook()
+ */
+function service_menu($may_cache) {
+  $items  = array();
+
+  if (!$may_cache) {
+    $items[] = array('path' => 'service/cart',
+	'title' => t('cart checkout'),
+      	'callback' => 'service_cart_add_item',
+	'access' => true,
+	'type' => MENU_CALLBACK);
+  }
+
+  return $items;
+}
+
+function service_cart_add_item() {
+  global $base_url;
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  switch ($op) {
+    case t('add to cart'):
+      $item = cart_get_items();
+      if (!$item[$edit['nid']]) {
+        cart_add_item($edit['nid'], 1, NULL, $edit['data']);
+      }
+      else {
+        cart_update_item($edit['nid'], 1, $edit['data']);
+      }
+      drupal_goto($edit['destination']);
+      break;
+  }
+}
+
+function service_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  switch ($op) {
+    case 'adjust_price':
+      $items = cart_get_items();
+      if ($items[$node->nid]) {
+        return (float) $items[$node->nid]->service_add_amount;
+      }
+      break;
+
+    case 'wizard_select':
+      return array('service' => t('service'));
+
+    case 'in_stock':
+        return true;
+
+    case 'is_shippable':
+      return array(false);
+  }
+}
+
+/**
+ * Display the form fields for an service type product.
+ */
+function theme_product_service_view(&$node, $teaser = 0, $page = 0) {
+  if (!$teaser) {
+    $output = '';
+    $item = cart_get_items();
+    if ($item[$node->nid]->qty) {
+      $output = t('<p>This item is in <a href="%cart_view">your shopping cart</a>.</p>', array('%cart_view' => url('cart/view')));
+    }
+    $group = form_textfield(t('Amount'), 'data][service_add_amount', $item[$node->nid]->service_add_amount, 10, 10, t('Please enter the amount as agreed upon via email.'), null, true);
+    $fields = form_group(t('Options'), $group);
+    $fields .= form_hidden('nid', $node->nid);
+    $fields .= form_hidden('destination', "node/$node->nid");
+    $fields .= form_submit(t('add to cart'));
+    $output .= form($fields, 'post', url("service/cart/$node->nid"));
+    $node->body .= $output;
+  }
+
+  return $node;
+}
+
+?>

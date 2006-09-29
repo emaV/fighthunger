@@ -1,0 +1,9 @@
+Auction module
+
+Dec 3, 2004
+  * Fixed bug #13861: "bidding closed" links appear on non-product nodes. Reported by jasper.
+  * On the 'my account' page, add a link for the user to pay for their winning items.
+  * Made the system smarter in recognizing when an auction item has/hasn't been paid for.
+
+Oct 9, 2004
+  * Initial release

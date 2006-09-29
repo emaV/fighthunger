@@ -1,0 +1,6 @@
+CREATE TABLE `ec_paypal` (
+  `txnid` int(11) NOT NULL default '0',
+  `ppid` varchar(30) NOT NULL default '0',
+  `fee` decimal(10,2) NOT NULL default '0.00',
+  PRIMARY KEY  (`ppid`)
+) TYPE=MyISAM;

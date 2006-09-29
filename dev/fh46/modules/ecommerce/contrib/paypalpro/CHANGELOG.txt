@@ -1,0 +1,54 @@
+October 31, 2005:
+ - paypalpro.module
+    o fix bug #35669, various localization fixes.  (based on a patch by 
+      syllance, thanks!)
+    o cleaned up wording in express checkout workflow
+
+October 30, 2005:
+ - paypalpro.module:
+    o More modifications to get working with HEAD version of e-commerce
+    o Added new screen to checkout process, provides customer with the option
+      to do an express checkout with PayPal.  (Note:  this is currently not
+      fully working)
+
+October 29, 2005:
+ - paypalpro.module:
+    o Upgrade to work with the HEAD version of e-commerce
+
+October 28, 2005:
+ - paypalpro.module:
+    o Display additional debug information when libcurl fails.
+
+October 12, 2005:
+ - paypalpro.module:
+    o Update form_token logic to match then new cart module form_token logic
+      (we no longer use aid, as it can change causing a false validation error.)
+
+October 11, 2005:
+ - paypalpro.module:
+    o Bug #33705: Fix Express Checkout redirect problem affecting clean urls
+                  (thanks to dopry)
+    o Bug #33521: Fix CreditCardTypeMismatch error with American Express
+                  (thanks to dopry)
+
+October 10, 2005:
+ - paypalpro.module:
+    o Bug #33648: 1. fix html typo in Express Checkout redirect page
+                  2. call product_adjust_price when doing Express Checkout
+		     (patches thanks to Sohodojo Jim)
+
+October 9, 2005:
+ - paypalpro.module:
+    o Bug #33520: add support for ec_form_token() when doing Express Checkout
+    o improved error handling, display _all_ errors, not just the first
+    o display useful error message when Express Checkout fails (parsed from
+      the xml returned from the paypal server)
+    o in _settings, explain where to find the PayPal Web Services API Account
+      Name
+
+October 8, 2005:
+Merged cart.module.patch into 4.6 release, removed from this directory.
+
+October 5, 2005:
+Initial paypalpro module commit.
+

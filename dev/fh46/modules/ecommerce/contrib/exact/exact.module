@@ -1,0 +1,291 @@
+<?php
+// $Id: exact.module,v 1.1.2.1 2005/10/30 19:04:17 mathias Exp $
+
+/**
+ * Implementation of hook_menu().
+ */
+function exact_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+   $items[] = array('path' => 'exact/form', 'title' => t('Credit Card payment'),
+      'callback' => 'exact_page', 'access' => TRUE, 'type' => MENU_CALLBACK);
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function exact_help($section = 'admin/help#exact') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Process payments using E-xact.');
+
+    case 'admin/settings/exact':
+      return t('You need to have an E-xact account and merchant account in order to use this module. See <a href="http://www.e-xact.com/">http://www.e-xact.com</a> for more information. Already have an E-Xact account? You can manage and get reports for your account <a href="https://secure.e-xact.com/">here</a>.');
+
+    case 'exact/form_submit_guidlines':
+      return t('Do not submit this form twice, or you may be double billed!');
+  }
+}
+
+/**
+ * Implementation of hook_paymentapi().
+ */
+function exact_paymentapi(&$txn, $op) {
+  switch ($op) {
+    case 'display name':
+      return t('Pay with credit card');
+
+    case 'payment page':
+      return exact_goto($data);
+  }
+}
+
+/**
+ * Implementation of hook_ec_transactionapi().
+ */
+function exact_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  if ($txn->payment_method != 'exact') return NULL;
+  switch ($op) {
+    case 'load':
+      $txn->payment = db_fetch_object(db_query('SELECT * FROM {ec_exact} WHERE txnid = %d', $txn->txnid));
+      break;
+    case 'insert':
+    case 'update':
+      exact_save($txn);
+      break;
+    case 'delete':
+      exact_delete($txn->txnid);
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function exact_settings() {
+  drupal_set_title(t('E-Xact payment processing'));
+  $output  = form_textarea(t('Explanation or submission guidelines'), 'exact_help', variable_get('exact_help', exact_help('exact/form_submit_guidlines')), 70, 5, t('This text will be displayed at the top of the credit card submission form.'));
+  $group = form_textfield(t('ExactID'), 'exact_login', variable_get('exact_login', 'A00049-01'), 70, 180, t('Identifies the location/terminal that is sending the transaction. This number is of the format Axxxxx-xx and is provided by E-xact upon set-up. The ExactID must be accompanied by a password.'));
+  $group .= form_password('Password', 'exact_password', variable_get('exact_password', 'test1'), 25, 255, t('Password that is uniquely associated with each ExactID. This value must be kept as secure (and secret) as possible.'));
+  $output .= form_group(t('Gateway terminal credentials'), $group, t('These terminal credentials establish the interaction between the E-xact software and our payment servers.'));
+  $output .= form_textfield(t('WSDL URL'), 'exact_wsdl_url', variable_get('exact_wsdl_url', 'https://secure2.e-xact.com/vpos/process/vpos.asmx?wsdl'), 70, 180, t('URL to obtain the WSDL for the payment web service.'));
+  $output .= form_textfield(t('Successful payment URL'), 'exact_success_url', variable_get('exact_success_url', 'node'), 70, 180, t("This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'. You may also enter '%order-history' to link to the user's order history."));
+  $output .= form_textfield(t('SOAP inlcude path'), 'exact_soap', variable_get('exact_soap', 'SOAP/Client.php'), 70, 180, t('Location of the PEAR SOAP package.'));
+
+  return $output;
+}
+
+/**
+ * Controller for collecting and processing credit card data.
+ */
+function exact_page($txnid = null) {
+  $edit = $_POST['edit'];
+  $op   = $_POST['op'];
+
+  switch ($op) {
+    case t('Place your order'):
+      if (exact_validate($edit)) {
+        exact_process($edit);
+      }
+      else {
+        $output = exact_form($edit['txnid']);
+      }
+      break;
+
+    default:
+      $output = exact_form($txnid);
+  }
+
+  print theme('page', $output);
+}
+
+/**
+ * Called immediately after the user has clicked the checkout button.
+ *
+ * Redirect the user to the secure server to collect credit card information.
+ */
+function exact_goto($txn) {
+  global $base_url;
+  $payment_url = str_replace('http://', 'https://', $base_url). '/'. url('exact/form/'. (int) $txn->txnid);
+
+  /* I can't use drupal_goto() becuase I need to go to a https */
+  header("Location: $payment_url");
+  exit();
+}
+
+function exact_delete($txnid) {
+  db_query('DELETE FROM {ec_exact} WHERE txnid = %d', $txnid);
+}
+
+/**
+ * Build the credit card form.
+ */
+function exact_form($txnid) {
+  global $user, $base_url;
+
+  $t = store_transaction_load($txnid);
+
+  //Make sure the user owns the transaction or is admin.
+  if ($user->uid != $t->uid && $user->uid != 1) {
+    drupal_access_denied();
+    exit();
+  }
+
+  //Make sure the user is connected via SSL
+  if (!$_SERVER['HTTPS']) {
+    drupal_access_denied();
+    exit();
+  }
+
+  if ($t->items) {
+    foreach ($t->items as $p) {
+      $product = product_load($p);
+      $subtotal += $p->qty * $p->price;
+      $items[] = t('%order of <b>%title</b> at %price each', array('%order' => format_plural($p->qty, '1 order', '%count orders'), '%title' => $p->title, '%price' => payment_format(product_adjust_price($product)))). "\n";
+    }
+  }
+
+  $output = t('<div class="help">%exact_help</div>', array('%exact_help' => variable_get('exact_help', exact_help('exact/form_submit_guidlines'))));
+  $output .= '<p>'. theme('item_list', $items, t('Your items')). '</p>';
+
+  // Prepare the values of the form fields.
+  $years  = drupal_map_assoc(range(2004, 2020));
+  $months = drupal_map_assoc(array('01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'));
+
+  $m_field = form_select(t('Month'), 'cc_month', ($month ? $month : date('m')), $months, null, 0, false, true);
+  $y_field = form_select(t('Year'), 'cc_year', ($year ? $year : date('Y')), $years, null, 0, false, true);
+  $exp_fields = form_group(t('Expiration Date'), $m_field . $y_field);
+
+  $fields = '';
+  $fields .= form_textfield(t('Credit Card Number'), 'cc_number', '', 21, 21, null, null, true);
+  $fields .= $exp_fields;
+  //$fields .= form_textfield(t('Three digit number on back of card'), 'ccv', '', 3, 3, null, null, true);
+  //$fields .= form_textfield(t('Phone Number'), 'phone', '', 21, 21, null, null, true);
+
+  $output .= form_group(t('Details'), $fields);
+  $output .= form_hidden('txnid', $txnid);
+  $output .= form_submit(t('Place your order'));
+
+  return form($output, 'POST', str_replace('http://', 'https://', $base_url). '/'. url("exact/form/$txnid"));
+}
+
+/**
+ * Ensure the integrity of the user-submitted data.
+ */
+function exact_validate($edit) {
+  $errors = array();
+  if (!$edit['cc_number']) {
+    $errors['cc_number'] = t('You must enter a credit card number.');
+  }
+  elseif (!is_numeric($edit['cc_number'])) {
+    $errors['cc_number'] = t('Error in credit card number. Please make sure it is typed correctly.');
+  }
+
+  foreach ($errors as $name => $message) {
+    form_set_error($name, $message);
+  }
+
+  return count($errors) == 0;
+}
+
+/**
+ * Save the payment processing details.
+ */
+function exact_save($txn) {
+  if ($txn->txnid > 0 && $txn->pid > 0) {
+
+    if (db_result(db_query("SELECT COUNT(txnid) FROM {ec_exact} WHERE txnid = '%s'", $txn->txnid))) {
+      db_query("UPDATE {ec_exact} SET pid = '%s', amount = '%f', record = '%s' WHERE txnid = %d", $txn->pid, $txn->amount, $txn->record, $txn->txnid);
+    }
+    else {
+      db_query("INSERT INTO {ec_exact} (txnid, pid, amount, record) VALUES (%d, '%s', '%f', '%s')", $txn->txnid, $txn->pid, $txn->amount, $txn->record);
+    }
+  }
+
+}
+
+/**
+ * Send SOAP request and process the returned data.
+ */
+function exact_process($edit) {
+
+  $t = store_transaction_load($edit['txnid']);
+
+  global $user;
+  //Make sure the user owns the transaction or is admin.
+  if ($user->uid != $t['uid'] && $user->uid != 1) {
+    drupal_access_denied();
+    exit();
+  }
+
+  //Make sure the user is connected via SSL
+  if (!$_SERVER['HTTPS']) {
+    drupal_access_denied();
+    exit();
+  }
+
+  include_once check_url(variable_get('exact_soap', 'SOAP/Client.php'));
+  $wsdl = new SOAP_WSDL(variable_get('exact_wsdl_url', 'https://secure2.e-xact.com/vpos/process/vpos.asmx?wsdl'));
+
+  if ($wsdl->fault) {
+    drupal_set_message(trim($wsdl->fault->message, ','), 'error');
+    global $base_url;
+    $payment_url = str_replace('http://', 'https://', $base_url). '/'. url('exact/form/'. $edit['txnid']);
+    header("Location: $payment_url");
+    exit();
+  }
+  else {
+    // Getting the wsdl file
+    //header('Content-Type: text/plain');
+    //echo $wsdl->generateProxyCode();
+    //exit();
+
+    $d = array(
+      'ExactID' => variable_get('exact_login', 'A00049-01'),        //Payment Gateway I.E. CAD="A00049-01" USD="A00427-01"
+      'Password' => variable_get('exact_password', 'test1'),        //Gateway Password I.E. CAD="test1" USD="testus"
+      'Transaction_Type' => '00',                                   //Transaction Code I.E. Purchase="00" Pre-Authorization="01" etc.
+      'Reference_No' => $edit['txnid'],
+      'Customer_Ref' => $t['uid'],
+      'Client_IP' => $_SERVER['REMOTE_ADDR'],
+      'Client_Email' => $t['mail'],
+      'Language' => 'en',                                           //English="en" French="fr"
+      'Card_Number' => $edit['cc_number'],                          //For Testing, Use Test#s VISA="4111111111111111" MasterCard="5500000000000004" etc.
+      'Expiry_Date' => $edit['cc_month'] . substr($edit['cc_year'], 2), //This value should be in the format MM/YY.
+      'CardHoldersName' => $t['billing_firstname'] .' '. $t['billing_lastname'],
+      'DollarAmount' => $t['gross'],
+    );
+
+    $exactProxy = $wsdl->getProxy();
+    $return = $exactProxy->Process($d);
+
+    if ($return->Transaction_Error) { // Credit card error: card was not charged.
+      drupal_set_message($return->EXact_Message, 'error');
+      global $base_url;
+      $payment_url = str_replace('http://', 'https://', $base_url). '/'. url('exact/form/'. $edit['txnid']);
+      header("Location: $payment_url");
+      exit();
+    }
+    else {
+      $edit['pid']    = $return->Transaction_Tag;
+      $edit['amount'] = $return->DollarAmount;
+      $edit['record'] = $return->CTR;
+      $edit['payment_status'] = payment_get_status_id('completed');
+      $edit['payment_method'] = 'exact';
+
+      $is_new = (db_result(db_query('SELECT COUNT(txnid) FROM {ec_exact} WHERE txnid = %d', $edit['txnid']))) ? FALSE : TRUE;
+      $txnid = store_transaction_save($edit);
+
+      if ($is_new && $txnid) {
+        // Compose and send confirmation email to the user
+        store_send_invoice_email($txnid);
+      }
+
+      $return_url = variable_get('exact_success_url', '%order-history') == '%order-history' ? t('%order-history', array('%order-history' => url("store/history/$user->uid"))) : url(variable_get('exact_success_url', '%order-history'));
+      drupal_goto($return_url);
+    }
+  }
+}
+
+?>

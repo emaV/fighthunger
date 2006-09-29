@@ -1,0 +1,15 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: Ecommerce package
+Author: Matt Westgate <drupal at asitis dot org>
+********************************************************************
+UPGRADING FROM 4.5 TO 4.6:
+
+1. Backup your database and Drupal directory.
+
+2. Log on as the user with user ID 1.
+
+3. Run update.php by visiting http://www.example.com/modules/ecommerce/update.php.
+
+********************************************************************

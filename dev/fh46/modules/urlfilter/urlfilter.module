@@ -1,0 +1,36 @@
+<?php
+// $Id: urlfilter.module,v 1.15.2.1 2005/10/13 16:10:41 unconed Exp $
+
+function urlfilter_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Automatically turns web and e-mail addresses into clickable links.');
+  }
+}
+
+function urlfilter_filter_tips($delta, $format, $long = false) {
+  return t('Web and e-mail addresses are automatically converted into links.');
+}
+
+function urlfilter_filter($op, $delta = 0, $format = -1, $text = '') {
+  switch ($op) {
+    case 'list':
+      return array(0 => t('URL filter'));
+
+    case 'description':
+      return t('Turns web and e-mail addresses into clickable links.');
+
+    case 'process':
+      $text = ' ' . $text . ' ';
+      $text = preg_replace("!(<p>|<li>|[ \n\r\t\(])((http://|https://|ftp:\//|mailto:)([a-zA-Z0-9@:%_~#?&=.,/;-]*[a-zA-Z0-9@:%_+*~#&=/;-]))([.,?]?)(?=(</p>|</li>|[ \n\r\t\)]))!i", '\1<a href="\2">\2</a>\5', $text);
+      $text = preg_replace("!(<p>|<li>|[ \n\r\t\(])([A-Za-z0-9._-]+@[A-Za-z0-9._+-]+\.[A-Za-z]{2,4})([.,]?)(?=(</p>|</li>|[ \n\r\t\)]))!i", '\1<a href="mailto:\2">\2</a>\3', $text);
+      $text = preg_replace("!(<p>|<li>|[ \n\r\t\(])(www\.[a-zA-Z0-9@:%_+*~#?&=.,/;-]*[a-zA-Z0-9@:%_~#\&=/;-])([.,?]?)(?=(</p>|</li>|[ \n\r\t\)]))!i", '\1<a href="http://\2">\2</a>\3', $text);
+      $text = substr($text, 1, -1);
+      return $text;
+
+    default:
+      return $text;
+  }
+}
+
+?>

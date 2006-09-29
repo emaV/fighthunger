@@ -1,0 +1,1065 @@
+<?php
+// $Id: product.module,v 1.58.2.11 2006/02/06 09:50:02 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+//TODO: Make sure only authenticated users can purchase recurring products.
+
+/**
+ * Theme function to render product node.
+ */
+function theme_node_product($node, $teaser = 0, $page = 0) {
+  $product_type_theme = false;
+  $f = 'theme_product_'. $node->ptype . '_view';
+  if (function_exists($f)) {
+    $product_type_theme = true;
+    $node = theme('product_'. $node->ptype. '_view', $node, $teaser, $page);
+  }
+
+  if (!$product_type_theme) {
+    $price_string = '<div class="price"><strong>'. t('Price') .'</strong>: '. payment_format(product_adjust_price($node)) . '</div>';
+    if ($node->is_recurring) {
+      $price_string .= '<div class="recurring-details">'. product_recurring_nice_string($node) . '</div>';
+    }
+    $node->teaser .= $price_string;
+    $node->body .= $price_string;
+  }
+
+  return $node;
+}
+
+/**
+ * The default view when calling index.php?q=product. I'm fraught with
+ * indecision about this.  On one hand i could hardocde the layout here,
+ * or i could keep it open and flexible so folks could control the layout
+ * in the theme by checking $node->type == 'product' in the theme _node function.
+ */
+function theme_product_view_collection() {
+
+  $columns  = 3;
+  $rows     = 5;
+
+  $result = pager_query(db_rewrite_sql('SELECT n.nid FROM {node} n INNER JOIN {ec_product} p ON n.nid = p.nid WHERE n.status = 1 ORDER BY n.sticky DESC, n.created DESC'), $rows * $columns, 0);
+
+  $output = '<table width="100%" cellpadding="10">';
+  for ($i = 0; $node = db_fetch_object($result); $i++) {
+
+    if ($i % $columns == 0) {
+      $output .= '<tr>';
+    }
+
+    $node = node_load(array('nid' => $node->nid));
+    $teaser = true;
+    $page   = false;
+
+    $node->body = str_replace('<!--break-->', '', $node->body);
+    if (node_hook($node, 'view')) {
+      node_invoke($node, 'view', $teaser, $page);
+    }
+    else {
+      $node = node_prepare($node, $teaser);
+    }
+    node_invoke_nodeapi($node, 'view', $teaser, $page);
+
+    $output .= '<td valign="top"><p>'. l($node->title, "node/$node->nid") ."</p><div>$node->teaser</div></td>\n";
+
+    if ($i % $columns == $columns - 1) {
+      $output .= "</tr>\n";
+    }
+  }
+
+  if ($i % $columns != 0) {
+    $output .= "</tr>\n";
+  }
+  $output .= '</table>';
+
+  if ($pager = theme('pager', NULL, $rows * $columns, 0)) {
+    $output .= $pager;
+  }
+
+  return $output;
+}
+
+/**
+ * Define access restrictions
+ *
+ * This hook allows node modules to limit access to the node types they
+ * define.
+ */
+function product_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('create products');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own products') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_form().
+ */
+function product_form(&$node) {
+  $output = '';
+
+  if (function_exists('taxonomy_node_form')) {
+    $output .= implode("", taxonomy_node_form('product', $node));
+  }
+
+  $output .= form_textarea(t('Description'), 'body', $node->body, 60, 10, t('Provide the product details to display on the page.'));
+  $output .= filter_form('format', $node->format);
+  $output .= product_get_base_form_elements($node);
+  $output .= form_hidden('ptype', $node->ptype);
+  $bool = module_invoke($node->ptype, 'productapi', $node, 'is_shippable');
+  if (module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $node, 'per_product') && $bool[0]) {
+    $output .= form_hidden('per_product_shipping', 1);
+    $output .= module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $node, 'per_product_form');
+  }
+  $output .= module_invoke($node->ptype, 'productapi', $node, 'form');
+
+  return $output;
+}
+
+function product_help($section = 'admin/help#product') {
+  $output = "";
+
+  switch ($section) {
+    case 'admin/modules#description':
+      $output = t('Creates products for ecommerce.');
+      break;
+
+    case 'node/add#product':
+      $output = t("A product is a good or service that you wish to sell on your site.  It can be a tangible shippable item or even a download.");
+      break;
+  }
+
+  return $output;
+}
+
+/**
+ * Define internal Drupal links
+ *
+ * This hook enables modules to add links to many parts of Drupal. Links
+ * may be added in nodes, in the global navigation bar, and in the main
+ * site navigation menu, for example.
+ */
+function product_link($type, $node = null, $teaser = false) {
+  $links = array();
+
+  if ($type == 'node' && $node->ptype) {
+    /* Determine whether or not the 'add to cart' link needs to be displayed. */
+    $item = cart_get_items();
+    if ($node->hide_cart_link == 0) {
+
+      /* Right here we need to check if a given product type is in stock */
+      if (module_invoke($node->ptype, 'productapi', $node, 'in_stock')) {
+        // Is it already in our cart?
+        if ($item[$node->nid]->qty) {
+          $links[] = t('This item is in <a href="%cart_view">your shopping cart</a>.', array('%cart_view' => url('cart/view')));
+        }
+        else {
+          $links[] = l(t('add to cart'), "cart/add/$node->nid", array('class' => 'cart_link', 'title' => t('Add this item to your shopping cart.')));
+        }
+      }
+      else {
+        $links[] = t('sold out');
+      }
+    }
+  }
+
+  return $links;
+}
+
+/**
+ * Implementation of hook_load().
+ */
+function product_load($node) {
+  static $products = array();
+
+  if ($products[$node->nid] === NULL) {
+    $product = db_fetch_object(db_query('SELECT * FROM {ec_product} WHERE nid = %d', $node->nid));
+    /* Merge the product info for the specific type. */
+    if ($product_type = module_invoke($product->ptype, 'productapi', $product, 'load')) {
+      foreach ($product_type as $key => $value) {
+        $product->$key = $value;
+      }
+    }
+
+    // Handle shipping.
+    // Don't test for if it *is* 'per_product', test for if it *supports* per_product
+    if (function_exists(variable_get('shipping_method', 'none').'_shippingapi')) {
+    // we can't use module_invoke, because one module could define multiple types
+      $f = variable_get('shipping_method', 'none').'_shippingapi';
+      $per_product = $f($edit, 'per_product');
+    }
+    if ($per_product && module_invoke($product->ptype, 'productapi', $product, 'is_shippable')) {
+      if ($shipping = module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $product, 'per_product_load')) {
+        foreach ($shipping as $key => $value) {
+          $product->$key = $value;
+        }
+      }
+    }
+
+    $products[$node->nid] = $product;
+  }
+
+  return $products[$node->nid];
+}
+
+/**
+ * Implmentation of menu_hook()
+ */
+function product_menu($may_cache) {
+
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'node/add/product', 'title' => t('product'), 'callback' => 'product_manage', 'access' => user_access('create products'));
+    $access = user_access('access content');
+    if (!variable_get('ec_hide_product_page', 0)) {
+      $items[] = array('path' => 'product', 'title' => t('products'),
+        'callback' => 'product_page',
+        'access' => $access);
+    }
+    $items[] = array('path' => 'admin/store/products', 'title' => t('products'),
+        'access' => $access, 'callback' => 'product_overview', 'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/store/products/quicklist', 'title' => t('product quicklist'),
+      'callback' => 'product_quicklist',
+      'access' => $access,
+      'type' => MENU_CALLBACK);
+  }
+  else {
+    if (arg(0) == 'node' && is_numeric(arg(1)) && user_access('administer products')) {
+      // Only add the product-tab for non-product pages:
+      if (db_result(db_query(db_rewrite_sql("SELECT COUNT(n.nid) FROM {node} n WHERE n.nid = %d AND n.type != 'product'"), arg(1))) > 0) {
+        $items[] = array('path' => 'node/'. arg(1) .'/product', 'title' => t('product'),
+          'callback' => 'product_to_product', 'access' => user_access('administer products'),
+          'type' => MENU_LOCAL_TASK, 'weight' => 2);
+      }
+    }
+  }
+
+  return $items;
+}
+
+function product_to_product() {
+  $op = $_POST['op'];
+  $edit = $_POST['edit'];
+  $node = node_load(array('nid' => arg(1)));
+
+  $edit = array2object($edit);
+  foreach ($node as $key => $value) {
+    if (!isset($edit->$key)) {
+      $edit->$key = $value;
+    }
+  }
+
+  if ($node->nid) {
+    switch ($op) {
+      case t('Create product'):
+      case t('Update product'):
+        // We are not using the node forms, so we need to create and save out product node. We are psuedo-product building.
+        if (product_form_validate($edit)) {
+          product_save($edit);
+          drupal_set_message(t('The product has been saved.'));
+          drupal_goto("node/$edit->nid");
+        }
+        else {
+          $output = product_type_form($edit);
+        }
+        break;
+
+      case t('Remove product'):
+        product_delete($node);
+        drupal_set_message(t('Removed the post from the product listings.'));
+        drupal_goto("node/$node->nid");
+        break;
+
+      case t('Continue to product details'):
+        if (product_form_validate($edit)) {
+          $output = product_type_form($edit);
+        }
+        else {
+          $output = product_get_base_form_elements($edit);
+          $output .= form_hidden('ptype', $edit->ptype);
+          $output .= module_invoke($edit->ptype, 'productapi', $edit, 'form');
+
+          if ($edit->ptype && !form_get_errors()) {
+            $output .= form_submit(t('Update product'));
+            $output .= form_submit(t('Remove product'));
+          }
+          else {
+            $output .= product_form_product_types();
+          }
+          $output = form($output);
+        }
+        drupal_set_title(t('%node-title (product)', array('%node-title' => $node->title)));
+        break;
+
+      default:
+        $output = product_get_base_form_elements($edit);
+        $output .= form_hidden('ptype', $edit->ptype);
+        $bool = module_invoke($edit->ptype, 'productapi', $edit, 'is_shippable');
+        if (module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $edit, 'per_product') && $bool[0]) {
+          $output .= form_hidden('per_product_shipping', 1);
+          $output .= module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $edit, 'per_product_form');
+        }
+        $output .= module_invoke($edit->ptype, 'productapi', $edit, 'form');
+
+        if ($node->ptype) {
+          $output .= form_submit(t('Update product'));
+          $output .= form_submit(t('Remove product'));
+        }
+        else {
+          $output .= product_form_product_types();
+        }
+        $output = form($output);
+        drupal_set_title(t('%node-title (product)', array('%node-title' => $node->title)));
+    }
+
+    print theme('page', $output);
+  }
+}
+
+/**
+ * Implementation of hook_node_info().
+ */
+function product_node_info() {
+  return array('product' => array('name' => t('product'), 'base' => 'product'));
+}
+
+/**
+ * Implementation of hook_node_name().
+ */
+function product_node_name($node) {
+  return t('product');
+}
+
+function product_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+
+  /* You're probably thinking "He should've used node_validate, node_update
+     hooks instead.". But the problem is i used a multi-page node form that
+     doesn't know anything about those hooks. */
+
+  switch ($op) {
+    case 'load':
+      if ($node->type != 'product') {
+        $product = product_load($node);
+        if($product) {
+          foreach ($product as $key => $value) {
+            $node->$key = $value;
+          }
+        }
+      }
+      break;
+
+    case 'view':
+      /* If we have a pseudo product, add some product specific theming to it. */
+      if ($node->type != 'product' && $node->ptype) {
+        $node = theme('node_product', $node, 0, 1);
+      }
+      break;
+
+    case 'delete':
+      if ($node->type != 'product' && $node->ptype) {
+        product_delete($node);
+      }
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function product_perm() {
+  return array('administer products', 'create products', 'edit own products');
+}
+
+/**
+ * Implementation of node_view().
+ */
+function product_view(&$node, $teaser = false, $page = false) {
+  if ($page) {
+    $breadcrumb[] = l(t('Home'), '');
+    $breadcrumb[] = l(t('product'), 'product');
+    drupal_set_breadcrumb($breadcrumb);
+  }
+
+  $node = theme('node_product', node_prepare($node, $teaser), $teaser, $page);
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+
+/**
+ * The controller for the plugin API hooks. It iterates through the enabled
+ * plugins and calls their *_productapi hook if one exists, passing it the
+ * action (via $op) to execute.
+ *
+ * @param &$node
+ *   Either a node object, node array, or a string containing the node type.
+ * @param $op
+ *   A string containing the name of the productapi operation.
+ * @param $a3, $a4
+ *   Arguments to pass on to the hook, after the $node and $op arguments.
+ * @return
+ *   The returned value of the invoked hooks.
+ */
+function product_invoke_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  $return = array();
+  foreach (module_list() as $name) {
+    $function = $name ."_productapi";
+    if (function_exists($function)) {
+      $result = $function($node, $op, $a3, $a4);
+      if (isset($result)) {
+        $return = array_merge($return, $result);
+      }
+    }
+  }
+  return $return;
+}
+
+/**
+ * The controller for managing products.  Callback happens via node/add/product.
+ */
+function product_manage() {
+
+  $edit = array2object($_POST['edit']);
+  $op = $_POST['op'];
+
+  switch ($op) {
+    case t('Create product'):
+    case t('Update this product'):
+      /* We are not using the node forms, so we need to create and save out product node. We are psuedo-product building. */
+      if (product_form_validate($edit)) {
+        $nid = product_node_save($edit);
+        if (node_access('view', $edit)) {
+          drupal_goto("node/$nid");
+        }
+        else {
+          drupal_goto();
+        }
+      }
+      else {
+        $output = product_type_form($edit);
+      }
+      break;
+
+    case t('Continue to product details'):
+      if (product_form_validate($edit)) {
+        $output = product_type_form($edit);
+      }
+      else {
+        $output = product_wizard_form($edit);
+      }
+      break;
+
+    default:
+      $output = product_wizard_form($edit);
+  }
+
+  print theme('page', $output);
+}
+
+/**
+ * The controller for viewing products.  Callback happens via menu().
+ *
+ * @return string Completely themed HTML page.
+ */
+function product_page() {
+  print theme('page', theme('product_view_collection'));
+}
+
+/**
+ * To avoid redundancy group the common product form elements in one place.
+ */
+function product_get_base_form_elements($edit) {
+  $output = '';
+  if (!empty($edit->ptype)) { // List the product type for reference.
+    $ptype = module_invoke($edit->ptype, 'productapi', $edit, 'wizard_select');
+    $output .= t('<p><b>Product type:</b> %ptype</p>', array('%ptype' => $ptype[$edit->ptype]));
+  }
+  $output .= form_textfield(t('Price'), 'price', $edit->price, 25, 50, t('How much does this product retail for? Note: This price may be different from the selling price due to price adjustments elsewhere.'). $help);
+  if (variable_get('payment_recurring', 0)) {
+    $interval = drupal_map_assoc(range(0, 31));
+    $interval[0] = '--';
+    $unit = array(0 => t('-please choose-'), 'D' => t('Day(s)'), 'W' => t('Week(s)'), 'M' => t('Month(s)'), 'Y' => t('Year(s)'));
+
+    $group = form_select(t('Interval'), 'price_interval', $edit->price_interval, $interval);
+    $group .= form_select(t('Unit'), 'price_unit', $edit->price_unit, $unit);
+    $interval[-1] = t('unlimited');
+    //$interval[0] = 0;
+    $group .= form_select(t('Number of payments cycles'), 'price_cycle', (isset($edit->price_cycle)) ? $edit->price_cycle : -1, $interval, t('Select the number of recurring payment cycles this product has.'));
+    $output .= form_group(t('Billing cycle length'), $group);
+  }
+  $output .= form_textfield(t('SKU'), 'sku', $edit->sku, 25, 50, t('If you have an unique identifier for this product from another system or database, enter that here. This is optional, as system IDs are automatically created for each product.'));
+  $output .= form_radios(t("'Add to cart' link"), 'hide_cart_link', $edit->hide_cart_link, array(t("Visible"), t("Hidden")), t("Choose whether or not you want the 'Add to cart' link visible for this product."));
+
+  return $output;
+}
+
+/**
+ * The first view in the product creation wizard. Different products have
+ * different metadata to collect and thus different forms to generate. Find
+ * out which one the user wants as well as collect the common components.
+ */
+function product_wizard_form($edit) {
+
+  /* Ask node.module to build the node form and we'll strip off the form tags. */
+
+  $node_form = ($edit->uid && $edit->name && $edit->type) ? node_form($edit) : node_add('product');
+  $node_form = preg_replace("'</?(form).*?>'", '', $node_form);
+  $node_form = preg_replace("'</?(input type=\"submit\").*?>'", '', $node_form);
+  $node_form .= product_form_product_types();
+
+  return form($node_form, 'post', null, array('id' => 'node-form'));
+}
+
+function product_form_product_types() {
+  /* Build the product type selection form element */
+  $ptypes_display = array(-1 => 'please choose');
+
+  /* Grab a user-friendly name for this product type. If one isn't defined, use the plugin name. */
+  $ptypes = product_invoke_productapi($name, 'wizard_select');
+  asort($ptypes);
+  if (empty($ptypes)) {
+    form_set_error('ptype', t('No product types modules are installed!  Please install a product type module such as tangible.module or file.module.'));
+  }
+  else {
+    $ptypes_display = $ptypes_display + $ptypes;
+  }
+  $output = form_select(t('Type of product to create'), 'ptype', $edit->ptype, $ptypes_display, t('You cannot change the product type once it\'s created.'));
+  $output .= form_submit(t('Continue to product details'));
+
+  return $output;
+}
+
+/**
+ * The base product editing forms.  This is typically the second page and the
+ * last page of a multi-page form.
+ */
+function product_type_form($edit) {
+
+  if ($edit->ptype) {
+    /* Carry over any data from the previous form. This may not be the best way (ahem, temp db table), but it does
+      let the user click the back button to start over and this is easy to code. */
+    /* I'd like to have more control than this, but we have no idea what will be tacked on by nodeapi hooks. */
+    foreach ($edit as $key => $value) {
+      if (!is_array($value) && !is_object($value)) {
+        $output .= form_hidden($key, $value);
+      }
+      else {
+        /* In case we need to pass along any data that's an array. */
+        $pass_array[$key] = $value;
+      }
+    }
+    $output .= form_hidden('pass_array', serialize($pass_array));
+    $output .= ($edit->taxonomy) ? form_hidden('taxonomy', serialize($edit->taxonomy)) : '';
+    $output .= '<strong>'. t('Price') . ': </strong>'. payment_format($edit->price) . product_recurring_nice_string($edit) . '<br />';
+    if ($edit->sku) {
+      $output .= '<strong>'. t('<acronym title="Stock-Keeping Unit">SKU</acronym>') . ': </strong>'. $edit->sku . '<br />';
+    }
+    $cart_link = ($edit->hide_cart_link) ? t('Hidden') : t('Visible');
+    $output .= '<strong>'. t('Add to cart link') . ': </strong>'. $cart_link . '<br />';
+    $output .= '<strong>'. t('Title') . ': </strong>'. $edit->title . '<br />';
+    $output .= '<strong>'. t('Product type') . ': </strong>'. $edit->ptype . '<br />';
+
+    // Display shipping options if we're building a shippable product and we
+    // have the per product shipping option enabled.
+    $bool = module_invoke($edit->ptype, 'productapi', $edit, 'is_shippable');
+    if (module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $edit, 'per_product') && $bool[0]) {
+      $output .= form_hidden('per_product_shipping', 1);
+      $output .= module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $edit, 'per_product_form');
+    }
+
+    $output .= module_invoke($edit->ptype, 'productapi', $edit, 'form', $error);
+
+    if (db_result(db_query('SELECT COUNT(nid) FROM {ec_product} WHERE nid = %d', $edit->nid))) {
+      $output .= form_submit(t('Update this product'));
+    }
+    else {
+      $output .= form_submit(t('Create product'));
+    }
+  }
+  else {
+    /* I don't think this if/else statement is really needed */
+    $output .= product_wizard_form($edit);
+  }
+
+  return form($output);
+}
+
+function product_form_validate(&$edit) {
+  $errors = array();
+
+  if ((int)$edit->ptype == -1) {
+    $errors['ptype'] = t('You need to select the type of product you wish to create.');
+  }
+
+  /* Remove the currency symbol at the beginning of the price if it exists */
+  if (isset($edit->price)) {
+    if (substr($edit->price, 0, 1) == variable_get('payment_symbol', '$')) {
+      $edit->price = substr($edit->price, count(variable_get('payment_symbol', '$')));
+    }
+    $edit->price = str_replace(',', '', $edit->price);
+    if (!is_numeric($edit->price)) {
+      $errors['price'] = t('Please enter a numeric value for the product price.');
+    }
+  }
+
+  if ($edit->per_product_shipping) {
+    module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $edit, 'per_product_validate');
+  }
+
+  if (!$errors['ptype']) {
+    $f = $edit->ptype. '_productapi';
+    if (function_exists($f)) {
+      $f($edit, 'validate');
+    }
+  }
+
+  foreach ($errors as $name => $message) {
+    form_set_error($name, $message);
+  }
+
+  return ((form_get_errors()) ? false : true);
+}
+
+/*
+ * Assumes the node data has already been saved to it's respective tables and
+ * only updates the main product table and the plugin of the product type
+ * (e.g., product_tangible).
+ */
+function product_save($node) {
+  if ($node->ptype) {
+    $node->is_recurring = ($node->price_interval) ? 1 : 0;
+    $fields = product_fields();
+
+    /*
+    TODO: ADD SHIPPING API CALLBACKS
+    */
+
+    /* Be very sure that we have a product entry to update! */
+    if (db_result(db_query('SELECT COUNT(nid) FROM {ec_product} WHERE nid = %d', $node->nid))) {
+      foreach ($node as $key => $value) {
+        if (in_array($key, $fields)) {
+          $q[] = db_escape_string($key) ." = '%s'";
+          $v[] = $value;
+        }
+      }
+      db_query('UPDATE {ec_product} SET '. implode(', ', $q) ." WHERE nid = $node->nid", $v);
+      module_invoke($node->ptype, 'productapi', $node, 'update');
+      if ($node->per_product_shipping) {
+        module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $node, 'per_product_update');
+      }
+    }
+    else {
+      foreach ($node as $key => $value) {
+        if (in_array($key, $fields)) {
+          $k[] = db_escape_string($key);
+          $v[] = $value;
+          $s[] = "'%s'";
+        }
+      }
+
+      db_query('INSERT INTO {ec_product} ('. implode(', ', $k) .') VALUES('. implode(', ', $s) .')', $v);
+      module_invoke($node->ptype, 'productapi', $node, 'insert');
+      if ($node->per_product_shipping) {
+        module_invoke(variable_get('shipping_method', 'none'), 'shippingapi', $node, 'per_product_insert');
+      }
+    }
+  }
+}
+
+function product_validate(&$node) {
+  if(strstr($_GET['q'], "node/$node->nid/edit")) {
+    product_form_validate($node);
+  }
+}
+
+/**
+ * Implementation of hook_insert().
+ */
+function product_insert($node) {
+  product_save($node);
+}
+
+/**
+ * Implementation of hook_update().
+ */
+function product_update($node) {
+  product_save($node);
+}
+
+/**
+ * Since this module uses it's own proprietary node form for the product
+ * creation wizard, we manually build and save our product node here.  We
+ * wouldn't have to do this if there was a way in the nodeapi to construct a
+ * multi-paged node form. So instead we call node_save() ourselves, and
+ * node_save then invokes the product nodeapi function which will finish saving
+ * our product node to the corresponding product db tables.
+ */
+function product_node_save($edit) {
+
+  global $user;
+
+  $node = $edit;
+
+  if (!$edit->nid) {
+    $pass_array = unserialize($edit->pass_array);
+    if (is_array($pass_array)) {
+      foreach ($pass_array as $key => $value) {
+        if (!$edit->$key) {
+          $edit->$key = $pass_array->value;
+        }
+      }
+    }
+  }
+
+  /* Gather the rest of the product data from the other plugins and pass to
+    node_save as a node object, which will in turn pass that object onto our
+    nodeapi insert hook */
+  $fields = module_invoke($edit->ptype, 'productapi', $edit, 'fields');
+  foreach ((array) $fields as $key => $value) {
+    $node->$key = $value;
+  }
+
+  /* Build and save the node */
+  if ($edit->nid) {
+    $node->nid      = $edit->nid;
+  }
+  else {
+    $node->type = 'product';
+    $node_options = variable_get('node_options_'. $node->type, array('status', 'promote'));
+    $node->status = in_array('status', $node_options);
+    $node->moderate = in_array('moderate', $node_options);
+    $node->promote = in_array('promote', $node_options);
+    $node->sticky = in_array('sticky', $node_options);
+    $node->revision = in_array('revision', $node_options);
+  }
+
+  $node->body           = $edit->body;
+  $node->price          = $edit->price;
+  $node->sku            = $edit->sku;
+  $node->hide_cart_link = $edit->hide_cart_link;
+  $node->ptype          = $edit->ptype;
+  $node->title          = strip_tags($edit->title);
+  $node->teaser         = node_teaser($edit->body);
+  $node->uid            = $user->uid;
+  $node->taxonomy       = (!$edit->taxonomy && $edit->nid) ? array_keys(taxonomy_node_get_terms($edit->nid)) : unserialize($edit->taxonomy);
+
+  //node_submit returns a nid.
+  return node_submit($node);
+}
+
+function product_delete($node) {
+  db_query('DELETE FROM {ec_product} WHERE nid = %d', $node->nid);
+  module_invoke('cart', 'productapi', $node, 'delete');
+  module_invoke($node->ptype, 'productapi', $node, 'delete');
+
+  drupal_set_message(t('product deleted'));
+}
+
+/**
+ * Display all products in a table format.
+ */
+function product_overview() {
+  $header = array(
+    array('data' => t('nid'), 'field' => 'p.nid', 'sort' => 'asc'),
+    array('data' => t('sku'), 'field' => 'p.sku'),
+    array('data' => t('title'), 'field' => 'n.title'),
+    array('data' => t('price'), 'field' => 'p.price'),
+    array('data' => t('type'), 'field' => 'p.ptype')
+  );
+  $sql = 'SELECT n.nid, n.title, p.* FROM {node} as n, {ec_product} as p WHERE n.nid = p.nid AND n.status = 1'. tablesort_sql($header);
+  $result = pager_query(db_rewrite_sql($sql), 50);
+
+  while ($data = db_fetch_object($result)) {
+    $rows[] = array($data->nid, $data->sku, l($data->title, "node/$data->nid"), product_adjust_price($data), $data->ptype);
+  }
+
+  $pager = theme('pager', NULL, 50, 0, tablesort_pager());
+  if (!empty($pager)) {
+    $rows[] = array(array('data' => $pager, 'colspan' => 6));
+  }
+
+  if ($rows) {
+    $output = theme('table', $header, $rows);
+  }
+  else {
+    $output =  t('<p>There are no products to view.');
+  }
+
+  print theme('page', $output, $title);
+}
+
+function product_quicklist() {
+
+  global $base_url;
+  $base_url .= '/';
+
+  $html = "<html>\n<head>\n<base href=\"$base_url\" />\n<style type=\"text/css\" media=\"all\">\n@import url(misc/drupal.css);\n</style>\n</head>\n<body>\n";
+
+  $header = array(
+    array('data' => t('nid'), 'field' => 'p.nid', 'sort' => 'asc'),
+    array('data' => t('sku'), 'field' => 'p.sku'),
+    array('data' => t('title'), 'field' => 'n.title'),
+    array('data' => t('price'), 'field' => 'p.price'),
+    array('data' => t('type'), 'field' => 'p.ptype')
+  );
+  $sql = 'SELECT * FROM {node} n, {ec_product} p WHERE n.nid = p.nid AND n.status = 1'. tablesort_sql($header);
+  $result = pager_query(db_rewrite_sql($sql), 50);
+
+  while ($data = db_fetch_object($result)) {
+    $rows[] = array($data->nid, $data->sku, $data->title, product_adjust_price($data), $data->ptype);
+  }
+
+  $pager = theme("pager", NULL, 50, 0, tablesort_pager());
+  if (!empty($pager)) {
+    $rows[] = array(array('data' => $pager, 'colspan' => 5));
+  }
+
+  print $html;
+  if ($rows) {
+    print theme("table", $header, $rows);
+  }
+  else {
+    print t('<p>There are no transactions to view. You can manually <a href="%add_transaction">add transactions</a>, however.</p>', array('%add_transaction' => 'admin/store/transaction/add'));
+  }
+  print '</body></html>';
+}
+
+function product_is_shippable($nid) {
+
+  $product = db_fetch_object(db_query('SELECT * FROM {ec_product} WHERE nid = %d', $nid));
+
+  $bool = (array) module_invoke($product->ptype, 'productapi', $product, 'is_shippable');
+  if (!is_array($bool)) {
+    return (boolean) $bool;
+  }
+
+  foreach ($bool as $value) {
+    if ($value) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function product_adjust_price($node) {
+  global $user;
+  $on_payment_roles = array_flip((array) variable_get('on_payment_roles', ''));
+
+  $old_price  = $node->price;
+  $new_price = module_invoke($node->ptype, 'productapi', $node, 'adjust_price', $old_price);
+  $new_price = $new_price > 0 ? $new_price: $old_price;
+
+  // User's already in the paid member role should not receive discounts on other
+  // subscriptions.
+  $role_discount = TRUE;
+  if ($node->is_recurring) {
+    foreach($user->roles as $rid => $rname) {
+      if (isset($on_payment_roles[$rid])) {
+        $role_discount = FALSE;
+      }
+    }
+  }
+
+  /* Invoke the global role-based price adjustments. */
+  if ($role_discount) {
+    $global_price = module_invoke('payment', 'productapi', $node, 'adjust_price', $new_price);
+    $new_price = $global_price > 0 ? $global_price: $new_price;
+  }
+
+  return (($new_price > 0) ? $new_price : $old_price);
+}
+
+/**
+ * Return a human friendly version of the recurring payment unit.
+ */
+function product_unit_nice_name($unit, $interval) {
+  switch (strtoupper($unit)) {
+    case 'D':
+      return format_plural($interval, 'day', 'days');
+    case 'W':
+      return format_plural($interval, 'week', 'weeks');
+    case 'M':
+      return format_plural($interval, 'month', 'months');
+    case 'Y':
+      return format_plural($interval, 'year', 'years');
+  }
+}
+
+/**
+ * Returns a human readable string summarizing the recurring payment details for a product.
+ */
+function product_recurring_nice_string($node) {
+  if (variable_get('payment_recurring', 0)) {
+    $node->price_cycle = ($node->price_cycle == 0) ? t('unlimited') : $node->price_cycle;
+    if ($node->price_cycle >= 0) {
+      $cycle = format_plural($node->price_cycle, '%count cycle', '%count cycles');
+    }
+    if ($node->price_cycle == -1) {
+      $cycle = t('unlimited cycles');
+    }
+    return t('Every %interval for %cycles.', array('%interval' => format_plural($node->price_interval, product_unit_nice_name($node->price_unit, $node->price_interval), '%count '. product_unit_nice_name($node->price_unit, $node->price_interval)), '%cycles' => $cycle));
+  }
+}
+
+/**
+ * Return all recurring payments currently in effect.
+ *
+ * @param $uid
+ *   Which uid to retrieve recurring payments for.
+ * @param $time
+ *   Alternate timestamp to use as the expiration date.
+ * @param $mode
+ *   If mode is 'all', all active recurring payments are returned for an user or
+ *   all users. If mode is anything else, then only the recurring payments that
+ *   have notifications waiting to be sent are returned.
+ * @return
+ *    An array of product objects also containing the notification metadata.
+ */
+function product_find_recurring_payments($uid = '', $time = '', $mode = 'all') {
+  if (!$time) {
+    $time = time();
+  }
+
+  $user_clause = '';
+  if ($uid && $uid > 0) {
+    $user_clause = 'AND st.uid = '. db_escape_string($uid);
+  }
+
+  $notifications = payment_get_recurring_email_notifications();
+  // Pop off the expired notification.
+  $expired_notify = array_pop($notifications);
+
+  // Find all recurring products that aren't expired.
+  $result = db_query("SELECT stp.*, st.uid, st.mail, st.payment_status, st.workflow, st.created, st.expires as txn_expires, st.billing_firstname, st.billing_lastname FROM {ec_transaction} AS st, {ec_transaction_product} AS stp WHERE stp.is_recurring = 1 AND (stp.last_notify < st.expires OR stp.last_notify < stp.expires) AND st.txnid = stp.txnid $user_clause ORDER BY st.txnid ASC");
+  while ($item = db_fetch_object($result)) {
+    if (empty($item->mail)) {
+      $item->mail = db_result(db_query('SELECT mail FROM {users} WHERE uid = %d', $item->uid));
+    }
+    $item->now = $time;
+    $item->expired = false;
+    $note_idx = array();
+
+    // If a notification has never been sent, use the date the transaction was created.
+    $item->last_notify = ($item->last_notify == 0) ? $item->created : $item->last_notify;
+
+    // A transaction-based expiration overrides the product level ones.
+    $item->expires = ($item->txn_expires) ? $item->txn_expires : $item->expires;
+
+    $expired_item = false;
+    foreach ($notifications as $type => $note) {
+      // If the item hasn't expired.
+      if ($item->expires > $time) {
+        $next_notify = strtotime($note->interval. ' '. product_unit_nice_name($note->unit, $note->interval). ' ago', $item->expires);
+        // Grab the valid notification.
+        if ($next_notify < $time && $next_notify > $item->last_notify && ($item->price_cycle > 1 || $item->price_cycle = -1)) {
+          $note->next_notify = $next_notify;
+          $note_idx[$next_notify] = $note;
+        }
+      }
+      elseif ($item->last_notify < $item->expires) {
+        $expired_item = true;
+      }
+    }
+
+    if ($expired_item) {
+      $item->expired = true;
+      //$item->notification = false;
+      $item->notification = $expired_notify;
+      if ($mode != 'all') {
+        $data[] = $item;
+      }
+    }
+    elseif ($note_idx) {
+      // We have the index of the note to send. Use the notification that expires
+      // the earliest.
+      ksort($note_idx);
+      $item->notification = array_shift($note_idx);
+      $item->expired = false;
+      if ($mode != 'all') {
+        $data[] = $item;
+      }
+    }
+
+    if ($mode == 'all') {
+      $data[] = $item;
+    }
+  }
+
+  return $data;
+}
+
+/**
+ * E-mail recurring payment notifications and mark the times
+ */
+function product_send_recurring_payment_notifications($debug = '') {
+  $output = array();
+  $payments = (array) product_find_recurring_payments(-1, time(), 'only products that need notifications sent');
+
+  if ($payments) {
+    $now = time();
+    $variables['%site'] = variable_get('site_name', 'drupal');
+    $variables['%uri'] = url('', NULL, NULL, TRUE);
+    $from = variable_get('site_mail', ini_get('sendmail_from'));
+    $headers = "From: $from\nReply-to: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from";
+
+    foreach($payments as $p) {
+      //Build the variable list that can be expanded in the email msg.
+      foreach ($p as $k => $v) {
+        $key = '%'. $k;
+        $variables[$key] = $v;
+      }
+      $variables['%renewal_link'] = url("cart/renew/$p->nid/$p->txnid", NULL, NULL, TRUE);
+      $variables['%renewal_item'] = t('%title (transaction #%txnid)', array('%title' => $p->title, '%txnid' => $p->txnid));
+      $variables['%time_to_expire'] = format_interval($p->expires - $now);
+      $variables['%time_since_expired'] = format_interval($now - $p->expires). ' '.t('ago');
+
+      if (!$debug) {
+        user_mail($p->mail, t($p->notification->subject, $variables), t($p->notification->body, $variables), $headers);
+        watchdog('regular', t('Recurring payment notification sent for transaction %txnid', array('%txnid' => $p->txnid)));
+      }
+      else {
+        $output[] = t("<b>To:</b> %mail<br />\n<b>Subject:</b> %subject<br />\n<b>Body:</b> %body<br />\n", array('%mail' => $p->mail, '%subject' => t($p->notification->subject, $variables), '%body' => t($p->notification->body, $variables)));
+      }
+
+      if ($p->price_cycle > 1) {
+        $p->price_cycle--;
+      }
+      if (!$debug) {
+        db_query('UPDATE {ec_transaction_product} SET last_notify = %d, price_cycle = %d WHERE txnid = %d AND nid = %d', $p->now, $p->price_cycle, $p->txnid, $p->nid);
+      }
+
+      //If the item is expired, take the user out of the priveleged role(s)
+      if ($p->expired && !$debug) {
+        if ($p->payment_status != payment_get_status_id('completed') || db_result(db_query('SELECT COUNT(nid) FROM {ec_transaction_product} tp, {ec_transaction} t WHERE tp.txnid = t.txnid AND t.uid = %d AND tp.is_recurring = 1 AND tp.expires > %d AND t.payment_status = 2', $p->uid, $now))) {
+          store_change_role(object2array($p), FALSE);
+          $user = user_load(array('uid' => $p->uid));
+          watchdog('ecommerce', t('Transaction expired for %name.', array('%name' => theme('placeholder', $user->name))));
+        }
+      }
+    }
+  }
+
+  return $output;
+}
+
+/**
+ * The names of the database columns in the table.
+ */
+function product_fields($table = 'ec_product') {
+  return array('nid', 'sku', 'price', 'is_recurring', 'price_interval', 'price_unit', 'price_cycle', 'auto_charge', 'ptype', 'hide_cart_link');
+}
+?>

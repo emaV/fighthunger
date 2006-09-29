@@ -1,0 +1,10 @@
+#
+# Table structure for table `ec_product_file`
+#
+
+CREATE TABLE ec_product_file (
+  nid int(10) unsigned NOT NULL default '0',
+  fpath varchar(128) NOT NULL default '',
+  size int(11) NOT NULL default '0',
+  UNIQUE KEY nid (nid)
+) TYPE=MyISAM;

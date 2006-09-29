@@ -1,0 +1,1 @@
+ALTER TABLE layout_blocks ADD row_limit int(10) unsigned DEFAULT 0 NOT NULL AFTER custom_where;

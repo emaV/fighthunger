@@ -1,0 +1,166 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Authorize.net Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-11-04 00:24+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: authorize_net.module:16
+msgid "Credit Card Payment"
+msgstr "Paiement carte bancaire"
+
+#: authorize_net.module:29
+msgid "Process payments using authorize.net."
+msgstr "Utiliser authorize.net pour les paiements."
+
+#: authorize_net.module:32
+msgid "You need to have an authorize.net merchant account in order to use this module. See <a href=\"http://authorize.net/solutions/gettingstarted.php\">here</a> for more information."
+msgstr "Vous devez avoir un compte vendeur authorize.net pour utiliser ce module. Pour plus d'informations, se référer au <a href=\"http://authorize.net/solutions/gettingstarted.php\">site authorize.net</a>."
+
+#: authorize_net.module:35
+msgid "Do not submit this form twice, or you may be double billed!"
+msgstr "La validation de ce formulaire entraine une facturation effective. Faites attention à ne pas le valider plusieurs fois (n'utilisez pas le bouton 'précédent'), vous risqueriez d'être facturé plusieurs fois."
+
+#: authorize_net.module:40
+msgid "Explanation or submission guidelines"
+msgstr "Explications, Guide d'utilisation "
+
+#: authorize_net.module:40
+msgid "This text will be displayed at the top of the credit card submission form."
+msgstr "Ce texte sera affiché au dessus du formulaire de saisie des informations de la carte bancaire."
+
+#: authorize_net.module:41
+msgid "Login ID"
+msgstr "Identifiant (login id) "
+
+#: authorize_net.module:41
+msgid "Enter your merchant login ID."
+msgstr "Entrez votre identifiant (compte vendeur,login id)"
+
+#: authorize_net.module:42
+msgid "Transaction key"
+msgstr "Clé de transaction "
+
+#: authorize_net.module:42
+msgid "Enter your merchant transaction key."
+msgstr "Entrez votre clé de transaction."
+
+#: authorize_net.module:43
+msgid "Authorize.net processing URL"
+msgstr "URL de validation Authorize.net "
+
+#: authorize_net.module:43
+msgid "URL of the secure payment processing page."
+msgstr "URL de la page de paiement sécurisé "
+
+#: authorize_net.module:44
+msgid "Successful payment URL"
+msgstr "URL suite à la validation du paiement "
+
+#: authorize_net.module:44
+msgid "This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'."
+msgstr "URL de la page vers laquelle seront redirigés vos clients une fois leur paiement validé. Il doit s'agir d'une adresse Drupal. Si vous n'utilisez pas les URL simplifiées, spécifiez uniquement la partie de l'url se trouvant après '?q='. Dans le doute, utilisez 'node'."
+
+#: authorize_net.module:45
+msgid "Authorize.net test mode"
+msgstr "Mode de test Authorize.net "
+
+#: authorize_net.module:45
+#: ;46
+msgid "Disabled"
+msgstr "Désactivé"
+
+#: authorize_net.module:45
+#: ;46
+msgid "Enabled"
+msgstr "Activé"
+
+#: authorize_net.module:45
+msgid "If enabled, transactions will be sent in test mode and cards will not be charged."
+msgstr "Si activé, les transactions sont effectuées en mode de test, et aucun prélèvement ne sera effectué."
+
+#: authorize_net.module:46
+msgid "Email Authorize.net Reciept"
+msgstr "Envoi d'un reçu Authorize.net par e-mail "
+
+#: authorize_net.module:46
+msgid "If enabled, the customer will recieve a payment confirmation email from Authorize.Net. Keep in mind the ecommerce package sends it own transaction summary as well. Enabling this option is recommended because it provides the customer with an accurate confirmation of the amount you have charged."
+msgstr "Si activé, le client recevra un e-mail de confirmation de paiement, envoyé par Authorize.net. Gardez à l'esprit que le module E-Commerce envoit sa propre notification sur l'état de la transaction. Il est cependant conseillé d'activer cette option afin de fournir au client une information précise sur le montant prélevé."
+
+#: authorize_net.module:59
+msgid "Pay with credit card"
+msgstr "Payer avec une carte bancaire"
+
+#: authorize_net.module:115
+#: ;179
+msgid "Place your order"
+msgstr "Passer votre commande"
+
+#: authorize_net.module:153
+msgid "%order of <b>%title</b> at %price each"
+msgstr "%order de <b>%title</b> au prix de %price pièce"
+
+#: authorize_net.module:157
+msgid "<div class=\"help\">%authorize_net_help</div>"
+msgstr "<div class=\"help\">%authorize_net_help</div>"
+
+#: authorize_net.module:159
+msgid "Your items"
+msgstr "Vos Produits"
+
+#: authorize_net.module:165
+msgid "Month"
+msgstr "Mois"
+
+#: authorize_net.module:166
+msgid "Year"
+msgstr "An"
+
+#: authorize_net.module:167
+msgid "Expiration Date"
+msgstr "Date d'expiration"
+
+#: authorize_net.module:170
+msgid "Cardholder's first name"
+msgstr "Prénom du propriétaire de la carte"
+
+#: authorize_net.module:171
+msgid "Cardholder's last name"
+msgstr "Nom du propriétaire de la carte"
+
+#: authorize_net.module:172
+msgid "Credit Card Number"
+msgstr "Numéro de la carte"
+
+#: authorize_net.module:177
+msgid "Card details"
+msgstr "Détails de la carte"
+
+#: authorize_net.module:190
+msgid "You must enter a credit card number."
+msgstr "Vous devez entrer un numéro de carte."
+
+#: authorize_net.module:193
+msgid "Error in credit card number. Please make sure it is typed correctly."
+msgstr "Numéro de carte incorrect, veuillez vérifier."
+
+#: authorize_net.module:334
+msgid "%authorize_net_error"
+msgstr "%authorize_net_error"
+
+#: authorize_net.module:153
+msgid "1 order"
+msgid_plural "%count orders"
+msgstr[0] "1 commande"
+msgstr[1] "%count commandes"
+
+#: authorize_net.module:0
+msgid "authorize_net"
+msgstr "authorize_net"
+

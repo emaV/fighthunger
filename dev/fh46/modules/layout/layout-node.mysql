@@ -1,0 +1,6 @@
+
+CREATE TABLE layout_node (
+  nid int(10) unsigned NOT NULL default 0,
+  page_source text NOT NULL default '',
+  PRIMARY KEY  (nid)
+);

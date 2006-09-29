@@ -1,0 +1,341 @@
+<?php
+// $Id: worldpay.module,v 1.1 2006/01/05 00:45:47 jasonm3m Exp $
+
+/**
+ * Implementation of hook_help().
+ */
+function worldpay_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      // This description is shown in the listing at admin/modules.
+      return t('WorldPay(tm) payment integration for the ecommerce.module. After enabling this module, click on %link to connect it to your worldpay(tm) account, customise the various settings and test.', array('%link'=>l('admin/settings/worldpay', 'admin/settings/worldpay'))); 
+    case 'admin/help#worldpay':
+      // Here is some help.
+      return t('The worldpay module allows the Drupal ecommerce system to use WorldPay as a payment gateway.  In order to use Worldpay as a payment gateway, you will first need to have the ecommerce module installed and configured, and a WorldPay account set up.');
+  }
+}
+
+
+/**
+ * Implementation of hook_settings().
+ */
+function worldpay_settings() {
+	
+    $output = '';
+    // Installation ID (instId)
+    $group = form_textfield(t('Installation ID (instId)'), 'worldpay_instId',
+    variable_get('worldpay_instId', '00000'), 20, 255,
+    t('WorldPay Installation ID. This should be set to your unique ID, which was given to 
+       you by WorldPay.'));
+
+  // Testing Mode (testMode)
+    $testMode_codes = array('0' => 'Live payment processing (0)', '100' => 'Test mode (100) - return success', '101' => 'Test mode (101) - return failure');
+    $group .= form_select(t('Testing Mode (testMode)'), 'worldpay_testMode', 
+    variable_get('worldpay_testMode', '100'), $testMode_codes,
+    t('WorldPay testMode code. Set to 0 for live shop, 100 or 101 for testing.'));
+
+  // Currency code (currency)
+    $currency_codes = array('USD' => 'USD - U.S. Dollars', 'EUR' => 'EUR - Euros', 'AUD' => 'AUD - Australian Dollars', 'CAD' => 'CAD - Canadian Dollars', 'GBP'=> 'GBP - Pounds Sterling');
+    $group .= form_select(t('Currency code (currency)'), 'worldpay_currency_code', 
+    variable_get('worldpay_currency_code', 'GBP'), $currency_codes, t('The currecy code that WorldPay should process the payment in.'));
+
+  // WorldPay Minimum Amount
+    $group .= form_textfield(t('WorldPay Minimum Amount'), 'worldpay_min_amount',
+    variable_get('worldpay_min_amount', '5.00'), 10, 10, t('The minimum purchase amount (gross) that will be accepted for WorldPay payments.'));
+    $output .= form_group(t('Main settings'),$group);
+
+  // WorldPay processing form settings
+    $group = form_textarea(t("Worldpay Submission Form (top)"), "worldpay_submit_form_top", variable_get("worldpay_submit_form_top", "<P>Name: %name</p><P>Address: %address</p><p>Order description: %order_description</p><p>Total amount: %total_amount, </p><p>reference number: %order_reference_number</p>"), 60, 10, t("Paste your HTML here for the top of your Worldpay submission form. This is the confirmation page users will see before being directed to the Worldpay secure server and complete their transaction. Available variables are: %name, %address, %order_description, %total_amount, %order_reference_number"));
+    $group .= form_textarea(t("Make Payment Button help text"), "worldpay_submit_button_text", variable_get("worldpay_submit_button_text", "You will now be transferred to the Worldpay secure server to enter your credit or debit card details.Please click on the MAKE PAYMENT button now:"), 60, 4, t("Edit the text you would like to display to users before clicking on the MAKE PAYMENT button."));
+    $group .= form_textfield(t('Make Payment button title'), 'worldpay_button_label', variable_get('worldpay_button_label', 'Make Payment'), 70, 70, t('Change the text that appears on your MAKE PAYMENT button'));
+    $group .= form_textarea(t("Worldpay Submission Form (bottom)"), "worldpay_submit_form_bottom", variable_get("worldpay_submit_form_bottom", "We accept payment using all the credit and debit cards shown below, however we would appreciate it if you can pay using a debit card as we incur a smaller transaction charge."), 60, 5, t("Paste your HTML here for the bottom of the Worldpay submission form. this text appears below the MAKE PAYMENT button and above the auto-generated credit & debit card icons your Worldpay account is able to accept."));
+
+      // WorldPay processing URL      
+    $group .= form_textfield(t('WorldPay processing URL'), 'worldpay_url',variable_get('worldpay_url', 'https://select.worldpay.com/wcc/purchase'), 60, 180, t('URL of the secure payment page customers are sent to for payment processing (Select Junior). If unsure leave at default setting.'));
+  // WorldPay callback URL
+    $group .= form_textfield(t('Thank you page/WorldPay callback URL'), 'worldpay_callback_url',variable_get('worldpay_callback_url', 'node'), 60, 180, t('<P><strong>BASIC USAGE (recommended):</strong> Redirect users to a specific thank you page and process your orders manually from Worldpay emails and your worldpay account.</p><P><strong>ADVANCED USAGE:</strong> Insert <strong>worldpay_callback</strong> as the link that is used for processing payment confirmation (Select Junior). This also needs to be configured in the settings on the WorldPay server as the full URL. Please refer to the README.TXT that came with the worldpay.module for more detailed instructions.</p>'));
+    $output .= form_group(t('Worldpay checkout settings'),$group);
+    return $output;
+}
+
+
+
+/***
+ * Implementation of ecommerce paymentapi (payment.module)
+ */
+function worldpay_paymentapi(&$data, $op, $arg = '') {
+
+  switch ($op) {
+    case 'display name':
+      return t('Credit/Debit Card (WorldPay)');
+
+    case 'update':
+    case 'insert':
+     // return worldpay_save($data);
+
+    case 'on checkout':
+      return worldpay_verify_checkout($data);
+
+    case 'payment page':
+      if ($data['gross'] > 0) {
+       return worldpay_form($data);
+       // return 'We apologise that credit cards can not yet be accepted online.  This should be available in the next few days.  Thankyou for your patience.';
+      }
+      break;
+
+    case 'delete':
+     // return worldpay_delete($data);
+    }
+}
+
+
+/**
+ * Implementation of hook_menu() - for worldpay callback
+ */
+function worldpay_menu($may_cache) {
+  $worldpay_callback_url = variable_get('worldpay_callback_url', 'worldpay_callback');
+
+  $items = array();
+//  if ($may_cache) {
+    $items[] = array('path' => $worldpay_callback_url, 'title' => t('WorldPay callback'),
+      'callback' => 'worldpay_callback_process', 'access' => true, 'type' => MENU_CALLBACK);
+//  }
+
+  return $items;
+}
+
+
+
+/***
+ * WorldPay verify checkout (check minimum purchase amount is met).
+ */
+function worldpay_verify_checkout($data) {
+  if (variable_get('worldpay_min_amount', '0') > $data['gross']) {
+    //form_set_error('gross', t('Your purchase total must be at least %min-purchase-amount for online Credit card purchases.', array('%min-purchase-amount' => payment_format(variable_get('paypal_min_amount', '0')))));
+    form_set_error('gross', t('Your purchase total must be at least £%min-purchase-amount for online Credit card purchases.', array('%min-purchase-amount' => variable_get('worldpay_min_amount', '0'))));
+    //form_set_error('gross', t('We apologise that credit and debit card purchases can not yet be accepted online.  This should be available in the next few days.  Thank you for your patience.  Please choose an alternate payment method.'));
+  }
+}
+
+
+/***
+ * WorldPay payment form.
+ */
+function worldpay_form($data) {
+
+  // Get relevant settings for form
+  $worldpay_url = variable_get('worldpay_url', '');
+  $worldpay_testMode = variable_get('worldpay_testMode', '');
+  $worldpay_currency_code = variable_get('worldpay_currency_code', '');
+  $worldpay_instId = variable_get('worldpay_instId', '');
+
+  // Format billing address as 1 field for worldpay  
+  $address = $data[billing_street1];
+  if ($data[billing_street2]) {
+    $address .= '&#10;' . $data[billing_street2];
+  }
+  if ($data[billing_city]) {
+    $address .= '&#10;' . $data[billing_city];
+  }
+  if ($data[billing_state]) {
+    $address .= '&#10;' . $data[billing_state];
+  }
+
+  // Format billing name as 1 field for worldpay
+  $name = $data[billing_firstname] . ' ' . $data[billing_lastname];
+
+  // readable data dump for debugging
+  $data_print_r = print_r($data, true);
+
+  // Build a summary description of items being purchased.
+  $description_summary = '';
+  $items = cart_get_items();
+  foreach ($items as $product) {
+    $node = node_load(array('nid' => $product->nid));
+    $description_summary .= $node->title;
+    /* if ($product->sku) {
+      $description_summary .= ' [' . $product->sku . ']';
+    } */
+    $description_summary .= ' (x' . $product->qty . '), <br>&#10;';
+  }
+
+  // Payment symbol
+  $payment_symbol = variable_get('payment_symbol', '');
+  
+  // Submit button label
+  $submit_label = variable_get("worldpay_button_label", "Make Payment Now");
+  
+  // Submit button help text
+  $button_help = variable_get("worldpay_submit_button_text", "You will now be transferred to the Worldpay secure server to enter your credit or debit card details.Please click on the MAKE PAYMENT button now:");
+  
+  // Submit form top
+  $form_top = variable_get("worldpay_submit_form_top", "<P>Name: %name</p><P>Address: %address</p><p>Order description: %order_description</p><p>Total amount: %total_amount, </p><p>reference number: %order_reference_number</p>");
+  $variables = (array('%name' => $name, '%address' => $address, '%order_description' => $description_summary, '%total_amount' => $data[gross], '%order_reference_number' => $data[txnid] ));
+  $top_message = strtr($form_top, $variables);
+  
+
+  
+  // Submit form bottom
+  $form_bottom = variable_get("worldpay_submit_form_bottom", "We accept payment using all the credit and debit cards shown below, however we would appreciate it if you can pay using a debit card as we incur a smaller transaction charge.");
+  
+  //Test message (when in testing mode)
+  if ($worldpay_testMode > 0) {
+    drupal_set_message(t('This is a test transaction.'));
+  }
+
+  // The worldpay submit form!
+  $form_top = variable_get("worldpay_Submit_form_top", "");
+  $output = drupal_eval($form_top);  
+  $output .= <<<ENDOFFORM
+<!-- 
+<h2>data dump (debug)</h2>
+<pre>
+$data_print_r
+</pre>
+-->
+$top_message
+<form action="$worldpay_url" method="POST">
+<input type="hidden" name="instId" value="$worldpay_instId">
+<input type="hidden" name="cartId" value="$data[txnid]">
+<input type="hidden" name="amount" value="$data[gross]">
+<input type="hidden" name="currency" value="$worldpay_currency_code">
+<input type="hidden" name="name" value="$name">
+<input type="hidden" name="address" value="$address">
+<input type="hidden" name="postcode" value="$data[billing_zip]">
+<input type="hidden" name="country" value="GB">
+<input type="hidden" name="email" value="$data[mail]">
+<!-- <input type="hidden" name="tel" value=""> -->
+<input type="hidden" name="desc" value="$description_summary">
+<input type="hidden" name="testMode" value="$worldpay_testMode">
+<!-- custom fields -->
+<input type="hidden" name="MC_txnid" value="$data[txnid]">
+<input type="hidden" name="MC_user_id" value="$data[uid]">
+$button_help
+<p align="right"> <input type="submit" value="$submit_label"></p>
+</form>
+$form_bottom
+<p>
+<script language="JavaScript" src="http://www.worldpay.com/cgenerator/cgenerator.php?instId=$worldpay_instId"></script>
+</p>
+ENDOFFORM;
+// END OF CUSTOMISATION
+  $form_bottom = variable_get("worldpay_Submit_form_bottom", "");
+  $output .= drupal_eval($form_bottom); 
+  print theme('page', $output);
+  
+}
+
+
+
+/**
+ * Callback processing for worldpay_callback_url - see worldpay_menu()
+ */
+function worldpay_callback_process() {
+
+  $debug = '';
+  ksort($_POST); //easier for debugging
+  foreach ($_POST as $key => $value) {
+    // $debug .= "$key = $value<br />\n";
+  }
+
+  $worldpay_instId = variable_get('worldpay_instId', '');
+
+/* 
+  Below is the hard coded 'themed' page for sending output back to worldpay.
+  note links are relative to worldpay site 
+  The best approach is probably to theme the same way as the worldpay pages (that's what I did)
+  To-do: needs to do stuff like change payment status for ecommerce module! (currently the only way to tell a payment has been made is from the worldpay email or website) - this function needs the most work.
+*/
+
+  $output = <<<ENDOFPAGE
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-GB" xml:lang="en-GB">
+<head>
+<title>Purchase Complete | My Company Name</title>
+<meta http-equiv="Content-Style-Type" content="text/css" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<style type="text/css" media="all">@import "/i/$worldpay_instId/drupal.css";</style>
+<style type="text/css" media="all">@import "/i/$worldpay_instId/style.css";</style>
+</head>
+<body  > 
+  
+<div id="page"> 
+  
+  <div id="header">
+
+    <img src="/i/$worldpay_instId/logo.gif" id="logo" alt="logo" />
+    <h1><a href="http://www.example.com/" title="My Company Name">My Company Name</a></h1> 
+    <div class="slogan">Put slogan here.</div>
+     
+  </div><!--/#header-->
+
+   
+  <ul id="primarylink"> 
+     
+      <li><a href="http://www.example.com/" title="Go back to the My Company home page">Home</a></li> 
+      <li><a href="http://www.example.com/section1" title="Go to Section 1 page">Section 1</a></li> 
+      <li><a href="http://www.example.com/section2" title="Go to Section 2 page">Section 2</a></li> 
+      <li><a href="http://www.example.com/section3" title="Go to Section 3 page">Section 3</a></li> 
+      <li><a href="http://www.example.com/section4" title="Go to Section 4 page">Section 4</a></li> 
+     
+      </ul><!--/#primarylink-->
+
+<table id="contentframe"><tr><!-- maybe it's just me, but CSS layout is sucky! -->
+<td id="content">
+
+<h2 id="pagetitle">Purchase Complete</h2> 
+
+<!-- the tag below is required by worldpay -->
+<wpdisplay item=banner>
+
+<p>Continue browsing the <a href="http://www.example.com">Online shop...</a></p>
+
+$debug
+
+</td><!--/#content-->
+<td id="sidebar">
+
+<div class="block block-user" id="block-user-1">
+  <h2>Navigation</h2>
+  <div class="content"><div class="menu">
+<ul>
+<li class="expanded"><a href="http://www.example.com/product" title="">Bookshop Items</a>
+<ul>
+<li class="leaf"><a href="http://www.example.com/books" title="">Books</a></li>
+
+<li class="leaf"><a href="http://www.example.com/booklets" title="">Booklets</a></li>
+<li class="leaf"><a href="http://www.example.com/tapes-and-cds" title="">Tapes and CDs</a></li>
+<li class="leaf"><a href="http://www.example.com/videos" title="">Videos</a></li>
+
+</ul>
+</li>
+
+</ul>
+</div></div>
+</div>
+  
+</td><!--/#sidebar-->
+</tr></table><!--/#contentframe-->
+  
+ 
+  <div id="footer">My Company &middot;
+my company address &middot;
+01234 123456 &middot;
+<a href="mailto:shop@example.com">shop@example.com</a></div>
+ 
+
+</div><!--/#page-->
+ 
+
+</body>
+</html>
+
+ENDOFPAGE;
+
+  print $output;
+}
+
+
+
+
+?>

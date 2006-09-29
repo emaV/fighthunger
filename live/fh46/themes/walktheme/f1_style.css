@@ -1,0 +1,132 @@
+body {
+	background: #000 url(f1_images/bg_page.jpg) no-repeat;
+	padding: 0;
+	margin: 10px 0;
+	color: #fff;
+	font: 12px/120% 'Lucida Grande', Verdana, Helvetica, Arial, sans-serif;
+	}
+	
+p {
+	margin: 0 0 12px 0;
+	}
+	
+	p#copyright {
+		font-size: 10px;
+		padding-top: 30px;
+		}
+    p#copyright a {
+        text-decoration: none;
+    }
+	
+a:link, a:visited {
+	color: #fff;
+	}
+	
+a:hover, a:active {
+	color: #ccc;
+	}
+	
+.movie {
+	width: 240px;
+	}
+
+.formtable {
+    margin: 0 10px 0 10px;
+}
+
+.formleft {
+	text-align: right;
+    width: 100px;
+    font-size: .9em;
+	}
+	
+.formright {
+	padding: 0 0 1em 5px;
+	font-size: .9em;
+	font-weight: bold;
+	}
+
+.formright textarea {
+    width: 220px;
+}
+
+#en_how, #fr_how {
+	color: #000;
+	text-align: left;
+	}
+	
+	#en_how p, #fr_how p {
+		padding-left: 15px;
+		padding-right: 15px;
+		}
+
+    #en_how .formtable, $fr_how .formtable {
+        margin-right: 20px;
+    }
+		
+#en_how_top {
+	background: transparent url(f1_images/en_bg_how.gif) no-repeat;
+	}
+#fr_how_top {
+	background: transparent url(f1_images/fr_bg_how.gif) no-repeat;
+	}
+	
+#how_bottom {
+	background: #000 url(f1_images/en_bg_how_bottom.gif) no-repeat;
+	}
+
+#en_taf {
+    text-align: left;
+	background: transparent url(f1_images/en_bg_taf.gif) no-repeat;
+	color: #000;
+	}
+#fr_taf {
+    text-align: left;
+	background: transparent url(f1_images/fr_bg_taf.gif) no-repeat;
+	color: #000;
+	}
+	
+#taf_bottom, #support_bottom {
+	background: #000 url(f1_images/bg_350_bottom.gif) no-repeat;
+	color: #000;
+	}
+
+#en_support {
+    text-align: left;
+	background: transparent url(f1_images/en_bg_support.gif) no-repeat;
+	color: #000;
+	}
+#fr_support {
+    text-align: left;
+	background: transparent url(f1_images/fr_bg_support.gif) no-repeat;
+	color: #000;
+	}
+	
+#support_lang {
+	background: #000;
+	}
+	
+#en_taf a:link, #en_taf a:visited,
+#en_support a:link, #en_support a:visited,
+#fr_taf a:link, #fr_taf a:visited,
+#fr_support a:link, #fr_support a:visited {
+	color: #333;
+	}
+	
+#en_taf a:hover, #en_taf a:active,
+#en_support a:hover, #en_support a:active,
+#fr_taf a:hover, #fr_taf a:active,
+#fr_support a:hover, #fr_support a:active {
+	color: #ccc;
+	}
+
+#taf .error {
+    color: #000;
+    font-weight: bold;
+    margin-bottom: 1em;
+}
+
+#thankstoyou {
+    text-align: left;
+}
+

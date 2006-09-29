@@ -1,0 +1,30 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: File module
+Author: Matt Westgate <drupal at asitis dot org>
+********************************************************************
+INSTALLATION:
+
+1. Place the entire file directory into your Drupal
+   modules/store/ folder.
+
+2. Load the database definition file using the tool of your choice
+   (e.g. phpmyadmin). For mysql and command line access use:
+
+     mysql -u user -p drupal < file.mysql
+
+   Replace user with the MySQL username, and drupal with the table
+   being used.
+
+3. Enable this module by navigating to:
+
+     administer > configuration > modules
+
+4. Configure any module specific settings under:
+
+    administer > configuration > modules > file
+
+Note: At this time files are not uploaded through Drupal. You must
+copy the files you wish to sell into the 'File path for products' directory
+using FTP or some other protocol.

@@ -1,0 +1,145 @@
+<?php
+
+/**
+ * Implementation of hook_help()
+ */
+function mailqueue_help($section) {
+  switch ($section) {
+  case 'admin/modules#description':
+    return t('Queues and sends emails.');
+    break;
+  }
+} 
+
+/**
+ * Implementation of hook_perm()
+ */
+function mailqueue_perm() {
+  return array('admin mailqueue'); 
+}
+
+/**
+ * Implementation of hook_settings()
+ */
+function mailqueue_settings() {
+  $form = '';
+  $form .= form_radios(t('Send on Cron'), 'mailqueue_sending', variable_get('mailqueue_sending', 0), array(t('Disabled'), t('Enabled')));
+  $form .= form_textfield(t('Emails per Cron'), 'mailqueue_limit', variable_get('mailqueue_limit', 0), 5, 5);
+  return $form;
+}
+
+/**
+ * Implementation of hook_cron()
+ */
+function mailqueue_cron(){
+  // only run once every ten minutes
+  $lasttime = variable_get("mailqueue_cronstamp",0);
+  $interval = time() - $lasttime;
+  if (($interval > (60*10)) || ($_GET['do']=="mail")){
+    variable_set("mailqueue_cronstamp",time());
+    mailqueue_cron_do();
+  }
+}
+
+function mailqueue_cron_do() {
+  if (variable_get('mailqueue_sending', 0)) {
+    $count = 0;
+    $limit = variable_get('mailqueue_limit', 0);
+    $result = db_query("SELECT * FROM {mailqueue_queue} WHERE sent IS NULL ORDER BY created ASC".($limit ? ' LIMIT '.$limit : ''));
+    while ($mail = db_fetch_object($result)) {
+      if ($mail->htmlbody) {
+        $body = $mail->htmlbody;
+        $text = false;
+      }
+      else {
+        $body = $mail->textbody;
+        $text = true;
+      }
+      $sender = array('mail' => $mail->sender);
+      if (function_exists('civicrm_initialize')) {
+        civicrm_initialize(TRUE);
+        $params = array('email' => $mail->sender);
+        if ($contact = crm_get_contact($params)) $sender['name'] = $contact->display_name;
+      }
+      watchdog("mailqueue","passed to mimemail: ".$sender);
+      if (mimemail($sender, $mail->recipient, $mail->subject, $body, $text)) {
+        db_query("UPDATE {mailqueue_queue} SET sent = %d WHERE qid = %d", time(), $mail->qid);
+        $count++;
+      }
+    }
+    watchdog('mailqueue', 'Processed '.$count.($count == 1 ? ' message' : ' messages'));
+  }
+}
+
+function mailqueue_enqueue($from, $to, $subject, $text = null, $html = null) {
+  if (empty($subject) || (empty($text) && empty($html))) return false;
+  if (mailqueue_check_email($from)) {
+    if (function_exists('civicrm_initialize')) {
+      civicrm_initialize(TRUE);
+      $params = array('email' => $from);
+      $from_contact = crm_get_contact($params);
+      if (!$from_contact->id) {
+        $params = array('email' => $from);
+        $from_contact = crm_create_contact($params);
+      }
+    }
+  }
+  else return false;
+
+  $count = 0;
+  if (!is_array($to)) $to = array($to);
+  foreach ($to as $mail) {
+    if (valid_email_address($mail)) {
+      if (function_exists('civicrm_initialize')) {
+        civicrm_initialize(TRUE);
+        $params = array('email' => $mail);
+        $contact = crm_get_contact($params);
+        if (!$contact->id) {
+          $params = array('email' => $mail);
+          $contact = crm_create_contact($params);
+        }
+        $params = array(
+            'entity_table' => 'civicrm_contact',
+            'entity_id' => $contact->id,
+            'activity_type' => 'Received Email',
+            'module' => 'mailqueue',
+            'activity_id' => 1,
+            'activity_summary' => 'Sent email by '.
+                                  l($from_contact->display_name, 
+                                    'civicrm/contact/view', 
+                                    array(), 
+                                    'reset=1&cid='.$from_contact->id) .
+                                  ' ('.$from.')',
+            'activity_date' => date('YmdHis')
+            );
+        crm_create_activity_history($params);
+      }
+      $qid = db_next_id("{mailqueue_queue}_qid");
+      db_query("INSERT INTO {mailqueue_queue} (qid, sender, recipient, subject, textbody, htmlbody, created) VALUES (%d, '%s', '%s', '%s', '%s', '%s', %d)",
+	       $qid, $from, $mail, $subject, $text, $html, time());
+      $count++;
+    }
+  }
+  if ($count) {
+    if (function_exists('civicrm_initialize') && $from_contact) {
+      civicrm_initialize(TRUE);
+      $params = array(
+		      'entity_table' => 'civicrm_contact',
+		      'entity_id' => $from_contact->id,
+		      'activity_type' => 'Sent Email',
+		      'module' => 'mailqueue',
+		      'activity_id' => 1,
+		      'activity_summary' => 'Sent email to '.$count.' '.($count == 1 ? 'recipient' : 'recipients').'.',
+		      'activity_date' => date('YmdHis')
+		      );
+      crm_create_activity_history($params);
+    } 
+  }
+  else return false;
+}
+
+function mailqueue_check_email($mail) {
+  return preg_match("/^[a-zA-Z0-9_\.\-]+@[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-\.]+$/", $mail);
+}
+
+?>

@@ -1,0 +1,18 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: Stores module
+Author: Matt Westgate <drupal at asitis dot org>
+Dependancies:
+  This module requires the ecommerce package.
+
+INSTALLATION
+********************************************************************
+1. Place the entire stores directory into your Drupal modules/
+   directory. If you downloaded this module along with the ecommerce
+   package, then it's current location should be fine.
+
+2. Enable this module by navigating to:
+
+     administer > modules
+

@@ -1,0 +1,1322 @@
+<?php
+// $Id: wtw_bat.modue, v 2.0.2 2006-04-18 14:26:00 ema Exp $
+
+/**
+ * @file
+ * Enables the creation of bats.
+ * 
+ * Developed by Emanuele Quinto for fighthunger.orgh
+ * Based on wtw_bat by echoditto
+ * Released under the GNU General Public License
+ * http://www.gnu.org/licenses/gpl.txt  
+ * 
+ * Depends on:
+ * - echomailer 
+ * - partners.module
+ * 
+ *   NOTE: change to partners_partners table
+ *         ALTER TABLE `partners_partners` ADD `data` VARCHAR(128) NOT NULL ;  
+ *   
+ * 
+ * WORKFLOW
+ * 1) User click the link on the block <- _wtw_bat_block_get_block($bid)
+ * 2) Redirected to /wtw_bat/click/nn -> _wtw_bat_click($bid)
+ * 3) click is validated  with a rule (captcha/email/none $node->validation_rule)
+ *    NOTE: if user is logged we don't need any validation  
+ *    click is validated with timeout $node->validation_timeout
+ * 4) user is redirected to:
+ *        - invite page (wtw_bat/invite/nn) 
+ *        - bat page (wtw_bat/nn)
+ *        - another page ($node->click_link)
+ *
+ * TODO
+ * - setting up menu callback /node/nid -> /wtw_bat/bid  
+ */
+ 
+/**
+ * Implementation of hook_help().
+ */
+function wtw_bat_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enables the creation of bats.');
+    case 'node/add#wtw_bat':
+      return t('If you want to add a bat use a bat page.');
+  }
+}
+
+/**
+ * Implementation of hook_node_name().
+ */
+function wtw_bat_node_name($node) {
+  return t('bat');
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function wtw_bat_perm() {
+  return array('administer wtw_bat');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function wtw_bat_access($op, $node) {
+  switch($op) {
+    case 'create':
+    case 'update':
+    case 'delete':
+      return user_access('administer wtw_bat');
+      break;
+    case 'view':
+      return true;
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_link().
+ * This is implemented so that an edit link is displayed for users who have
+ * the rights to edit a node.
+ */
+function wtw_bat_link($type, $node = 0, $main) {
+  $links = array();
+
+  if ($type == 'node' && $node->type == 'wtw_bat') {
+    // Don't display a redundant edit link if they are node administrators.
+    if (wtw_bat_access('update', $node) && !user_access('administer nodes')) {
+      $links[] = l(t('edit this wtw bat node'), "node/$node->nid/edit");
+    }
+  }
+
+  return $links;
+} 
+
+/**
+ * Implementation of hook_menu().
+ */
+function wtw_bat_menu ($may_cache) {
+  $items = array(); 
+  if ($may_cache) {
+/*
+    $items[] = array('path'     => 'wtw_bat', 
+                     'callback' => 'wtw_bat_page', 
+                     'access'   => true, 
+                     'type'     => MENU_CALLBACK);
+*/
+  } else {
+    $items[] = array('path'     => 'admin/wtw_bat',
+                     'title'    => 'wtw bat',
+                     'access'   => user_access('administer wtw_bat'),
+                     'callback' => 'wtw_bat_page_admin');
+    $items[] = array('path'   => 'node/add/wtw_bat', 
+                     'title'  => t('wtw bat page'),
+                     'access' => user_access('administer wtw_bat'));
+    $items[] = array('path'     => 'wtw_bat/images', 
+                     'title'    => 'wtw_bat image',
+                     'callback' => '_wtw_bat_output_png', 
+                     'access'   => true, 
+                     'type'     => MENU_CALLBACK);
+    $items[] = array('path'     => 'wtw_bat/click', 
+                     'title'    => 'wtw_bat click',
+                     'callback' => '_wtw_bat_click', 
+                     'access'   => true, 
+                     'type'     => MENU_CALLBACK);
+    $items[] = array('path'     => 'wtw_bat/invite', 
+                     'title'    => 'wtw_bat invite',
+                     'callback' => '_wtw_bat_invite', 
+                     'access'   => true, 
+                     'type'     => MENU_CALLBACK);
+    $items[] = array('path'     => 'wtw_bat/stats', 
+                     'title'    => 'wtw_bat stats',
+                     'callback' => '_wtw_bat_stats', 
+                     'access'   => user_access('administer wtw_bat'),
+                     'type'     => MENU_CALLBACK);
+    if (arg(0) == 'node' && is_numeric(arg(1))) {
+      $node = node_load(array('nid' => arg(1)));
+      if ($node->nid && ($node->type == 'wtw_bat')) {
+        $items[] = array('path' => 'node/'. arg(1) .'/stats', 'title' => t('statistics'),
+          'callback' => 'wtw_bat_stats',
+          'access' => user_access('administer wtw_bat'),
+          'weight' => 1,
+          'type' => MENU_LOCAL_TASK, 'weight' => 10);
+      }
+    }
+  }
+  return($items);
+}
+
+/**
+ * After click action
+ */
+function _wtw_bat_click($bid) {
+global $base_url;
+global $user;
+
+  $edit = $_POST['edit'];
+  $server = $_SERVER;
+
+  $userip = $_SERVER['REMOTE_ADDR'];
+  $from = $_SERVER[HTTP_REFERER];
+  $validation_type = $edit['validation_type'];
+  $validation_value = $edit['validation_value'];
+  $validation_timeout = $edit['validation_timeout'];
+  $bat_value  = $edit['bat_value'];
+  
+  switch($validation_type) {
+    case 'captcha':
+      $validation_check = _wtw_bat_block_get_validation_captcha($bat_value);
+      $check_val = ($validation_check==$validation_value);
+      $check_time = true;  //with captcha don't check timeout
+      $check_data = $validation_value;
+      $mail_enqueue = false;
+      break;
+    case 'email':
+      $mail_from = "?from=$validation_value";
+    case 'user':
+      $check_val = _wtw_bat_block_get_validation_email($validation_value);
+      $from_time = time() - 60 * $validation_timeout;
+      $sql = "SELECT count(*) FROM {wtw_bat_clicks} WHERE bid='$bid' AND timestamp > $from_time AND data = '$validation_value';";      
+      $check_time = ($validation_timeout>0) ? (db_result(db_query($sql))==0) : true;
+      $check_data = $validation_value;
+      $mail_enqueue = true;
+      break;
+    default:
+      $check_val = true;
+      $check_time = true;
+      $check_data = '';
+      $mail_enqueue = false;
+  }
+
+  if( $check_val && $check_time) {
+    db_query( "INSERT INTO {wtw_bat_clicks}  
+                 (bid, timestamp, validation_type, data, IP)
+               VALUES 
+                 (%d, UNIX_TIMESTAMP(NOW()), '%s', '%s', '%s')",
+               $bid, $validation_type, $check_data, $userip);
+    $result = db_fetch_object(db_query('SELECT nid, validation_afterpath, thanks, email_text FROM {wtw_bat_node} WHERE bid = %d', $bid));
+
+// enqueue email
+// watchdog('wtw_bat',"<p>enqueue: $mail_enqueue to: $validation_value result: " . $result->email_text . "</p>");
+
+    if($mail_enqueue) {
+      $from_name = 'Fight Hunger Team';
+      $from_mail = 'team@fighthunger.org';
+      $recipients[] = $validation_value;
+      $subject = "Thanks, you made $bat_value. Now join us!";
+      $message = $result->email_text;
+      $module = 'wtw_bat';
+      $query['bid'] = $bid;
+      $query['action'] = 'thanks';
+      echomailer_queue(0, $from_name, $from_mail, $recipients, $subject, $message, $module, $query);
+      
+/*      
+      $from = 'team@fighthunger.org';
+      $to = $validation_value;
+      $subject = "Thanks, you made $bat_value. Now join us!";
+      $text = $result->email_text;
+      mailqueue_enqueue($from, $to, $subject, $text);
+*/
+    }
+// redirect after click 
+    $message = $result->thanks;
+    switch  ($result->validation_afterpath) {
+      case '':
+      case '#page':
+        $redirect = "node/" . $result->nid;
+        break;
+      case '#invite':
+        $redirect = "wtw_bat/invite/" . $bid . $mail_from;
+        break;
+      default:
+        $redirect = $result->validation_afterpath;
+    }
+
+// click validation fail
+  } else {
+    if (!($check_val)) {
+      $result = db_result(db_query('SELECT validation_rule_msg  FROM {wtw_bat_node} WHERE bid = %d', $bid));
+      $message = ($result) ? $result : "Validation failed (type: $validation_type, data: $validation_value)";
+    } else {
+      $result = db_result(db_query('SELECT  validation_timeout_msg FROM {wtw_bat_node} WHERE bid = %d', $bid));
+      $message = ($result) ? $result : "Validation failed (type: $validation_type), time: $from_time)";
+    }
+    $n = strlen($base_url); //check if from the same site
+    if(strncmp($from, $base_url, $n)==0) {
+      $redirect = substr($from, $n);
+    } 
+  }
+
+// redirection
+  if($message) {
+    drupal_get_messages();
+    drupal_set_message($message);
+  }
+  if($redirect) drupal_goto($redirect);
+}
+
+/**
+ * Invite page
+ */
+function _wtw_bat_invite($bid) {
+global $base_url;
+global $user;
+
+  if(isset($_GET['from'])) {
+    $user_info['mail'] = $_GET['from'];
+  } else {
+  	$uid = $user->uid;
+  	$user_info = db_fetch_array(db_query("SELECT p1.value as firstname, p2.value as lastname, u.mail as mail
+                                          FROM users u
+  	                                      LEFT JOIN profile_values p1 ON (p1.uid=u.uid AND p1.fid=1)
+  	                                      LEFT JOIN profile_values p2 ON (p2.uid=u.uid AND p2.fid=2)
+  	                                      WHERE u.uid=$uid"));
+  }
+
+	$sql = "SELECT bid, invite_subject, invite_text, invite_message, invite_title, invite_bottomtext FROM {wtw_bat_node} WHERE bid = $bid"; 
+	$bat_info = db_fetch_array(db_query($sql));
+	
+	$user_info['subject'] = $bat_info['invite_subject'];
+	$user_info['message'] = $bat_info['invite_text'];
+	$output .= $bat_info['invite_message'];
+	$output .= echomailer_form('wtw_bat', $bat_info['invite_title'], $user_info, array('bid' => $bid, 'action'=> 'invite'));
+	$output .= "<div class='info'>" .
+      "<p><strong>This text will be added to the end of your message:</strong><br /><em>" .
+      $bat_info['invite_bottomtext'] . "</em></p></div>";
+	print theme('page',$output);
+}
+
+function wtw_bat_mailerapi($op, $data) {
+global $base_url;
+
+	switch ($op) {
+    case 'after_invitation':
+      $sql = "SELECT invite_successmessage, invite_pathafter FROM {wtw_bat_node} WHERE bid = " . $data['bid']; 
+	    $bat_info = db_fetch_array(db_query($sql));
+    	drupal_set_message( $bat_info['invite_successmessage'] );
+    	$path = $bat_info['invite_pathafter'];
+	    drupal_goto($path);
+
+    case 'format_email':
+      // called by _echomailer_send() to format the email's text 
+      // $data is an associative array with values 'subject', 'message', 'uid' and 
+      // 'url' (there is the bid value: http:/localhost/mailer/click/43903?bid=1&action=invite)
+      // Return an associative array with values 'subject' and 'message'
+      list( , $bid) = explode("?", $data['url']);
+      list($bid, ) = explode("&", $bid);
+      list( , $bid) = explode("=", $bid);
+      $sql = "SELECT invite_bottomtext FROM {wtw_bat_node} WHERE bid = $bid"; 
+	    $bat_info = db_fetch_array(db_query($sql));
+      $subject = $data['subject'];
+      $message = nl2br($data['message']);
+      $link_clickthrough = "<a href='" . $data['url'] . "'>$base_url</a>";
+//watchdog("wtw_bat", "%%clickthrough%% -> " . htmlentities($link_clickthrough));  
+      $message = preg_replace("/%%clickthrough%%/", $link_clickthrough, $message);
+      if($bat_info['invite_bottomtext'])
+        $message .= "<br /><hr /><br />" . $bat_info['invite_bottomtext'];
+//watchdog("wtw_bat", "<h3>message</h3> -> " . htmlentities($message));  
+	    return array('subject'=>$subject,'message'=>$message);
+          
+    case 'error_page':
+  		$bid = $_POST['edit']['query_data']['bid'];
+      drupal_goto("wtw_bat/invite/$bid");
+
+    case 'answer':
+watchdog("wtw_bat", "<h3>clickthrough answer</h3>");
+//  		$bid = $_POST['edit']['query_data']['bid'];
+      drupal_goto("home");
+	}
+}
+
+function wtw_bat_stats() {
+  $nid = arg(1);
+  $node = node_load(array('nid' => $nid));
+  $bid = $node->bid;
+
+  $bat_clicks = _wtw_bat_get_plot_value($bid);
+  
+  $bat_cliks_sql = "SELECT COUNT(cid) FROM {wtw_bat_clicks} WHERE bid = '$bid' ";
+  $bat_cliks_sql_ANDday  =  " AND timestamp > " . (time() - 60 * 60 * 24); 
+  $bat_cliks_sql_ANDweek =  " AND timestamp > " . (time() - 60 * 60 * 24 * 7); 
+  $bat_cliks_now  = db_result(db_query($bat_cliks_sql)); 
+  $bat_cliks_day  = db_result(db_query($bat_cliks_sql . $bat_cliks_sql_ANDday)); 
+  $bat_cliks_week = db_result(db_query($bat_cliks_sql . $bat_cliks_sql_ANDweek)); 
+
+  $header = array('Clicks','#'); 
+  $table = array(array('from query', $bat_clicks),
+                 array('only clicks', $bat_cliks_now),
+                 array('Last 24h ', $bat_cliks_day),
+                 array('Last 7d', $bat_cliks_week));
+  $output_click = theme('table', $header, $table);
+
+  if(count($node->partners) > 0) {
+    $bat_sponsors = count($node->partners);
+    $header = array('partner','click sponsored'); 
+    $rs = db_query("SELECT n.nid, n.title, pp.data FROM {node} as n LEFT JOIN {partners_node} as pn ON n.nid=pn.nid LEFT JOIN {partners_partners} AS pp ON pp.pid=pn.nid WHERE pp.nid=%d",$node->nid);
+    while ($p = db_fetch_array($rs)) {
+      $rows[] = array(l($p['title'], "node/" . $p['nid']) , $p['data'] );
+    }
+    $output_click .= theme_table($header, $rows);
+  }
+
+  $output .= theme('box', t('Clicks Statistics'), $output_click);
+
+
+/*
+_wtw_bat_get_plot_value
+  $output .= theme('box', t('bresdg'), print_r($node,true));
+*/
+
+
+  $bid = $node->bid;
+  $where_bid = " WHERE i.query = 'bid=$bid' ";
+  $sql_bid_sent = "SELECT * FROM {echomailer_queue} e 
+              INNER JOIN {echomailer_emails} i ON e.iid = i.iid 
+              WHERE i.query = 'bid=$bid&action=invite' AND e.sent != 0"; 
+  $sql_bid_notsent = "SELECT * FROM {echomailer_queue} e 
+              INNER JOIN {echomailer_emails} i ON e.iid = i.iid 
+              WHERE i.query = 'bid=$bid&action=invite' AND e.sent = 0"; 
+//  $output .= theme('box', t('sql'), $sql_bid_sent);
+
+  $result = db_query($sql_bid_sent);
+  $sent = 0;
+  $open = 0;
+  $clickthrough = 0;
+  while ($row = db_fetch_object($result)) {
+    $sent++;
+    if ($row->open) $open++;
+    if ($row->clickthrough) $clickthrough++;
+  }
+  $not_sent = db_num_rows(db_query($sql_bid_notsent));
+  
+  $table = array(array('Sent', $sent),
+            		 array('Opened', $open),
+            		 array('Click-through', $clickthrough),
+            		 array('Open-rate', number_format($sent ? $open / $sent * 100 : 0, 1)."%"),
+            		 array('Click-through-rate', number_format($sent ? $clickthrough / $sent : 0* 100, 1)."%"),
+            		 array('<b>Not sent</b>', "<b>$not_sent</b>"));
+  $output .= theme('box', t('Aggregated invite Statistics'), theme('table', array(), $table));
+  
+  $header = array(array('data' => 'From', 'field' => 'i.from_name'),
+            		  array('data' => 'To', 'field' => 'e.recipient'),
+            		  array('data' => 'Sent', 'field' => 'e.sent', 'sort' => 'desc'),
+            		  array('data' => 'Open', 'field' => 'e.open'),
+            		  array('data' => 'Clickthrough', 'field' => 'e.clickthrough'),
+            		  array('data' => 'Country'));
+
+  $rows = array();
+  $result = pager_query($sql_bid_sent, 50);
+  while ($row = db_fetch_object($result)) {
+    $user = user_load(array('uid' => $row->uid));
+    if(!$row->user && $row->from_name && $row->from_mail)
+    	$name = $row->from_name . "&nbsp;&lt;" . $row->from_mail . "&gt;";
+    else if($row->user)
+    	$name = $row->user;
+    else
+    	$name = '';
+    	
+    $rows[] = array($name, 
+       		          $row->recipient, 
+                    format_date($row->sent, 'small'), 
+		                $row->open ? format_date($row->open, 'small') : '', 
+            		    $row->clickthrough ? format_date($row->clickthrough, 'small') : '',
+            		    $row->clickthrough_ip ? _echomailer_iptocountry($row->clickthrough) : 
+            		    ($row->open_ip ? _echomailer_iptocountry($row->open_ip) : ''));
+  }
+  $pager = theme('pager', NULL, 50, 0, tablesort_pager());
+  if (!empty($pager)) {
+    $rows[] = array(array('data' => $pager, 'colspan' => '6'));
+  }
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No invite sent.'), 'colspan' => '6'));
+  }
+
+  $output .= theme('box', t('Recent Invitations'), theme('table', $header, $rows));
+  
+  drupal_set_title(check_plain("Statistics for: $node->title"));
+  print theme('page', $output);
+
+
+/*
+  $header = array(array('data' => 'To', 'field' => 'e.recipient'),
+                  array('data' => 'Sent', 'field' => 'e.sent', 'sort' => 'desc'),
+                  array('data' => 'Open', 'field' => 'e.open'),
+                  array('data' => 'Clickthrough', 'field' => 'e.clickthrough'));
+
+  $rows = array();
+  $result = db_query("SELECT * FROM {echomailer_queue} e INNER JOIN {echomailer_emails} i ON e.iid = i.iid WHERE i.query = '%s'".tablesort_sql($header), 
+	 "bid=$bid");
+  while ($row = db_fetch_object($result)) {
+    $rows[] = array($row->recipient, 
+                    $row->sent ? format_date($row->sent, 'small') : 'unsent',
+                  	$row->open ? format_date($row->open, 'small') : '',
+                  	$row->clickthrough ? format_date($row->clickthrough, 'small') : '');
+  }
+  
+  $output = theme('table', $header, $rows);
+
+	print theme('page',$output);
+*/
+}
+/*
+function wtw_page() {
+  $bid = arg(1);
+  $result = db_fetch_object(db_query('SELECT nid FROM {wtw_bat_node} WHERE bid = %d', $bid));
+}
+*/
+
+function _wtw_bat_get_plot_value ($bid) {
+  $result = db_query('SELECT {plot_queries} FROM {wtw_bat_node} WHERE bid = %d', $bid);
+  $plot_queries = db_result($result);
+  
+  if ($plot_queries) {
+    $plot_value = 0;
+    $queries = explode("\n", $plot_queries);
+    for ($i = 0; $i < count($queries); $i++)
+        $plot_value += db_result(db_query($queries[$i]));
+  } else {
+    $plot_value = db_result(db_query('SELECT COUNT(cid) FROM {wtw_bat_clicks} WHERE bid = %s', $bid)); 
+  }
+  return($plot_value);   
+}
+
+function _wtw_bat_get_font ($bid) {
+  $result = db_query('SELECT ttf_font FROM {wtw_bat_node} WHERE bid = %d', $bid);
+  $font = db_fetch_object($result);
+  $tmpfile = '/tmp/wtw_bat_font_' . $bid . 'ttf';
+//  $tmpfile = tempnam('/tmp', $filename);
+  if(!file_exists($tmpfile)) {
+    $fp = fopen($tmpfile, 'w');
+    fwrite($fp, $font->ttf_font);
+    fclose($fp);
+  }  
+  return($tmpfile);
+}
+
+
+function _wtw_bat_output_png($filename='') {
+  $n = strrpos($filename,".");
+  $bid = ($n>0) ? substr($filename,0,$n) : 'NN'; 
+  if(is_numeric($bid)) {
+
+    $result = db_query('SELECT min_value, max_value, fluff, lower_pixel, upper_pixel, 
+                        text_pixel, text_size, empty_png, full_png 
+                        FROM {wtw_bat_node} WHERE bid = %s', $bid);
+    if (db_num_rows($result)) {
+      $bat = db_fetch_object($result);
+      
+      $plot_value = _wtw_bat_get_plot_value($bid);
+
+      $dest_img = imagecreatefromstring($bat->empty_png);
+      $full_img = imagecreatefromstring($bat->full_png);
+      
+      $percentage = @round(($plot_value + $bat->fluff) / ($bat->max_value - $bat->min_value), 2);
+      $fill_amount = $percentage * ($bat->lower_pixel - $bat->upper_pixel);
+
+//watchdog('wtw_bat', "<ul><li>$plot_value</li><li>$percentage</li><li>$fill_amount</li></ul>");
+//watchdog('wtw_bat', "<p>" . print_r($bat,true) . "</p>");
+      
+      imagecopy($dest_img, $full_img, 
+          0, ($bat->lower_pixel - $fill_amount), 
+          0, ($bat->lower_pixel - $fill_amount), 
+          imagesx($full_img), $fill_amount);
+
+      if($bat->text_size  > 0) {
+        //$text = '$' . number_format($bat->plot_value, 2);
+        $text = number_format($plot_value, 0, '', '');
+        $text = str_pad($text, 6, '0', STR_PAD_LEFT);
+        $font_file = _wtw_bat_get_font($bid);
+        //$font_info = imagettfbbox($bat->text_size, 0, $font_file, $text);
+        //$font_x = (imagesx($dest_img) - ($font_info[2] - $font_info[0])) / 2;
+        $font_x = 45;
+        //$font_color = imagecolorallocate($dest_img, 0, 0, 0);
+        $font_color = imagecolorallocate($dest_img, 255, 255, 255);
+        
+        //imagettftext($dest_img, $bat->text_size, 0, $font_x, $bat->text_pixel, $font_color, $font_file, $text);
+  
+        for ($i = 0; $i < strlen($text); $i++)
+            imagettftext($dest_img, $bat->text_size, 0, $font_x + ($i * 32), 
+                $bat->text_pixel, $font_color, $font_file, substr($text, $i, 1));
+        
+        $legend_color = imagecolorallocate($dest_img, 112, 173, 218);
+        imagettftext($dest_img, 7, 0, 197, ($bat->upper_pixel + 5), $legend_color, $font_file, '- ' . 
+            number_format($bat->max_value, 0, '', ''));
+      }
+      
+      header('Content-type: image/png');
+      imagepng($dest_img);
+      
+//      @unlink($font_file);
+    }
+  }
+}
+
+function _wtw_bat_block_form($bid='') {
+  
+  if($bid) {
+    $result = db_query('SELECT plot_queries,
+                        fluff, lower_pixel, upper_pixel, text_pixel, 
+                        text_size, block_html, bat_button  
+                        FROM {wtw_bat_node} WHERE bid = %s', $bid);
+    if (db_num_rows($result))
+      $bat = db_fetch_object($result);
+  }
+
+  $output  = form_textarea('Plot Queries', 'plot_queries', 
+              $bat->plot_queries, 50, 6, 
+              'SQL queries to use instead of hard-coded plot value (results summed)');
+/*
+  $output .= form_textfield('Lower Limit', 'min_value', 
+              $bat->min_value, 10, 10, 'Low value on bat'); 
+  $output .= form_textfield('Upper Limit', 'max_value', 
+              $bat->max_value, 10, 10, 'High value on bat'); 
+*/
+  $output .= form_textfield('Fluff Factor', 'fluff', 
+              $bat->fluff, 10, 10, 'Amount to "fluff" by'); 
+  $output .= form_textfield('Lower Pixel', 'lower_pixel', 
+              $bat->lower_pixel, 6, 6, 
+              'Pixels from top of image for low end of bat'); 
+  $output .= form_textfield('Upper Pixel', 'upper_pixel', 
+              $bat->upper_pixel, 6, 6, 
+              'Pixels from top of image for high end of bat'); 
+  $output .= form_textfield('Text Pixel', 'text_pixel', 
+              $bat->text_pixel, 6, 6, 
+              'Pixels from top of image for bottom of dynamic text'); 
+  $output .= form_textfield('Text Size', 'text_size', 
+              $bat->text_size, 6, 6, 
+              'Pixel size of dynamic text');
+  $output .= form_file('Empty Image', 'empty_png', '20', 
+              'Change your "empty" image here (PNG format)'); 
+  $output .= form_file('Full Image', 'full_png', '20', 
+              'Change your "full" image here (PNG format)'); 
+  $output .= form_file('Text Font', 'ttf_font', '20', 
+              'Change your text font here (TTF format)'); 
+  $output .= form_textarea('Block HTML', 'block_html', 
+              $bat->block_html, 50, 6, 
+              'HTML to put around bat: ' .
+              '<ul> ' .
+              '<li><tt>%%VALUE%%</tt> for current bat value</li> ' .
+              '<li><tt>%%NEXT%%</tt> for next bat value</li> ' .
+              '<li><tt>%%BAT_CLICK%%</tt> in place of clickable image bat</li> ' .
+              '<li><tt>%%BAT_IMG%%</tt> in place of <b>non</b> clickable image bat</li> ' .
+              '<li><tt>%%CLICK%%</tt> in place of click button [javascript:document.bat_click.submit()]</li> ' .
+              '</ul>');
+
+  $output .= form_textfield('Bat submit button', 'bat_button', 
+              $bat->bat_button, 32, 32, 
+              'Bat submit button text ("click 2 feed" is default)'); 
+  return $output;
+}
+
+/**
+ * Implementation of hook_form().
+ */
+
+
+/**
+ * Implementation of hook_form().
+ */
+function wtw_bat_form(&$node, &$param) {
+
+  if (strpos($_REQUEST['q'], "edit")) {
+    $op = 'edit';
+  } else if (strpos($_REQUEST['q'], "add")) {
+    $op = 'add';
+  } else {
+    $op = 'dunno';
+  }
+
+  if (function_exists('taxonomy_node_form')) {
+    $output .= implode('', taxonomy_node_form('bat', $node));
+  } else {
+    $output .= '';
+  }
+
+  $output .= form_textarea(t('Body'), 'body', $node->body, 60, 20, '', NULL, TRUE);
+
+  $output .= form_textarea('Description', 'description', 
+              $node->description, 60, 10, 
+              'Short description of bat campaign'); 
+  $output .= form_textfield('Click Value', 'click_value', 
+              $node->click_value, 10, 10, 'Single click value');
+
+  $options = array('#page' => 'bat page', '#invite' => 'invite page', 'custom' => 'custom page');
+  if (strncmp($node->validation_afterpath , '#' , 1)==0) {
+    $radio_value =  $node->validation_afterpath ;
+    $text_value = '';
+  } else {
+    $radio_value =  'custom';
+    $text_value = $node->validation_afterpath ;
+  }
+  $form_validation_after =  form_radios('After click redirection', 'validation_afterpath_opt', $radio_value, $options, t('Select where user will be redirected after click on the block'));
+  $form_validation_after .= form_textfield('Click Link', 'validation_afterpath', 
+                              $text_value, 50, 255, 
+                              'Optional link when clicking on bat');
+  $output .= form_group('After click validation options', $form_validation_after); 
+  
+  $output .= form_textarea('Thanks message', 'thanks', 
+              $node->thanks, 60, 10, 
+              'Thanks messagge shown if previous optional link not set');
+  $output .= form_textarea('Mail message', 'email_text', 
+              $node->email_text, 60, 10, 
+              'Text of mail messagge (sent only if validation rule is email or user is logged)');
+
+  $options = array('none'=>'none','captcha'=>'captcha','email'=>'email');
+  $form_validation  = form_select('Validation rule', 'validation_rule', 
+               $node->validation_rule, $options, 'Select a validation rule'); 
+  $form_validation .= form_textarea('Validation rule alert', 'validation_rule_msg', 
+               $node->validation_rule_msg, 60, 10, 
+               'Alert messagge shown when user click is not validated');
+  $form_validation .= form_textfield('Validation timeout', 'validation_timeout', 
+               $node->validation_timeout, 10, 10, 'Select a validation timeout in minute (1hr -> 60min, 1day -> 1440min)'); 
+  $form_validation .= form_textarea('Validation timeout alert', 'validation_timeout_msg', 
+               $node->validation_timeout_msg, 60, 10, 
+               'Alert messagge shown when user click before time-out pause');
+  $form_validation .= form_textarea('Validation message', 'validation_msg', 
+               $node->validation_msg, 60, 10, 
+               'Validation messagge shown to users in bat block');
+  $output .= form_group('Click validation', $form_validation); 
+
+	$form_invite = form_textfield(t('Redirect Path'), 'invite_pathafter', 
+                    $node->invite_pathafter, 80,100);
+	$form_invite .= form_textfield(t('Page Path'), 'invite_pagename', 
+                    $node->invite_pagename, 80,100);
+	$form_invite .= form_textfield(t('Title'), 'invite_title', 
+                    $node->invite_title, 80,100);
+	$form_invite .= form_textfield(t('Subject'), 'invite_subject', 
+                    $node->invite_subject, 80,100);
+	$form_invite .= form_textarea(t('Default Text'), 'invite_text', 
+                    $node->invite_text, 80,10);
+	$form_invite .= form_textarea(t('Message on success'), 'invite_successmessage', 
+                    $node->invite_successmessage, 80,10);
+	$form_invite .= form_textarea(t('Default auto-add message'), 'invite_bottomtext', 
+                    $node->invite_bottomtext, 80,10);
+	$form_invite .= form_textarea(t('Message at top of page'), 'invite_message', 
+                    $node->invite_message, 80,10);
+  $output .= form_group('Invite settings', $form_invite); 
+              
+
+  if(count($node->partners) > 0) {
+    $out_partner = "<h3>Sponsored by: (" . count($node->partners) . ")</h3>";
+    $header = array('partner','click sponsored'); 
+    $rs = db_query("SELECT n.nid, n.title, pp.data FROM {node} as n LEFT JOIN {partners_node} as pn ON n.nid=pn.nid LEFT JOIN {partners_partners} AS pp ON pp.pid=pn.nid WHERE pp.nid=%d",$node->nid);
+    while ($p = db_fetch_array($rs)) {
+      $form_click = form_textfield('', 'clicks_' . $p['nid'], $p['data'], 5, 5); 
+      $rows[] = array(l($p['title'], "node/" . $p['nid']) , $form_click );
+    }
+    $out_partner .= theme_table($header, $rows);
+  }
+  $output .= $out_partner;  
+
+//  $block_config =  form_group('block setting', _wtw_bat_block_form($node->bid));
+// http://10.11.32.35/fh463/admin/block/configure/wtw_bat/1
+//  $block_config = l('block configure', "admin/block/configure/wtw_bat/$node->bid");
+
+// Check if is an edit (just a link to block config) or create (show full form)
+  if($op == 'edit') {
+    $block_config = l('block configure', "admin/block/configure/wtw_bat/$node->bid");
+  } else {
+    $block_config =  _wtw_bat_block_form($node->bid);
+    $param['options'] = array("enctype" => "multipart/form-data");
+  }
+
+  $output .= form_group('block setting', $block_config);
+  
+  return $output;
+}
+
+/**
+ * Implementation of hook_insert().
+ */
+function wtw_bat_insert($node) {
+
+  // check if user selected a default page (bat page, bat invite) or custom page 
+  if (strncmp($node->validation_afterpath_opt , '#' , 1)==0)
+    $node->validation_afterpath = $node->validation_afterpath_opt;
+
+  $fields = array("nid"                    => $node->nid ,
+                  "bid"                    => $node->bid,
+                  "description"            => $node->description ,
+                  "thanks"                 => $node->thanks,
+                  "email_text"             => $node->email_text ,
+                  "click_value"            => $node->click_value,
+                  "validation_rule"        => $node->validation_rule,
+                  "validation_timeout"     => $node->validation_timeout,
+                  "validation_timeout_msg" => $node->validation_timeout_msg ,
+                  "validation_msg"         => $node->validation_msg,
+                  "validation_afterpath"   => $node->validation_afterpath,
+                  "plot_value"             => $node->plot_value,
+                  "plot_queries"           => $node->plot_queries ,
+                  "min_value"              => 0,
+                  "max_value"              => 1000,
+                  "fluff"                  => $node->fluff,
+                  "lower_pixel"            => $node->lower_pixel ,
+                  "upper_pixel"            => $node->upper_pixel,
+                  "text_pixel"             => $node->text_pixel ,
+                  "text_size"              => $node->text_size ,
+                  "block_html"             => $node->block_html ,
+                  "bat_button"             => $node->bat_button,
+                  "invite_pathafter"       => $node->invite_pathafter ,
+                  "invite_pagename"        => $node->invite_pagename ,
+                  "invite_title"           => $node->invite_title ,
+                  "invite_subject"         => $node->invite_subject ,
+                  "invite_text"            => $node->invite_text,
+                  "invite_successmessage"  => $node->invite_successmessage ,
+                  "invite_bottomtext"      => $node->invite_bottomtext,
+                  "invite_message"         => $node->invite_message,
+                  "last_update"            => "UNIX_TIMESTAMP(NOW())" );
+  foreach($fields as $var=>$val) {
+    $sql_vars[] = $var;
+    $sql_signs[] = "'%s'";
+    $args[] = $val;
+  }
+  $q = "INSERT INTO {wtw_bat_node} (".implode(",",$sql_vars).") VALUES (".implode(",",$sql_signs).")";
+  array_unshift($args,$q);
+  call_user_func_array("db_query",$args);
+
+  if ($_FILES['edit']['size']['empty_png'])
+    db_query("UPDATE {wtw_bat_node} SET empty_png = '%s' WHERE bid = '%s'", 
+              file_get_contents($_FILES['edit']['tmp_name']['empty_png']), $node->bid);
+  if ($_FILES['edit']['size']['full_png'])
+    db_query("UPDATE {wtw_bat_node} SET full_png = '%s' WHERE bid = '%s'", 
+              file_get_contents($_FILES['edit']['tmp_name']['full_png']), $node->bid);
+  if ($_FILES['edit']['size']['ttf_font'])
+    db_query("UPDATE {wtw_bat_node} SET ttf_font = '%s' WHERE bid = '%s'", 
+              file_get_contents($_FILES['edit']['tmp_name']['ttf_font']), $node->bid);
+}
+
+/**
+ * Implementation of hook_update().
+ */
+function wtw_bat_update($node) {
+/*
+  $result = db_query("UPDATE {wtw_bat_node} SET
+      description = '%s', thanks = '%s',
+      click_value = '%f', validation_rule='%s',  
+      plot_queries = '%s', 
+      min_value = '%f', max_value = '%f', 
+      fluff = '%f', lower_pixel = '%u', upper_pixel = '%u', 
+      text_pixel = '%s', text_size = '%s', click_link = '%s', 
+      block_html = '%s', last_update = UNIX_TIMESTAMP(NOW()) 
+    WHERE 
+      nid = '%d'",
+    $node->description, $node->thanks,  
+    $node->click_value, $node->validation_rule, 
+    $node->plot_queries, 
+    $node->min_value, $node->max_value,
+    $node->fluff, $node->lower_pixel, $node->upper_pixel,
+    $node->text_pixel, $node->text_size, $node->click_link,
+    $node->block_html,
+    $node->nid  
+*/
+// update `partners_partners` table  
+  $max_value = 0;
+  foreach ($node->partners as $partner)  {
+    $form_id =  "clicks_$partner";
+    $max_value += $node->$form_id;
+    db_query("UPDATE {partners_partners} SET
+        data = '%s' 
+      WHERE 
+        nid = '%d' AND pid = '%d'",
+      $node->$form_id, 
+      $node->nid, $partner 
+    );
+  }
+
+  // check if user selected a default page (bat page, bat invite) or custom page 
+  if (strncmp($node->validation_afterpath_opt , '#' , 1)==0)
+    $node->validation_afterpath = $node->validation_afterpath_opt;
+
+  db_query("UPDATE {wtw_bat_node} SET
+      description = '%s', thanks = '%s',
+      email_text = '%s', max_value = '%f', 
+      validation_rule = '%s', validation_rule_msg = '%s',
+      validation_timeout='%d', validation_timeout_msg = '%s',  
+      validation_msg = '%s', validation_afterpath = '%s', 
+      click_value = '%f',
+    	invite_pathafter = '%s', invite_pagename = '%s', 
+    	invite_subject = '%s',  invite_title = '%s',
+      invite_text = '%s',
+    	invite_successmessage = '%s', invite_bottomtext = '%s',
+    	invite_message = '%s',
+      last_update = UNIX_TIMESTAMP(NOW()) 
+    WHERE 
+      nid = '%d'",
+    $node->description, $node->thanks,
+    $node->email_text, $max_value, 
+    $node->validation_rule,  $node->validation_rule_msg, 
+    $node->validation_timeout, $node->validation_timeout_msg, 
+    $node->validation_msg, $node->validation_afterpath,
+    $node->click_value, 
+    $node->invite_pathafter, $node->invite_pagename, 
+    $node->invite_subject, $node->invite_title, 
+    $node->invite_text,
+  	$node->invite_successmessage, $node->invite_bottomtext,
+  	$node->invite_message,
+    $node->nid  
+  );
+} 
+
+/**
+ * Implementation of hook_delete().
+ */
+function wtw_bat_delete($node) {
+  db_query('DELETE FROM {wtw_bat_node} WHERE nid = %d', $node->nid);
+}
+
+/**
+ * Implementation of hook_load().
+ */
+function wtw_bat_load($node) {
+  $additions = db_fetch_object(db_query('SELECT * FROM {wtw_bat_node} WHERE nid = %d', $node->nid));
+  return $additions;
+} 
+
+/**
+ * Implementation of hook_view().
+ */
+function wtw_bat_view(&$node, $teaser = FALSE, $page = FALSE) {
+  $wtw_bat_page = theme('node_wtw_bat', $node);
+  $node->body .= $wtw_bat_page;
+  $node->teaser .= $wtw_bat_page;
+  $node = node_prepare($node, $teaser);
+}
+
+/**
+ * A custom theme function.
+ */
+function theme_node_wtw_bat($node) {
+  $output = '<div class="wtw_bat">';
+
+/*
+  $output .= '<ul>';
+  $output .= '  <li>' . t('click value') . ": " . $node->click_value . '</li>';
+  $output .= '  <li>' . t('plot value') . ": " . $node->plot_value . '</li>';
+  $output .= '  <li>' . t('plot queries') . ": " . $node->plot_queries . '</li>';
+  $output .= '  <li>' . t('min value') . ": " . $node->min_value . '</li>';
+  $output .= '  <li>' . t('max value') . ": " . $node->max_value . '</li>';
+  $output .= '  <li>' . t('fluff') . ": " . $node->fluff . '</li>';
+  $output .= '  <li>' . t('lower pixel') . ": " . $node->lower_pixel . '</li>';
+  $output .= '  <li>' . t('upper pixel') . ": " . $node->upper_pixel . '</li>';
+  $output .= '  <li>' . t('text pixel') . ": " . $node->text_pixel . '</li>';
+  $output .= '  <li>' . t('text size') . ": " . $node->text_size . '</li>';
+  $output .= '  <li>' . t('click link') . ": " . $node->click_link . '</li>';
+  $output .= '  <li>' . t('block html') . ": " . $node->block_html . '</li>';
+  $output .= '  <li>' . t('bid') . ": " . $node->bid . '</li>';
+  $output .= '</ul>';
+*/  
+
+  if(count($node->partners) > 0) {
+    $out_partner = "<h3>Sponsored by</h3>";
+    $header = array('partner','clicks'); 
+//    $out_partner .= '<ul>';
+    $rs = db_query("SELECT n.nid, n.title, pp.data FROM {node} as n LEFT JOIN {partners_node} as pn ON n.nid=pn.nid LEFT JOIN {partners_partners} AS pp ON pp.pid=pn.nid WHERE pp.nid=%d",$node->nid);
+    while ($p = db_fetch_array($rs)) {
+//      $out_partner .= '  <li>' . l($p['title'], "node/" . $p['nid']) . '</li>';
+      $rows[] = array(l($p['title'], "node/" . $p['nid']) , $p['data']);
+    }
+//    $out_partner .= '</ul>';
+    $out_partner .= theme_table($header, $rows);
+  }
+  $output .= $out_partner;  
+      
+  $output .= '</div>';
+  return $output;
+}
+   
+/**
+ * Implementation of hook_block.
+ */
+function wtw_bat_block($op = 'list', $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'list':
+      return _wtw_bat_block_get_blocks();
+      break;
+    case 'view':
+      return _wtw_bat_block_get_block($delta);
+      break;
+    case 'configure':
+/*
+      $attributes = "enctype='multipart/form-data'";
+      $form = _wtw_bat_block_form($delta); 
+      $form .= form_submit(t('Save block'));
+      $form = form($form, 'post', null, array("enctype" => "multipart/form-data"));
+  watchdog('wtw_bat', "<pre>$form</pre>");
+      return "<div>$form</div>"; 
+*/
+      return _wtw_bat_block_form($delta);
+      break;
+    case 'save':
+      _wtw_bat_block_save($delta, $edit);
+      break;
+  }
+}
+
+/**
+* Returns an array of bat block descriptions for the admin block page.
+*/
+function _wtw_bat_block_get_blocks() {
+  $results = db_query('SELECT * FROM {wtw_bat_node}');
+  while ($bat = db_fetch_object($results)) {
+    $blocks[$bat->bid]['info'] = "BAT($bat->bid): $bat->description";
+  }
+  return $blocks;
+}
+
+/**
+* Returns the requested block by $bid.
+*/
+function _wtw_bat_block_get_block($bid) {
+  global $base_url;
+  global $partners;
+  global $user;
+
+  if ((arg(0) == "wtw_bat") && (is_numeric(arg(2)))) {
+    $result = db_query("SELECT nid FROM {wtw_bat_node} WHERE bid = %d", arg(2));
+    if(db_num_rows($result)>0) {
+      $node = node_load(array('nid' => db_result($result)));
+      $partners = $node->partners;
+      $block = partners_block_content();
+      $block['subject'] = t("Sponsored by:");
+    } 
+  } else {
+    $result = db_query('SELECT * FROM {wtw_bat_node} WHERE bid = %d', $bid);
+    $bat = db_fetch_object($result);
+
+// Setting HTML block
+    $bat_plot_value = _wtw_bat_get_plot_value ($bid); 
+    $bat_replace['VALUE'] = number_format($bat_plot_value, 0, '', '');
+    $bat_replace['NEXT'] = number_format(($bat_plot_value + 1), 0, '', '');
+    $bat_replace['CLICK'] = "javascript:document.bat_click.submit()";
+    $bat_replace['BAT_IMG'] = "<img src='$base_url/wtw_bat/images/$bid.png?sess=" . 
+        md5(time()) . "'' border='0' alt='$bid.png' />";
+    $bat_replace['BAT_CLICK'] = "<a href='" . $bat_replace['CLICK'] . "'>" . $bat_replace['BAT_IMG'] . "</a>";
+    $form_html = $bat->block_html;
+    foreach($bat_replace as $key => $value) {
+      $form_html = preg_replace("/%%" . $key . "%%/" , $value, $form_html);
+    }
+
+// Setting validation form    
+    $form_validate = form_hidden('validation_timeout', $bat->validation_timeout);
+    if ( $user->uid ) {
+      $form_validate .= form_hidden('validation_type', 'user');
+      $form_validate .= form_hidden('validation_value', $user->mail);
+    } else {
+      switch($bat->validation_rule) {
+        case 'captcha':
+          $form_validate .= form_hidden('validation_type', 'captcha');
+          $str_captcha = _wtw_bat_block_get_validation_captcha(0);
+          $form_validate .= "<img src='http://image.captchas.net?client=demo&random=RandomZufall' 
+              alt='CAPTCHA text: $str_captcha' id='captcha_pic'/>";
+          $str_help = t('Enter the letters below in the text field as you see them in the image above');
+          $form_validate .= form_textfield(t($bat->validation_msg), 'validation_value', '', 10, 10, '');
+          break;
+        case 'email':
+          $form_validate .= form_hidden('validation_type', 'email');
+          $str_help = 'Enter your email';
+          $form_validate .= form_textfield(t($bat->validation_msg), 'validation_value', '', 30, 128, '');
+          break;
+        default:      
+          $form_validate .= form_hidden('validation_type', 'none');
+      }
+    }
+
+    $form = "<form name='bat_click' id='bat_click' action='wtw_bat/click/$bid' method='post'>";
+    $form .= form_hidden('bat_value', $bat_plot_value);
+    $form .= $form_html;
+    $form .= $form_validate;
+    $form .= form_submit( ($bat->bat_button) ? $bat->bat_button : 'click 2 feed', $name = 'bat_click');
+    $form .= "</form>";
+
+    $block['content'] = $form;
+  }
+  return $block;
+}
+
+function _wtw_bat_block_save($bid, $edit) {
+
+  db_query("UPDATE {wtw_bat_node} SET
+      plot_queries = '%s', 
+      fluff = '%f', lower_pixel = '%u', upper_pixel = '%u', 
+      text_pixel = '%s', text_size = '%s',
+      block_html = '%s', bat_button = '%s', 
+      last_update = UNIX_TIMESTAMP(NOW()) 
+    WHERE 
+      bid = '%d'", 
+    $edit['plot_queries'], 
+    $edit['fluff'], $edit['lower_pixel'], $edit['upper_pixel'],
+    $edit['text_pixel'], $edit['text_size'],
+    $edit['block_html'], $edit['bat_button'],
+    $bid  
+  );
+/*
+watchdog('wtw_bat',"<p><b>1 </b>" . $bid . "</p>");
+watchdog('wtw_bat',"<p><b>2 </b>" . print_r($edit, true) . "</p>");
+watchdog('wtw_bat',"<p><b>empty_png</b>" . $_FILES['edit']['size']['empty_png'] . "</p>");
+watchdog('wtw_bat',"<p><b>_FILES['edit']</b>" . print_r($_FILES['edit'],true) . "</p>");
+*/
+  if ($_FILES['edit']['size']['empty_png'])
+    db_query("UPDATE {wtw_bat_node} SET empty_png = '%s' WHERE bid = '%s'", 
+              file_get_contents($_FILES['edit']['tmp_name']['empty_png']), $bid);
+  if ($_FILES['edit']['size']['full_png'])
+    db_query("UPDATE {wtw_bat_node} SET full_png = '%s' WHERE bid = '%s'", 
+              file_get_contents($_FILES['edit']['tmp_name']['full_png']), $bid);
+  if ($_FILES['edit']['size']['ttf_font'])
+    db_query("UPDATE {wtw_bat_node} SET ttf_font = '%s' WHERE bid = '%s'", 
+              file_get_contents($_FILES['edit']['tmp_name']['ttf_font']), $bid);
+}
+
+
+function _wtw_bat_block_get_validation_captcha($data=0) {
+  $str_conc = "secretRandomZufall";
+  $str_MD5 = md5($str_conc);
+  for($i=0; $i<=5; $i++) {
+    $captcha .= chr(hexdec(substr($str_MD5,$i*2,2)) % 26 + 97); 
+  }
+  return $captcha;
+}
+
+function _wtw_bat_block_get_validation_email($data='') {
+// from http://it.php.net/manual/en/function.eregi.php#52458
+
+  $atom = '[-a-z0-9!#$%&\'*+/=?^_`{|}~]';    // allowed characters for part before "at" character
+  $domain = '([a-z]([-a-z0-9]*[a-z0-9]+)?)'; // allowed characters for part after "at" character
+  
+  $regex = '^' . $atom . '+' .      // One or more atom characters.
+    '(\.' . $atom . '+)*'.          // Followed by zero or more dot separated sets of one or more atom characters.
+    '@'.                            // Followed by an "at" character.
+    '(' . $domain . '{1,63}\.)+'.   // Followed by one or max 63 domain characters (dot separated).
+    $domain . '{2,63}'.             // Must be followed by one set consisting a period of two
+    '$'; 
+  return (eregi($regex, $data));
+}
+    
+    
+function _wtw_bat_block_get_validation($bid,$data) {
+  $validation = db_result(db_query('SELECT validation FROM {wtw_bat_node} WHERE bid = %s', $bid));
+
+  switch ($validation) {
+    case 'email':
+      return _wtw_bat_block_get_blocks();
+      break;
+    case 'captcha':
+      return _wtw_bat_block_get_validation_captcha($data);
+      break;
+    default:
+      break;
+  }
+}
+
+function wtw_bat_page_admin() {
+
+  $header = array('id', 'action', 'bat campaign', 'description');
+  $sql = "SELECT n.nid, n.title, b.description, b.bid " .
+    "FROM {wtw_bat_node} AS b LEFT JOIN {node} AS n ON b.nid=n.nid ORDER BY b.bid";
+  $result = db_query($sql);
+    
+  while ($b = db_fetch_array($result)) {
+    $bat_view  = l( '[view]', 'node/' . $b['nid']);
+    $bat_edit  = l( '[edit]', 'node/' . $b['nid'] . '/edit' );
+    $bat_stats = l( '[statistics]', 'node/' . $b['nid'] . '/stats' );
+    $bat_block = l( '[block config]', 'admin/block/configure/wtw_bat/' . $b['bid']);
+    $bat_action = " $bat_view $bat_edit $bat_stats $bat_block ";
+    $rows[] = array( $b['bid'],  $bat_action, $b['title'] ,  $b['description'] ); 
+  }
+  $title = 'bat admin';
+  
+  $out .= theme('table',$header, $rows);
+  print(theme('page',$out,$title));
+
+}
+
+/*
+function wtw_bat_page() {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  if (empty($op)) {
+    $op = arg(2) ? arg(2) : arg(1);
+  }
+}
+*/
+/*
+function wtw_bat_page_admin () {
+    $title = 'bat';
+    
+    $out = "<p>Edit the values below to affect the bat's next cron run.</p>";
+    
+    if ($_POST['edit'])     {
+        db_query("UPDATE wtw_bat 
+                  SET lower = '" . $_POST['edit']['lower'] . "', 
+                      upper = '" . $_POST['edit']['upper'] . "', 
+                      fluff = '" . $_POST['edit']['fluff'] . "', 
+                      lastchange = NOW()");
+                      
+        drupal_set_message("Your new settings were successfully applied.");
+    }
+    
+    $query = "SELECT lower, upper, fluff, lastchange FROM wtw_bat";
+              
+    $result = db_query($query);
+    $bat    = db_fetch_object($result);
+    
+    $headers = array('');
+    $rows    = array(array(form_textfield('Lower Limit', 'lower', $bat->lower, 6, 6)), 
+                     array(form_textfield('Upper Limit', 'upper', $bat->upper, 6, 6)), 
+                     array(form_textfield('Fluff Factor', 'fluff', $bat->fluff, 6, 6)), 
+                     array(form_item('Last Admin', $bat->lastchange)), 
+                     array(form_submit('Update')));
+    
+    $out .= form(theme('table', $headers, $rows));
+    
+    print(theme('page', $out, $title));
+}
+
+function _wtw_bat_cron_prep ()
+{
+    global $base_path;
+    global $big_blue, $big_white, $med_blue, $med_white, $font_file;
+
+    global $big_empty_file, $big_full_file, $big_final;
+    global $big_empty_img, $big_full_img;
+    global $big_fill_top, $big_fill_bottom;
+
+    global $med_empty_file, $med_full_file, $med_final;
+    global $med_empty_img, $med_full_img;
+    global $med_fill_top, $med_fill_bottom;
+
+    $base_path      = 'modules/wtw_bat';
+    
+    $font_file      = $base_path . '/HelveticaNeue.ttf';
+    
+    $big_empty_file = $base_path . '/big_empty.png';
+    $big_full_file  = $base_path . '/big_full.png';
+    $big_final      = $base_path . '/big.png';
+
+    $big_empty_img  = imagecreatefrompng($big_empty_file);
+    $big_full_img   = imagecreatefrompng($big_full_file);
+    
+    $big_blue  = imagecolorallocate($big_empty_img, 112, 173, 218);
+    $big_white = imagecolorallocate($big_empty_img, 255, 255, 255);
+
+    $big_fill_top    = 66;
+    $big_fill_bottom = 193;
+    
+    $med_empty_file  = $base_path . '/med_empty.png';
+    $med_full_file   = $base_path . '/med_full.png';
+    $med_final       = $base_path . '/med.png';
+
+    $med_empty_img   = imagecreatefrompng($med_empty_file);
+    $med_full_img    = imagecreatefrompng($med_full_file);
+    
+    $med_blue  = imagecolorallocate($med_empty_img, 112, 173, 218);
+    $med_white = imagecolorallocate($med_empty_img, 255, 255, 255);
+
+    $med_fill_top    = 44;
+    $med_fill_bottom = 128;
+}
+
+function _wtw_bat_get_admin_data ()
+{
+    $query = "SELECT fluff, lower, upper 
+              FROM wtw_bat";
+              
+    $result = db_query($query);
+    
+    $row = mysql_fetch_row($result); // FIXME
+    
+    return($row);
+}
+
+function _wtw_bat_get_walkers ()
+{
+    $query = "SELECT COUNT(mail) 
+              FROM wtw_walk";
+
+    $walkers = mysql_result(db_query($query), 0);
+
+    $query = "SELECT COUNT(email) FROM signup";
+
+    $walkers += mysql_result(db_query($query), 0);
+    
+
+    return($walkers);
+}
+
+function _wtw_bat_write_bats ()
+{
+    global $big_blue, $big_white, $med_blue, $med_white, $font_file;
+
+    global $big_fill_bottom, $big_fill_top;
+    global $big_empty_img, $big_full_img, $big_final;
+
+    global $med_fill_bottom, $med_fill_top;
+    global $med_empty_img, $med_full_img, $med_final;
+    
+    variable_set('bat_time', date("H:i", (time() + (3600 * 8))));
+
+    list($fluff, $lower, $upper) = _wtw_bat_get_admin_data();
+    
+    $walkers = _wtw_bat_get_walkers();
+    $clicks = variable_get("clicks",0);
+    
+    $total_walkers = $walkers + $clicks +$fluff;
+	
+    if ($total_walkers != variable_get('bat_value', 0))
+    {
+        variable_set('bat_value', $total_walkers);
+                  
+        if ($total_walkers > $upper)
+            $total_walkers = $upper;
+        elseif ($total_walkers < $lower)
+            $total_walkers = $lower;
+            
+        $number = str_pad($total_walkers, 6, '0', STR_PAD_LEFT);
+        $percentage = round(($number / ($upper - $lower)), 2);
+        
+        //$big_fill_amount = $percentage * ($big_fill_bottom - $big_fill_top);
+        $med_fill_amount = $percentage * ($med_fill_bottom - $med_fill_top);
+        
+        // reveal
+        
+        //imagecopy($big_empty_img, $big_full_img, 0, ($big_fill_bottom - $big_fill_amount), 0, ($big_fill_bottom - $big_fill_amount), 353, $big_fill_amount);
+        imagecopy($med_empty_img, $med_full_img, 0, ($med_fill_bottom - $med_fill_amount), 0, ($med_fill_bottom - $med_fill_amount), 226, $med_fill_amount);
+        
+        // legend
+        
+        //imagettftext($big_empty_img, 9, 0, 275, ($big_fill_top + 5), $big_blue, $font_file, "- $upper");
+        imagettftext($med_empty_img, 7, 0, 197, ($med_fill_top + 5), $med_blue, $font_file, "- $upper");
+        
+        // numbers
+        
+        $number = str_pad($number, 6, '0', STR_PAD_LEFT);
+        
+        for ($i = 0; $i < 6; $i++)
+        {
+            $digit[$i] = substr($number, $i, 1);
+            //imagettftext($big_empty_img, 32, 0, (46 + ($i * 48)), 229, $big_white, $font_file, $digit[$i]);
+            imagettftext($med_empty_img, 16, 0, (45 + ($i * 32)), 150, $med_white, $font_file, $digit[$i]);
+        }    
+        
+        // output
+        
+        //imagepng($big_empty_img, $big_final);
+        imagepng($med_empty_img, $med_final);
+    }
+}
+
+function wtw_bat_cron ()
+{
+    if (extension_loaded('gd') == false)
+    {
+        print("GD library not activated; can't draw bats!");
+        return;
+    }
+
+    _wtw_bat_cron_prep();
+    _wtw_bat_write_bats();
+}
+*/
+
+?>

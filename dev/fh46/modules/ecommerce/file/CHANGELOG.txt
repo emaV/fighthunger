@@ -1,0 +1,17 @@
+File module
+
+Jan 14, 2005
+  * Allow user to browse expired file downloads they've purchased.
+  * Parcel products consisting of file downloads were not showing on the 'my files' page. Fixed.
+
+Dec 14, 2004
+  * Added instructions on how the file download system works and how the custumer accesses their pruchases.
+
+Nov 22, 2004
+  * Fixed bug #11577 - A translation and syntax issue concerning format_interval().
+
+Jun 13, 2004
+  * Don't use the Drupal file API until public/private and file path settings can be conifigured on a per-module basis.
+
+May 23, 2004
+  * Initial Release. Graciously sponsored by Judah Frangipane and Dharma Pop Records. Thank You!

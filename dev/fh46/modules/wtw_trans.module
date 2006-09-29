@@ -1,0 +1,290 @@
+<?
+
+global $WTWT_LANGS;
+$WTWT_LANGS = array(
+    'en' => 'English',
+    'fr' => 'French',
+    'it' => 'Italian',
+    'es' => 'Spanish',
+    'ar' => 'Arabic',
+    'jp' => 'Japanese'
+  );
+
+global $WTWT_TEXTS;
+$WTWT_TEXTS =  array(
+    1 => 'Splash',
+    2 => 'Home',
+    3 => 'Create',
+    4 => 'Post-create',
+    5 => 'Password',
+    6 => 'View Event- coordinator',
+    7 => 'View Event- anonymous',
+    8 => 'Post-signup',
+    9 => 'View Event- attendee',
+    10 => 'FAQ'
+  );
+
+/**
+ * Implementation of hook_help().
+ */
+function wtw_trans_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Some translated pages.');
+  }
+}
+  
+function wtw_trans_init(){
+  global $trans;
+  $trans = 0;
+}
+
+function wtw_trans_set($x,$override = FALSE){
+  global $trans;
+  if (($trans == 0) || ($override)){
+    $trans = $x;
+  }
+}
+
+function wtw_trans_admin($l = NULL){
+  if (is_null($l)){
+    drupal_goto('admin/translations/en');
+  }
+  
+  // save data
+  $edit = $_POST['edit'];
+  if ($edit){
+    foreach($edit['trans'] as $lang=>$texts){
+      foreach ($texts as $tvar=>$tval){
+        $q = "REPLACE INTO wtw_trans SET text=%d,language='%s',value='%s'";
+        db_query($q,$tvar,$lang,$tval);
+      }
+    }
+  }
+  
+  // fetch data
+  $rs = db_query("SELECT text,value FROM wtw_trans WHERE language='%s'",$l);
+  while ($a = db_fetch_array($rs)){
+    $trans[$l][$a['text']] = $a['value'];
+  }
+  
+  
+  // draw form
+  global $WTWT_TEXTS;  
+  
+  foreach ($WTWT_TEXTS as $key=>$name){
+    $form .= form_textarea("$key - $name","trans][$l][$key]",$trans[$l][$key],40,20);
+  }
+  $form .= form_submit("Submit");
+  
+  $out = form($form);
+  
+  print theme("page",$out);
+}
+
+function wtw_trans_display($l,$t){
+  $c = db_result(db_query("SELECT value FROM wtw_trans WHERE language='%s' AND text=%d",$l,$t));
+  $c = nl2br($c);
+  
+  $vals = array(
+            'content'   => $c,
+            'title'     => "",
+            'site_name' => variable_get("site_name","")
+            );
+  
+  $out = _phptemplate_callback("window",$vals);
+  
+  print $out;
+}
+
+function wtw_trans_dlink($l,$t){
+  $url = url("translation/".$l."/".$t);
+  switch ($l){
+    case 'jp':
+//      $name ="<small>日本語</small>";
+      $name = "<img src='misc/jp.png'/>";
+      break;
+    case 'ar':
+      $name = "<img src='misc/ar.gif'/>";
+      break;
+    default:
+      $name = $l;
+      break;
+  }
+  
+  $out = "<a href=\"$url\" onclick=\"window.open('$url', 'transwin', 
+'status,resizable,scrollbars,width=580,height=350'); 
+return false\" >$name</a>";
+  
+  return $out;
+}
+
+function theme_wtw_trans(){
+  if (variable_get("wtw_over",0)){
+    $out = false;
+  } else {
+    global $trans;
+    
+    $showit = false;
+    
+    $rs = db_query("SELECT language FROM wtw_trans WHERE text=%d AND value != ''",$trans,$order);
+    while ($a = db_fetch_array($rs)){
+      $l = $a['language'];
+      // show the block if a language other than english exists yet
+      if ($l != "en"){
+        $showit = true;
+      }
+      $display[$l] = wtw_trans_dlink($l,$trans);
+    }
+    
+    
+    if ($showit){
+      uksort($display,'wtw_trans_uksort');
+      $out = "<div class='languages'>";
+      $out .= "get help:<br/>";
+      $out .= implode("  ",$display);  
+      $out .= "</div>";
+    } else {
+  //    $out = $trans;
+    }
+  }
+  
+  return $out;
+}
+
+function wtw_trans_uksort($a,$b){
+  global $WTWT_LANGS;
+  foreach ($WTWT_LANGS as $var=>$val){
+    if ($var == $a){
+      return false;
+    } elseif ($var == $b){
+      return true;
+    }
+  }
+}
+
+function wtw_trans_perm(){
+  return array("administer translations");
+}
+
+function wtw_trans_menu($mc){
+  if ($mc){
+    $items[] = array(
+      'path'      => 'admin/translations',
+      'callback'  => 'wtw_trans_admin',
+      'type'      => MENU_NORMAL_ITEM,
+      'title'     => 'translations',
+      'access'    => user_access('administer translations')
+    );
+    
+    $items[] = array(
+      'path'      => 'translation',
+      'callback'  => 'wtw_trans_display',
+      'access'    => true,
+      'type'      => MENU_CALLBACK
+    );
+    
+    $items[] = array(
+      'path'                => 'faq',
+      'callback'            => 'wtw_trans_faq',
+      'callback arguments'  => array('en'),
+      'access'              => true,
+      'title'               => 'Frequently Asked Questions',
+      'type'                => MENU_CALLBACK
+    );
+    
+    $items[] = array(
+      'path'                => 'faq/en',
+      'callback'            => 'wtw_trans_faq',
+      'callback arguments'  => array('en'),
+      'access'              => true,
+      'title'               => 'English',
+      'type'                => MENU_DEFAULT_LOCAL_TASK
+    );
+    $items[] = array(
+      'path'                => 'faq/fr',
+      'callback'            => 'wtw_trans_faq',
+      'callback arguments'  => array('fr'),
+      'access'              => true,
+      'title'               => 'Francais',
+      'type'                => MENU_LOCAL_TASK
+    );
+    $items[] = array(
+      'path'                => 'faq/it',
+      'callback'            => 'wtw_trans_faq',
+      'callback arguments'  => array('it'),
+      'access'              => true,
+      'title'               => 'Italiano',
+      'type'                => MENU_LOCAL_TASK
+    );
+    $items[] = array(
+      'path'                => 'faq/es',
+      'callback'            => 'wtw_trans_faq',
+      'callback arguments'  => array('es'),
+      'access'              => true,
+      'title'               => 'Espanol',
+      'type'                => MENU_LOCAL_TASK
+    );
+    /*
+    $items[] = array(
+      'path'                => 'faq/jp',
+      'callback'            => 'wtw_trans_faq',
+      'callback arguments'  => array('jp'),
+      'access'              => true,
+      'title'               => 'Japanese',
+      'type'                => MENU_LOCAL_TASK
+    );
+    $items[] = array(
+      'path'                => 'faq/ar',
+      'callback'            => 'wtw_trans_faq',
+      'callback arguments'  => array('ar'),
+      'access'              => true,
+      'title'               => 'Arabic',
+      'type'                => MENU_LOCAL_TASK
+    );
+    */
+    global $WTWT_LANGS;
+    foreach ($WTWT_LANGS as $key=>$name){
+      if ($key == "en"){
+        $type = MENU_DEFAULT_LOCAL_TASK;
+      } else {
+        $type = MENU_LOCAL_TASK;
+      }
+      $items[] = array(
+        'path'                => 'admin/translations/'.$key,
+        'callback'            => 'wtw_trans_admin',
+        'callback arguments'  => array($key),
+        'title'               => $name,
+        'type'                => $type
+      );
+    }
+    
+  } else {
+  }
+  return $items;
+}
+
+function wtw_trans_faq($l){
+  switch ($l){
+    case 'jp':
+      $title = "„Çà„Åè„ÅÇ„Çã„ÅîË≥™Âïè";
+      break;
+    case 'en':
+      $title = "Frequently Asked Questions";
+      break;
+    case 'it':
+      $title = "Domande Piu' Frequenti";
+      break;
+    case 'fr':
+      $title = "Foire Aux Questions";
+      break;
+    case 'es':
+      $title = "Preguntas Mas Frecuentes";
+      break;
+  }
+  $out = nl2br(db_result(db_query("SELECT value FROM wtw_trans WHERE text=10 AND language='%s'",$l)));
+  print theme("page",$out,$title);
+}
+
+
+?>

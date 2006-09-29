@@ -1,0 +1,7 @@
+CREATE TABLE ec_product_tangible (
+  nid int(10) unsigned NOT NULL default '0',
+  stock int(10) NOT NULL default '0',
+  manage_stock int(2) unsigned NOT NULL default '0',
+  availability int(10) NOT NULL default '0',
+  UNIQUE KEY nid (nid)
+) TYPE=MyISAM;

@@ -1,0 +1,419 @@
+<?php
+/* $Id$ */
+
+/**
+ * @file                                                                                                                                                           
+ * Creates an invite API
+ */
+
+/**
+ * Implementation of hook_help().
+ */ 
+function echomailer_help($section) {
+  switch ($section) {
+  case 'admin/modules#description':
+    return t('EchoSpace invite API');
+    break;
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function echomailer_perm() {
+  return array('admin echomailer');
+}
+/**
+ * Implementation of hook_menu().
+ */                                                                                                                                      
+function echomailer_menu($may_cache) {
+  $items = array();
+
+  $items[] = array('path' => 'mailer', 'title' => t('mailer'), 'access' => TRUE,
+		   'callback' => 'echomailer_validate', 'type' => MENU_CALLBACK);
+  $items[] = array('path' => 'admin/mailer', 'title' => t('echomailer'), 'access' => user_access('admin echomailer'),
+                   'callback' => 'echomailer_admin', 'type' => MENU_NORMAL_ITEM);
+
+  if (arg(2) && is_numeric(arg(2))) {
+    $items[] = array('path' => 'mailer/click/'.arg(2), 'title' => t('answer'), 'access' => TRUE,
+		     'callback' => 'echomailer_click', 'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'mailer/open/'.arg(2), 'title' => t('open'), 'access' => TRUE, 
+		       'callback' => 'echomailer_open', 'type' => MENU_CALLBACK);
+  
+	}
+	
+  return $items;
+}
+
+/**
+ * Implementation of hook_cron().
+ */
+function echomailer_cron() {
+  _echomailer_send();
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function echomailer_settings() {
+  if (!file_exists(variable_get('echomailer_phpmailer', 'misc/phpmailer/').'class.phpmailer.php')) {
+    form_set_error('echomailer_phpmailer', t('Could not find class.phpmailer.php.  Please check your settings.'));
+  }
+  $output .= form_textfield(t('PHPMailer'), 'echomailer_phpmailer',
+			   variable_get('echomailer_phpmailer', 'misc/phpmailer/'), 40, 255,
+			   t("Location of directory containing class.phpmailer.php relative to base.  Don't forget the trailing / (slash)."));
+   
+  $output .= form_select(t('Open-rate Bug'), 'echomailer_openrate', variable_get('echomailer_openrate', 1), array('0' => t('Disabled'), '1' => t('Enabled')),
+			   t('Open-rate bug includes an img tag in html emails with a callback to the server which returns a 1x1 gif. '.
+			     'Allows you to track the time and ip where the recipient opened the email if they are using an html-enabled email reader.'));
+
+  if (!file_exists(variable_get('echomailer_openimage', 'modules/echomailer/spacer.gif'))) {
+    form_set_error('echomailer_openimage', t('Open-rate image could not be found.  Please check the file location.'));
+  }
+  $output .= form_textfield(t('Open-rate Image'), 'echomailer_openimage', variable_get('echomailer_openimage', 'modules/echomailer/spacer.gif'),
+			    40, 255, t("Location of image to be returned with the open-rate bug relative to base."));
+
+  return $output; 
+}
+
+/**
+ * Implementation of hook_user().
+ *
+ * Shows all invites sent by user.
+ */
+/*
+// disabled by Tim--- this function is not actually useful for anything and is cluttering the profile page
+function echomailer_user($op, &$edit, &$user, $category = NULL) {
+  switch ($op) {
+  case 'view':
+    if (user_access('admin echomailer')) {
+      $header = array(array('data' => 'Module', 'field' => 'i.module'),
+		      array('data' => 'To', 'field' => 'e.recipient'),
+		      array('data' => 'Sent', 'field' => 'e.sent', 'sort' => 'desc'),
+		      array('data' => 'Open', 'field' => 'e.open'),
+		      array('data' => 'Clickthrough', 'field' => 'e.clickthrough'));
+
+      $rows = array();
+      $result = db_query("SELECT * FROM {echomailer_queue} e INNER JOIN {echomailer_emails} i ON e.iid = i.iid WHERE uid = %d".tablesort_sql($header), 
+			 $user->uid);
+      while ($row = db_fetch_object($result)) {
+	$user = user_load(array('uid' => $row->uid));
+	$rows[] = array($row->module, $row->recipient, $row->sent ? format_date($row->sent, 'small') : 'unsent',
+			$row->open ? format_date($row->open, 'small') : '',
+			$row->clickthrough ? format_date($row->clickthrough, 'small') : '');
+      }
+      return array(t('Invitations') => theme('table', $header, $rows));
+    }
+    break;
+  }
+} 
+*/
+
+/**
+ * Menu callback; Shows admin dashboard with aggregated stats and sent invitations.
+ */
+function echomailer_admin() {
+// temp
+// _echomailer_send();
+
+  $result = db_query("SELECT * FROM {echomailer_queue} WHERE sent != 0");
+  while ($row = db_fetch_object($result)) {
+    $sent++;
+    if ($row->open) $open++;
+    if ($row->clickthrough) $clickthrough++;
+  }
+  $table = array(array('Sent', $sent),
+		 array('Opened', $open),
+		 array('Click-through', $clickthrough),
+		 array('Open-rate', number_format($sent ? $open / $sent * 100 : 0, 1)."%"),
+		 array('Click-through-rate', number_format($sent ? $clickthrough / $sent : 0* 100, 1)."%"));
+  $output .= theme('box', t('Aggregated Statistics'), theme('table', array(), $table));
+  
+  $header = array(array('data' => 'Module', 'field' => 'i.module'),
+		  array('data' => 'From', 'field' => 'i.from_name'),
+		  array('data' => 'To', 'field' => 'e.recipient'),
+		  array('data' => 'Sent', 'field' => 'e.sent', 'sort' => 'desc'),
+		  array('data' => 'Open', 'field' => 'e.open'),
+		  array('data' => 'Clickthrough', 'field' => 'e.clickthrough'),
+		  array('data' => 'Country'));
+
+  $rows = array();
+  $sql = "SELECT * FROM {echomailer_queue} e INNER JOIN {echomailer_emails} i ON e.iid = i.iid WHERE sent != 0".tablesort_sql($header); 
+  $result = pager_query($sql, 50);
+  while ($row = db_fetch_object($result)) {
+    $user = user_load(array('uid' => $row->uid));
+    if(!$row->user && $row->from_name && $row->from_mail)
+    	$name = $row->from_name . "&nbsp;&lt;" . $row->from_mail . "&gt;";
+    else if($row->user)
+    	$name = $row->user;
+    else
+    	$name = '';
+    	
+    $rows[] = array($row->module, 
+    		$name, 
+       	$row->recipient, format_date($row->sent, 'small'), 
+		    $row->open ? format_date($row->open, 'small') : '', 
+		    $row->clickthrough ? format_date($row->clickthrough, 'small') : '',
+		    $row->clickthrough_ip ? _echomailer_iptocountry($row->clickthrough) : 
+		    ($row->open_ip ? _echomailer_iptocountry($row->open_ip) : ''));
+  }
+  $pager = theme('pager', NULL, 50, 0, tablesort_pager());
+  if (!empty($pager)) {
+    $rows[] = array(array('data' => $pager, 'colspan' => '6'));
+  }
+  $output .= theme('box', t('Recent Invitations'), theme('table', $header, $rows));
+  print theme('page', $output);
+}
+
+/**
+ * Called by echomailer_form(); Creates html for hidden form items.
+ */
+function echomailer_form_hidden($module, $title, $query_data = array()) {
+  $form .= form_hidden('module', $module);
+  $form .= form_hidden('title', $title);
+  if($query_data){
+  	foreach ($query_data as $key => $val) {
+  		$form .= form_hidden('query_data]['.$key, $val);
+  	}
+  }
+  return $form;
+}
+
+/**
+ * Called by host-module or echomailer_page(); Creates invitation form with given data.
+ */
+function echomailer_form($module, $title, $form_data = array(), $query_data = array()) {
+  global $user;
+  drupal_set_title($title);
+  $form_data['from'] = $form_data['name'] . " &lt;" . $form_data['mail'] . "&gt;";
+  $form .= form_hidden('subject',$form_data['subject']);
+  $form .= form_hidden('op','submit');
+  $form .= form_textfield(t('your first name'), 'firstname', $form_data['firstname'], 30,100);
+  $form .= form_textfield(t('your last name/surname'), 'lastname', $form_data['lastname'], 30,100);
+  $form .= form_textfield(t('your email address'), 'mail', $form_data['mail'], 30,100);
+  $form .= form_textarea(t('recipients'), 'recipients', $form_data['recipients'], 30, 8,'Enter as many email addresses as you like, separated by spaces or commas.');
+  $form .= form_textarea(t('message'), 'message', $form_data['message'], 80, 15);
+  $form .= "<em><p>all fields are required.</p></em>";
+/*  $form .= '<div class="wtw_submit">';
+  $form .= form_submit(' ');
+  $form .= "</div>";*/
+  $form .= '<input type="image" name="submit" value="submit"  src="modules/echomailer/images/btn_invite.png" />';
+  $form .= echomailer_form_hidden($module, $title, $query_data);
+  return form($form, 'post', 'mailer');
+}
+
+/**
+ * Menu callback; Display invitation form with given data.
+ */
+function echomailer_page($module, $title, $form_data = array(), $query_data = array(), $message = '') {
+  $output = $message;
+  $output .= echomailer_form($module, $title, $form_data, $query_data);
+  print theme('page', $output);
+}
+
+/**
+ * Menu callback; Validates and processes invitation form.
+ */
+function echomailer_validate() {
+  global $user;
+ 
+  $edit = $_POST['edit'];
+  
+  if ($edit['op']) {
+    if (!$edit['subject']) {
+      form_set_error('message', t('You did not provide a subject.'));
+    }
+    if (!$edit['firstname']) {
+      form_set_error('firstname', t('You did not provide your first name.'));
+    }
+    if (!$edit['lastname']) {
+      form_set_error('lastname', t('You did not provide your last name / surname.'));
+    }    
+    if (!$edit['mail']) {
+      form_set_error('mail', t('You did not provide a valid email address.'));
+    }
+  	if ($edit['recipients']) {
+      $recipients = preg_split("/[\s,;]+/", $edit['recipients']);
+      foreach ($recipients as $email) {
+	if (!valid_email_address($email)) {
+	  form_set_error('recipients', t('There is a problem with the following address: ').$email);
+	}
+      }
+    }
+    else {
+      form_set_error('recipients', t('You did not specify any recipients.'));
+    }
+  
+    
+    if (!$edit['message']) {
+      form_set_error('message', t('You did not create a message.'));
+    }
+    if (form_get_errors()) {
+      //echomailer_page($edit['module'], $edit['title'], $edit, $edit['query_data']);
+      _echomailer_api($edit['module'], 'error_page');
+    }
+    else {
+      echomailer_queue($user->uid,$edit['firstname']." ".$edit['lastname'],$edit['mail'],$recipients,$edit['subject'], $edit['message'], $edit['module'], $edit['query_data']);
+      _echomailer_api($edit['module'], 'after_invitation', $edit['query_data']);
+    }
+  }
+  else {
+    drupal_not_found();
+  }
+
+}
+
+function echomailer_queue($user, $from_name, $from_mail, $recipients, $subject, $message, $module = '', $query = array()) {
+  
+  if ($query) {
+    $queries = array();
+    foreach ($query as $key => $val) {
+      $queries[] = $key.'='.$val;
+    }
+    $query_string = implode("&", $queries);
+  }
+  $iid = db_next_id('echomailer_emails');
+  db_query("INSERT INTO {echomailer_emails} (iid, uid, module, from_name, from_mail, subject, message, query, created) VALUES ".
+	   "(%d, %d, '%s', '%s', '%s', '%s', '%s', '%s', %d)",
+	   $iid, $user, $module, $from_name, $from_mail, $subject, $message, $query_string, time());
+  foreach ($recipients as $email) {
+    db_query("INSERT INTO {echomailer_queue} (iid, recipient) VALUES (%d, '%s')", $iid, $email);
+  }
+}
+
+/**
+ * Menu callback; Handles invitation click-throughs and invokes host module action.
+ */
+function echomailer_click() {
+  db_query("UPDATE {echomailer_queue} SET clickthrough = %d, status = 'clicked', click_ip = '%s' WHERE eid = %d AND (status = 'sent' OR status = 'opened')", 
+	   time(), $_SERVER['REMOTE_ADDR'], arg(2));
+  $email = db_fetch_object(db_query("SELECT * FROM {echomailer_queue} e INNER JOIN {echomailer_emails} i ON e.iid = i.iid WHERE e.eid = %d", arg(2)));
+  _echomailer_api($email->module, 'answer');
+}
+
+/**
+ * Menu callback; Email open rate bug.  Tracks when users open email and then returns an specified image.
+ */
+function echomailer_open() {
+  $image = variable_get('echomailer_openimage', 'modules/echomailer/spacer.gif');
+  db_query("UPDATE {echomailer_queue} SET open = %d, status = 'opened', open_ip = '%s' WHERE eid = %d AND status = 'sent'", time(), $_SERVER['REMOTE_ADDR'], arg(2));
+  $imagesize = getimagesize($image);
+  header("Content-type: " . $imagesize['mime']);
+  $fd = fopen($image, 'rb');
+  while (!feof($fd)) {
+    print fread($fd, 1024);
+  }
+  fclose($fd);
+  exit(); 
+}
+
+/**
+ * Helper function; Invokes appropriate host module action.
+ */
+function _echomailer_api($module, $op, $data = array()) {
+  $function = $module.'_mailerapi';
+  return $function($op, $data);
+}
+
+/**
+ * Helper function; Sends unsents emails on cron.
+ */
+function _echomailer_send() {
+  include_once(variable_get('echomailer_phpmailer', 'misc/phpmailer/').'class.phpmailer.php');
+
+  $result = db_query("SELECT * FROM {echomailer_queue} e INNER JOIN {echomailer_emails} i ON e.iid = i.iid WHERE e.status = 'unsent' ORDER BY i.created ASC LIMIT 50");
+  while ($row = db_fetch_object($result)) {
+    if ($row->module) {
+      $email = _echomailer_api($row->module, 'format_email', array('subject' => $row->subject, 'message' => $row->message, 'uid' => $row->uid, 
+								 'url' => url('mailer/click/'.$row->eid, $row->query ? $row->query : NULL, NULL, TRUE)));
+    }
+    $subject = $email['subject'] ? $email['subject'] : $row->subject;
+    $message = $email['message'] ? $email['message'] : $row->message;
+    $html = check_output($message);
+    $html .= variable_get('echomailer_openrate', 1) ?
+      "<br /><br /><img src='" . url('mailer/open/'.$row->eid, NULL, NULL, TRUE) . "' />" : "";
+    $txt = strip_tags($html);
+//watchdog('echomailer',"<h3>html</h3><p>" . htmlentities($html)  . "</p><h3>txt</h3><p>". htmlentities($txt) . "</p>");    
+
+// CiviCRM integration
+    if (function_exists('civicrm_initialize')) {
+      civicrm_initialize(TRUE);
+// Check if sender exists in CiviCRM else create    
+      $params = array('email' => $row->from_mail);
+      $contact_from = crm_get_contact($params);
+      if (!$contact_from->id) {
+      	$contact_from = crm_create_contact($params);
+      }
+    }
+
+    $success = _echomailer_mail($row->from_name, $row->from_mail, $row->recipient, $subject, $html, $txt);
+    if ($success) {
+      db_query("UPDATE {echomailer_queue} SET sent = %d, status = 'sent' WHERE eid = %d", time(), $row->eid);
+
+// CiviCRM integration
+      if (function_exists('civicrm_initialize')) {
+// Check if sender exists in CiviCRM else create    
+        civicrm_initialize(TRUE);
+      	$params = array('email' => $row->recipient);
+      	$contact_to = crm_get_contact($params);
+      	if (!$contact_to->id) $contact_to = crm_create_contact($params);
+// Add action (sent/received) in CiviCRM
+      	$params = array('entity_table' => 'civicrm_contact',
+                        'entity_id' => $contact_to->id,
+                        'activity_type' => 'Received Email',
+                        'module' => 'echomailer',
+                        'activity_id' => 1,
+                        'activity_summary' => 'Sent email by '.l($contact_from->display_name, 'civicrm/contact/view', array(), 'reset=1&cid='.$contact_from->id) . ' ('.$row->from_mail.')',
+                        'activity_date' => date('YmdHis'));
+      	crm_create_activity_history($params);
+        $params = array('entity_table' => 'civicrm_contact',
+                        'entity_id' => $contact_from->id,
+                        'activity_type' => 'Sent Email',
+                        'module' => 'echomailer',
+                        'activity_id' => 1,
+                        'activity_summary' => 'Sent email to '.l($contact_to->display_name, 'civicrm/contact/view', array(), 'reset=1&cid='.$contact_to->id) . ' ('.$row->recipient.')',
+                        'activity_date' => date('YmdHis'));
+        crm_create_activity_history($params);
+      }
+    } else {
+      db_query("UPDATE {echomailer_queue} SET sent = %d, status = 'error' WHERE eid = %d", time(), $row->eid);    
+    }
+  }
+  $count = db_num_rows($result);
+  if ($count > 0){
+    watchdog("echomailer","Sent $count emails.");
+  }
+}
+
+/**
+ * Helper function; Creates and send actual emails.
+ */
+function _echomailer_mail($from_name, $from, $to, $subject, $html, $txt) {
+  $mail = new PHPMailer();
+  $mail->CharSet = "UTF-8";
+  $mail->FromName = $from_name;
+  $mail->From = $from;
+  $mail->Sender = $from;
+  $mail->Subject = $subject;
+  if ($html) {
+    $mail->Body = $html;
+    $mail->AltBody = $txt;
+  }
+  else {
+    $mail->Body = $txt;
+  }
+  $mail->AddAddress($to);
+
+  $success = $mail->Send();
+  return $success;
+}
+
+/**
+ * Helper function; Turns an IP into a country, if available.
+ */
+function _echomailer_iptocountry($ip) {
+  $ipnum =  sprintf("%u", ip2long($ip));
+  $country = db_fetch_object(db_query("SELECT cc, cn FROM geoip_ip NATURAL JOIN geoip_cc WHERE %d BETWEEN start AND end", $ipnum));
+  return $country ? $country->cn : t('Unknown');
+}
+?>

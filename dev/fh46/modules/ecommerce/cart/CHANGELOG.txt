@@ -1,0 +1,19 @@
+Cart module
+
+Jan 16, 2005
+  * Bugfix: The cart/view page should never be cached.
+
+Dec 16, 2005
+  * Display a cart full icon when items are in the cart.
+
+Dec 15, 2004
+  * Warn the user if no payment method is selected on checkout.
+
+Dec 1, 2004
+  * Fixed bug #13737: Double shipping and billing address forms for anonymous users. Patch by frjo
+
+Nov 23, 2004
+  * Fixed bug #13284: Invalid address links on checkout form. Reported by gjxl.
+
+Apr 19, 2004
+  * Fixed bug #6605: Deleting product breaks users' shopping cart if item exists in cart. Reported by jon.

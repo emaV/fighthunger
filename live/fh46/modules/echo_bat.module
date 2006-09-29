@@ -1,0 +1,270 @@
+<?php
+
+/**
+ * @file
+ * A Dean campaing-esque bat/thermometer.
+ * 
+ 
+ echo_bat.module
+ http://opensource.echoditto.com/echo_bat/
+ $Date: 2005-10-07 14:43:02 -0400 (Fri, 07 Oct 2005) $
+ $Revision: 20165 $
+ Released under the GNU General Public License
+ http://www.gnu.org/licenses/gpl.txt
+
+*/
+
+/**
+ * Implementation of hook_help().
+ */
+function echo_bat_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('A Dean campaing-esque bat/thermometer.');
+  }
+}
+
+function echo_bat_init ()
+{
+    if (extension_loaded('gd') == false)
+    {
+//        print("GD library not activated; echo_bat is unable to function!");
+        return;
+    }
+}
+
+function echo_bat_get_font ()
+{
+    $result = db_query("SELECT ttf_font FROM echo_bat WHERE bat_id = '1'"); // FIXME: multiple bats
+    $font = db_fetch_object($result);
+    $tmpfile = tempnam('/tmp', 'echo_bat_');
+    $fp = fopen($tmpfile, 'w');
+    fwrite($fp, $font->ttf_font);
+    fclose($fp);
+
+    return($tmpfile);
+}
+
+function echo_bat_get_plot_value ()
+{
+/*
+    $result = db_query("SELECT plot_value, plot_queries FROM echo_bat WHERE bat_id = '1'"); // FIXME: multiple bats
+    $plot = db_fetch_object($result);
+    
+    if ($plot->plot_queries)
+    {
+        $plot->plot_value = 0;
+        $queries = explode("\n", $plot->plot_queries);
+        for ($i = 0; $i < count($queries); $i++)
+            $plot->plot_value += mysql_result(mysql_query($queries[$i]), 0);
+    }
+*/
+    $plot->plot_value = db_result(db_query('SELECT SUM(total_clicks) FROM {clicks} WHERE nid = %d', 0)); 
+
+    return($plot->plot_value);    
+}
+
+function echo_bat_output_bat ()
+{
+
+    $result = db_query("SELECT min_value, max_value, fluff, lower_pixel, upper_pixel, 
+                        text_pixel, text_size, empty_png, full_png 
+                        FROM echo_bat WHERE bat_id = '1'"); // FIXME: multiple bats
+
+    if (db_num_rows($result))
+    {
+        $bat = db_fetch_object($result);
+        
+        $bat->plot_value = echo_bat_get_plot_value();
+
+        $dest_img = imagecreatefromstring($bat->empty_png);
+        $full_img = imagecreatefromstring($bat->full_png);
+        
+        $percentage = @round(($bat->plot_value + $bat->fluff) / ($bat->max_value - $bat->min_value), 2);
+        $fill_amount = $percentage * ($bat->lower_pixel - $bat->upper_pixel);
+        
+        imagecopy($dest_img, $full_img, 
+            0, ($bat->lower_pixel - $fill_amount), 
+            0, ($bat->lower_pixel - $fill_amount), 
+            imagesx($full_img), $fill_amount);
+
+        //$text = '$' . number_format($bat->plot_value, 2);
+        $text = number_format($bat->plot_value, 0, '', '');
+        $text = str_pad($text, 6, '0', STR_PAD_LEFT);
+        $font_file = echo_bat_get_font();
+        //$font_info = imagettfbbox($bat->text_size, 0, $font_file, $text);
+        //$font_x = (imagesx($dest_img) - ($font_info[2] - $font_info[0])) / 2;
+        $font_x = 45;
+        //$font_color = imagecolorallocate($dest_img, 0, 0, 0);
+        $font_color = imagecolorallocate($dest_img, 255, 255, 255);
+        
+        //imagettftext($dest_img, $bat->text_size, 0, $font_x, $bat->text_pixel, $font_color, $font_file, $text);
+
+        for ($i = 0; $i < strlen($text); $i++)
+            imagettftext($dest_img, $bat->text_size, 0, $font_x + ($i * 32), 
+                $bat->text_pixel, $font_color, $font_file, substr($text, $i, 1));
+        
+        $legend_color = imagecolorallocate($dest_img, 112, 173, 218);
+        imagettftext($dest_img, 7, 0, 197, ($bat->upper_pixel + 5), $legend_color, $font_file, '- ' . 
+            number_format($bat->max_value, 0, '', ''));
+
+        header('Content-type: image/png');
+        imagepng($dest_img);
+        
+        @unlink($font_file);
+    }
+}
+
+function echo_bat_block ($op = 'list', $delta = 0)
+{
+    if ($op == 'list')
+    {
+        $blocks[0]['info'] = 'Dynamic Bat';
+        return $blocks;
+    }
+    else
+    {
+        $block['content'] = echo_bat_block_content();
+        return $block;
+    }
+}
+
+function echo_bat_block_content ()
+{
+    global $base_url;
+    
+    $result = db_query("SELECT click_link, block_html FROM echo_bat");
+    $bat = db_fetch_object($result);
+    
+    $bat->plot_value = echo_bat_get_plot_value();
+    
+    $bat->block_html = preg_replace("/%%VALUE%%/", number_format($bat->plot_value, 0, '', ''), $bat->block_html);
+    $bat->block_html = preg_replace("/%%NEXT%%/", number_format(($bat->plot_value + 1), 0, '', ''), $bat->block_html);
+    $bat->block_html = preg_replace("/%%CLICK%%/", $bat->click_link, $bat->block_html);
+    
+    if (strlen($bat->click_link))
+        $out = preg_replace("/%%BAT%%/", "<a href=\"" . $bat->click_link . 
+            "\"><img src=\"$base_url/bat/1.png?sess=" . md5(time()) . 
+            "\" border=\"0\"></a>", $bat->block_html); // FIXME: multiple bats
+    else
+        $out = preg_replace("/%%BAT%%/", "<img src=\"$base_url/bat/1.png?sess=" . 
+            md5(time()) . "\">", $bat->block_html); // FIXME: multiple bats
+    
+    return($out);
+}
+
+function echo_bat_menu ($mc)
+{
+    if (!$mc)
+    {
+        $items = array(array('path'     => 'admin/echo_bat', 
+                             'title'    => 'bat', 
+                             'callback' => 'echo_bat_page_admin', 
+                             'access'   => user_access('administer bat'),
+                             ), 
+
+                       array('path'     => 'bat', 
+                             'title'    => 'bat', 
+                             'callback' => 'echo_bat_output_bat', 
+                             'access'   => true, 
+                             'type'     => MENU_CALLBACK));
+    }
+    
+    return($items);
+}
+
+function echo_bat_perm ()
+{
+    return array("administer bat");
+}
+
+function echo_bat_page_admin ()
+{
+    if ($_POST['edit'])
+    {
+        db_query("UPDATE echo_bat SET plot_value = '%f', plot_queries = '%s', min_value = '%f', 
+                                      max_value = '%f', fluff = '%f', lower_pixel = '%u', 
+                                      upper_pixel = '%u', text_pixel = '%s', text_size = '%s', 
+                                      click_link = '%s', block_html = '%s', last_update = UNIX_TIMESTAMP(NOW()) 
+                                      WHERE bat_id = '1'", 
+                                      $_POST['edit']['plot_value'], $_POST['edit']['plot_queries'], 
+                                      $_POST['edit']['min_value'], $_POST['edit']['max_value'], 
+                                      $_POST['edit']['fluff'], $_POST['edit']['lower_pixel'], 
+                                      $_POST['edit']['upper_pixel'], $_POST['edit']['text_pixel'], 
+                                      $_POST['edit']['text_size'], $_POST['edit']['click_link'], 
+                                      $_POST['edit']['block_html']); // FIXME: multiple bats
+                                      
+        if ($_FILES['edit']['size']['empty_png'])
+            db_query("UPDATE echo_bat SET empty_png = '%s' WHERE bat_id = '1'", 
+            file_get_contents($_FILES['edit']['tmp_name']['empty_png'])); // FIXME: multiple bats
+
+        if ($_FILES['edit']['size']['full_png'])
+            db_query("UPDATE echo_bat SET full_png = '%s' WHERE bat_id = '1'", 
+            file_get_contents($_FILES['edit']['tmp_name']['full_png'])); // FIXME: multiple bats
+
+        if ($_FILES['edit']['size']['ttf_font'])
+            db_query("UPDATE echo_bat SET ttf_font = '%s' WHERE bat_id = '1'", 
+            file_get_contents($_FILES['edit']['tmp_name']['ttf_font'])); // FIXME: multiple bats
+
+        drupal_set_message("Your new settings were successfully applied.");
+    }
+    
+    $title = 'Bat Settings';
+    
+    $out  = '<p>Edit the settings below to affect the bat\'s appearance.  ';
+    $out .= 'The bat block currently looks like this (minus some text formatting):</p>';
+    $out .= '<p>' . echo_bat_block_content() . '</p>'; // FIXME: multiple bats
+    
+    $query = "SELECT plot_value, plot_queries, min_value, max_value, 
+              fluff, lower_pixel, upper_pixel, text_pixel, text_size, 
+              click_link, block_html, last_update 
+              FROM echo_bat WHERE bat_id = '1'"; // FIXME: multiple bats
+              
+    $result = db_query($query);
+    $bat    = db_fetch_object($result);
+    
+    $headers = array('');
+    $rows    = array(array(form_textfield('Plot Value', 'plot_value', 
+                         $bat->plot_value, 10, 10, 'Value to plot on bat')), 
+                     array(form_textarea('Plot Queries', 'plot_queries', 
+                         $bat->plot_queries, 50, 6, 
+                         'SQL queries to use instead of hard-coded plot value (results summed)')), 
+                     array(form_textfield('Lower Limit', 'min_value', 
+                         $bat->min_value, 10, 10, 'Low value on bat')), 
+                     array(form_textfield('Upper Limit', 'max_value', 
+                         $bat->max_value, 10, 10, 'High value on bat')), 
+                     array(form_textfield('Fluff Factor', 'fluff', 
+                         $bat->fluff, 10, 10, 'Amount to "fluff" by')), 
+                     array(form_textfield('Lower Pixel', 'lower_pixel', 
+                         $bat->lower_pixel, 6, 6, 
+                         'Pixels from top of image for low end of bat')), 
+                     array(form_textfield('Upper Pixel', 'upper_pixel', 
+                         $bat->upper_pixel, 6, 6, 
+                         'Pixels from top of image for high end of bat')), 
+                     array(form_textfield('Text Pixel', 'text_pixel', 
+                         $bat->text_pixel, 6, 6, 
+                         'Pixels from top of image for bottom of dynamic text')), 
+                     array(form_textfield('Text Size', 'text_size', 
+                         $bat->text_size, 6, 6, 
+                         'Pixel size of dynamic text')), 
+                     array(form_file('Empty Image', 'empty_png', '20', 
+                         'Change your "empty" image here (PNG format)')), 
+                     array(form_file('Full Image', 'full_png', '20', 
+                         'Change your "full" image here (PNG format)')), 
+                     array(form_file('Text Font', 'ttf_font', '20', 
+                         'Change your text font here (TTF format)')), 
+                     array(form_textfield('Click Link', 'click_link', 
+                         $bat->click_link, 50, 255, 
+                         'Optional link when clicking on bat')), 
+                     array(form_textarea('Block HTML', 'block_html', 
+                         $bat->block_html, 50, 6, 
+                         'HTML to put around bat (use <tt>%%BAT%%</tt> in place of bat)')), 
+                     array(form_item('Settings Last Changed', date('m/j/Y g:i:s a', $bat->last_update))), 
+                     array(form_submit('Update Settings')));
+    
+    $out .= form(theme('table', $headers, $rows), 'post', NULL, array('enctype' => 'multipart/form-data'));
+    
+    print(theme('page', $out, $title));
+}
+
+?>

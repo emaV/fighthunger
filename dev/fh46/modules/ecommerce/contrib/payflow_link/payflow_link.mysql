@@ -1,0 +1,5 @@
+CREATE TABLE `ec_payflow_link` (
+  `txnid` int(11) NOT NULL default '0',
+  `pnref` varchar(30) NOT NULL default '',
+  PRIMARY KEY  (`txnid`)
+) TYPE=MyISAM;

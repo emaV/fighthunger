@@ -1,0 +1,15 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: Submanage module
+Author: Matt Westgate <drupal at asitis dot org>
+********************************************************************
+INSTALLATION:
+
+1. Place the entire submanage directory into your Drupal
+   modules/store/contrib directory.
+
+2. Enable this module by navigating to:
+
+     administer > modules
+

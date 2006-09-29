@@ -1,0 +1,92 @@
+<?php
+// $Id: preflang.module, v 0.001 2006-02-09 21:13:39 unconed Exp $
+
+/**
+ * @file
+ * A simple module 2 collect info from WhatCounts campaign 0602.
+ *
+ * Our example node type will allow users to specify a "color" and a "quantity"
+ * for their nodes; some kind of rudimentary inventory-tracking system, perhaps?
+ * To store this extra information, we need an auxiliary database table.
+ *
+ * Database definition:
+ * @code
+ *   CREATE TABLE preflang (
+ *     EQid varchar(255) NOT NULL default '',
+ *     preflang varchar(255) NOT NULL default '',
+ *     PRIMARY KEY  (EQid)
+ *   )
+ * @endcode
+ */
+
+/**
+ * Implementation of hook_help().
+ *
+ * Throughout Drupal, hook_help() is used to display help text at the top of
+ * pages. Some other parts of Drupal pages get explanatory text from these hooks
+ * as well. We use it here to provide a description of the module on the
+ * module administration page.
+ */
+function preflang_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      // This description is shown in the listing at admin/modules.
+      return t('A simple module 2 collect info from WhatCounts campaign 0602.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ *
+ * In order for users to be able to add nodes of their own, we need to
+ * give them a link to the node composition form here.
+ */
+function preflang_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'preflang', 
+      'callback' => '_preflang_page',
+      'access' => TRUE,
+      'type' => MENU_CALLBACK);    
+  }
+  return $items;
+}
+
+/**
+ * Implementation of internal hook_page().
+ *
+ * Take data from link www...org/preflang/donaldduck@whitehouse.gov/en
+ */
+function _preflang_page($EQid="no", $lang="en") {
+  switch ($EQid) {
+    case 'no':
+      // send a new confirmation email
+watchdog("preflang","no data 2 process");
+      drupal_goto(variable_get("site_frontpage","node"));
+      break;
+    default:
+      $email = db_result(db_query("SELECT email FROM {preflang} WHERE EQid = '%s'", $EQid));
+      if ($email) {
+        db_query("UPDATE {preflang} SET preflang = '%s', lastupdated=unix_timestamp() WHERE EQid = '%s'", $lang, $EQid);
+        drupal_set_message("User $email, your preference was processed.");
+        drupal_goto(variable_get("site_frontpage","node"));
+//        $title = "Language preference for $email";
+//        $out = "<p></p>";
+//        print theme("page",$out,$title);
+      } else {
+watchdog("preflang","USER $EQid don't exist");
+        drupal_goto(variable_get("site_frontpage","node"));
+      }
+  }
+}
+
+function _preflang_setlang($EQid, $lang) {
+  if (db_result(db_query("SELECT EQid FROM {preflang} WHERE EQid = '%s'", $EQid))) {
+    db_query("UPDATE {preflang} SET preflang = '%s' WHERE EQid = '%s'", $EQid, $lang);
+  } else {
+    db_query("INSERT INTO {preflang} (EQid, preflang) VALUES ('%s', '%s')", $EQid, $lang);
+  }
+}
+
+?>

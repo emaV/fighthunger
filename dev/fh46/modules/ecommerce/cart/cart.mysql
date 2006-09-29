@@ -1,0 +1,8 @@
+CREATE TABLE ec_cart (
+  cookie_id varchar(32) NOT NULL default '0',
+  nid int(10) NOT NULL default '0',
+  qty int(10) NOT NULL default '0',
+  changed int(11) NOT NULL default '0',
+  data text,
+  KEY cookie_id (cookie_id)
+) TYPE=MyISAM;

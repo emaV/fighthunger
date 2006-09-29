@@ -1,0 +1,188 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Auction Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-10-24 00:44+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: Fr <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: auction.module:16
+msgid "Create auction products. Dependency: product.module"
+msgstr "Crée des produits vendus aux enchères. Dépend du module product (product.module)"
+
+#: auction.module:28
+#: ;165
+msgid "bid"
+msgstr "offre"
+
+#: auction.module:31
+msgid "checkout"
+msgstr "commande"
+
+#: auction.module:53
+msgid "Bidding closed"
+msgstr "Enchères terminées"
+
+#: auction.module:56
+msgid "Bid now"
+msgstr "Enchérir"
+
+#: auction.module:56
+msgid "Place your bid for this item"
+msgstr "Indiquez votre offre pour cet article"
+
+#: auction.module:68
+msgid "Auction items"
+msgstr "Articles vendus aux enchères"
+
+#: auction.module:68
+msgid "Pay for your winning auction items"
+msgstr "Payer les articles remportés aux enchères"
+
+#: auction.module:82
+msgid "Please enter an expiration date."
+msgstr "Indiquez une date d'expiration"
+
+#: auction.module:89
+msgid "Invalid date specified."
+msgstr "Date incorrecte."
+
+#: auction.module:96
+msgid "auction item"
+msgstr "article vendu aux enchères"
+
+#: auction.module:113
+msgid "Expiration date"
+msgstr "Date d'expiration"
+
+#: auction.module:113
+msgid "Enter the date this product is no longer open for bidding."
+msgstr "Date à laquelle les enchères sur cet article seront terminées."
+
+#: auction.module:151
+#: ;282
+msgid "Confirm bid"
+msgstr "Confirmer l'offre"
+
+#: auction.module:161
+#: ;332
+msgid "Pay for your items"
+msgstr "Payer vos articles"
+
+#: auction.module:196
+msgid "Checkout"
+msgstr "Commander"
+
+#: auction.module:215
+msgid "Auction"
+msgstr "Enchère"
+
+#: auction.module:216
+msgid "You have no winning items to pay for."
+msgstr "Aucune enchère à payer."
+
+#: auction.module:244
+msgid "Bid history for  &quot;%product-name&quot;"
+msgstr "Historique des offres pour &quot;%product-name&quot;"
+
+#: auction.module:246
+msgid "User"
+msgstr "Utilisateur"
+
+#: auction.module:246
+msgid "Bid"
+msgstr "Offre"
+
+#: auction.module:246
+msgid "Date of bid"
+msgstr "Date de l'offre"
+
+#: auction.module:267
+msgid "This auction has ended."
+msgstr "Cette enchère est terminée."
+
+#: auction.module:271
+msgid "Bidding on &quot;%product-name&quot;."
+msgstr "Enchérir sur &quot;%product-name&quot;."
+
+#: auction.module:274
+msgid "Enter an amount above %base-bid-amount."
+msgstr "Entrez un montant supérieur à %base-bid-amount."
+
+#: auction.module:280
+#: ;339
+msgid "Current bid:"
+msgstr "Offre actuelle : "
+
+#: auction.module:281
+msgid "Your bid:"
+msgstr "Votre offre : "
+
+#: auction.module:295
+msgid "You must bid more than %current-price."
+msgstr "Vous devez enchérir au delà de %current-price."
+
+#: auction.module:299
+msgid "Script error."
+msgstr "Erreur de script."
+
+#: auction.module:303
+msgid "You must enter a price."
+msgstr "Vous devez spécifier un prix."
+
+#: auction.module:315
+msgid "Your bid of %bid-amount has been placed."
+msgstr "Votre offre de %bid-amount a été prise en compte."
+
+#: auction.module:332
+msgid "You've already paid for this item."
+msgstr "Vous avez déjà payé cet article."
+
+#: auction.module:335
+msgid "Place bid"
+msgstr "Faire une offre"
+
+#: auction.module:341
+msgid "Time left:"
+msgstr "Temps restant : "
+
+#: auction.module:344
+#: ;350
+msgid "High bidder:"
+msgstr "Meilleure offre :  "
+
+#: auction.module:346
+msgid "(<a href=\"%bid-history-link\">%num-bids</a>)"
+msgstr "(<a href=\"%bid-history-link\">%num-bids</a>)"
+
+#: auction.module:347
+msgid "Bid history"
+msgstr "Historique des enchères"
+
+#: auction.module:350
+msgid "none"
+msgstr "-"
+
+#: auction.module:362
+msgid "Description"
+msgstr "Description"
+
+#: auction.module:346
+msgid "1 previous bid"
+msgid_plural "%count previous bids"
+msgstr[0] "1 enchère"
+msgstr[1] "%count enchères"
+
+#: auction.module:42
+msgid "place bids"
+msgstr "enchérir"
+
+#: auction.module:0
+msgid "auction"
+msgstr "enchère"
+

@@ -1,0 +1,7 @@
+Shipping module
+
+Dec 3, 2004
+  * Make sure every call to $node->price is properly wrapped in product_adjust_price($node)
+
+Feb 17, 2004
+  * Initial release.

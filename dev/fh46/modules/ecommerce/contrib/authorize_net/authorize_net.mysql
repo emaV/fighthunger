@@ -1,0 +1,6 @@
+CREATE TABLE ec_authorize_net (
+  txnid int(11) NOT NULL default '0',
+  anid varchar(30) NOT NULL default '0',
+  amount decimal(10,2) NOT NULL default '0.00',
+  PRIMARY KEY  (txnid)
+) TYPE=MyISAM;

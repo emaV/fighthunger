@@ -1,0 +1,1347 @@
+<?php
+// $Id: paypalpro.module,v 1.1.2.13 2006/03/06 13:56:43 gordon Exp $
+
+/**
+ * Implementation of Drupal _help() hook.
+ *
+ * @param  $path    The current path.
+ * @return string   Text appropriate for the current path.
+ */
+function paypalpro_help($path = 'admin/help#paypalpro') {
+
+  switch ($path) {
+    case 'admin/modules#description':
+      return t('Process payments using the PayPal Pro API.');
+  }
+}
+
+/**
+ * Implementation of Drupal _menu() hook.
+ *
+ * @param  $may_cache  Flag to indicate if menu items can be cached.
+ * @return array       Menu items.
+ */
+function paypalpro_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'paypalpro/form', 'title' => t('Credit card payment'),
+      'callback' => 'paypalpro_page', 'access' => TRUE, 
+      'type' => MENU_CALLBACK);
+    $items[] = array(
+      'path' => 'paypalpro/redirect', 'title' => t('Express checkout redirect'),
+      'callback' => 'paypalpro_express_checkout_redirect', 'access' => TRUE, 
+      'type' => MENU_CALLBACK);
+    $items[] = array(
+      'path' => 'paypalpro/express', 'title' => t('PayPal Express Checkout'),
+      'callback' => 'paypalpro_express_checkout', 'access' => TRUE, 
+      'type' => MENU_CALLBACK);
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of Drupal _settings() hook.
+ *
+ * @return form   Form used to configure the paypalpro module.
+ */
+function paypalpro_settings() {
+  // form validations
+  if (!variable_get('paypalpro_secure', '')) {
+    $secure_error = theme('error', t('It can be useful to disable secure SSL connections during testing, but it is not recommended for production servers.'));
+  }
+  if (!variable_get('paypalpro_express_url', '')) {
+    $express_error = theme('error', t('PayPal Web Services requires a valid Express Checkout URL.'));
+  }
+  if (!variable_get('paypalpro_url', '')) {
+    $url_error = theme('error', t('PayPal Web Services requires a valid API Server URL.'));
+  }
+  if (!variable_get('paypalpro_username', '')) {
+    $username_error = theme('error', t('PayPal Web Services will not work until you enter your account name.'));
+  }
+  if (!variable_get('paypalpro_password', '')) {
+    $password_error = theme('error', t('PayPal Web Services will not work until you enter your account password.'));
+  }
+  $cert = variable_get('paypalpro_sslcert', '');
+  if (!$cert || (!file_exists(variable_get('paypalpro_sslcert', '')))) {
+    $sslcert_error = theme('error', t('Invalid certificate.  PayPal Web Services will not work until you enter the absolute path to a valid PayPal Digital Certificate.'));
+  }
+
+  // form
+  $form = form_radios(t('Use secure SSL connection'), 'paypalpro_secure', variable_get('paypalpro_secure', 1), array(t('Disabled'), t('Enabled')), t('If enabled, credit card information will only be accepted through a secure SSL connection (https://).  Whether or not this is enabled, a secure connection is required to PayPal. %secure_error', array('%secure_error' => $secure_error)));
+  $form .= form_textfield(t('Express Checkout URL'), 'paypalpro_express_url', variable_get('paypalpro_express_url', 'https://www.sandbox.paypal.com/cgi-bin/webscr'), 60, 255, t('For testing you can create a <a href="https://developer.paypal.com/devscr?cmd=_home">PayPal sandbox</a> and use "https://www.sandbox.paypal.com/cgi-bin/webscr" which will allow you to simulate express checkout transactions.  For a production server with real transactions use "https://www.paypal.com/cgi-bin/webscr".  %express_error', array('%express_error' => $express_error)));
+  $form .= form_textfield(t('API Server URL'), 'paypalpro_url', variable_get('paypalpro_url', 'https://api.sandbox.paypal.com/2.0/'), 60, 255, t('For testing you can create a <a href="https://developer.paypal.com/devscr?cmd=_home">PayPal sandbox</a> and use "https://api.sandbox.paypal.com/2.0/" which will allow you to simulate direct payment transactions.  For a production server with real transactions use "https://api.paypal.com/2.0/" . %url_error', array('%url_error' => $url_error)));
+  $form .= form_textfield(t('PayPal Web Services API Account Name'), 'paypalpro_username', variable_get('paypalpro_username', ''), 60, 255, t('Your account name identifies you to the PayPal Web Services API service.  Find your API Account Name by logging into your PayPal account and going to My Account -> Profile -> API Access -> API Certificate Information. %username_error', array('%username_error' => $username_error)));
+  $form .= form_password(t('PayPal Web Services API Account Password'), 'paypalpro_password', variable_get('paypalpro_password', ''), 53, 255, t('The password for your PayPal Web Services API username. %password_error', array('%password_error' => $password_error)));
+  $form .= form_textfield(t('PayPal Digital Certificate'), 'paypalpro_sslcert', variable_get('paypalpro_sslcert', ''), 60, 255, t('The absolute path to your PayPal SSL certificate.  Use the "cert_key_pem.txt" file provided by PayPal, do not convert it to P12 format. %sslcert_error', array('%sslcert_error' => $sslcert_error)));
+  $form .= form_textfield(t('Successful payment URL'), 'paypalpro_success_url', variable_get('paypalpro_success_url', 'store/transaction/view/%txnid'), 70, 180, t("This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path.  If you add '%txnid' (without the quotes) to the path, it wil be replaced by the actual transaction id.  If you are not using clean URLs, specify the part after '?q='. If unsure, leave the default or specify 'node'."));
+  $form .= form_textarea(t('Explanation or submission guidelines'), 'paypalpro_form_help', variable_get('paypalpro_form_help', ''), 70, 5, t('Optional text to be displayed at the top of the credit card submission form.'));
+
+  return $form;
+}
+
+/**
+ * Implementation of Drupal _page() hook.
+ *
+ * @param $txnid  Optional transaction id.
+ */
+function paypalpro_page($txnid = NULL) {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  switch ($op) {
+    case t('Place your order'):
+      if (paypalpro_validate($edit)) {
+        paypalpro_process($edit);
+      }
+      else {
+        $output = paypalpro_form($edit['txnid']);
+      }
+      break;
+
+    default:
+      $output = paypalpro_form($txnid);
+  }
+
+  print theme('page', $output);
+}
+
+/**
+ * Implementation of Drupal _validate() hook.
+ *
+ * @param  $edit    Form array to validate.
+ * @return boolean  True if form validates, false if not.
+ */
+function paypalpro_validate($edit) {
+  $valid = TRUE;
+  $paypalpro_cc_types = array(t('Visa'), t('MasterCard'), t('Discover'), t('American Express'));
+  $type = 'invalid';
+
+  if (!$edit['cc_first_name']) {
+    form_set_error('cc_first_name', t('Please enter your first name how it appear on your credit card.'));
+    $valid = FALSE;
+  }
+  if (!$edit['cc_last_name']) {
+    form_set_error('cc_last_name', t('Please enter your last name how it appear on your credit card.'));
+    $valid = FALSE;
+  }
+  if (!$edit['cc_number']) {
+    form_set_error('cc_number', t('Please enter a credit card number.'));
+    $valid = FALSE;
+  }
+  elseif (!is_numeric($edit['cc_number'])) {
+    form_set_error('cc_number', t('Please enter a valid credit card number.'));
+    $valid = FALSE;
+  }
+  elseif (($edit['cc_year'] < date('Y')) || ($edit['cc_year'] <= date('Y')) &&
+                                            ($edit['cc_month'] < date('m'))) {
+    form_set_error('cc_month', t('Your credit card has expired.  Please try another card.'));
+    $valid = FALSE;
+  }
+  else {
+    // Verify that the credit card type matches the number of digits in the
+    // credit card.
+    $length = strlen($edit['cc_number']);
+    if ($length == 13) {
+      if (substr($edit['cc_number'], 0, 1) == '4') {
+        $type = t('Visa');
+      }
+    }
+    elseif ($length == 16) {
+      if (substr($edit['cc_number'], 0, 1) == '4') {
+        $type = t('Visa');
+      }
+      if (substr($edit['cc_number'], 0, 1) == '5') {
+        $type = t('MasterCard');
+      }
+      elseif (substr($edit['cc_number'], 0, 4) == '6011') {
+        $type = t('Discover');
+      }
+    }
+    elseif ($length == 15) {
+      if (substr($edit['cc_number'], 0, 1) == '3') {
+        $type = t('American Express');
+      }
+    }
+    if ($type != $paypalpro_cc_types[$edit['cc_type']]) {
+      form_set_error('cc_number', t('The credit card number you have entered is not a valid %type credit card number.  Please fix the credit card type, or re-enter the credit card number.', array('%type' => $paypalpro_cc_types[$edit['cc_type']])));
+      $valid = FALSE;
+    }
+    // TODO:  Different cards refer to this number with a different term.
+    //  Visa = CVV2 (card verification value)
+    //  MasterCard = CVC2 (card validation code)
+    //  Discover = Cardmember ID
+    //  American Express = CID (Card Identification Number)
+    elseif (!$edit['cvv2']) {
+      form_set_error('cvv2', t('Please enter a CCV2 number.'));
+      $valid = FALSE;
+    }
+    elseif (!is_numeric($edit['cvv2'])) {
+      form_set_error('cvv2', t('Please enter a valid CCV2 number.  Non-numeric characters are not allowed.'));
+      $valid = FALSE;
+    }
+    elseif (($edit['cc_type'] == 3) && (strlen($edit['cvv2']) != 4)) {
+      form_set_error('cvv2', t('Please enter a valid 4 digit CCV2 number.  The CCV2 number on your %type credit card is located on the front above and to the right of the imprinted card number.', array('%type' => $paypalpro_cc_types[$edit['cc_type']])));
+      $valid = FALSE;
+    }
+    elseif (($edit['cc_type'] != 3) && (strlen($edit['cvv2']) != 3)) {
+      form_set_error('cvv2', t('Please enter a valid 3 digit CCV2 number.  The CCV2 number on your %type credit card is located on the back in the signature panel after the credit card number.', array('%type' => $paypalpro_cc_types[$edit['cc_type']])));
+      $valid = FALSE;
+    }
+  }
+
+  return $valid;
+}
+
+/**
+ * Implementation of e-commerce _form() hook.  This form is used to collect
+ * credit card information.
+ *
+ * @param $txnid  Transaction id.
+ * @param form    Credit card form.
+ */
+function paypalpro_form($txnid) {
+  global $user, $base_url;
+
+  if ($_POST['edit']) {
+    $edit = $_POST['edit'];
+  }
+  else if ($_SESSION['edit']) {
+    // paypalpro_goto saves the edit array in the session
+    $edit = $_SESSION['edit'];
+  }
+  // it doesn't hurt to unset this even if it's not set
+  unset ($_SESSION['edit']);
+
+  // array includes credit card images
+  $paypalpro_cc_types = array('<img alt="Visa" src="https://www.paypal.com/en_US/i/logo/logo_ccVisa.gif" border="0"> '. t('Visa'), '<img alt=" Mastercard" src="https://www.paypal.com/en_US/i/logo/logo_ccMC.gif" border="0"> '. t('MasterCard'), '<img alt=" Discover" src="https://www.paypal.com/en_US/i/logo/logo_ccDiscover.gif" border="0"> '. t('Discover'), '<img alt=" American Express" src="https://www.paypal.com/en_US/i/logo/logo_ccAmex.gif" border="0"> '. t('American Express'));
+
+  $t = store_transaction_load($txnid);
+
+  // make sure the current users owns this transaction (or is the site admin)
+  if ($user->uid != $t->uid && $user->uid != 1) {
+    drupal_access_denied();
+  }
+
+  // if configured, require that the user access this page via https://
+  if (variable_get('paypalpro_secure', 1) && !$_SERVER['HTTPS']) {
+    drupal_access_denied();
+  }
+
+  // display optional form help text
+  $output = t('<div class="help">%paypalpro_form_help</div>', array('%paypalpro_form_help' => variable_get('paypalpro_form_help', '')));
+
+  // display all items being purchased
+  if ($t->items) {
+    foreach ($t->items as $p) {
+      $product = product_load(array2object($p));
+      $subtotal += $p->qty * $p->price;
+      $items[] = t('%order of <b>%title</b> at %price each', array('%order' => format_plural($p->qty, '1 order', '%count orders'), '%title' => $p->title, '%price' => payment_format(product_adjust_price($product)))). "\n";
+    }
+  }
+  $output .= '<p>'. theme('item_list', $items, t('Your items')). '</p>';
+
+  // prepare the values of the form fields
+  $years  = drupal_map_assoc(range(2004, 2020));
+  $months = drupal_map_assoc(array('01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'));
+
+  // the name as it appears on the card
+  $group = form_textfield(t('First name'), 'cc_first_name', $edit['cc_first_name'], 21, 42, '', NULL, TRUE);
+  $group .= form_textfield(t('Middle name or initial'), 'cc_middle_name', $edit['cc_middle_name'], 21, 42, '');
+  $group .= form_textfield(t('Last name'), 'cc_last_name', $edit['cc_last_name'], 21, 42, '', NULL, TRUE);
+  $form = form_group('Enter your name as it appears on the card', $group);
+
+  // the card type and card numbers
+  $group = form_radios(t('Card type'), 'cc_type', $edit['cc_type'], $paypalpro_cc_types, t('Select the type of credit card you would like to use to make your payment.'), NULL, NULL, TRUE);
+  // todo: allow numbers with spaces and dashes (convert on-the-fly)
+  $group .= form_textfield(t('Card number'), 'cc_number', $edit['cc_number'], 21, 21, t('Please enter your credit card number without any spaces or dashes.'), NULL, TRUE);
+  $group .= form_textfield(t('CCV2'), 'cvv2', $edit['cvv2'], 3, 4, t('The CCV2 is a 3 digit number located on the back of Visa, MasterCard and Discover credit cards in the signature panel, and a 4 digit number located on the front of an American Express card above and to the right of the imprinted card number.  This number is used to provide additional security to internet orders.'), NULL, TRUE);
+  $form .= form_group('Select a credit card type and enter your card number', $group);
+
+  // the expiration date
+  $group = form_select(t('Month'), 'cc_month', ($edit['cc_month'] ? $edit['cc_month'] : date('m')), $months, NULL, 0, false, TRUE);
+  $group .= form_select(t('Year'), 'cc_year', ($edit['cc_year'] ? $edit['cc_year'] : date('Y')), $years, NULL, 0, false, TRUE);
+  $form .= form_group(t('Select your credit card\'s expiration date'), $group);
+
+  $output .= form_group(t('Credit card details'), $form);
+  $output .= form_hidden('txnid', $txnid);
+  $output .= form_submit(t('Place your order'));
+
+  if (variable_get('paypalpro_secure', 1)) {
+    $base = str_replace('http://', 'https://', $base_url);
+  }
+  else {
+    $base = $base_url;
+  }
+
+  return form($output, 'POST', $base .'/'. url("paypalpro/form/". $txnid));
+}
+
+/**
+ * Implementation of e-commerce _paymentapi() hook.
+ *
+ * @param $txn    The current transaction object.
+ * @param $op     Current API operation.
+ * @return        appropriate function call.
+ */
+function paypalpro_paymentapi(&$txn, $op) {
+  switch ($op) {
+    // how this module shows up in the list of payment options
+    case 'display name':
+      return t('Credit card');
+
+    // display credit card form
+    case 'payment page':
+      if ($txn->paypalpro_token) {
+        return paypalpro_express_checkout_process($txn);
+      }
+      else {
+        return paypalpro_goto($txn);
+      }
+  }
+}
+
+/**
+ * Implementation of e-commerce _ec_transactionapi() hook.
+ *
+ * @param $txn   The current transaction object
+ * @param $op    Current API operation
+ * @param $a3    Argument 3, unused
+ * @param $a4    Argument 4, unused
+ * @return
+ */
+function paypalpro_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  if ($txn->payment_method != 'paypalpro') return NULL;
+
+  switch ($op) {
+
+    // load details on the requested transaction
+    case 'load':
+      $txn->payment = db_fetch_object(db_query('SELECT * FROM {ec_paypalpro} WHERE txnid = %d', $txn->txnid));
+      break;
+
+    // handle transaction updates and inserts
+    case 'update':
+    case 'insert':
+      paypalpro_save($txn);
+      break;
+
+    // delete a transaction
+    case 'delete':
+      paypalpro_delete($txn);
+      break;
+  }
+}
+
+/**
+ * Implementation of e-commerce _checkoutapi() hook.
+ *
+ * This adds an extra step to the checkout process, allowing a customer to use
+ * PayPal's express checkout functionality.  The site administrator will need
+ * to manually configure the screen order at administer >> store >> checkout
+ * to be sure that the 'paypalpro' screen comes first.  This is necessary to
+ * meet the PayPal requirements for using their financial services.
+ *
+ * PayPal requires that if using their API you must allow users to bypass
+ * your local credit card handling by jumping to their website.  This function
+ * provides the required button and text, as described in the "PayPal Express
+ * Checkout Integration Guide", available from this page:
+ *    https://www.paypal.com/express-checkout-buttons
+ */
+function paypalpro_checkoutapi(&$txn, $op, $arg3 = NULL, $arg4 = NULL) {
+  if ($txn == 'paypalpro') {
+    return 'paypalpro';
+  }
+  $output = '';
+  switch ($op) {
+    case 'form':
+      if ($txn->payment_method == 'paypalpro') {
+        drupal_set_title(t('Select Checkout Method'));
+        $header = array(t('Fast, Secure Checkout with PayPal'), '');
+        $rows = array(
+          // TODO: clean this up, it feels clunky, but l() broke the image
+          array(array('data' => '<a href="'. url('paypalpro/redirect') .'"><img src="https://www.paypal.com/en_US/i/btn/btn_xpressCheckout.gif" align="left" style="margin-right:7px;"></a><span style="font-size:11px; font-family: Arial, Verdana;">'. t('Save time.  Checkout securely.<br />Pay without sharing your financial information.') .'</span>'))
+	);
+        $output = theme('table', $header, $rows);
+        $output .= form_hidden('test', 'test');
+
+        $header = array(t('Fast, Secure Checkout with %site', array('%site' => variable_get('site_name', 'Drupal'))), '');
+        $rows = array(
+          array(array('data' => form_submit(t('Checkout locally'))))
+        );
+        $output .= theme('table', $header, $rows);
+      }
+      else {
+        $output = false;
+      }
+      break;
+
+    case 'save':
+      $txn->screen++;
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Redirects the user to PayPal's secure site.  The goal is to have them log 
+ * in, select an address, and to obtain a token from PayPal used to actually 
+ * charge the user's account.  There is no return from this function, we 
+ * either redirect to PayPal's website, or on an error we go back to the 
+ * shopping cart.
+ *
+ * TODO: the redirect is ugly, it would be nice to display a more Drupal-ish 
+ * page.
+ */
+function paypalpro_express_checkout_redirect() {
+  $items = cart_get_items();
+  $total = 0;
+  if (!empty($items)) {
+    foreach ($items as $item) {
+      $node = node_load(array("nid" => $item->nid));
+      $total += product_adjust_price($node) * $item->qty;
+    }
+  }
+
+  // submit a SOAP setexpresscheckoutrequest message with curl
+  $SOAPrequest = paypalpro_setExpressCheckoutRequest($total);
+
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, variable_get('paypalpro_url', 'https://api.sandbox.paypal.com/2.0/'));
+  curl_setopt($ch, CURLOPT_SSLCERT, variable_get('paypalpro_sslcert', ''));
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $SOAPrequest);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $exec_return = curl_exec($ch);
+  if ($errno = curl_errno($ch)) {
+    $error = curl_error($ch);
+  }
+  curl_close($ch);
+
+  if (strpos($exec_return, 'Success')) {
+    $token = paypalpro_parse_xml($exec_return, '<Token xsi:type="ebl:ExpressCheckoutTokenType">', '</Token');
+
+    // redirect to PayPal's website
+    print "
+<html><head>
+<script language=JavaScript type=text/javascript>
+  <!--;
+  function submitForm() {
+    document.myForm.submit();
+    setTimeout('self.close();',100000); 
+  }
+  //-->
+</script>
+</head>
+
+<body onLoad=javascript:submitForm()>
+  <p>
+    <font size=\"4\" color=\"#000080\">". t('One moment please, contacting PayPal.') ."</font></span></b>
+    <img src=\"https://www.paypal.com/en_US/i/scr/period_ani.gif\">
+  </p>
+
+  <form name=\"myForm\" method=\"post\" action=\"";
+  print variable_get('paypalpro_express_url', 'https://www.sandbox.paypal.com/cgi-bin/webscr');
+  print "\">
+    <input type=\"hidden\" name=\"cmd\" value=\"_express-checkout\">
+    <input type=\"hidden\" name=\"cn\" value=\"Special Instructions:\">
+    <input type=\"hidden\" name=\"bn\" value=\"MPL\">
+    <input type=\"hidden\" name=\"token\" value=\"". $token ."\">
+  </form>
+</body>
+</html>";
+  }
+  else {
+    if (strpos($exec_return, 'Failure')) {
+      $errors = paypalpro_get_errors($exec_return);
+      foreach ($errors as $error) {
+        paypalpro_set_error($error);
+      }
+    }
+    else {
+      $output .= drupal_set_message('<b>Communication error.</b>  Failed to connect to the authentication server.  Please try again later.', 'error');
+      if ($error) {
+        // Curl errors: http://curl.haxx.se/libcurl/c/libcurl-errors.html
+        $output .= drupal_set_message("(libcurl error #$errno: $error)", 'error');
+      }
+    }
+    drupal_goto('cart/checkout');
+  }
+}
+
+/**
+ * This is a replacement for cart_checkout_form() when checking out with 
+ * PayPal Express Checkout.
+ */
+function paypalpro_express_checkout() {
+  global $user;
+
+  $token = array_key_exists('token', $_GET) ? $_GET['token'] : '';
+
+  if ($token) {
+    // submit a SOAP getexpresscheckoutdetails message with curl
+    $SOAPrequest = paypalpro_getExpressCheckoutDetails($token);
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, variable_get('paypalpro_url', 'https://api.sandbox.paypal.com/2.0/'));
+    curl_setopt($ch, CURLOPT_SSLCERT, variable_get('paypalpro_sslcert', ''));
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $SOAPrequest);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    $exec_return = curl_exec($ch);
+    if ($errno = curl_errno($ch)) {
+      $error = curl_error($ch);
+    }
+    curl_close($ch);
+
+    if (strpos($exec_return, 'Success')) {
+      $edit = ec_checkout_get_data();
+      $shippable = FALSE;
+      foreach ($edit->items as $item) {
+        if (product_is_shippable($item->nid)) {
+          $shippable = TRUE;
+          break;
+        }
+      }
+
+      // prepare checkout form
+      $edit->firstname = paypalpro_parse_xml($exec_return, '<FirstName xmlns="urn:ebay:apis:eBLBaseComponents">', '</FirstName>');
+      $edit->lastname = paypalpro_parse_xml($exec_return, '<LastName xmlns="urn:ebay:apis:eBLBaseComponents">', '</LastName>');
+      $edit->street1 = paypalpro_parse_xml($exec_return, '<Street1 xsi:type="xs:string">', '</Street1>');
+      $edit->street2 = paypalpro_parse_xml($exec_return, '<Street2 xsi:type="xs:string">', '</Street2>');
+      $edit->city = paypalpro_parse_xml($exec_return, '<CityName xsi:type="xs:string">', '</CityName>');
+      $edit->state = paypalpro_parse_xml($exec_return, '<StateOrProvince xsi:type="xs:string">', '</StateOrProvince>');
+      $edit->zip = paypalpro_parse_xml($exec_return, '<PostalCode xsi:type="xs:string">', '</PostalCode>');
+      $edit->country = paypalpro_parse_xml($exec_return, '<Country xsi:type="ebl:CountryCodeType">', '</Country>');
+      $edit->mail = paypalpro_parse_xml($exec_return, '<Payer xsi:type="ebl:EmailAddressType">', '</Payer>');
+      //$business = paypalpro_parse_xml($exec_return, '<PayerBusiness xsi:type="xs:string">', '</PayerBusiness>');
+      //$address_type = paypalpro_parse_xml($exec_return, '<Address xsi:type="ebl:AddressType"><Name xsi:type="xs:string">', '</Name');
+      //$status = paypalpro_parse_xml($exec_return, '<PayerStatus xsi:type="ebl:PayPalUserStatusCodeType">', '</PayerStatus>');
+      //$countryCode = paypalpro_parse_xml($exec_return, '<Country xsi:type="ebl:CountryCodeType">', '</Country>');
+
+      $token = paypalpro_parse_xml($exec_return, '<Token xsi:type="ebl:ExpressCheckoutTokenType">', '</Token');
+      $payerid = paypalpro_parse_xml($exec_return, '<PayerID xsi:type="ebl:UserIDType">', '</PayerID>');
+      $payeremail = paypalpro_parse_xml($exec_return, '<Payer xsi:type="ebl:EmailAddressType">', '</Payer');
+      $account = paypalpro_parse_xml($exec_return, '<Name xsi:type="xs:string">', '</Name>');
+
+      $form = form_hidden('paypalpro_token', $token);
+      $form .= form_hidden('paypalpro_payerid', $payerid);
+      $form .= form_hidden('mail', $edit->mail);
+
+      if ($user->uid > 0) {
+        $edit->uid = $user->uid;
+        $aid = paypalpro_address_save($edit);
+        $form .= form_hidden('billing_address', $aid);
+
+        // Get user's addressbook
+        $address = address_get_addresses($user->uid);
+        $options = array();
+        foreach ($address as $value) {
+          $options[$value->aid] = "$value->firstname $value->lastname, $value->street1 in $value->city";
+        }
+      }
+      else {
+        // simply use the information provided by PayPal
+        $form .= form_hidden('billing_firstname', $edit->firstname);
+        $form .= form_hidden('billing_lastname', $edit->lastname);
+        $form .= form_hidden('billing_street1', $edit->street1);
+        $form .= form_hidden('billing_street2', $edit->street2);
+        $form .= form_hidden('billing_city', $edit->city);
+        $form .= form_hidden('billing_state', $edit->state);
+        $form .= form_hidden('billing_zip', $edit->zip);
+        $form .= form_hidden('billing_country', $edit->country);
+        $form .= form_hidden('shipping_firstname', $edit->firstname);
+        $form .= form_hidden('shipping_lastname', $edit->lastname);
+        $form .= form_hidden('shipping_street1', $edit->street1);
+        $form .= form_hidden('shipping_street2', $edit->street2);
+        $form .= form_hidden('shipping_city', $edit->city);
+        $form .= form_hidden('shipping_state', $edit->state);
+        $form .= form_hidden('shipping_zip', $edit->zip);
+        $form .= form_hidden('shipping_country', $edit->country);
+      }
+
+      if ($user->uid > 0) {
+        // logged in user provided access to address book
+        if ($shippable) {
+          $header = array(t('Shipping address'));
+          $rows = array(
+                    array(form_select('', 'shipping_address', $aid, $options, t('Please choose where you would like the items to be delivered. You can also %add_address.', array('%add_address' => l(t('add an address'), "address/$user->uid/add")))))
+                  );
+          $shipping_form = theme('table', $header, $rows);
+        }
+      }
+      else {
+        // anonymous user has to use the address they selected in PayPal
+        $header = array(t('Shipping address'));
+        $t = $edit->street2 ? '%firstname %lastname<br />%street1<br />%street2<br />%city, %state %zip<br />%country' : '%firstname %lastname<br />%street1<br />%city, %state %zip<br />%country';
+        $rows = array(
+                  array(array('data' => t($t, array('%firstname' => $edit->firstname, '%lastname' => $edit->lastname, '%street1' => $edit->street1, '%street2' => $edit->street2, '%city' => $edit->city, '%state' => $edit->state, '%zip' => $edit->zip, '%country' => address_get_country(strtolower($edit->country))))))
+                );
+        $shipping_form = theme('table', $header, $rows);
+      }
+
+      // Display PayPal info for Billing Address
+      $header = array(t('Billing your PayPal account'));
+      $rows = array(
+                array(t('%account (%email)', array('%account' => $account, '%email' => $payeremail)))
+	    );
+      $billing_form = theme('table', $header, $rows);
+
+      if ($shippable) {
+        /* Display all possible shipping options specific to these products */
+        $form .= $shipping_form;
+
+        /* Calculate shipping and handling cost */
+        $shipping_cost = shipping_calculate_cost($edit->items);
+        $form .= form_hidden('shipping_cost', $shipping_cost);
+      }
+      $form .= $billing_form;
+
+      $header = array(t('The following items are in your order'), "");
+      foreach ($edit->items as $product) {
+        $node = node_load(array('nid' => $product->nid));
+        $subtotal += $product->qty * product_adjust_price($product);
+
+        $row[] = array(t('%order of <b>%title</b> at %price each', array('%order' => format_plural($product->qty, '%count order', '%count orders'), '%title' => $node->title, '%price' => payment_format(product_adjust_price($product)))), l(t('Update or delete?'), 'cart/view'));
+      }
+
+      $formatted_totals = '<table border="0" align="right"><tr><td align="right"><strong>Subtotal</strong>:</td><td>'. payment_format($subtotal) .'</td></tr>';
+      if ($shipping_cost) {
+        $formatted_totals .= '<tr><td align="right"><strong>'. t('Shipping') .'</strong>:</td><td>'. payment_format($shipping_cost) .'</td></tr>';
+        $form .= form_hidden('shipping_cost', $shipping_cost);
+      }
+      $total = $subtotal + $shipping_cost;
+      $form .= form_hidden('gross', $total);
+      $form .= form_hidden('subtotal', $subtotal);
+      $form .= form_hidden('payment_method', 'paypalpro');
+      $form .= form_hidden('shippable', $shippable);
+      // we're short circuiting the normal flow, so we add this token manually.
+      // (normally it would be added by the cart.module)
+      $form .= ec_form_token('ecommerce_checkout:'. $subtotal .':'. $total);
+      $form .= form_hidden('validate', $edit->validate);
+      $formatted_totals .= '<tr><td align="right"><strong>'. t('Total') .':</strong></td><td><strong>'. payment_format($total) .'</strong></td></tr></table>';
+
+      $row[] = array(array('data' => $formatted_totals, 'colspan' => 2, 'align' => 'right'));
+      $form .= theme('table', $header, $row);
+
+      $form .= form_submit('Pay with PayPal');
+      $output = form($form, 'post', url('cart/checkout/process'));
+
+      ec_checkout_hide_data($edit);
+    }
+  }
+
+  print theme('page', $output);
+}
+
+/**
+ * This is the final step in Express Checkout where we actually bill the 
+ * user's PayPal account.
+ *
+ * @param $txn   The current transaction object.
+ */
+function paypalpro_express_checkout_process($txn) {
+  global $user, $base_url;
+  
+  // submit a SOAP doexpresscheckoutpayment message with curl
+  $SOAPrequest = paypalpro_doExpressCheckoutPayment($txn);
+
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, variable_get('paypalpro_url', 'https://api.sandbox.paypal.com/2.0/'));
+  curl_setopt($ch, CURLOPT_SSLCERT, variable_get('paypalpro_sslcert', ''));
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $SOAPrequest);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $exec_return = curl_exec($ch);
+  if ($errno = curl_errno($ch)) {
+    $error = curl_error($ch);
+  }
+  curl_close($ch);
+
+  if (strpos($exec_return, 'Success')) {
+    $txn->proid = paypalpro_parse_xml($exec_return, '<TransactionID>', '</TransactionID>');
+    // TODO: fix this when non-USD are supported
+    $txn->amount = paypalpro_parse_xml($exec_return, '<GrossAmount xsi:type="cc:BasicAmountType" currencyID="USD">', '</GrossAmount>');
+
+    // set e-commerce API transaction payment status to 'completed'.
+    $txn->payment_status = payment_get_status_id('completed');
+    // transaction handled by paypalpro module
+    $txn->payment_method = 'paypalpro';
+
+    $is_new = (db_result(db_query('SELECT COUNT(txnid) FROM {ec_paypalpro} WHERE txnid = %d', $txn->txnid))) ? FALSE : TRUE;
+    $txnid = store_transaction_save($txn);
+
+    if ($is_new && $txnid) {
+      // compose and send confirmation email to the user
+      store_send_invoice_email($txnid);
+    }
+
+    // transaction complete, return to http://
+    $goto = str_replace('https://', 'http://', $base_url);
+    header("Location: $goto/" . url(strtr(variable_get('paypalpro_success_url', 'store/transaction/view/%txnid'), array('%txnid' => $txnid))));
+    exit();
+  }
+  else {
+    if (strpos($exec_return, 'Failure')) {
+      $errors = paypalpro_get_errors($exec_return);
+      foreach ($errors as $error) {
+        paypalpro_set_error($error);
+      }
+    }
+    else {
+      $output .= drupal_set_message('<b>Communication error.</b>  Failed to connect to the authentication server.  Please try again later.', 'error');
+    }
+  }
+}
+
+
+/**
+ * Save or update a transaction, called from paypalpro_paymentapi.
+ *
+ * @param $txn    The transaction object.
+ */
+function paypalpro_save($txn) {
+  if (is_numeric($txn->txnid) && $txn->proid) {
+    db_query("UPDATE {ec_paypalpro} SET proid = '%s', amount = '%f' WHERE txnid = %d", $txn->proid, $txn->amount, $txn->txnid);
+    if (!db_affected_rows()) {
+      db_query("INSERT INTO {ec_paypalpro} (txnid, proid, amount) VALUES(%d, '%s', '%f')", $txn->txnid, $txn->proid, $txn->amount);
+    }
+  }
+}
+
+/**
+ * Handle the deletion of a transaction, called from paypalpro_paymentapi.
+ *
+ * @param $txn   The transaction object.
+ */
+function paypalpro_delete($txn) {
+  db_query('DELETE FROM {ec_paypalpro} WHERE txnid = %d', $txn->txnid);
+}
+
+/**
+ * Redirect to the credit card form, useful for error handling.  This is used
+ * instead of drupal_goto to support secure connections, and to save the 
+ * $edit array.
+ *
+ * @param $txn   The transaction object.
+ */
+function paypalpro_goto($txn) {
+  global $base_url;
+  $txn = (object)$txn;
+
+  // if configured for secure connections, rewrite http:// a http://
+  if (variable_get('paypalpro_secure', 1)) {
+    $base = str_replace('http://', 'https://', $base_url);
+  }
+  else {
+    $base = $base_url;
+  }
+
+  // Save the transaction object in the current session to be restored when
+  // displaying the form.  This way the user doesn't have to re-enter
+  // all their credit card information.
+  $_SESSION['edit'] = object2array($txn);
+
+  header("Location: $base". '/'. url('paypalpro/form/'. $txn->txnid));
+  exit();
+}
+
+function paypalpro_set_error($error) {
+  switch($error['short']) {
+    case 'Duplicate invoice id.':
+      drupal_set_message('<b>'. $error['short'] .'</b> '.  t('You attempted to pay for the items in your shopping cart twice, but your credit card was only charged once.'), 'error');
+      drupal_goto('cart/view');
+      break;
+    case 'Invalid Credit Card.':
+      form_set_error('cc_number', '<b>'. $error['short'] .'</b> '. t('Please re-enter your credit card number.'));
+      break;
+    default:
+      drupal_set_message('<b>'. $error['short'] .'</b> '.  $error['long'] .'.', 'error');
+      break;
+  }
+}
+
+
+/**
+ * Process a credit card transaction.  Makes a curl connection to PayPal's API
+ * server to validate the credit card.  We manually process the returned SOAP
+ * string rather than using PEAR and PayPal's PHP API.  After a succesful
+ * transaction, the transaction information is stored in the local database.
+ * After a failed transaction, the user is redirected back to the credit card
+ * form and provided a helpful error to explain what is wrong.
+ *
+ * @param $edit   The $edit array.
+ */
+function paypalpro_process($edit) {
+  global $user, $base_url;
+
+  $t = store_transaction_load($edit['txnid']);
+
+  // make sure the current users owns this transaction (or is the site admin)
+  if ($user->uid != $t->uid && $user->uid != 1) {
+    drupal_access_denied();
+  }
+
+  // if configured, require https://
+  if (variable_get('paypalpro_secure', 1) && !$_SERVER['HTTPS']) {
+    drupal_access_denied();
+  }
+
+  // TODO: validate url, cert, etc...
+
+  // submit a SOAP paymentrequest message with curl
+  $SOAPrequest = paypalpro_paymentrequest($t, $edit);
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, variable_get('paypalpro_url', 'https://api.sandbox.paypal.com/2.0/'));
+  curl_setopt($ch, CURLOPT_SSLCERT, variable_get('paypalpro_sslcert', ''));
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $SOAPrequest);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $exec_return = curl_exec($ch);
+  if ($errno = curl_errno($ch)) {
+    $error = curl_error($ch);
+  }
+  curl_close($ch);
+
+  // an error here indicates that the module isn't properly configured
+  if ($errno) {
+    drupal_set_message(t('PayPalPro configuration error: '). $error, 'error');
+  }
+
+  // parse the paymentreply SOAP message, look for 'Success' or 'Failure'
+  if (strpos($exec_return, 'Success')) {
+    drupal_set_message(t('Transaction approved.  Thank you for your order!'));
+    $edit['proid'] = paypalpro_parse_xml($exec_return, '<TransactionID>', '</TransactionID>');
+    // TODO: fix this when non-USD are supported
+    $edit['amount'] = paypalpro_parse_xml($exec_return, '<Amount xsi:type="cc:BasicAmountType" currencyID="USD">', '</Amount>');
+
+    // set e-commerce API transaction payment status to 'completed'.
+    $edit['payment_status'] = payment_get_status_id('completed');
+    // transaction handled by paypalpro module
+    $edit['payment_method'] = 'paypalpro';
+
+    $is_new = (db_result(db_query('SELECT COUNT(txnid) FROM {ec_paypalpro} WHERE txnid = %d', $edit['txnid']))) ? FALSE : TRUE;
+    $txnid = store_transaction_save($edit);
+
+    if ($is_new && $txnid) {
+      // compose and send confirmation email to the user
+      store_send_invoice_email($txnid);
+    }
+
+    // transaction complete, return to http://
+    $goto = str_replace('https://', 'http://', $base_url);
+    header("Location: $goto/" . url(strtr(variable_get('paypalpro_success_url', 'store/transaction/view/%txnid'), array('%txnid' => $txnid))));
+    exit();
+  }
+  else {
+    // transaction failed
+    if (strpos($exec_return, 'Failure')) {
+      $errors = paypalpro_get_errors($exec_return);
+      foreach ($errors as $error) {
+        paypalpro_set_error($error);
+      }
+    }
+    else {
+      $output .= drupal_set_message('<b>Communication error.</b>  Failed to connect to the authentication server.  Please try again later.', 'error');
+    }
+    paypalpro_goto($edit);
+  }
+}
+
+/**
+ * Manaually generate a SOAP request (this is perhaps ugly, but it greatly
+ * simplifies the installation process as we don't have to require PEAR or
+ * the PayPal PHP API). 
+ *
+ * This SOAP request begins the Express Checkout process.
+ *
+ * @param  $total  The order total, including shipping/handling/tax.
+ * @return SOAP    The SOAP expresscheckoutrequest message.
+ */
+function paypalpro_setExpressCheckoutRequest($total) {
+  global $base_url;
+
+  $username = variable_get('paypalpro_username', '');
+  $password = variable_get('paypalpro_password', '');
+  $OrderDescription = '';  // TODO: description?
+  $OrderTotal = $total;
+
+  // if configured for secure connections, rewrite http:// a http://
+  if (variable_get('paypalpro_secure', 1)) {
+    $base = str_replace('http://', 'https://', $base_url);
+  }
+  else {
+    $base = $base_url;
+  }
+
+  // succesful payment at PayPal's website
+  $ReturnURL = $base .'/'. url('paypalpro/express');
+  // cancelled or otherwise unsuccessful payment at Paypal's website, 
+  // return to checkout start
+  $CancelURL = $base .'/'. url('cart/checkout');
+
+
+$SOAPrequest = <<< End_Of_Quote
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope
+	xmlns:xsi="http://www.w3.org/1999/XMLSchema-instance"
+	xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+	xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+	xmlns:xsd="http://www.w3.org/1999/XMLSchema"
+	SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+	<SOAP-ENV:Header>
+		<RequesterCredentials xmlns="urn:ebay:api:PayPalAPI" SOAP-ENV:mustUnderstand="1">
+			<Credentials xmlns="urn:ebay:apis:eBLBaseComponents">
+				<Username>$username</Username>
+				<Password>$password</Password>
+			</Credentials>
+		</RequesterCredentials>
+	</SOAP-ENV:Header>
+	<SOAP-ENV:Body>
+		<SetExpressCheckoutReq xmlns="urn:ebay:api:PayPalAPI">
+			<SetExpressCheckoutRequest>
+				<Version xmlns="urn:ebay:apis:eBLBaseComponents">1.0</Version>
+				<SetExpressCheckoutRequestDetails xmlns="urn:ebay:apis:eBLBaseComponents">
+					<OrderTotal currencyID="USD" xsl:type="cc:BasicAmountType">$OrderTotal</OrderTotal>
+					<OrderDescription>$OrderDescription</OrderDescription>
+					<ReturnURL>$ReturnURL</ReturnURL>
+					<CancelURL>$CancelURL</CancelURL>
+				</SetExpressCheckoutRequestDetails>
+			</SetExpressCheckoutRequest>
+		</SetExpressCheckoutReq>
+	</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>
+End_Of_Quote;
+
+  return $SOAPrequest;
+}
+
+/**
+ * Manaually generate a SOAP request (this is perhaps ugly, but it greatly
+ * simplifies the installation process as we don't have to require PEAR or
+ * the PayPal PHP API). 
+ *
+ * This SOAP request gets the user's details from PayPal.
+ *
+ * @param  $token  A token provided by PayPal, used to track the order to completion.
+ * @return SOAP    The SOAP expresscheckoutrequest message.
+ */
+function paypalpro_getExpressCheckoutDetails($token) {
+  $username = variable_get('paypalpro_username', '');
+  $password = variable_get('paypalpro_password', '');
+
+$SOAPrequest = <<< End_Of_Quote
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope
+	xmlns:xsi="http://www.w3.org/1999/XMLSchema-instance"
+	xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+	xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+	xmlns:xsd="http://www.w3.org/1999/XMLSchema"
+	SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+	<SOAP-ENV:Header>
+		<RequesterCredentials xmlns="urn:ebay:api:PayPalAPI"
+SOAP-ENV:mustUnderstand="1">
+			<Credentials xmlns="urn:ebay:apis:eBLBaseComponents">
+				<Username>$username</Username>
+				<Password>$password</Password>
+			</Credentials>
+		</RequesterCredentials>
+	</SOAP-ENV:Header>
+	<SOAP-ENV:Body>
+		<GetExpressCheckoutDetailsReq xmlns="urn:ebay:api:PayPalAPI">
+			<GetExpressCheckoutDetailsRequest>
+				<Version xmlns="urn:ebay:apis:eBLBaseComponents">1.00</Version>
+				<Token>$token</Token>
+			</GetExpressCheckoutDetailsRequest>
+		</GetExpressCheckoutDetailsReq>
+	</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>
+End_Of_Quote;
+
+  return $SOAPrequest;
+}
+
+/**
+ * Manaually generate a SOAP request (this is perhaps ugly, but it greatly
+ * simplifies the installation process as we don't have to require PEAR or
+ * the PayPal PHP API). 
+ *
+ * This SOAP request actually submits the order and withdrawls the money
+ * from the user's PayPal account.
+ *
+ * @param  $txn  The current transaction object.
+ */
+function paypalpro_doExpressCheckoutPayment($txn) {
+  $username = variable_get('paypalpro_username', '');
+  $password = variable_get('paypalpro_password', '');
+
+  $token = $txn->paypalpro_token;
+  $payerid = $txn->paypalpro_payerid;
+
+  $OrderTotal = $txn->gross;
+  $ItemTotal = $txn->subtotal;
+  $ShippingTotal = $txn->shipping_cost;
+  $HandlingTotal = 0; // not currently used
+  $TaxTotal = 0; // not currently used
+  $ShipName = $txn->shipping_firstname .' '. $txn->shipping_lastname;
+  $Street1 = $txn->shipping_street1;
+  $Street2 = $txn->shipping_street2;
+  $CityName = $txn->shipping_city;
+  $StateOrProvince = $txn->shipping_state;
+  $Country = strtoupper($txn->shipping_country);
+  $PostalCode = $txn->shipping_zip;
+
+$SOAPrequest = <<< End_Of_Quote
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope
+	xmlns:xsi="http://www.w3.org/1999/XMLSchema-instance"
+	xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+	xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+	xmlns:xsd="http://www.w3.org/1999/XMLSchema"
+	SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+	<SOAP-ENV:Header>
+		<RequesterCredentials xmlns="urn:ebay:api:PayPalAPI"
+SOAP-ENV:mustUnderstand="1">
+			<Credentials xmlns="urn:ebay:apis:eBLBaseComponents">
+				<Username>$username</Username>
+				<Password>$password</Password>
+			</Credentials>
+		</RequesterCredentials>
+	</SOAP-ENV:Header>
+
+	<SOAP-ENV:Body>
+		<DoExpressCheckoutPaymentReq xmlns="urn:ebay:api:PayPalAPI">
+			<DoExpressCheckoutPaymentRequest>
+				<Version xmlns="urn:ebay:apis:eBLBaseComponents">1.0</Version>
+					<DoExpressCheckoutPaymentRequestDetails xmlns="urn:ebay:apis:eBLBaseComponents">
+						<PaymentAction>Sale</PaymentAction>
+						<Token>$token</Token>
+						<PayerID>$payerid</PayerID>
+						<PaymentDetails>
+							<OrderTotal currencyID="USD">$OrderTotal</OrderTotal>
+							<ItemTotal currencyID="USD">$ItemTotal</ItemTotal>
+							<ShippingTotal currencyID="USD">$ShippingTotal</ShippingTotal>
+							<HandlingTotal currencyID="USD">$HandlingTotal</HandlingTotal>
+							<TaxTotal currencyID="USD">$TaxTotal</TaxTotal>
+
+							<ShipToAddress>
+								<Name>$ShipName</Name>
+								<Street1>$Street1</Street1>
+								<Street2>$Street2</Street2>
+								<CityName>$CityName</CityName>
+								<StateOrProvince>$StateOrProvince</StateOrProvince>
+								<Country>$Country</Country>
+								<PostalCode>$PostalCode</PostalCode>
+							</ShipToAddress>
+End_Of_Quote;
+
+  foreach ($txn->items as $item) {
+    if ($item->title) {
+      $ItemName = $item->title;
+    }
+    elseif ($item->sku) {
+      $ItemName = $item->sku;
+    }
+    else {
+      $ItemName = $item->nid;
+    }
+    $ItemNumber = $item->nid;
+    $ItemQty = $item->qty;
+    $ItemPrice = product_adjust_price($item);
+    $SOAPrequest .= <<< End_Of_Quote
+							<PaymentItem>
+								<Name>$ItemName</Name>
+								<Number>$ItemNumber</Number>
+								<Quantity>$ItemQty</Quantity>
+								<Amount currencyID="USD">$ItemPrice</Amount>
+							</PaymentItem>
+End_Of_Quote;
+  }
+
+  $SOAPrequest .= <<< End_Of_Quote
+					</PaymentDetails>
+				</DoExpressCheckoutPaymentRequestDetails>
+			</DoExpressCheckoutPaymentRequest>
+		</DoExpressCheckoutPaymentReq>
+	</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>
+End_Of_Quote;
+
+  return $SOAPrequest;
+}
+
+/**
+ * Manaually generate a SOAP request (this is perhaps ugly, but it greatly
+ * simplifies the installation process as we don't have to require PEAR or
+ * the PayPal PHP API). 
+ *
+ * This SOAP request send a Direct Payment Request to PayPal, getting a
+ * cardit card authorized.
+ *
+ * @param  $t     The current transaction object.
+ * @param  $edit  The $edit array.
+ * @return SOAP   The SOAP paymentrequest message.
+ */
+function paypalpro_paymentrequest($t, $edit) {
+  $paypalpro_cc_types = array('Visa', 'MasterCard', 'Discover', 'Amex');
+
+  // credentials
+  $username = variable_get('paypalpro_username', '');
+  $password = variable_get('paypalpro_password', '');
+
+  // payment details
+  $OrderTotal = $t->gross;
+  $ItemTotal = 0;
+
+  foreach ($t->items as $item) {
+    $ItemTotal += ($item->price * $item->qty);
+  }
+  $ShippingTotal = $t->shipping_cost;
+  $HandlingTotal = 0; // no separate concept of handling in e-commerce module
+  $TaxTotal = 0;      // no taxes handled by e-commerce module
+  $OrderDescription = $t->title;
+  $Custom = '';       // TODO: what is this?
+  $InvoiceID = $edit->txnid;
+
+  $ShipToStreet1 = $t->shipping_street1;
+  $ShipToStreet2 = $t->shipping_street2;
+  $ShipToCityName = $t->shipping_city;
+  $ShipToStateOrProvince = $t->shipping_state;
+  $ShipToCountry = strtoupper($t->shipping_country);  // TODO
+  $ShipToPhone = '';  // TODO: where do we find the phone number
+  $ShipToPostalCode = $t->shipping_zip;
+
+  $SOAPrequest = <<< End_Of_Quote
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope
+	xmlns:xsi="http://www.w3.org/1999/XMLSchema-instance"
+	xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+	xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+	xmlns:xsd="http://www.w3.org/1999/XMLSchema"
+	SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+	<SOAP-ENV:Header>
+		<RequesterCredentials xmlns="urn:ebay:api:PayPalAPI"
+SOAP-ENV:mustUnderstand="1">
+			<Credentials xmlns="urn:ebay:apis:eBLBaseComponents">
+				<Username>$username</Username>
+				<Password>$password</Password>
+			</Credentials>
+		</RequesterCredentials>
+	</SOAP-ENV:Header>
+	<SOAP-ENV:Body>
+		<DoDirectPaymentReq xmlns="urn:ebay:api:PayPalAPI">
+			<DoDirectPaymentRequest xmlns="urn:ebay:api:PayPalAPI">
+				<Version xmlns="urn:ebay:apis:eBLBaseComponents">1.0</Version>
+					<DoDirectPaymentRequestDetails xmlns="urn:ebay:apis:eBLBaseComponents">
+
+    <PaymentAction>Sale</PaymentAction>
+    <PaymentDetails>
+      <OrderTotal currencyID="USD">$OrderTotal</OrderTotal>
+      <ItemTotal currencyID="USD">$ItemTotal</ItemTotal>
+      <ShippingTotal currencyID="USD">$ShippingTotal</ShippingTotal>
+      <HandlingTotal currencyID="USD">$HandlingTotal</HandlingTotal>
+      <TaxTotal currencyID="USD">$TaxTotal</TaxTotal>
+      <OrderDescription>$OrderDescription</OrderDescription>
+      <Custom>$Custom</Custom>
+      <InvoiceID>$InvoiceID</InvoiceID>
+      <ShipToAddress>
+          <Name>Name</Name>
+          <Street1>$ShipToStreet1</Street1>
+          <Street2>$ShipToStreet2</Street2>
+          <CityName>$ShipToCityName</CityName>
+          <StateOrProvince>$ShipToStateOrProvince</StateOrProvince>
+          <Country>$ShipToCountry</Country>
+          <Phone>$ShipToPhone</Phone>
+          <PostalCode>$ShipToPostalCode</PostalCode>
+      </ShipToAddress>
+End_Of_Quote;
+
+  foreach ($t->items as $item) {
+    $ItemName = $item->title;
+    $ItemNumber = $item->nid; // TODO: correct number?
+    $ItemQty = $item->qty;
+    $ItemPrice = $item->price * $item->qty;
+    $SOAPrequest .= <<< End_Of_Quote
+
+      <PaymentItem>
+        <Name>$ItemName</Name>
+        <Number>$ItemNumber</Number>
+        <Quantity>$ItemQty</Quantity>
+        <SalesTax currencyID="USD"></SalesTax>
+        <Amount currencyID="USD">$ItemPrice</Amount>
+      </PaymentItem>
+End_Of_Quote;
+  }
+
+  $CreditCardType = $paypalpro_cc_types[$edit['cc_type']];
+  $CreditCardNumber = $edit['cc_number'];
+  $ExpMonth = $edit['cc_month'];
+  $ExpYear = $edit['cc_year'];
+  $CVV2 = $edit['cvv2'];
+
+  $Salutation = '';
+  $FirstName = $edit['cc_first_name'];
+  $MiddleName = $edit['cc_middle_name'];
+  $LastName = $edit['cc_last_name'];
+  $Suffix = '';
+
+  $Name = $t->billing_firstname .' '. $t->billing_lastname;
+  $Street1 = $t->billing_street1;
+  $Street2 = $t->billing_street2;
+  $CityName = $t->billing_city;
+  $StateOrProvince = $t->billing_state;
+  $Country = strtoupper($t->billing_country);  // TODO
+  $CountryName = address_get_country($t->billing_country);
+  $Phone = ''; // TODO
+  $PostalCode = $t->billing_zip;
+
+  $AddressID = '';
+  $AddressOwner = '';
+  $ExternalAddressID = '';
+  $InternationalName = '';
+  $InternationalStateAndCity = '';
+  $InternationalStreet = '';
+  $AddressStatus = '';
+
+  $IPAddress = $_SERVER['REMOTE_ADDR'];
+
+  $SOAPrequest .= <<< End_Of_Quote
+    </PaymentDetails>
+    <CreditCard>
+      <CreditCardType>$CreditCardType</CreditCardType>
+      <CreditCardNumber>$CreditCardNumber</CreditCardNumber>
+      <ExpMonth>$ExpMonth</ExpMonth>
+      <ExpYear>$ExpYear</ExpYear>
+      <CardOwner>
+        <Payer>$Payer</Payer>
+        <PayerID>$PayerID</PayerID>
+        <PayerStatus>$PayerStatus</PayerStatus>
+        <PayerName>
+          <Salutation>$Salutation</Salutation>
+          <FirstName>$FirstName</FirstName>
+          <MiddleName>$MiddleName</MiddleName>
+          <LastName>$LastName</LastName>
+          <Suffix>$Suffix</Suffix>
+        </PayerName>
+        <PayerCountry>$PayerCountry</PayerCountry>
+        <PayerBusiness>$PayerBusiness</PayerBusiness>
+        <Address>
+          <Name>$Name</Name>
+          <Street1>$Street1</Street1>
+          <Street2>$Street2</Street2>
+          <CityName>$CityName</CityName>
+          <StateOrProvince>$StateOrProvince</StateOrProvince>
+          <Country>$Country</Country>
+          <CountryName>$CountryName</CountryName>
+          <Phone>$Phone</Phone>
+          <PostalCode>$PostalCode</PostalCode>
+          <AddressID>$AddressID</AddressID>
+          <AddressOwner>$AddressOwner</AddressOwner>
+          <ExternalAddressID>$ExternalAddressID</ExternalAddressID>
+          <InternationalName>$InternationalName</InternationalName>
+          <InternationalStateAndCity>$InternationalStateAndCity</InternationalStateAndCity>
+          <InternationalStreet>$InternationalStreet</InternationalStreet>
+          <AddressStatus>$AddressStatus</AddressStatus>
+        </Address>
+      </CardOwner>
+      <CVV2>$CVV2</CVV2>
+    </CreditCard>
+    <IPAddress>$IPAddress</IPAddress>
+    <MerchantSessionId>$MerchantSessionId</MerchantSessionId>
+
+				</DoDirectPaymentRequestDetails>
+			</DoDirectPaymentRequest>
+		</DoDirectPaymentReq>
+
+	</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>
+End_Of_Quote;
+
+  return $SOAPrequest;
+}
+
+/**
+ * A simple xml parsing function.
+ *
+ * @param  $xml        A text string that contains the xml to be parsed.
+ * @param  $open_tag   The opening xml tag to search for.
+ * @param  $close_tag  The closing xml tag to search for.
+ * @return string      The string between $open_tag and $close_tag
+ */
+function paypalpro_parse_xml($xml, $open_tag, $close_tag) {
+  $pos1 = strpos($xml, $open_tag);
+  $pos2 = strpos($xml, $close_tag);
+  return substr($xml, $pos1 + strlen($open_tag), $pos2 - ($pos1 + strlen($open_tag)));
+}
+
+/**
+ * A recursive xml parsing function for obtaining multiple error messages.
+ *
+ * @param  $xml        A text string that contains the xml to be parsed.
+ * @param  $open_tag   The opening xml tag to search for.
+ * @param  $close_tag  The closing xml tag to search for.
+ * @return array       All error messages found in the xml.
+ */
+function paypalpro_get_errors($xml) {
+  // errors in returned xml are comprised of short and long messages
+  define(SHORT_OPEN, '<ShortMessage xsi:type="xs:string">');
+  define(SHORT_CLOSE, '</ShortMessage>');
+  define(LONG_OPEN, '<LongMessage xsi:type="xs:string">');
+  define(LONG_CLOSE, '</LongMessage>');
+  $errors = array();
+  // loop through xml to find all error messages
+  $loop = TRUE;
+  while ($loop) {
+    // test if there are any more errors by looking for the SHORT_OPEN string
+    if (strpos($xml, SHORT_OPEN)) {
+      $error['short'] = paypalpro_parse_xml($xml, SHORT_OPEN, SHORT_CLOSE);
+      // there's no need to report the generic "Internal Error"
+      if ($error['short'] != 'Internal Error') {
+        $error['long'] = paypalpro_parse_xml($xml, LONG_OPEN, LONG_CLOSE);
+        $errors[] = $error;
+      }
+      $xml = substr($xml, strpos($xml, LONG_CLOSE) + strlen(LONG_CLOSE));
+    }
+    else {
+      // no more error messages found
+      $loop = FALSE;
+    }
+  }
+  return $errors;
+}
+
+/**
+ * Look for an adress in the user's address book that exactly matches the
+ * address returned by PayPal.  If found, return the aid.
+ *
+ * @param  $edit  The $edit array, with address info returned from PayPal.
+ * @return $aid   The id of the address entry in the database, if match found.
+ */
+function paypalpro_address_get_aid($edit) {
+  $address = db_fetch_object(db_query("SELECT aid FROM {ec_address} WHERE uid = %d AND firstname = '%s' AND lastname = '%s' AND street1 = '%s' AND street2 = '%s' AND zip = '%s' AND city = '%s' AND state = '%s' AND country = '%s'", $edit->uid, $edit->firstname, $edit->lastname, $edit->street1, $edit->street2, $edit->zip, $edit->city, $edit->state, $edit->country));
+  return $address->aid;
+}
+
+/**
+ * Save the address returned from PayPal in the local address book, then return
+ * the aid.  If the address already exists, simply return the aid.
+ *
+ * @param  $edit  The $edit array with address info returned from PayPal.
+ * @return @aid   The id of the address entry in the database.
+ */
+function paypalpro_address_save($edit) {
+  $aid = paypalpro_address_get_aid($edit);
+  if (!$aid) {
+    db_query("INSERT INTO {ec_address} (uid, firstname, lastname, street1, street2, zip, city, state, country) VALUES (%d, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')", $edit->uid, $edit->firstname, $edit->lastname, $edit->street1, $edit->street2, $edit->zip, $edit->city, $edit->state, $edit->country);
+    $aid = paypalpro_address_get_aid($edit);
+  }
+  return $aid;
+}
+
+?>

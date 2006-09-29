@@ -1,0 +1,25 @@
+# $Id: tax.mysql,v 1.1.2.1 2005/10/30 19:11:22 mathias Exp $
+
+-- 
+-- Table structure for table `ec_tax`
+-- 
+
+CREATE TABLE ec_tax (
+  taxid int(11) unsigned NOT NULL default '0',
+  realm varchar(255) NOT NULL default '',
+  realm_value varchar(255) NOT NULL default '',
+  ptype varchar(128) NOT NULL default '',
+  operator decimal(10,2) NOT NULL default '0.00',
+  operand varchar(10) NOT NULL default '',
+  PRIMARY KEY  (taxid)
+);
+
+#
+# Table structure for table ec_per_product_tax
+#
+
+#CREATE TABLE ec_per_product_tax (
+#  nid int(10) unsigned NOT NULL default '0',
+#  tax_fee decimal(10,2) unsigned NOT NULL default '0.00',
+#  PRIMARY KEY  (nid)
+#) TYPE=MyISAM;

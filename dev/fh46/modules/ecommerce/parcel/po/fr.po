@@ -1,0 +1,57 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Parcel Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-10-24 00:48+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: parcel.module:14
+msgid "Create packages of ecommerce items. Dependency: product.module"
+msgstr "Créé des lots d'articles E-Commerce. Dépend du module product (product.module)"
+
+#: parcel.module:17
+msgid "<p>This module provides a way for you to create a package of products. First, individually create the products and then create a product package and add those items. These actions can be done using any of the options under <a href=\"%node_add\">create content</a>.</p>"
+msgstr "<p>Ce module permet de créer des lots de produits. Il faut tout d'abord créer les produits individuellement, puis créer un lot et y ajouter les articles correspondants. Ceci peut être effectué avec l'option <a href=\"%node_add\">créer un contenu</a>.</p>"
+
+#: parcel.module:34
+msgid "You must add at least one existing product to this group of products to sell."
+msgstr "Vous devez ajouter au moins un produit existant à ce lot de produits à vendre."
+
+#: parcel.module:37
+msgid "Please enter only numeric values or commas in the product IDs field."
+msgstr "Merci d'entrer seulement des valeurs numériques ou des virgules dans le champ 'N° de Produits'."
+
+#: parcel.module:43
+msgid "collection of products"
+msgstr "lot de produits"
+
+#: parcel.module:94
+msgid "Product IDs"
+msgstr "N° de Produits"
+
+#: parcel.module:94
+msgid "Enter a comma separated list of product ids (nid) to add to this transaction. Here is a <a href=\"%product_quicklist\" onclick=\"window.open(this.href, '%product_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); return false\">list of all products</a>."
+msgstr "Entrez une liste de numéros de produits (nid), séparés par des virgules, à ajouter au lot. Voici une <a href=\"%product_quicklist\" onclick=\"window.open(this.href, '%product_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); return false\">liste de tous les produits</a>."
+
+#: parcel.module:95
+msgid "Products"
+msgstr "Produits"
+
+#: parcel.module:140
+msgid "Price"
+msgstr "Prix"
+
+#: parcel.module:155
+msgid "This product contains the following items"
+msgstr "Ce produit est un lot contenant les articles suivants"
+
+#: parcel.module:0
+msgid "parcel"
+msgstr "lot"
+

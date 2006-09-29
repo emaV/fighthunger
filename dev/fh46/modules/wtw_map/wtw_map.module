@@ -1,0 +1,753 @@
+<?php
+
+/**
+ * @file
+ * Draws maps.
+ * 
+ * Depends on:
+ * - gathering.module
+ * - core modules: node, user
+ * 
+ * Notes:
+ * - Hardcoded path for module base  
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function wtw_map_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Draws maps.');
+  }
+}
+
+function wtw_map_perm(){
+  return array("administer wtw map");
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function wtw_map_menu($may_cache) {
+  $items = array();
+  
+  if ($may_cache) {
+    $items[] = array(
+		     'path'     => 'admin/wtw_map',
+		     'title'    => t('map'),
+		     'access'   => user_access('administer wtw map'),
+		     'callback' => 'wtw_map_page_admin',
+		     'type' => MENU_NORMAL_ITEM
+		     );
+    $items[] = array(
+                     'path'     => 'wtw_map',
+                     'access'   => true,
+                     'callback' => 'wtw_map_test_page',
+                     'type' => MENU_CALLBACK
+                     );
+  }
+  else {
+    $items[] = array(
+                     'path'     => 'wtw_map/'.arg(1).'/map.css',
+                     'access'   => user_access('access content'),
+                     'callback' => 'wtw_map_css',
+                     'type' => MENU_CALLBACK
+                     );
+    $items[] = array(
+                     'path'     => 'gmap/'.arg(1),
+                     'access'   => true,
+                     'callback' => 'wtw_gmap',
+                     'type' => MENU_CALLBACK
+                     );
+  }
+  return $items;
+}
+
+function wtw_map_test_page($camid=NULL) {
+//  wtw_map_cron_do();
+  print theme('page', theme('wtw_map', $camid));
+}
+
+/*
+<Placemark>
+  <name>Walk the World 2006</name>
+  <visibility>0</visibility>
+  <description><![CDATA[Visit the <a href="http://www.fighthunger.org/wtw06/brussels">Brussels page</a>on <a href="http://www.fighthunger.org">fighthunger.org</a><br></br><a href="http://www.flickr.com/photos/walktheworld/tags/brussels"><img src="http://static.flickr.com/51/151198244_b65005b3b9_s.jpg"></img><br></br>See other photos on flickr</a>]]></description>
+  <Point>
+    <coordinates>4.3333333,50.83333330000001,0</coordinates>
+  </Point>
+</Placemark>
+*/
+
+function wtw_getflickerbadge1($nid) {
+  $node = node_load(array('nid' =>$nid));
+  $tag_event = _tags4flickr ($node->tag_event);
+  
+  $badge[] = '<!-- Start of Flickr Badge -->';
+  $badge[] = '<style type="text/css">';
+  $badge[] = '  .zg_div {margin:0px 5px 5px 0px; width:117px;}';
+  $badge[] = '  .zg_div_inner {border: solid 1px #000000; background-color:#ffffff;  color:#666666; text-align:center; font-family:arial, helvetica; font-size:11px;}';
+  $badge[] = '  .zg_div a, .zg_div a:hover, .zg_div a:visited {color:#3993ff; background:inherit !important; text-decoration:none !important;}';
+  $badge[] = '</style>';
+  $badge[] = '<script type="text/javascript">';
+  $badge[] = 'zg_insert_badge = function() {';
+  $badge[] = "  var zg_bg_color = 'ffffff'";
+  $badge[] = "  var zgi_url = 'http://www.flickr.com/apps/badge/badge_iframe.gne?zg_bg_color='+zg_bg_color+'&zg_person_id=62728578%40N00&zg_tags=brindisi&zg_tag_mode=any';";
+  $badge[] = "  document.write('<iframe style=\"background-color:#'+zg_bg_color+'; border-color:#'+zg_bg_color+'; border:none;\" width=\"113\" height=\"151\" frameborder=\"0\" scrolling=\"no\" src=\"'+zgi_url+'\" title=\"Flickr Badge\"><\/iframe>');";
+  $badge[] = "  if (document.getElementById) document.write('<div id=\"zg_whatlink\"><a href=\"http://www.flickr.com/badge_new.gne\"	style=\"color:#3993ff;\" onclick=\"zg_toggleWhat(); return false;\">what is this?<\/a><\/div>');";
+  $badge[] = '}';
+  $badge[] = "zg_toggleWhat = function() {";
+  $badge[] = "  document.getElementById('zg_whatdiv').style.display = (document.getElementById('zg_whatdiv').style.display != 'none') ? 'none' : 'block';";
+  $badge[] = "  document.getElementById('zg_whatlink').style.display = (document.getElementById('zg_whatdiv').style.display != 'none') ? 'none' : 'block';";
+  $badge[] = "  return false;";
+  $badge[] = "}";
+  $badge[] = "</script>";
+  $badge[] = '<div class="zg_div"><div class="zg_div_inner">';
+  $badge[] = '<a href="http://www.flickr.com">www.<strong style="color:#3993ff">flick<span style="color:#ff1c92">r</span></strong>.com</a><br>';
+  $badge[] = '<script type="text/javascript">zg_insert_badge();</script>';
+  $badge[] = '<div id="zg_whatdiv">This is a Flickr badge showing public photos from <a href="http://www.flickr.com/photos/62728578@N00">Fight Hunger: Walk the World</a> tagged with <a href="http://www.flickr.com/photos/62728578@N00/tags/' . $tag_event . ' ">' . $tag_event . '</a>.</div>';
+  $badge[] = '<script type="text/javascript">if (document.getElementById) document.getElementById(\'zg_whatdiv\').style.display = \'none\';</script>';
+  $badge[] = '</div></div>';
+  $badge[] = '<!-- End of Flickr Badge -->';
+  return implode("\n", $badge);
+}
+
+function wtw_getflickerbadge($nid) {
+  $node = node_load(array('nid' =>$nid));
+  $tag_event = _tags4flickr ($node->tag_event);
+  $tag_flickr = _tags4flickr ($tag_event); 
+  $query  = "SELECT * FROM {wtw_gallery_tags} WHERE tag = '$tag_flickr'";
+
+  $result = db_query($query);
+  
+  $out_album .= "<table style='padding:5px; margin: auto;'>\n<tr>\n";
+  $i = 0;
+  while ( ($row = db_fetch_array($result)) && ($i<3) ) {
+    $pid = $row['photo_id'];
+    $secret = $row['secret'];
+    $server = $row['server'];
+    $flickr_link = "http://www.flickr.com/photos/walktheworld/$pid/";
+    $flickr_square = "http://static.flickr.com/$server/" . $pid . "_" . $secret . "_s.jpg";
+    $out_album .= "  <td>\n";
+    $out_album .= "<a href='$flickr_link'><img src='$flickr_square' width='75' height='75' vspace='5' hspace='5'></a>\n";
+    $out_album .= "  </td>\n";
+    $i++;
+  }
+  $msg  = '<a href="http://www.flickr.com/photos/62728578@N00/tags/wtw06">';
+  $msg .= '<img src="http://static.flickr.com/14/buddyicons/62728578@N00.jpg" width="48" height="48">';
+  $msg .= '</a>';
+  $out_album .= "  <td valign='center'>$msg</td>\n";
+  $out_album .= "</tr>\n";
+  $msg = 'Photos tagged with <a href="http://www.flickr.com/photos/62728578@N00/tags/' . $tag_event . ' ">' . $tag_event . '</a>.';
+  $out_album .= "<tr><td align='center' colspan='" . ($i+1) . "'>$msg</td></tr>\n";
+  $out_album .= "</table>\n";
+  return ($i>0) ? $out_album : '';
+}
+
+function wtw_gmap_write($data, $base_name) {
+// from http://www.weberdev.com/get_example-4066.html
+
+  // Array to store compressed data
+  $datasec = array();
+
+  // Central directory
+  $ctrl_dir = array();
+
+  // Last offset position
+  $old_offset   = 0; 
+
+  // End of central directory record
+  $eof_ctrl_dir = "\x50\x4b\x05\x06\x00\x00\x00\x00";
+
+  // setting name
+  $name = $base_name . '.kml';
+
+  // setting dos time
+  $timearray = getdate();
+  $dtime = dechex( (($timearray['year'] - 1980) << 25) | ($timearray['mon'] << 21) | ($timearray['mday'] << 16) |
+                ($timearray['hours'] << 11) | ($timearray['minutes'] << 5) | ($timearray['seconds'] >> 1) ); 
+  $hexdtime = '\x' . $dtime[6] . $dtime[7]
+            . '\x' . $dtime[4] . $dtime[5]
+            . '\x' . $dtime[2] . $dtime[3]
+            . '\x' . $dtime[0] . $dtime[1];
+  eval('$hexdtime = "' . $hexdtime . '";');
+
+  $fr   = "\x50\x4b\x03\x04";
+  $fr   .= "\x14\x00";            // ver needed to extract
+  $fr   .= "\x00\x00";            // gen purpose bit flag
+  $fr   .= "\x08\x00";            // compression method
+  $fr   .= $hexdtime;             // last mod time and date
+
+  // "local file header" segment
+  $unc_len = strlen($data);
+  $crc     = crc32($data);
+  $zdata   = gzcompress($data);
+  $zdata   = substr(substr($zdata, 0, strlen($zdata) - 4), 2); // fix crc bug
+  $c_len   = strlen($zdata);
+  $fr      .= pack('V', $crc);             // crc32
+  $fr      .= pack('V', $c_len);           // compressed filesize
+  $fr      .= pack('V', $unc_len);         // uncompressed filesize
+  $fr      .= pack('v', strlen($name));    // length of filename
+  $fr      .= pack('v', 0);                // extra field length
+  $fr      .= $name;
+
+  // "file data" segment
+  $fr .= $zdata;
+
+  // "data descriptor" segment (optional but necessary if archive is not
+  // served as file)
+  $fr .= pack('V', $crc);                 // crc32
+  $fr .= pack('V', $c_len);               // compressed filesize
+  $fr .= pack('V', $unc_len);             // uncompressed filesize
+
+  // add this entry to data
+  $data = $fr;
+
+  // now add to central directory record
+  $cdrec = "\x50\x4b\x01\x02";
+  $cdrec .= "\x00\x00";                // version made by
+  $cdrec .= "\x14\x00";                // version needed to extract
+  $cdrec .= "\x00\x00";                // gen purpose bit flag
+  $cdrec .= "\x08\x00";                // compression method
+  $cdrec .= $hexdtime;                 // last mod time & date
+  $cdrec .= pack('V', $crc);           // crc32
+  $cdrec .= pack('V', $c_len);         // compressed filesize
+  $cdrec .= pack('V', $unc_len);       // uncompressed filesize
+  $cdrec .= pack('v', strlen($name) ); // length of filename
+  $cdrec .= pack('v', 0 );             // extra field length
+  $cdrec .= pack('v', 0 );             // file comment length
+  $cdrec .= pack('v', 0 );             // disk number start
+  $cdrec .= pack('v', 0 );             // internal file attributes
+  $cdrec .= pack('V', 32 );            // external file attributes - 'archive' bit set
+
+  $cdrec .= pack('V', 0 ); // relative offset of local header
+  $old_offset = strlen($fr);
+
+  $cdrec .= $name;
+
+  // optional extra field, file comment goes here
+  // save to central directory
+  $ctrldir = $cdrec;
+  
+
+  $out = $data . $ctrldir . $eof_ctrl_dir .
+    pack('v', 1) .                 // total # of entries "on this disk"
+    pack('v', 1) .                 // total # of entries overall
+    pack('V', strlen($ctrldir)) .  // size of central dir
+    pack('V', strlen($data)) .     // offset to start of central dir
+    "\x00\x00";                    // .zip file comment length 
+
+  // setting name
+  $file_kmz = "files/$base_name.kmz";
+  $fp=fopen($file_kmz,"w");
+  fwrite($fp,$out);
+  fclose($fp);    
+}
+
+function wtw_gmap() {
+  $description = "On 21 May 2006 people all over the world walked " .
+    "to call for an end to child hunger. In 24 hours and in 24 time-zones " .
+    "people joined us to raise the funds and awareness we need to end " .
+    "child hunger.<br />" . 
+    "<a href='http://www.fighthunger.org/wtw06'>Find a walk near you</a>";
+ 
+
+  $out  = "<?xml version='1.0' encoding='UTF-8'?>\n";
+  $out .= "<kml xmlns='http://earth.google.com/kml/2.0'>\n";
+  $out .= "<Document>\n";
+  $out .= "\t<name>Walk the World 2006</name>\n";
+  $out .= "\t<visibility>0</visibility>\n";
+  $out .= "\t<open>1</open>\n";
+  $out .= "<Folder>\n";
+  $out .= "<name>Walk the World 2006</name>\n";
+  $out .= "<visibility>0</visibility>\n";
+  $out .= "<description>" . $description . "</description>\n";
+  
+  $camid = arg(1);
+  $result = db_query("SELECT m.nid, m.title, m.city, m.region, m.walkers, m.lat, m.lon, c.name AS country, g.camid, g.nid ".
+                     "FROM {wtw_map} m INNER JOIN {countries} c ON m.country = c.ccid INNER JOIN {gathering_node} g ON m.nid = g.nid WHERE g.camid = 2");                    
+  while ($row = db_fetch_object($result)) {
+    $placemark = "<Placemark>\n";
+
+    $placemark .= "\t<name><![CDATA[" . htmlentities($row->title, ENT_QUOTES, 'UTF-8') . "]]></name>";
+
+    $style  = "background: #efefef; border-bottom: solid 2px #ddd; text-align: right";
+    $style .= "margin-top: 30px; padding: 2px 10px 2px 10px; clear:both; -moz-border-radius: 5px;";
+    $description  = wtw_getflickerbadge($row->nid);
+    $description .= "<p align='right'>visit the <a href='http://www.fighthunger.org/node/" . $row->nid . "'>" . htmlentities($row->city, ENT_QUOTES, 'UTF-8') . "</a> wtw06 page</p>";
+    $placemark .= "\t<description><![CDATA[\n" . $description . "\n\t]]></description>\n";
+
+    $placemark .= "\t<LookAt>\n";
+    $placemark .= "\t\t<longitude>" . $row->lon . "</longitude>\n";
+    $placemark .= "\t\t<latitude>" . $row->lat . "</latitude>\n";
+    $placemark .= "\t\t<range>600000</range>\n";
+    $placemark .= "\t\t<tilt>0</tilt>\n";
+    $placemark .= "\t\t<heading>0</heading>\n";
+    $placemark .= "\t</LookAt>\n";
+
+    $placemark .= "\t<Point>\n";
+    $placemark .= "\t\t<coordinates>" . $row->lon . "," . $row->lat . "</coordinates>\n";
+    $placemark .= "\t</Point>\n";
+
+    $placemark .= "</Placemark>\n";
+    $out .= $placemark;  
+  }
+  $out .= "</Folder>\n";
+  $out .= "</Document>\n";
+  $out .= "</kml>\n";
+
+  $map_file = "files/gmap_$camid.kml";
+  $fp = fopen($map_file, 'w');
+  fwrite($fp, $out);
+  fclose($fp);
+
+  wtw_gmap_write($out, "gmap_$camid");
+
+  drupal_set_header('Content-Type: application/vnd.google-earth.kml+xml');
+  print $out;
+
+}
+
+function wtw_map_css() {
+  header('Content-type: text/css');
+  $camid = arg(1);
+  $image = variable_get("file_directory_path","files").'/map-'.$camid.'.png';
+
+  $output = ".wtw_map { position: relative; }\n".
+    "#main .wtw_map .item-list ul li { list-style: none; margin: 0; padding: 0; }\n".
+    ".wtw_map ul li a { list-style: none; margin: 0; padding: 0; display: block; height: 4px; width: 4px; position: absolute; }\n".
+    ".wtw_map a span { display: none; }\n";
+
+  $result = db_query("SELECT m.nid, m.title, m.city, m.region, m.walkers, m.lat, m.lon, c.name AS country, g.camid ".
+                     "FROM {wtw_map} m INNER JOIN {countries} c ON m.country = c.ccid INNER JOIN {gathering_node} g ON m.nid = g.nid");
+
+  $image2 = imagecreatefrompng($image);
+  $campaign['width'] = imagesx($image2);
+  $campaign['height'] = imagesy($image2);
+
+  while ($row = db_fetch_object($result)) {
+    list($x, $y) = _wtw_map_coords2pixels($campaign, $row->lat, $row->lon);  
+    $x -= 2;
+    $y -= 2;
+    $output .= '#gathering-'.$row->nid.' { left: '.$x.'px; top: '.$y."px; }\n";
+  }
+  
+  print $output;
+}
+
+/*
+function theme_wtw_map($camid) {
+  drupal_set_html_head('<link rel="stylesheet" href="wtw_map/'.$camid.'/map.css" media="screen" />');
+  $image = variable_get("file_directory_path","files").'/map-'.$camid.'.png';
+  $output = '<div class="wtw_map">';
+  $output .= '<img src="'.$image.'" alt="" />';
+
+  $items = array();
+  $result = db_query("SELECT m.nid, m.title, m.city, m.region, m.walkers, m.lat, m.lon, c.name AS country, g.camid ".
+                     "FROM {wtw_map} m INNER JOIN {countries} c ON m.country = c.ccid INNER JOIN {gathering_node} g ON m.nid = g.nid");
+  
+  while ($row = db_fetch_object($result)) {
+    $label  = preg_replace("/\"/", "&#34;", $row->title) . " - ";
+    $label .= $row->city . ", ";
+    
+    if ($row->country == 'UNITED STATES')
+      $label .= $row->region . ", ";
+    
+    $label .= ucwords(strtolower($row->country));
+    
+    $items[] = l('<span>'.$label.'</span>', 'node/'.$row->nid, array('id' => 'gathering-'.$row->nid, 'title' => $label), null, null, false, true);
+  }
+  if ($items) $output .= theme('item_list', $items);
+
+  $output .= "</div>";
+  return $output;
+}
+*/
+
+
+function theme_wtw_map($camid){
+  $image = variable_get("file_directory_path","files").'/map-'.$camid.'.png';
+  
+  $out .= variable_get("wtw_map_include_$camid","");
+  $out .= '<img src="'.$image.'" width="420" height="210" border="0" usemap="#walks">';
+  
+  return $out;
+}
+
+/**
+ * Implementation of hook_settings()
+ */
+function wtw_map_settings() {
+//  $out .= "<h3>Example</h3>";
+//  $out .= theme('wtw_map', 2);
+  $out .= "(Color changes may take up to 30 minutes to take effect.)";
+
+  $colors = array(
+    'blue'      => 'blue',
+    'black'     => 'black',
+    'orange'    => 'orange',
+    'lightblue' => 'light blue',
+    'white'     => 'white'
+  );
+  
+  $out .= "<h3>Settings</h3>";
+  $out .= form_select("rectangle fill color","wtw_map_rec_fill",variable_get("wtw_map_rec_fill","blue"),$colors);
+  $out .= form_select("rectangle border color","wtw_map_rec_border",variable_get("wtw_map_rec_border","lightblue"),$colors);
+  $out .= form_select("text color","wtw_map_text",variable_get("wtw_map_text","white"),$colors);
+  
+  return $out;
+}
+
+/**
+ * Menu Callback; WTW Map Administration Page
+ */
+function wtw_map_page_admin() {
+  
+  $camid = arg(2);
+  if (is_numeric($camid)){    
+    $out  = "<p>The following events can't be located ";
+    $out .= "in the GIS database and are not able to be ";
+    $out .= "drawn on the map.</p>";
+    
+    $result = db_query("SELECT n.nid FROM {wtw_map} m, {node} n WHERE m.lat = 0 AND m.lon = 0 AND m.nid = n.nid AND n.type='%s' ORDER BY nid DESC","gathering-".$camid);
+    
+    while ($a = db_fetch_array($result)){
+      $node = node_load(array("nid"=>$a['nid']));
+      $out .= theme_gathering_node($node);
+    }
+    
+
+  } else {
+    drupal_set_title("choose a campaign");
+    $campaigns = _gathering_get_campaigns();
+    foreach ($campaigns as $c){
+      $links[] = l($c['name'],"admin/wtw_map/".$c['camid']);
+    }
+    $out .= theme("item_list",$links);
+  }
+  
+  print theme('page', $out);
+}
+
+/**
+ *
+ */
+function _wtw_map_cron_prep() {
+  global $map_base_file, $campaigns, $map_html_file;
+  global $font_file;
+  
+  $map_base_file = drupal_get_path("module","wtw_map").'/map_base.png';
+  $campaigns = _gathering_get_campaigns();
+  foreach ($campaigns as $camid => $campaign) {
+    $campaigns[$camid]['file'] = variable_get("file_directory_path","files").'/map-'.$camid.'.png';
+    $campaigns[$camid]['image'] = imagecreatefrompng($map_base_file);
+    $campaigns[$camid]['width'] = imagesx($campaigns[$camid]['image']);
+    $campaigns[$camid]['height'] = imagesy($campaigns[$camid]['image']);
+    $campaigns[$camid]['color'] = array('red' => imagecolorallocate($campaigns[$camid]['image'], 255, 0, 0),
+					    'blue' => imagecolorallocate($campaigns[$camid]['image'], 0, 101, 153),
+					    'black' => imagecolorallocate($campaigns[$camid]['image'], 0, 0, 0),
+					    'orange' => imagecolorallocate($campaigns[$camid]['image'], 255, 113, 0),
+					    'lightblue' => imagecolorallocate($campaigns[$camid]['image'], 177, 203, 216),
+					    'white' => imagecolorallocate($campaigns[$camid]['image'], 255, 255, 255));
+  }
+
+//  $map_html_file = drupal_get_path("module","wtw_map").'/map.inc.html';
+  $font_file     = drupal_get_path("module","wtw_map").'/HelveticaNeue.ttf';
+}
+
+/**
+ *
+ */
+function _wtw_map_coords2pixels(&$campaign, $lat, $lon) {
+  $width = $campaign['width'];
+  $height = $campaign['height'];
+
+  $x_scale_factor = $width / 360;
+  $y_scale_factor = $height / 180;
+  
+  $x = round(($width / 2) + ($lon * $x_scale_factor));
+  $y = round(($height / 2) - ($lat * $y_scale_factor));
+  
+  return array($x, $y);
+}
+
+/**
+ *
+ */
+function _wtw_map_plot_large_dot(&$campaign, $x, $y, $border = 'black', $fill) {
+  imagefilledellipse($campaign['image'], $x, $y, 10, 10, $campaign['color'][$fill]);
+  imageellipse($campaign['image'], $x, $y, 10, 10, $campaign['color'][$border]);
+}
+
+/**
+ *
+ */
+function _wtw_map_plot_medium_dot(&$campaign, $x, $y, $border = 'black', $fill) {
+  imagefilledellipse($campaign['image'], $x, $y, 6, 6, $campaign['color'][$fill]);
+  imageellipse($campaign['image'], $x, $y, 6, 6, $campaign['color'][$border]);
+}
+
+/**
+ *
+ */
+function _wtw_map_plot_rectangle(&$campaign, $x, $y, $border = 'black', $fill) {
+  imagefilledrectangle($campaign['image'], $x - 2, $y - 2, $x + 2, $y + 2, $campaign['color'][$fill]);
+  imagerectangle($campaign['image'], $x - 2, $y - 2, $x + 2, $y + 2, $campaign['color'][$border]);
+}
+
+/**
+ *
+ */
+function _wtw_map_plot_small_dot(&$campaign, $x, $y, $border = 'black', $fill) {    
+  imagesetpixel($campaign['image'], $x, $y, $campaign['color'][$fill]);
+  imagesetpixel($campaign['image'], $x - 1, $y, $campaign['color'][$border]);
+  imagesetpixel($campaign['image'], $x, $y - 1, $campaign['color'][$border]);
+  imagesetpixel($campaign['image'], $x + 1, $y, $campaign['color'][$border]);
+  imagesetpixel($campaign['image'], $x, $y + 1, $campaign['color'][$border]);
+}
+
+/**
+ *
+ */
+function _wtw_map_plot_pushpin(&$campaign, $x, $y, $border = 'black', $fill) {
+  imageline($campaign['image'], $x, $y, ($x + 12), ($y - 12), $campaign['color']['black']);
+  imageline($campaign['image'], $x - 1, $y, ($x + 12), ($y - 12), $campaign['color']['black']);
+  imageline($campaign['image'], $x + 1, $y, ($x + 12), ($y - 12), $campaign['color']['black']);
+  imagefilledellipse($campaign['image'], ($x + 10), ($y - 10), 10, 10, $campaign['color'][$fill]);
+  imageellipse($campaign['image'], ($x + 10), ($y - 10), 10, 10, $campaign['color'][$border]);
+}
+
+/**
+ *
+ */
+function _wtw_map_plot_flag(&$campaign, $x, $y, $border = 'black', $fill) {
+  $points = array($x, $y, 
+		  ($x + 4), ($y - 10), 
+		  ($x + 15), ($y - 10), 
+		  ($x + 15), ($y - 20), 
+		  $x, ($y - 20)); 
+  
+  imagefilledpolygon($campaign['image'], $points, 5, $campaign['color'][$fill]);
+  imagepolygon($campaign['image'], $points, 5, $campaign['color'][$border]);
+}
+
+/**
+ *
+ */
+function _wtw_map_write_map() {
+  global $campaigns, $font_file;
+  
+  $result = db_query("SELECT walkers, lat, lon, camid FROM {wtw_map} m INNER JOIN {gathering_node} g ON m.nid = g.nid WHERE m.city != '' AND m.country != ''");
+  
+  while ($row = db_fetch_object($result)) {
+    if ($row->lat != 0 && $row->lon != 0) {
+      $campaign = $campaigns[$row->camid];
+      list($x, $y) = _wtw_map_coords2pixels($campaign, $row->lat, $row->lon);
+      _wtw_map_plot_rectangle($campaign, $x, $y, variable_get("wtw_map_rec_border","lightblue"), variable_get("wtw_map_rec_fill","blue"));
+    }
+  }
+  
+  foreach ($campaigns as $camid => $campaign) {
+    _wtw_map_plot_rectangle($campaign, 87, 191, variable_get("wtw_map_rec_border","lightblue"), variable_get("wtw_map_rec_fill","blue"));
+    imagettftext($campaign['image'], 8, 0, 95, 191, $campaign['color'][variable_get("wtw_map_text","white")], $font_file, "Hold your mouse over the");
+    imagettftext($campaign['image'], 8, 0, 95, 201, $campaign['color'][variable_get("wtw_map_text","white")], $font_file, "event locations for details");
+
+// TODO: add a new gathering_campaign field to customize this text. 
+// (We want "Walk the World" here, not "Walk the World 2006", so Campaign Name is inadequate.)
+//    imagettftext($campaign['image'], 12, 0, 253, 187, $campaign['color'][variable_get("wtw_map_text","white")], $font_file, $campaign['name']);
+    imagettftext($campaign['image'], 12, 0, 253, 187, $campaign['color'][variable_get("wtw_map_text","white")], $font_file, "Walk the World");
+
+    imagettftext($campaign['image'], 12, 0, 265, 202, $campaign['color'][variable_get("wtw_map_text","white")], $font_file, date('j F Y', strtotime($campaign['startdate'])));
+    imagepng($campaign['image'], $campaign['file']); 
+  }
+}
+
+/**
+ *
+ */
+function _wtw_map_write_include($camid) {
+  global $base_url, $campaigns;
+  global $map_html_file, $map_done_file;
+  global $wtw_map_event_count;
+  
+  $output = "<map name=\"walks\">\n";
+  
+  $result = db_query("SELECT m.nid, m.title, m.city, m.region, m.walkers, m.lat, m.lon, c.name AS country, g.camid ".
+		     "FROM {wtw_map} m INNER JOIN {countries} c ON m.country = c.ccid INNER JOIN {gathering_node} g ON m.nid = g.nid WHERE g.camid = %d",$camid);
+  
+  while ($row = db_fetch_object($result)) {
+    $campaign = $campaigns[$row->camid];
+    list($x, $y) = _wtw_map_coords2pixels($campaign, $row->lat, $row->lon);
+    
+    $label  = preg_replace("/\"/", "&#34;", $row->title) . " - ";
+    $label .= $row->city . ", ";
+    
+    if ($row->country == 'UNITED STATES')
+      $label .= $row->region . ", ";
+    
+    $label .= ucwords(strtolower($row->country)) . " - ";
+    //$label .= $row['walkers'] . " walker";
+    //$label .= ($row['walkers'] > 1 ? 's' : '');
+    $label .= "Click for details";
+    
+    $output .= "<area href=\"node/" . $row->nid . "\" ";
+    $output .= "shape=\"rectangle\" ";
+    $output .= "name=\"$label\" ";
+    $output .= "alt=\"$label\" ";
+    $output .= "title=\"$label\" ";
+    $output .= "coords=\"" . ($x - 2) . "," . ($y - 2) . "," . ($x + 2) . "," . ($y + 2) . "\">\n";
+  }
+  
+  $output .= "</map>\n\n";
+  
+  variable_set("wtw_map_include_$camid",$output);
+//  $distinct_countries = db_num_rows(db_query('SELECT DISTINCT country FROM wtw_map'));
+  /*
+  $output  .= "<p>On 12 June '05, more than 200,000 people made history in the global fight to end child hunger. In addition to raising 1.2 million Euros - feeding over 70,000 children - we joined together to Walk the World in 266 cities, 91 countries, and all 24 time zones. <a href='signup06'>Sign up now to walk in 2006!</a></p>";
+  
+  
+  $output .= "<img src=\"$base_url/$map_done_file?sess=" . md5(mktime(0, 0, 0, date('n'), date('j'), date('Y'))) . "\" ";
+  $output .= "width=\"$width\" height=\"$height\" ";
+  $output .= "border=\"0\" usemap=\"#walks\">\n";
+  
+  $f = fopen($map_html_file, 'w');
+  fwrite($f, $output);
+  fclose($f);
+  */
+}
+
+/**
+ * Implementation of hook_cron()
+ */
+function wtw_map_cron() {
+  // only run once every thirty minutes, or when the secret code is used
+  $lasttime = variable_get("wtw_map_cronstamp",0);
+  $interval = time() - $lasttime;
+  if (($interval > (60*30)) || ($_GET['do']=="map")){
+    variable_set("wtw_map_cronstamp",time());
+    wtw_map_cron_do();
+  }
+}
+ 
+function wtw_map_cron_do() {
+  // new events are done, let's quit for now
+  global $wtw_map_event_count;
+  
+  if (extension_loaded('gd')) {
+    _wtw_map_cron_prep();
+  }
+  
+  
+  $result = db_query("SELECT g.nid, n.title, g.city, g.state, g.country FROM {gathering_node} g INNER JOIN {node} n ON g.nid = n.nid INNER JOIN {wtw_map} m ON n.nid = m.nid WHERE m.automap=1 GROUP BY g.nid");
+
+  $wtw_map_event_count = db_num_rows($result);
+  
+  while ($row = db_fetch_object($result)) {    
+    $node = node_load(array('nid' => $row->nid));
+    
+    if (preg_match("/^St\./i", trim($row->city)))
+      $row->city = preg_replace("/^St\./i", "Saint", trim($row->city));
+    
+    $gis_query = "SELECT name, region, ccid, lat, lon FROM locations ";
+                          
+    $p = strpos($row->city,",");
+    if (empty($row->state) || ($row->country=="US")) {
+      // attempt to parse 'city' into 'state'
+      if ($p){
+        $city = trim(substr($row->city,0,$p));
+        $state = trim(substr($row->city,$p+1));
+        
+        $gis_query .= "WHERE name = '" . mysql_escape_string($city) . "' ";
+        if ((strlen($state) > 2) && ($row->country == "US")) {
+          db_set_active('gis');
+          $state = preg_replace('/[^A-Za-z]/', '', $state);
+          $state = db_result(db_query("SELECT abbreviation FROM {states} WHERE name = '%s'",$state));
+          $gis_query .= "AND region = '" . mysql_escape_string($state) ."' ";
+        }        
+      } else {
+        $gis_query .= "WHERE name = '" . mysql_escape_string($row->city) . "' ";
+      }
+    } else {
+      if ($p){
+        $row->city = trim(substr($row->city,0,$p));
+      }
+      $gis_query .= "WHERE name = '" . mysql_escape_string($row->city) . "' ";
+//      $gis_query .= "AND region = '" . mysql_escape_string($row->state) ."' ";
+    }
+    
+    $gis_query .= "AND ccid = '" . mysql_escape_string($row->country) . "' LIMIT 1";
+    
+    db_set_active('gis');
+    if ($gis_row = db_fetch_array(db_query($gis_query))) {
+      $insert_query = "REPLACE INTO {wtw_map} (nid, title, city, region, country, walkers, lat, lon) 
+                             VALUES ('" . 
+        mysql_escape_string($row->nid) . "','" . 
+        mysql_escape_string($row->title) . "','" . 
+        mysql_escape_string($gis_row['name']) . "','" . 
+        mysql_escape_string($gis_row['region']) . "','" . 
+        mysql_escape_string($gis_row['ccid']) . "','" . 
+        mysql_escape_string($node->signupcount) . "','" . 
+        mysql_escape_string($gis_row['lat']) . "','" . 
+        mysql_escape_string($gis_row['lon']) . "')";
+      db_set_active();
+      db_query($insert_query);
+    } else {
+      $insert_query = "REPLACE INTO {wtw_map} (nid, title, walkers) 
+                             VALUES ('" . 
+        mysql_escape_string($row->nid) . "','" . 
+        mysql_escape_string($row->title) . "','" . 
+        mysql_escape_string($node->signupcount) . "')";
+      db_set_active();
+      db_query($insert_query);    }
+    db_set_active();
+     
+  }
+  
+  if (extension_loaded('gd')) {
+    _wtw_map_write_map();  
+  }
+  global $campaigns;
+  foreach ($campaigns as $c){
+    _wtw_map_write_include($c['camid']);
+  }
+}
+
+function wtw_map_nodeapi(&$node, $op, $teaser = NULL, $page = NULL){
+  if ((node_get_module_name($node) == "gathering") && user_access("administer wtw map")){
+    switch($op){
+      case 'load':
+        $gis = db_fetch_array(db_query("SELECT * FROM wtw_map WHERE nid=%d",$node->nid));
+        if (!$gis['automap']){
+          $node->lon = $gis['lon'];
+          $node->lat = $gis['lat'];
+        }
+        break;
+      case 'form post':
+        $out = wtw_map_nodeform($node);
+        break;
+      case 'update':
+      case 'insert':
+        db_query("DELETE FROM wtw_map WHERE nid=%d",$node->nid);
+        if (($node->lon == "") && ($node->lat == "")){
+          db_query("INSERT INTO wtw_map SET automap=1, nid=%d, title='%s',city='%s',country='%s'",$node->nid,$node->title,$node->city,$node->country);
+        } else {
+          db_query("INSERT INTO wtw_map SET lon=%s, lat=%s, automap=0, nid=%d, title='%s',city='%s',country='%s'",$node->lon,$node->lat,$node->nid,$node->title,$node->city,$node->country);        
+        }
+        break;
+    }
+  }
+  return $out;
+}
+
+// return a longitude/latitude editing form
+function wtw_map_nodeform($node){
+  $form = t("Enter new longitude/latitude coordinates for this node below. If you leave these blank, Drupal will look up these values for you based on the node's city/state/country data. This setting may take up to 30 minutes to take effect.");
+  $form .= form_textfield(t("Longitude"),"lon",$node->lon,20,20);
+  $form .= form_textfield(t("Latitude"),"lat",$node->lat,20,20);
+  
+  $out = form_group(t("GIS data"),$form);
+  return $out;
+}
+
+?>

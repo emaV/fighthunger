@@ -1,0 +1,161 @@
+# LANGUAGE translation of Drupal (tax.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: tax.module,v 1.6.2.1 2005/10/30 19:11:22 mathias
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce - Tax Module\n"
+"POT-Creation-Date: 2005-11-01 13:15+0100\n"
+"PO-Revision-Date: 2005-11-01 13:35+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: French\n"
+
+#: tax.module:14
+msgid "Enable a tax API for ecommerce."
+msgstr "Support des taxes pour E-Commerce."
+
+#: tax.module:16
+msgid "Enter tax rules here."
+msgstr "Indiquez un taux de taxe"
+
+#: tax.module:18
+msgid "tax calculation methods are <a href=\"%tax_calc_url\">here</a>."
+msgstr "la définition des taux de taxes se trouve <a href=\"%tax_calc_url\">ici</a>."
+
+#: tax.module:31;32
+msgid "taxes"
+msgstr "taxes"
+
+#: tax.module:33
+msgid "add tax"
+msgstr "ajout taxe"
+
+#: tax.module:34
+msgid "edit tax"
+msgstr "editer taxe"
+
+#: tax.module:35
+msgid "delete tax"
+msgstr "supprimer taxe"
+
+#: tax.module:36
+msgid "tax autocomplete"
+msgstr "auto-saisie taxe"
+
+#: tax.module:49
+msgid "Tax"
+msgstr "Taxe"
+
+#: tax.module:113;254
+msgid "Next"
+msgstr "Suivant"
+
+#: tax.module:127
+msgid "tax rule deleted"
+msgstr "taxe supprimée"
+
+#: tax.module:132;289
+msgid "Submit"
+msgstr "Confirmer"
+
+#: tax.module:133;286
+msgid "Update"
+msgstr "Mettre à jour"
+
+#: tax.module:155
+msgid "rule"
+msgstr "taux"
+
+#: tax.module:155
+msgid "operations"
+msgstr "opérations"
+
+#: tax.module:159
+msgid "Add %operator%operand where %realm = '%realm-value'"
+msgstr "Ajout de %operator %operand lorsque %realm = '%realm-value'"
+
+#: tax.module:159
+msgid "edit"
+msgstr "editer"
+
+#: tax.module:159
+msgid "delete"
+msgstr "supprimer"
+
+#: tax.module:163
+msgid "There are currently no tax rules."
+msgstr "Il n'y aucun taux de taxe défini."
+
+#: tax.module:180
+msgid "You must enter a location value."
+msgstr "Vous devez indiquer un endroit."
+
+#: tax.module:184
+msgid "You must choose a product type."
+msgstr "Vous devez sélectionner un type de produit."
+
+#: tax.module:198
+msgid "Invalid operator"
+msgstr "Opérateur invalide"
+
+#: tax.module:202
+msgid "You must enter a rate."
+msgstr "Vous devez saisir un taux."
+
+#: tax.module:253
+msgid "Type of Location to define the new tax rule for"
+msgstr "Type d'endroit pour lequel s'applique la nouvelle taxe "
+
+#: tax.module:253
+msgid "State / Province / Region"
+msgstr "Région / Département / Etat"
+
+#: tax.module:253;268
+msgid "Country"
+msgstr "Pays"
+
+#: tax.module:253
+msgid "City"
+msgstr "Ville"
+
+#: tax.module:261;271
+msgid "This value will be checked against the customer's shipping address."
+msgstr "Cette valeur sera comparée à l'adresse de livraison du client."
+
+#: tax.module:263
+msgid "Value for State / Province / Region"
+msgstr "Valeur pour Région / Département / Etat"
+
+#: tax.module:267
+msgid "Please choose..."
+msgstr "Sélectionnez ..."
+
+#: tax.module:271
+msgid "Value for City"
+msgstr "Ville"
+
+#: tax.module:279
+msgid "Adjustment"
+msgstr "Ajustement"
+
+#: tax.module:279
+msgid "This rate can be a simple price addition or a percentage multiplier. For example, to add a 5.00 tax, enter +5.00. To multiply the gross price times 75%, enter 75%. If no operand is given, addition is assumed."
+msgstr "Le taux peut être une simple addition, ou un pourcentage. Par exemple, pour une taxe fixe de 5.00, saisissez +5.00. Pour obtenir 75% du total, il faut indiquer 75%. Si aucun opérande n'est indiqué, l'addition est appliquée."
+
+#: tax.module:282
+msgid "Product type"
+msgstr "Type de produit"
+
+#: tax.module:282
+msgid "Check the product types this tax rule applies to."
+msgstr "Sélectionner le type de produits auquelle doit s'appliquer la taxe"
+
+#: tax.module:0
+msgid "tax"
+msgstr "taxe"
+

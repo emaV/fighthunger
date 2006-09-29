@@ -1,0 +1,10 @@
+
+WARNING:  
+
+This payment module should be considered ALPHA until you've tested it 
+for yourself.
+
+
+Description:  An edit of authorize_net.module to use the Linkpoint API 
+payment gateway.  Requires CURL.  Works for me (TM) but proceed very
+much at your own risk.

@@ -1,0 +1,150 @@
+<?php
+// $Id: submanage.module,v 1.2.2.3 2006/01/21 21:00:28 mathias Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+function submanage_help($section = 'admin/help#submanage') {
+  $output = "";
+
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Interface to manage subscribers.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function submanage_menu($may_cache) {
+  global $user;
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'admin/store/subscriptions', 'title' => t('subscriptions'),
+      'callback' => 'submanage_page',
+      'access' => user_access('administer store'));
+    $items[] = array('path' => 'admin/store/subscriptions/notifytest', 'title' => t('subscriptions notification test'),
+      'callback' => 'submanage_test_notify',
+      'access' => user_access('administer store'));
+  }
+
+  return $items;
+}
+
+function submanage_page($action = null) {
+  $output = $action == 'export' ? submanage_users('export') : submanage_users('view');
+  print theme('page', $output, $title);
+}
+
+function submanage_test_notify() {
+  $output = product_send_recurring_payment_notifications('debug');
+  if ($output) {
+    print implode("<br />\n", $output);
+  }
+  else {
+    print t('No payment notifications to send.');
+  }
+}
+
+function submanage_users($mode = 'view') {
+  $output = '';
+  if ($mode == 'view') {
+    $output .= t('<p><a href="%subscriber-export-link">Click here to export the subscriber list.</a></p>', array('%subscriber-export-link' => url('admin/store/subscriptions/export')));
+    $output .= t('<p><a href="%subscriber-notify-test">Click here to test subscriber payment notifications.</a></p>', array('%subscriber-notify-test' => url('admin/store/subscriptions/notifytest')));
+  }
+  $header = array(
+    array('data' => t('uid'), 'field' => 'st.uid'),
+    array('data' => t('First name'), 'field' => 'st.shipping_firstname'),
+    array('data' => t('Last name'), 'field' => 'st.shipping_lastname'),
+    array('data' => t('Address 1'), 'field' => 'st.shipping_street1'),
+    array('data' => t('Address 2'), 'field' => 'st.shipping_street2'),
+    array('data' => t('City'), 'field' => 'st.shipping_city'),
+    array('data' => t('State'), 'field' => 'st.shipping_state'),
+    array('data' => t('Zip'), 'field' => 'st.shipping_zip'),
+    array('data' => t('Country'), 'field' => 'st.shipping_country'),
+    array('data' => t('E-mail'), 'field' => 'st.mail'),
+    array('data' => t('Expires'), 'field' => 'stp.expires', 'sort' => 'desc'),
+    array('data' => t('nid'), 'field' => 'stp.nid')
+  );
+  $sql = 'SELECT st.uid, st.shipping_firstname, st.shipping_lastname,
+                 st.shipping_street1, st.shipping_street2, st.shipping_city,
+                 st.shipping_state, st.shipping_zip, st.shipping_country,
+                 st.mail, st.expires as txn_expires,
+                 stp.expires as prod_expires, stp.nid
+          FROM {ec_transaction} st, {ec_transaction_product} stp
+          WHERE st.txnid = stp.txnid
+          AND stp.is_recurring = 1
+          AND st.payment_status = 2
+          AND (stp.expires > '. time(). '
+          OR st.expires > '. time(). ')';
+
+  if ($mode == 'view') {
+    $result = pager_query($sql. tablesort_sql($header), 50);
+    while($data = db_fetch_object($result)) {
+      $expires = $data->txn_expires > $data->prod_expires ? $data->txn_expires : $data->prod_expires;
+      $rows[] = array(l($data->uid, "user/$data->uid"),
+                      $data->shipping_firstname, $data->shipping_lastname,
+                      $data->shipping_street1, $data->shipping_street2,
+                      $data->shipping_city, $data->shipping_state,
+                      $data->shipping_zip, address_get_country($data->shipping_country),
+                      $data->mail,
+                      array('data' => format_date($expires, 'custom', 'Y-m-d'), 'nowrap' => 'nowrap'),
+                      l($data->nid, "node/$data->nid"));
+    }
+
+    $pager = theme('pager', NULL, 50, 0, tablesort_pager());
+    if (!empty($pager)) {
+      $rows[] = array(array('data' => $pager, 'colspan' => 11));
+    }
+    $output .= ($rows) ? theme('table', $header, $rows) : t('There are no active subscriptions.');
+
+    return $output;
+  }
+  elseif ($mode == 'export') {
+    foreach ($header as $key => $value) {
+      //if ($value['data'] != t('Expires')) {
+        $h[] = $value['data'];
+      //}
+    }
+    $rows[] = $h;
+    $result = db_query($sql);
+    while($data = db_fetch_object($result)) {
+      $expires = $data->txn_expires > $data->prod_expires ? $data->txn_expires : $data->prod_expires;
+      $rows[] = array($data->uid, $data->shipping_firstname,
+                      $data->shipping_lastname, $data->shipping_street1,
+                      $data->shipping_street2, $data->shipping_city,
+                      $data->shipping_state, $data->shipping_zip,
+                      address_get_country($data->shipping_country),
+                      $data->mail,
+                      format_date($expires, 'custom', 'Y-m-d'),
+                      $data->nid);
+    }
+    // Weed out duplicate usernames.
+    $rows = array_unique(array_map('serialize', $rows));
+    $rows = array_map('unserialize', $rows);
+
+    $data = '';
+    foreach ($rows as $row) {
+      $data .= submanage2csv($row);
+    }
+
+    $size = strlen($data);
+    header('Content-type: application/x-download');
+    header('Content-disposition:  attachment; filename=' . date('Y-m-d')."_subscribers.csv; size=$size");
+    print $data;
+    exit;
+  }
+}
+
+function submanage2csv($row, $fd=',', $quot='"') {
+  $str='';
+  foreach ($row as $cell) {
+    $cell = str_replace($quot, $quot.$quot, $cell);
+    $str .= (strchr($cell, $fd) !== FALSE || strchr($cell, $quot) !== FALSE || strchr($cell, "\n") !== FALSE) ? $quot.$cell.$quot.$fd : $cell.$fd;
+  }
+  return substr($str, 0, -1) ."\n";
+}
+
+?>

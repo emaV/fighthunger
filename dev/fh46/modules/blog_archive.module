@@ -1,0 +1,134 @@
+<?php
+
+/**
+ * Implementation of hook_help().
+ */
+function blog_archive_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Pages for blog archive, showed on list/* path.');
+  }
+}
+
+function blog_archive_menu($mc){
+  if ($mc){
+    $items[] = array(
+        "path" => "list",
+        "callback" => "blog_archive_page",
+        "access" => true,
+        "type" => MENU_HIDDEN
+    );
+  } else {
+    $items = array();
+  }
+  return $items;
+}
+
+function blog_archive_page(){
+	switch (arg(1)){
+		case "user":
+      blog_archive_userlist(arg(2));
+      break;
+		case "taxonomy":
+      blog_archive_taxonomy(arg(2));
+      break;
+		case "month":
+      blog_archive_month(arg(2),arg(3));
+      break;
+	}
+}
+
+/*
+function blog_archive_user($op,&$edit,&$user){
+  if ($op=="view"){
+    $return = array(
+      "Words" => l("View blog posts by ".$user->name,"list/user/".$user->uid)
+    );
+    return $return;
+  }
+}
+*/
+
+function blog_archive_userlist($uid){
+  $user = user_load(array("uid"=>$uid));
+  $nodes = pager_query("SELECT * FROM {node} n WHERE n.uid=%d ORDER BY n.created DESC",10,0,NULL,$uid);
+  blog_archive_output($user->name,$nodes);
+}
+
+function blog_archive_taxonomy($tid){
+	$term = db_fetch_object(db_query("SELECT * FROM {term_data} WHERE tid='%s'", $tid));
+	$nodes = pager_query("SELECT n.nid, n.title, n.created FROM {node} n, {term_node} t WHERE n.nid = t.nid AND t.tid='%s' ORDER BY created DESC",$tid);
+	blog_archive_output($term->name, $nodes);
+}
+
+function blog_archive_month($year,$month){
+	$startdate = mktime(0,0,0,$month,1,$year);
+	$enddate = mktime(0,0,0,$month+1,1,$year);
+	$title = date("F",$startdate) . ", " . $year;
+	$nodes = pager_query("SELECT nid,title,created FROM {node} WHERE created >= $startdate AND created < $enddate AND type=\"blog\" ORDER BY created DESC");
+	blog_archive_output($title,$nodes);
+}
+
+function blog_archive_output($name, $nodes){
+	$title = $name;
+
+	while ($node = db_fetch_object($nodes)){
+		$output .= node_view(node_load($node),true);
+	}
+  $output .= theme('pager', NULL, 100);
+
+  echo theme("page",$output,$title);
+}
+
+function blog_archive_block($op,$delta=NULL){
+	if ($op=="list"){
+		$blocks[0]["info"] = "List blogposts by month.";	
+		$vocabs = db_query("SELECT vid,name FROM {vocabulary}");
+		while ($vocab = db_fetch_object($vocabs)){
+			$blocks[$vocab->vid]["info"] = "List blogposts by term in vocabulary '".$vocab->name."'";
+		}
+		return $blocks;
+	} else {
+	  global $blogsection;
+	  if ($blogsection){
+      if ($delta==0){
+        $block['subject'] = "Archives by Month";
+        $block['content'] = blog_archive_block_month();
+        return $block;
+      } else {
+        $block['subject'] = "Archives by Category";
+        $block['content'] = blog_archive_block_vocab($delta);
+        if ($block['content']){
+          return $block;
+        } else {
+          return false;
+        }
+      }
+    }
+	}
+}
+
+function blog_archive_block_month(){
+	$times = db_query("SELECT MONTHNAME(FROM_UNIXTIME(created)) as monthname, MONTH(FROM_UNIXTIME(created)) as month, YEAR(FROM_UNIXTIME(created)) as year FROM {node} WHERE type='blog' GROUP BY month,year ORDER BY created DESC");
+	while ($thistime = db_fetch_object($times)){
+		$fullname = $thistime->monthname . ", " . $thistime->year;
+		$links[] .= l($fullname, "list/month/".$thistime->year."/".$thistime->month);
+	}
+	$output = theme("item_list",$links);
+	return $output;
+}
+
+function blog_archive_block_vocab($vid){
+  $rs = db_query("SELECT DISTINCT td.name,td.tid FROM term_data td, term_node tn WHERE td.vid=%d AND td.tid = tn.tid ORDER BY td.weight DESC, td.name ASC",$vid);
+  while($t = db_fetch_array($rs)){
+    $terms[] = l($t['name'],"taxonomy/term/".$t['tid']);
+  }
+  if (empty($terms)){
+    return false;
+  } else {
+    return theme("item_list",$terms);
+  }
+}
+
+
+?>

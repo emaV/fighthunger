@@ -1,0 +1,55 @@
+# LANGUAGE translation of Drupal (ecommailer.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: ecommailer.module,v 1.2 2005/10/14 05:09:32 mathias
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce - Ecommailer module\n"
+"POT-Creation-Date: 2005-11-01 13:20+0100\n"
+"PO-Revision-Date: 2005-11-04 00:11+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: French\n"
+
+#: ecommailer.module:27
+msgid "Integrates ecommerce and massmailer. (requires both) "
+msgstr "Intègre les modules E-Commerce et MassMailer (les deux sont requis)."
+
+#: ecommailer.module:29
+msgid "more info"
+msgstr "plus d'informations"
+
+#: ecommailer.module:33
+msgid ""
+"<p>The ecommailer (pronounced e-com-mailer) module acts as a go-between for ecommerce and massmailer.</p>\n"
+"<p>When a user completes a transaction from the store, their shopping cart is parsed and the user is subscribed to a series of lists representing the products that they've bought. The end result is that massmailer will contain a list named with the sku for every product you've sold. And each list will contain the email addresses of users who purchased that item.</p>\n"
+"<p>MassMailer/PHPlist has the advantage of not sending the same message to the same user twice even if they are subscribed to multiple lists. So if you send a message to all of the lists representing the different books sold on your site, users will only get one email - even if they've purchased multiple books.</p>"
+msgstr ""
+"<p>Le module ecommailer (prononcez i-com-mailer) permet de lier les modules E-Commerce et Massmailer.</p>\n"
+"<p>Lorsqu'un utilisateur effectue une transaction sur la boutique, son panier est analysé et l'utilisateur est alors inscrit à certaines listes en fonction des produits achetés. Le résultat est visible dans Massmailer, qui contient une liste pour chaque code produit des articles vendus. Et les abonnés à chaque liste correspondent aux personnes ayant acheté le produit associé.</p>\n"
+"<p>MassMailer/PHPlist a l'avantage de n'envoyer à un utilisateur qu'une seule fois un même message, même en cas d'abonnements à plusieurs liste. Si vous envoyez un message à toutes les listes qui correspondent à des livres, les utilisateurs ne reçevront qu'un seul message quelque soit le nombre de livres qu'ils ont achetés.</p>"
+
+#: ecommailer.module:62
+msgid "New MassMailer list %listname has been created."
+msgstr "Nouvelle liste MassMailer %listname créée."
+
+#: ecommailer.module:67
+msgid "An error occured. The list %listname may not have been created."
+msgstr "Une erreur est survenue. La liste %listname n'a peut être pas été créée."
+
+#: ecommailer.module:82
+msgid "Could not add user %id to list %listname because I could not get the list id."
+msgstr "Impossible d'ajouter l'utilisateur %id à la liste %listname car l'identifiant de la liste est introuvable."
+
+#: ecommailer.module:86
+msgid "massmailer.module must be installed and enabled for ecommailer.module to function."
+msgstr "Le module MassMailer (massmailer.module) doit être installé et activé pour que le module ecommailer fonctionne."
+
+#: ecommailer.module:62;67;82;86;0
+msgid "ecommailer"
+msgstr "ecommailer"
+

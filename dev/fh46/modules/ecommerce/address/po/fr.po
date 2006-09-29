@@ -1,0 +1,1166 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Address Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-11-01 11:55+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: Fr <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: address.module:14
+msgid "Enable address books for users."
+msgstr "Activer les carnets d'adresses des utilisateurs."
+
+#: address.module:32
+msgid "address book"
+msgstr "carnet d'adresse"
+
+#: address.module:44
+msgid "Default country"
+msgstr "Pays par défaut "
+
+#: address.module:44
+msgid "Choose the default country for addresses."
+msgstr "Sélectionnez le pays par défaut pour les adresses"
+
+#: address.module:56
+msgid "Choose a shipping and billing address"
+msgstr "Sélectionnez une adresse de livraison et de facturation"
+
+#: address.module:59
+msgid "Choose a billing address"
+msgstr "Sélectionnez l'adresse de facturation"
+
+#: address.module:62
+msgid "Continue"
+msgstr "Continuer"
+
+#: address.module:67
+msgid "You need to select a shipping address."
+msgstr "Vous devez sélectionner une adresse de livraison."
+
+#: address.module:70
+msgid "You need to select a billing address."
+msgstr "Vous devez sélectionner une adresse de facturation."
+
+#: address.module:80
+msgid "Shipping and billing address"
+msgstr "Adresse de livraison et de facturation"
+
+#: address.module:83
+msgid "Billing address"
+msgstr "Adresse de facturation"
+
+#: address.module:106
+msgid "There are no addresses in your addressbook.  Please add a shipping/delivery address now."
+msgstr "Il n'y a pas d'adresses dans votre carnet. Merci d'ajouter une adresse de livraison."
+
+#: address.module:116
+msgid "Shipping to"
+msgstr "Livraison "
+
+#: address.module:116
+msgid "Please choose where you would like the items to be delivered. You can also %add_address."
+msgstr "Merci de sélectionner l'adresse de livraison de votre commande. Vous pouvez aussi %add_address."
+
+#: address.module:116
+#: ;118
+msgid "add an address"
+msgstr "ajouter une adresse"
+
+#: address.module:118
+msgid "Billing to"
+msgstr "Facturation "
+
+#: address.module:118
+msgid "Please choose where you would like the invoice to be sent. You can also %add_address."
+msgstr "Merci de sélectionner l'adresse de facturation. Vous pouvez aussi %add_address."
+
+#: address.module:133
+msgid "E-mail address"
+msgstr "Adresse e-mail"
+
+#: address.module:133
+msgid "Please double-check to make sure you email address is correct."
+msgstr "Merci de vérifier votre adresse e-mail."
+
+#: address.module:149
+msgid "%username's address book"
+msgstr "Carnet d'adresses de %username"
+
+#: address.module:151
+msgid "<p>Your address book is used to save addresses for billing and shipping of items from our store.</p>"
+msgstr "<p>Votre carnet d'adresses est utilisé pour mémoriser les adresses de livraison et de facturation des articles commandés sur notre boutique.</p>"
+
+#: address.module:157
+#: ;210
+msgid "Create new address"
+msgstr "Créer une nouvelle adresse"
+
+#: address.module:158
+#: ;210
+msgid "Update address"
+msgstr "Modifier l'adresse"
+
+#: address.module:218
+msgid "<strong>Please update your <em>country</em> and <em>state/province</em></strong>.<br />We apologize for the inconvenience."
+msgstr "<strong>Merci de spécifier votre <em>pays</em> et votre <em>département/région</em></strong>."
+
+#: address.module:224
+#: ;232
+msgid "Please choose..."
+msgstr "Sélection ..."
+
+#: address.module:225
+msgid "Country"
+msgstr "Pays "
+
+#: address.module:226
+msgid "First Name"
+msgstr "Prénom "
+
+#: address.module:227
+msgid "Last Name"
+msgstr "Nom "
+
+#: address.module:228
+msgid "Address Line 1"
+msgstr "Adresse "
+
+#: address.module:229
+msgid "Address Line 2"
+msgstr "Complément d'adresse "
+
+#: address.module:230
+msgid "City"
+msgstr "Ville "
+
+#: address.module:233
+msgid "State"
+msgstr "Etat "
+
+#: address.module:234
+msgid "Province / Region"
+msgstr "Région "
+
+#: address.module:235
+msgid "Zip / Postal Code"
+msgstr "Code Postal "
+
+#: address.module:236
+msgid "Phone Number"
+msgstr "Numéro de téléphone "
+
+#: address.module:272
+msgid "Click here to add a new address"
+msgstr "Cliquez ici pour ajouter une nouvelle adresse"
+
+#: address.module:274
+#: ;0
+msgid "address"
+msgstr "adresse"
+
+#: address.module:274
+msgid "options"
+msgstr "options"
+
+#: address.module:283
+msgid "tel: %phone"
+msgstr "tel : %phone"
+
+#: address.module:287
+msgid "edit"
+msgstr "éditer"
+
+#: address.module:287
+msgid "delete"
+msgstr "supprimer"
+
+#: address.module:318
+msgid "Invalid %key."
+msgstr "%key invalide."
+
+#: address.module:323
+msgid "Please select a country."
+msgstr "Merci de sélectionner un pays."
+
+#: address.module:327
+msgid "Please enter a state/province/region."
+msgstr "Merci d'indiquer un(e) département/région."
+
+#: address.module:369
+msgid "The address has been saved."
+msgstr "L'adresse a été sauvegardée."
+
+#: address.module:374
+msgid "The address has been deleted."
+msgstr "L'adresse a été supprimée."
+
+#: address.module:390
+msgid "Andorra"
+msgstr "Andorre"
+
+#: address.module:391
+msgid "United Arab Emirates"
+msgstr "Emirats Arabes Unis"
+
+#: address.module:392
+msgid "Afghanistan"
+msgstr "Afghanistan"
+
+#: address.module:393
+msgid "Antigua and Barbuda"
+msgstr "Antigua et Barbuda"
+
+#: address.module:394
+msgid "Anguilla"
+msgstr "Anguilla"
+
+#: address.module:395
+msgid "Albania"
+msgstr "Albanie"
+
+#: address.module:396
+msgid "Armenia"
+msgstr "Arménie"
+
+#: address.module:397
+msgid "Netherlands Antilles"
+msgstr "Antilles néerlandaises"
+
+#: address.module:398
+msgid "Angola"
+msgstr "Angola"
+
+#: address.module:399
+msgid "Antarctica"
+msgstr "Antarctique"
+
+#: address.module:400
+msgid "Argentina"
+msgstr "Argentine"
+
+#: address.module:401
+msgid "American Samoa"
+msgstr "Samoa Américain"
+
+#: address.module:402
+msgid "Austria"
+msgstr "Autriche"
+
+#: address.module:403
+msgid "Australia"
+msgstr "Australie"
+
+#: address.module:404
+msgid "Aruba"
+msgstr "Aruba"
+
+#: address.module:405
+msgid "Aland Islands"
+msgstr "Iles Aland"
+
+#: address.module:406
+msgid "Azerbaijan"
+msgstr "Azerbaïdjan"
+
+#: address.module:407
+msgid "Bosnia and Herzegovina"
+msgstr "Bosnie Herzégovine"
+
+#: address.module:408
+msgid "Barbados"
+msgstr "Barbade"
+
+#: address.module:409
+msgid "Bangladesh"
+msgstr "Bengladesh"
+
+#: address.module:410
+msgid "Belgium"
+msgstr "Belgique"
+
+#: address.module:411
+msgid "Burkina Faso"
+msgstr "Burkina Faso"
+
+#: address.module:412
+msgid "Bulgaria"
+msgstr "Bulgarie"
+
+#: address.module:413
+msgid "Bahrain"
+msgstr "Bahrain"
+
+#: address.module:414
+msgid "Burundi"
+msgstr "Burundi"
+
+#: address.module:415
+msgid "Benin"
+msgstr "Bénin"
+
+#: address.module:416
+msgid "Bermuda"
+msgstr "Bermudes"
+
+#: address.module:417
+msgid "Brunei Darussalam"
+msgstr "Brunei Darussalam"
+
+#: address.module:418
+msgid "Bolivia"
+msgstr "Bolivie"
+
+#: address.module:419
+msgid "Brazil"
+msgstr "Brésil"
+
+#: address.module:420
+msgid "Bahamas"
+msgstr "Bahamas"
+
+#: address.module:421
+msgid "Bhutan"
+msgstr "Bhoutan"
+
+#: address.module:422
+msgid "Bouvet Island"
+msgstr "Bouvet"
+
+#: address.module:423
+msgid "Botswana"
+msgstr "Botswana"
+
+#: address.module:424
+msgid "Belarus"
+msgstr "Bélarus"
+
+#: address.module:425
+msgid "Belize"
+msgstr "Belize"
+
+#: address.module:426
+msgid "Canada"
+msgstr "Canada"
+
+#: address.module:427
+msgid "Cocos (Keeling) Islands"
+msgstr "Îles Cocos"
+
+#: address.module:428
+msgid "Democratic Republic of the Congo (formerly Zaire)"
+msgstr "République démocratique du Congo (ex Zaïre)"
+
+#: address.module:429
+msgid "Central African Republic"
+msgstr "République Centrafricaine"
+
+#: address.module:430
+msgid "Congo (Republic of the Congo)"
+msgstr "République du Congo"
+
+#: address.module:431
+msgid "Switzerland (Confoederatio Helvetica)"
+msgstr "Suisse (Confédération Helvétique)"
+
+#: address.module:432
+msgid "Cote d'Ivoire (Ivory Coast)"
+msgstr "Côte d'Ivoire"
+
+#: address.module:433
+msgid "Cook Islands"
+msgstr "Îles Cook"
+
+#: address.module:434
+msgid "Chile"
+msgstr "Chili"
+
+#: address.module:435
+msgid "Cameroon"
+msgstr "Cameroun"
+
+#: address.module:436
+msgid "China"
+msgstr "Chine"
+
+#: address.module:437
+msgid "Colombia"
+msgstr "Colombie"
+
+#: address.module:438
+msgid "Costa Rica"
+msgstr "Costa Rica"
+
+#: address.module:439
+msgid "Serbia and Montenegro"
+msgstr "Serbie et Montenegro"
+
+#: address.module:440
+msgid "Cuba"
+msgstr "Cuba"
+
+#: address.module:441
+msgid "Cape Verde"
+msgstr "Cap-Vert"
+
+#: address.module:442
+msgid "Christmas Island"
+msgstr "Îles Christmas"
+
+#: address.module:443
+msgid "Cyprus"
+msgstr "Chypre"
+
+#: address.module:444
+msgid "Czech Republic"
+msgstr "République Tchèque"
+
+#: address.module:445
+msgid "Germany (Deutschland)"
+msgstr "Allemagne"
+
+#: address.module:446
+msgid "Djibouti"
+msgstr "Djibouti"
+
+#: address.module:447
+msgid "Denmark"
+msgstr "Danemark"
+
+#: address.module:448
+msgid "Dominica"
+msgstr "Dominique"
+
+#: address.module:449
+msgid "Dominican Republic"
+msgstr "République Dominicaine"
+
+#: address.module:450
+msgid "Algeria"
+msgstr "Algérie"
+
+#: address.module:451
+msgid "Ecuador"
+msgstr "Equateur"
+
+#: address.module:452
+msgid "Estonia"
+msgstr "Estonie"
+
+#: address.module:453
+msgid "Egypt"
+msgstr "Egypte"
+
+#: address.module:454
+msgid "Western Sahara (formerly Spanish Sahara)"
+msgstr "Sahara Occidental"
+
+#: address.module:455
+msgid "Eritrea"
+msgstr "Érythrée"
+
+#: address.module:456
+msgid "Spain (Espana)"
+msgstr "Espagne"
+
+#: address.module:457
+msgid "Ethiopia"
+msgstr "Ethiopie"
+
+#: address.module:458
+msgid "Finland"
+msgstr "Finlande"
+
+#: address.module:459
+msgid "Fiji"
+msgstr "Fidji"
+
+#: address.module:460
+msgid "Falkland Islands"
+msgstr "Îles Falkland (Malouines)"
+
+#: address.module:461
+msgid "Federated States of Micronesia"
+msgstr "États fédérés de Micronésie"
+
+#: address.module:462
+msgid "Faroe Islands"
+msgstr "Iles Féroé"
+
+#: address.module:463
+msgid "France"
+msgstr "France"
+
+#: address.module:464
+msgid "Gabon"
+msgstr "Gabon"
+
+#: address.module:465
+msgid "Grenada"
+msgstr "Grenade"
+
+#: address.module:466
+msgid "Georgia"
+msgstr "Géorgie"
+
+#: address.module:467
+msgid "French Guiana"
+msgstr "Guyane française"
+
+#: address.module:468
+msgid "Ghana"
+msgstr "Ghana"
+
+#: address.module:469
+msgid "Gibraltar"
+msgstr "Gibraltar"
+
+#: address.module:470
+msgid "Greenland"
+msgstr "Groënland"
+
+#: address.module:471
+msgid "Gambia"
+msgstr "Gambie"
+
+#: address.module:472
+msgid "Guinea"
+msgstr "Guinée"
+
+#: address.module:473
+msgid "Guadeloupe"
+msgstr "Guadeloupe"
+
+#: address.module:474
+msgid "Equatorial Guinea"
+msgstr "Guinée équatoriale"
+
+#: address.module:475
+msgid "Greece"
+msgstr "Grèce"
+
+#: address.module:476
+msgid "South Georgia and the South Sandwich Islands"
+msgstr "Géorgie-du-sud et îles Sandwich-du-sud"
+
+#: address.module:477
+msgid "Guatemala"
+msgstr "Guatemala"
+
+#: address.module:478
+msgid "Guam"
+msgstr "Guam"
+
+#: address.module:479
+msgid "Guinea-Bissau"
+msgstr "Guinée-Bissau"
+
+#: address.module:480
+msgid "Guyana"
+msgstr "Guyane"
+
+#: address.module:481
+msgid "Hong Kong"
+msgstr "Hong Kong"
+
+#: address.module:482
+msgid "Heard Island and McDonald Islands"
+msgstr "Îles Heard et McDonald"
+
+#: address.module:483
+msgid "Honduras"
+msgstr "Honduras"
+
+#: address.module:484
+msgid "Croatia (Hrvatska)"
+msgstr "Croatie"
+
+#: address.module:485
+msgid "Haiti"
+msgstr "Haïti"
+
+#: address.module:486
+msgid "Hungary"
+msgstr "Hongrie"
+
+#: address.module:487
+msgid "Indonesia"
+msgstr "Indonésie"
+
+#: address.module:488
+msgid "Ireland"
+msgstr "Irlande"
+
+#: address.module:489
+msgid "Israel"
+msgstr "Israël"
+
+#: address.module:490
+msgid "India"
+msgstr "Inde"
+
+#: address.module:491
+msgid "British Indian Ocean Territory (including Diego Garcia)"
+msgstr "Territoires britanniques de l'Océan Indien"
+
+#: address.module:492
+msgid "Iraq"
+msgstr "Irak"
+
+#: address.module:493
+msgid "Iran"
+msgstr "Iran"
+
+#: address.module:494
+msgid "Iceland"
+msgstr "Islande"
+
+#: address.module:495
+msgid "Italy"
+msgstr "Italie"
+
+#: address.module:496
+msgid "Jamaica"
+msgstr "Jamaïque"
+
+#: address.module:497
+msgid "Jordan"
+msgstr "Jordanie"
+
+#: address.module:498
+msgid "Japan"
+msgstr "Japon"
+
+#: address.module:499
+msgid "Kenya"
+msgstr "Kenya"
+
+#: address.module:500
+msgid "Kyrgyzstan"
+msgstr "Kirghizistan"
+
+#: address.module:501
+msgid "Cambodia"
+msgstr "Cambodge"
+
+#: address.module:502
+msgid "Kiribati"
+msgstr "Kiribati"
+
+#: address.module:503
+msgid "Comoros"
+msgstr "Comores"
+
+#: address.module:504
+msgid "Saint Kitts and Nevis"
+msgstr "Saint-Christophe-et-Niévès"
+
+#: address.module:505
+msgid "North Korea"
+msgstr "Corée du Nord"
+
+#: address.module:506
+msgid "South Korea"
+msgstr "Corée du Sud"
+
+#: address.module:507
+msgid "Kuwait"
+msgstr "Koweït"
+
+#: address.module:508
+msgid "Cayman Islands"
+msgstr "Îles Caïman"
+
+#: address.module:509
+msgid "Kazakhstan"
+msgstr "Kazakhstan"
+
+#: address.module:510
+msgid "Laos"
+msgstr "Laos"
+
+#: address.module:511
+msgid "Lebanon"
+msgstr "Liban"
+
+#: address.module:512
+msgid "Saint Lucia"
+msgstr "Sainte-Lucie"
+
+#: address.module:513
+msgid "Liechtenstein"
+msgstr "Liechtenstein"
+
+#: address.module:514
+msgid "Sri Lanka"
+msgstr "Sri Lanka"
+
+#: address.module:515
+msgid "Liberia"
+msgstr "Libéria"
+
+#: address.module:516
+msgid "Lesotho"
+msgstr "Lesotho"
+
+#: address.module:517
+msgid "Lithuania"
+msgstr "Lithuanie"
+
+#: address.module:518
+msgid "Luxembourg"
+msgstr "Luxembourg"
+
+#: address.module:519
+msgid "Latvia"
+msgstr "Lettonie"
+
+#: address.module:520
+msgid "Libya"
+msgstr "Libye"
+
+#: address.module:521
+msgid "Morocco"
+msgstr "Maroc"
+
+#: address.module:522
+msgid "Monaco"
+msgstr "Monaco"
+
+#: address.module:523
+msgid "Moldova"
+msgstr "Moldavie"
+
+#: address.module:524
+msgid "Madagascar"
+msgstr "Madagascar"
+
+#: address.module:525
+msgid "Marshall Islands"
+msgstr "Îles Marshall"
+
+#: address.module:526
+msgid "Former Yugoslav Republic of Macedonia"
+msgstr "République de Macédoine"
+
+#: address.module:527
+msgid "Mali"
+msgstr "Mali"
+
+#: address.module:528
+msgid "Myanmar (Burma)"
+msgstr "Birmanie"
+
+#: address.module:529
+msgid "Mongolia"
+msgstr "Mongolie"
+
+#: address.module:530
+msgid "Macao (Macau)"
+msgstr "Macao"
+
+#: address.module:531
+msgid "Northern Mariana Islands"
+msgstr "Îles Mariannes du nord"
+
+#: address.module:532
+msgid "Martinique"
+msgstr "Martinique"
+
+#: address.module:533
+msgid "Mauritania"
+msgstr "Mauritanie"
+
+#: address.module:534
+msgid "Montserrat"
+msgstr "Montserrat"
+
+#: address.module:535
+msgid "Malta"
+msgstr "Malte"
+
+#: address.module:536
+msgid "Mauritius"
+msgstr "Maurice"
+
+#: address.module:537
+msgid "Maldives"
+msgstr "Maldives"
+
+#: address.module:538
+msgid "Malawi"
+msgstr "Malawi"
+
+#: address.module:539
+msgid "Mexico"
+msgstr "Mexique"
+
+#: address.module:540
+msgid "Malaysia"
+msgstr "Malaysie"
+
+#: address.module:541
+msgid "Mozambique"
+msgstr "Mozambique"
+
+#: address.module:542
+msgid "Namibia"
+msgstr "Namibie"
+
+#: address.module:543
+msgid "New Caledonia"
+msgstr "Nouvelle Calédonie"
+
+#: address.module:544
+msgid "Niger"
+msgstr "Niger"
+
+#: address.module:545
+msgid "Norfolk Island"
+msgstr "Île Norfolk"
+
+#: address.module:546
+msgid "Nigeria"
+msgstr "Nigeria"
+
+#: address.module:547
+msgid "Nicaragua"
+msgstr "Nicaragua"
+
+#: address.module:548
+msgid "Netherlands"
+msgstr "Pays-Bas"
+
+#: address.module:549
+msgid "Norway"
+msgstr "Norvège"
+
+#: address.module:550
+msgid "Nepal"
+msgstr "Népal"
+
+#: address.module:551
+msgid "Nauru"
+msgstr "Nauru"
+
+#: address.module:552
+msgid "Niue"
+msgstr "Niue"
+
+#: address.module:553
+msgid "New Zealand"
+msgstr "Nouvelle-Zélande"
+
+#: address.module:554
+msgid "Oman"
+msgstr "Oman"
+
+#: address.module:555
+msgid "Panama"
+msgstr "Panama"
+
+#: address.module:556
+msgid "Peru"
+msgstr "Pérou"
+
+#: address.module:557
+msgid "French Polynesia"
+msgstr "Polynésie Française"
+
+#: address.module:558
+msgid "Papua New Guinea"
+msgstr "Papouasie-Nouvelle-Guinée"
+
+#: address.module:559
+msgid "Philippines"
+msgstr "Philippines"
+
+#: address.module:560
+msgid "Pakistan"
+msgstr "Pakistan"
+
+#: address.module:561
+msgid "Poland"
+msgstr "Pologne"
+
+#: address.module:562
+msgid "Saint-Pierre and Miquelon"
+msgstr "Saint-Pierre et Miquelon"
+
+#: address.module:563
+msgid "Pitcairn Islands"
+msgstr "Pitcairn"
+
+#: address.module:564
+msgid "Puerto Rico"
+msgstr "Porto Rico"
+
+#: address.module:565
+msgid "Palestinian Territories (West Bank and Gaza Strip)"
+msgstr "Territoires Palestiniens"
+
+#: address.module:566
+msgid "Portugal"
+msgstr "Portugal"
+
+#: address.module:567
+msgid "Palau"
+msgstr "Belau"
+
+#: address.module:568
+msgid "Paraguay"
+msgstr "Paraguay"
+
+#: address.module:569
+msgid "Qatar"
+msgstr "Qatar"
+
+#: address.module:570
+msgid "Reunion"
+msgstr "Ile de la Réunion"
+
+#: address.module:571
+msgid "Romania"
+msgstr "Roumanie"
+
+#: address.module:572
+msgid "Russia"
+msgstr "Russie"
+
+#: address.module:573
+msgid "Rwanda"
+msgstr "Rwanda"
+
+#: address.module:574
+msgid "Saudi Arabia"
+msgstr "Arabie Saoudite"
+
+#: address.module:575
+msgid "Solomon Islands"
+msgstr "Îles Salomon"
+
+#: address.module:576
+msgid "Seychelles"
+msgstr "Seychelles"
+
+#: address.module:577
+msgid "Sudan"
+msgstr "Soudan"
+
+#: address.module:578
+msgid "Sweden"
+msgstr "Suède"
+
+#: address.module:579
+msgid "Singapore"
+msgstr "Singapour"
+
+#: address.module:580
+msgid "Saint Helena"
+msgstr "Sainte-Hélène"
+
+#: address.module:581
+msgid "Slovenia"
+msgstr "Slovénie"
+
+#: address.module:582
+msgid "Svalbard and Jan Mayen Islands"
+msgstr "Îles Svalbard et Jan Mayen"
+
+#: address.module:583
+msgid "Slovakia"
+msgstr "Slovaquie"
+
+#: address.module:584
+msgid "Sierra Leone"
+msgstr "Sierra Leone"
+
+#: address.module:585
+msgid "San Marino"
+msgstr "Saint-Marin"
+
+#: address.module:586
+msgid "Senegal"
+msgstr "Sénégal"
+
+#: address.module:587
+msgid "Somalia"
+msgstr "Somalie"
+
+#: address.module:588
+msgid "Suriname"
+msgstr "Surinam"
+
+#: address.module:589
+msgid "Sao Tome and Principe"
+msgstr "Sao-Tomé-et-Principe"
+
+#: address.module:590
+msgid "El Salvador"
+msgstr "Salvador"
+
+#: address.module:591
+msgid "Syria"
+msgstr "Syrie"
+
+#: address.module:592
+msgid "Swaziland"
+msgstr "Swaziland"
+
+#: address.module:593
+msgid "Turks and Caicos Islands"
+msgstr "Îles Turques et Caïques"
+
+#: address.module:594
+msgid "Chad (Tchad)"
+msgstr "Tchad"
+
+#: address.module:595
+msgid "French Southern Territories"
+msgstr "Terres australes et antarctiques françaises"
+
+#: address.module:596
+msgid "Togo"
+msgstr "Togo"
+
+#: address.module:597
+msgid "Thailand"
+msgstr "Thaïlande"
+
+#: address.module:598
+msgid "Tajikistan"
+msgstr "Tadjikistan"
+
+#: address.module:599
+msgid "Tokelau"
+msgstr "Tokelau"
+
+#: address.module:600
+msgid "Timor-Leste (East Timor)"
+msgstr "Timor oriental"
+
+#: address.module:601
+msgid "Turkmenistan"
+msgstr "Turkménistan"
+
+#: address.module:602
+msgid "Tunisia"
+msgstr "Tunisie"
+
+#: address.module:603
+msgid "Tonga"
+msgstr "Tonga"
+
+#: address.module:604
+msgid "Turkey"
+msgstr "Turquie"
+
+#: address.module:605
+msgid "Trinidad and Tobago"
+msgstr "Trinité-et-Tobago"
+
+#: address.module:606
+msgid "Tuvalu"
+msgstr "Tuvalu"
+
+#: address.module:607
+msgid "Taiwan"
+msgstr "Taïwan"
+
+#: address.module:608
+msgid "Tanzania"
+msgstr "Tanzanie"
+
+#: address.module:609
+msgid "Ukraine"
+msgstr "Ukraine"
+
+#: address.module:610
+msgid "Uganda"
+msgstr "Ouganda"
+
+#: address.module:611
+msgid "United Kingdom"
+msgstr "Royaume Uni"
+
+#: address.module:612
+msgid "United States Minor Outlying Islands"
+msgstr "Îles extérieures des États-Unis"
+
+#: address.module:613
+msgid "United States"
+msgstr "Etats Unis d'Amérique (USA)"
+
+#: address.module:614
+msgid "Uruguay"
+msgstr "Uruguay"
+
+#: address.module:615
+msgid "Uzbekistan"
+msgstr "Ouzbékistan"
+
+#: address.module:616
+msgid "Vatican City"
+msgstr "Vatican"
+
+#: address.module:617
+msgid "Saint Vincent and the Grenadines"
+msgstr "Saint-Vincent-et-les Grenadines"
+
+#: address.module:618
+msgid "Venezuela"
+msgstr "Venezuela"
+
+#: address.module:619
+msgid "British Virgin Islands"
+msgstr "Îles Vierges britanniques"
+
+#: address.module:620
+msgid "U.S. Virgin Islands"
+msgstr "Îles Vierges des États-Unis"
+
+#: address.module:621
+msgid "Vietnam"
+msgstr "Vietnam"
+
+#: address.module:622
+msgid "Vanuatu"
+msgstr "Vanuatu"
+
+#: address.module:623
+msgid "Wallis and Futuna"
+msgstr "Wallis et Futuna"
+
+#: address.module:624
+msgid "Samoa"
+msgstr "Samoa occidentales"
+
+#: address.module:625
+msgid "Yemen"
+msgstr "Yémen"
+
+#: address.module:626
+msgid "Mayotte"
+msgstr "Mayotte"
+
+#: address.module:627
+msgid "South Africa"
+msgstr "Afrique du Sud"
+
+#: address.module:628
+msgid "Zambia"
+msgstr "Zambie"
+
+#: address.module:629
+msgid "Zimbabwe"
+msgstr "Zimbabwe"
+
+#: address.module:701
+msgid "Outside U.S."
+msgstr "Hors USA"
+

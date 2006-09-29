@@ -1,0 +1,97 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: exact module
+Author: Matt Westgate <drupal at asitis dot org>
+********************************************************************
+INSTALLATION:
+
+To use this module and process credit card transactions with E-Xact
+you will need a merchant account from your bank and an account with
+E-Xact Transactions.  Please go to http://www.e-xact.com for more
+details
+
+INSTALLING SOAP
+
+This module uses the PEAR SOAP library to submit transactions to the
+payment gateway. You must have PEAR SOAP installed.
+
+http://pear.php.net/package/SOAP/
+
+If when submitting transactions you get the following error:
+
+*************
+warning: exact_process(SOAP/Client.php): failed to open stream: No such file or directory in exact.module on line 217.
+warning: exact_process(): Failed opening 'error' for inclusion (include_path='.:') in exact.module on line 217.
+
+Fatal error: Cannot instantiate non-existent class: soap_wsdl in exact.module on line 218
+*************
+
+Then you have the wrong path to your SOAP library or it isn't installed. If you
+need to install PEAR, go here:
+
+http://pear.php.net/manual/en/installation.php
+http://builder.com.com/5100-6371-5163311.html
+
+And if you need to install SOAP, go here:
+http://www.onlamp.com/pub/a/php/2003/07/03/php_amazon_soap.html
+(you may need to run 'pear install SOAP-beta')
+
+
+1. Place the entire exact directory into your Drupal
+   modules/ecommerce/ directory.
+
+2. Load the database definition file (exact.mysql) using the
+   tool of your choice (e.g. phpmyadmin). For mysql and command line
+   access use:
+
+     mysql -u user -p drupal < exact.mysql
+
+   Replace 'user' with the MySQL username, and 'drupal' with the
+   database being used.
+
+3. Enable this module by navigating to:
+
+     administer > modules
+
+4. Configure this module by navigating to:
+
+     administer > settings > exact
+
+5. You site must have SSL enabled in order to process payments. Open
+   your sites/*/setting.php file and below the $base_url line add the
+   following:
+
+if ($_SERVER['HTTPS']) {
+  $base_url = str_replace('http://', 'https://', $base_url);
+}
+
+6. You may need to create symlinks from you ssl directory to the
+   drupal files files located in the public_html section. Here's
+   what I did:
+
+%cd ~/public_ssl/
+%ln -s ~/public_html/index.php index.php
+%ln -s ~/public_html/includes/ includes
+%ln -s ~/public_html/modules/ modules
+%ln -s ~/public_html/sites/ sites
+%ln -s ~/public_html/files/ files
+%ln -s ~/public_html/misc/ misc
+%ln -s ~/public_html/themes/ themes
+%ln -s ~/public_html/xmlrpc.php xmlrpc.php
+%cp ~/public_html/.htaccess .htaccess
+
+7. You should now be able to navigate your Drupal site by going to
+   either: http://www.example.com or https://www.example.com
+
+
+During a transaction, if after you click 'Place your order' you get the
+following error:
+
+'Unable to retrieve WSDL https://secure2.e-xact.com/vpos/process/vpos.asmx?wsdl'
+
+Try using the local copy of the WSDL file. Go to:
+
+   administer > settings > exact_process
+
+and enter 'modules/ecommerce/contrib/exact/e-xact.wsdl' as the WSDL URL.

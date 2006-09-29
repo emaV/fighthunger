@@ -1,0 +1,159 @@
+<?php
+// $Id: parcel.module,v 1.18.2.3 2005/10/30 19:06:23 mathias Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation  of hook_help().
+ */
+function parcel_help($section = 'admin/help#parcel') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Create packages of ecommerce items. Dependency: product.module');
+
+    case 'admin/help#parcel':
+      return t("<p>This module provides a way for you to create a package of products. First, individually create the products and then create a product package and add those items. These actions can be done using any of the options under <a href=\"%node_add\">create content</a>.</p>", array('%node_add' => 'node/add'));
+  }
+}
+
+function parcel_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  switch ($op) {
+
+    /* Due to the way we have to build our node, we have to pass an array of values this module collects. */
+    case 'fields':
+      return array('mnid' => $node->mnid);
+      break;
+
+    case 'validate':
+      // is_null provides a mechanism for us to determine if this is the first viewing of the form.
+      if (!is_null($node->mnid)) {
+        if ($node->mnid == '') {
+          form_set_error('mnid', t('You must add at least one existing product to this group of products to sell.'));
+        }
+        elseif (!preg_match("/^[0-9,\s]+$/", $node->mnid)) {
+          form_set_error('mnid', t('Please enter only numeric values or commas in the product IDs field.'));
+        }
+      }
+      break;
+
+      case 'wizard_select':
+        return array('parcel' => t('collection of products'));
+
+
+    case 'in_stock':
+      $result = db_query('SELECT * FROM {ec_product_parcel} WHERE nid = %d', $node->nid);
+      while ($data = db_fetch_object($result)) {
+        $foo->nid = $data->mnid;
+        $product = product_load($foo);
+
+        /* With this approach, we can't have parcels within parcels! */
+        if ($product->ptype != 'parcel') {
+          if (module_invoke($product->ptype, 'productapi', $product, 'in_stock', $error)) {
+            return TRUE;
+          }
+        }
+      }
+      return FALSE;
+      break;
+
+    case 'is_shippable':
+      $result = db_query('SELECT * FROM {ec_product_parcel} WHERE nid = %d', $node->nid);
+      while ($data = db_fetch_object($result)) {
+        $foo->nid = $data->mnid;
+        $product = product_load($foo);
+
+        /* With this approach, we can't have parcels within parcels! */
+        if ($product->ptype != 'parcel') {
+          $bool = module_invoke($product->ptype, 'productapi', $product, 'is_shippable', $error);
+          if ($bool[0]) {
+            return array(true);
+          }
+        }
+      }
+      return array(false);
+
+    case 'on payment completion':
+      $nids = explode(',', $node->mnid);
+      foreach ($nids as $nid) {
+        $nid = trim($nid);
+
+        if (product_is_shippable($nid)) {
+          $foo->nid = $nid;
+          $product = product_load($foo);
+          $product->stock = $product->stock - 1;
+          module_invoke($product->ptype, 'productapi', $product, 'on payment completion', $error);
+        }
+      }
+      break;
+
+    case 'form':
+      $fields = form_textfield(t('Product IDs'), 'mnid', $node->mnid, 30, 128, t('Enter a comma separated list of product ids (nid) to add to this transaction. Here is a <a href="%product_quicklist" onclick="window.open(this.href, \'%product_quicklist\', \'width=480,height=480,scrollbars=yes,status=yes\'); return false">list of all products</a>.', array('%product_quicklist' => url('admin/store/products/quicklist'))));
+      return form_group(t('Products'), $fields);
+
+      /* Similar to node_load */
+    case 'load':
+      if (user_access('access content')) {
+        $result = db_query('SELECT * FROM {ec_product_parcel} WHERE nid = %d', $node->nid);
+        $p->mnid = null;
+        while ($data = db_fetch_object($result)) {
+          $p->mnid .= $data->mnid. ', ';
+        }
+        /* The load function expects an object or NULL to be returned */
+        if ($p->mnid) {
+          $p->mnid = substr($p->mnid, 0, -2);
+        }
+
+        return $p;
+      }
+      break;
+
+    case 'insert':
+      return parcel_save($node, 'insert');
+
+    case 'update':
+      return parcel_save($node, 'update');
+
+    case 'delete':
+      return db_query('DELETE FROM {ec_product_parcel} WHERE nid = %d', $node->nid);
+  }
+}
+
+function parcel_save($node, $mode) {
+  $nids = explode(',', $node->mnid);
+
+  if ($mode == 'update' && $nids) {
+    db_query('DELETE FROM {ec_product_parcel} WHERE nid = %d', $node->nid);
+  }
+
+  foreach ($nids as $nid) {
+    if ($nid = (trim($nid))) {
+      db_query('INSERT INTO {ec_product_parcel} (nid, mnid) VALUES (%d, %d)', $node->nid, $nid);
+    }
+  }
+}
+
+function theme_product_parcel_view($node, $teaser = 0, $page = 0) {
+  $price_string = '<div class="price"><strong>'. t('Price') .'</strong>: '. payment_format(product_adjust_price($node)). '</div>';
+  if ($node->is_recurring) {
+    $price_string .= '<div class="recurring-details">'. product_recurring_nice_string($node) . '<div>';
+  }
+  $node->teaser .= $price_string;
+  $node->body .= $price_string;
+
+  if (!$teaser) {
+    $nids = explode(',', $node->mnid);
+    foreach ($nids as $nid) {
+      $nid = trim($nid);
+      $title = db_result(db_query('SELECT title FROM {node} WHERE nid = %d', $nid));
+      $items[$title] = l($title, "node/$nid");
+    }
+    asort($items);
+    $node->body .= theme('item_list', $items, t('This product contains the following items'));
+  }
+
+  return $node;
+}
+?>

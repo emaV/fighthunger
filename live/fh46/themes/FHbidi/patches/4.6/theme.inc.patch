@@ -1,0 +1,21 @@
+--- theme.inc.orig	2005-08-17 23:03:28.000000000 +0300
++++ theme.inc	2005-12-25 22:44:03.149055896 +0200
+@@ -46,7 +46,7 @@
+  *   The name of the currently selected theme.
+  */
+ function init_theme() {
+-  global $user, $custom_theme, $theme_engine, $theme_key;
++  global $user, $custom_theme, $theme_engine, $theme_key, $locale;
+ 
+   $themes = list_themes();
+ 
+@@ -74,7 +74,8 @@
+   else {
+     // File is a template/theme
+     // Load its CSS, if it exists
+-    if (file_exists($stylesheet = dirname($themes[$theme]->filename) .'/style.css')) {
++    $ltr = in_array($locale, array('ar', 'fa', 'he', 'ur')) ? '' : '-ltr';
++    if (file_exists($stylesheet = dirname($themes[$theme]->filename) .'/style' .$ltr .'.css')) {
+       theme_add_style($stylesheet);
+     }
+   }

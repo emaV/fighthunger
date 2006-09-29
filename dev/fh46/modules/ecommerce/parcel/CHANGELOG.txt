@@ -1,0 +1,7 @@
+Parcel module
+
+Dec 14, 2004
+  * When viewing prodcuts of type 'parcel', list the items this collection is comprised of.
+
+Feb 17, 2004
+  * Initial release.

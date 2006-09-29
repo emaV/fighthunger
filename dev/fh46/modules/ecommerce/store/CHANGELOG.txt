@@ -1,0 +1,23 @@
+Store module
+
+Jan 14, 2005
+  * Allow admin and user's with 'administer store' permission to view the 'my files' page and order history of other users without needing to login as that user. Once the user id is know, the admin can navigate to store/myfiles/uid and store/history/uid respectively.
+
+Dec 15, 2004
+  * Ensure that a billing address is always present in the store transaction.
+
+Dec 14, 2004
+  * Remove the inclusion of the deprecated store macros file.
+  * Optimize the query that marks the workflow of non-shippable items complete per cron call.
+
+Dec 3, 2004
+  * Make sure every call to $node->price is properly wrapped in product_adjust_price($node)
+
+Feb 19, 2004
+  * Fixed a URI parsing bug that was creating bad links for some browsers
+
+Apr 21, 2004
+  * Only decrement item inventory for orders with a 'completed' payment status.
+
+Feb 17, 2004
+  * Initial release.

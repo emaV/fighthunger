@@ -1,0 +1,1101 @@
+<?
+
+/**
+ * @file
+ * Walk administration. Node type: walk, action, story.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function wtw_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Walk administration. Node type: walk, action, story.');
+  }
+}
+
+function wtw_validate(&$node){
+  if (empty($node->fname)){
+    form_set_error('fname','Please enter a first name.');
+  }
+  if (empty($node->lname)){
+    form_set_error('lname','Please enter a last name.');
+  }
+  if (empty($node->email) || (!valid_email_address($node->email))){
+    form_set_error('fname','Please enter a valid email address.');
+  }  
+}
+
+
+/*
+//old code for fixing echomailer/echoaction bug
+function wtw_fnord(){
+  $rs = db_query("SELECT * FROM echomailer_emails WHERE module=''");
+  while ($a = db_fetch_array($rs)){
+    $date = date("F j Y",$a['created']);
+    if ($date == "June 10 2005"){
+      $newmes = $a['message'];
+    } else {
+      $newmes = "[This message was originally sent to you on $date, but we were unable to deliver it to you until just now due to a technical error. We apologize for this delay. -- FightHunger.org]\n\n".$a['message'];
+    }
+    db_query("UPDATE echomailer_emails SET module='echo_action', message='%s' WHERE iid=%d",$newmes,$a['iid']);
+    db_query("UPDATE echomailer_queue SET status='unsent' WHERE iid=%d",$a['iid']);
+  }
+}
+*/
+
+
+function wtw_node_name($node){
+  return "walk action story";
+}
+
+function wtw_form(&$node,&$param){
+  $form  = form_textfield("email address","email",$node->email,40,50,NULL,NULL,true);
+  $form .= form_textfield("first name","fname",$node->fname,40,50,NULL,NULL,true);
+  $form .= form_textfield("last name","lname",$node->lname,40,50,NULL,NULL,true);
+  $form .= form_textarea("story","body",$node->body,40,10,NULL,NULL,true);
+  $form .= form_textfield("tags","tags",$node->tags,40,50,"Enter tags separated by commas.");
+//  $form .= form_checkbox("approved","approved",1,$node->approved)."<br/>";
+  return $form;
+}
+
+function wtw_access($op,$node){
+  return user_access("administer nodes");
+}
+
+function wtw_insert($node){
+  // add leading and trailing commas to tags
+  $tags = explode(",",$node->tags);
+  $node->tags = ",".implode(",",$tags).",";
+
+  db_query("REPLACE INTO wtw_story SET nid=%d,email='%s',tags='%s',fname='%s',lname='%s'",$node->nid,$node->email,$node->tags,$node->fname,$node->lname);
+}
+
+function wtw_update($node){
+  wtw_insert($node);
+}
+
+function wtw_load($node){
+  $rs = db_query("SELECT email,fname,lname,tags FROM wtw_story WHERE nid=%d",$node->nid);
+  $out = db_fetch_object($rs);
+
+  // removing leading and trailing commas
+  $tags = explode(",",$out->tags);
+  foreach($tags as $tag){
+    if (!empty($tag)){
+      $newtags[] = $tag;
+    }
+  }
+  $out->tags = implode(",",$newtags);
+  
+  return $out;
+}
+
+function wtw_init(){
+global $custom_theme;
+  
+/*
+// stylesheets
+// disabled for themeswitcher.module
+  $q = $_GET['q'];
+
+  if ($q == "home") {
+    theme_add_style('themes/walktheme/style_frontpage.css');  
+  } elseif ( preg_match('/^everest/', $q) || 
+             preg_match('/^everest/', drupal_get_path_alias($q)) ) {
+    $custom_theme = "FHeverest";
+  } elseif ((arg(0) != "admin") && (arg(0) != "civicrm")) {
+    theme_add_style('themes/walktheme/style_subpage.css');    
+  } else {
+    $custom_theme = "box_grey";
+  }
+*/
+
+  // disable "/node"
+  if ($_GET['q'] == "node"){
+    drupal_goto("blog");
+  }
+  
+  // splash if no cookie-- currently gathering data
+/*
+  if (is_null($_COOKIE['walk_the_world'])){
+    watchdog("wtw_nocookie","User with no cookie.");
+  }
+  */
+  
+  // extra menu link
+  global $user;
+  global $extralink;
+  if ($user->uid == 0){
+    $extralink = l("log in","login");
+  } else {
+    $extralink = l("loc out","logout");
+  }
+  
+  // load screen resolution javascript
+/*
+  $js = '<script language="JavaScript">
+document.write(\'<img width="1" height="1" src="/log_analysis_screen_info.gif?\' +
+ \'width=\' + screen.width + \'&height=\' + screen.height + \'&depth=\' + screen.colorDepth + \'">\n\');</script>';
+  drupal_set_html_head($js);
+  */
+  
+  // load YQ javascript
+  if ($_GET['q'] == "faq"){
+    drupal_set_html_head('<script language="javascript" type="text/javascript" src="http://yq.search.yahoo.com/javascript/yq.js"></script>');
+  }
+}
+
+/*
+// deactivated after 6/12
+function wtw_cron(){
+  $q = "SELECT * FROM wtw_walk WHERE sent = 0 AND created < %d AND source='splash'";
+  $delay = variable_get("wtw_virt_delay",120) * 60; // variable is in mins, convert to secs
+  $threshold = time()  - $delay;
+  $rs = db_query($q,$threshold);
+  $subject = variable_get("wtw_virt_suj","");
+  $bodyvar = variable_get("wtw_virt_body","");
+  $body = str_replace("%home_link",url("home",NULL,NULL,TRUE),$bodyvar);
+  while ($w = db_fetch_array($rs)){
+    unset($u);
+    $u = user_load(array("mail"=>$w['mail']));
+    if (empty($u)){
+      $sentto[] = $w['mail'];
+      $frommail = variable_get("site_mail",""); 
+      $headers = "From: $frommail\nReply-to: $frommail";
+      user_mail($w['mail'],$subject,$body,$headers);
+      db_query("UPDATE wtw_walk SET sent=1 WHERE id=%d",$w['id']);
+    }
+  }
+  if (!empty($sentto)){
+    watchdog("wtw","Sent reminder to ".count($sentto)." inactive virtual walkers: ".implode(", ",$sentto));
+  }
+}
+*/
+
+function wtw_cron(){
+  // count walkers
+  $query = "SELECT COUNT(mail) 
+            FROM wtw_walk";
+  $walkers = mysql_result(db_query($query), 0);
+  variable_set("walkers",$walkers);  
+}
+
+function wtw_footer(){
+  if (isset($_GET['template'])){
+    phptemplate_templates("themes/walktheme");
+  }
+}
+
+function wtw_perm(){
+  return array("view tabs","edit own civicrm data");
+}
+
+function wtw_block($op="list",$delta=0){
+  if ($op=="list"){
+    $blocks[0]['info'] = "wtw user status block";
+    $blocks[1]['info'] = "wtw press section downloads";
+    $blocks[2]['info'] = "wtw donate button";
+    $blocks[3]['info'] = "wtw tell-a-friend button";
+    $blocks[4]['info'] = "wtw share button";
+    $blocks[5]['info'] = "wtw country event list";
+    $blocks[6]['info'] = "wtw video watch button";
+    $blocks[7]['info'] = "wtw photo button";
+    return $blocks;
+  } else {
+    switch ($delta){
+      case 0:
+        return wtw_block_status();
+        break;
+      case 1:
+        return wtw_block_press();
+        break;
+      case 2:
+        return wtw_block_donate();
+        break;
+      case 3:
+        return wtw_block_taf();
+        break;
+      case 4:
+        return wtw_block_share();
+        break;
+      case 5:
+        return wtw_block_country();
+        break;
+      case 6:
+        return wtw_block_video();
+        break;
+      case 7:
+        return wtw_block_wtw05();
+        break;
+    }
+  }
+}
+
+function wtw_block_wtw05(){
+  $block['content'] = "<a href='wtw05'><img src='themes/walktheme/images/btn_photo.png' height='42' width='226' vspace='5' /></a>";
+  return $block;
+}
+
+function wtw_block_video(){
+  $block['content'] = "<a href='video'><img src='misc/btn_watch.png' height='42' width='226' vspace='5' /></a>";
+  return $block;
+}
+
+function wtw_block_country(){
+  global $_country;
+  if (!($_country)){
+    $block = false; 
+  } else {
+    $rs = db_query("SELECT nid FROM echo_action_node WHERE country='%s'",$_country['cc']);
+    while ($a = db_fetch_array($rs)){
+      $action = node_load(array("nid"=>$a['nid']));
+      $name = wtw_parse_location($action);
+      $actions[$name] = $action;
+    }
+    
+    ksort($actions);
+    
+    foreach ($actions as $name=>$node){
+      $list[] = l($name,"node/".$node->nid);
+    }
+    
+    $c = count($list);
+    $pre = "<em>See and share photos and stories from some of the $c events in ".$_country['cname'].":</em>";
+    
+    $block['subject'] = $_country['cname']." walks";  
+    $block['content'] = $pre . theme("item_list",$list);
+  }
+  return $block;
+}
+
+function wtw_block_share(){
+  global $action_page_node;
+  if (variable_get("wtw_over",0) && (arg(0) != "country") && (!$action_page_node)){
+    $block['content'] = "<a href='share'><img src='misc/btn_share.png' height='42' width='226' /></a>";
+  } else {
+    $block = false;
+  }
+  return $block;
+}
+
+
+function wtw_block_donate(){
+  $block['content'] = "<a href='http://www.wfp.org/walktheworld' target='_new'><img src='modules/wtw_bat/contribute.png' height='42' width='226' vspace='5' /></a>";
+  return $block;
+}
+
+function wtw_block_taf(){
+  $q = $_GET['q'];
+  global $action_page_node;
+  if (is_null($action_page_node) && !(variable_get("wtw_over",0))){
+    $block['content'] = "<a href='invite'><img src='themes/walktheme/images/btn_taf.png' height='42' width='226' /></a>";
+  } else {
+    $block = false;
+  }
+  return $block;
+}
+
+function wtw_block_press(){
+  if ($_GET['q'] == "node/51"){
+    $block['subject'] = "Press Downloads";
+    $block['content'] = variable_get("wtw_block_press","");
+
+    if (user_access("administer modules")){
+      $block['content'] .= "<br/><br/>".l('michael, edit this here','admin/settings/wtw');
+    }
+
+    return $block;
+  } else {
+    return false;
+  }
+}
+
+function wtw_block_status(){
+  global $user;
+  if ($user->uid != 0){
+    $out = "You are logged in as <b>".$user->mail."</b>.";
+    $status = db_result(db_query("SELECT status FROM {echoconfirm_user} WHERE uid=%d",$user->uid));
+    switch ($status){
+      case 'pending':
+        break;      
+      case 'sent':
+//        $out .= "<br/><em>Please confirm your account! Use the link we've emailed you. You can ".l("click here to re-send the link","confirm/send/".$user->uid).".</em>";
+        break;      
+      case 'confirmed':
+        $out .= "<br/><em>Your account is not secured. Please ".l("set a password","confirm/password").".</em>";
+        break;      
+      case 'secured':
+        break;      
+    }
+  }
+  $block['subject'] = "";
+  $block['content'] = $out;
+  return $block;
+}
+
+function wtw_mywalk($uid=NULL){
+  $current = echo_action_get_current_signup($uid);
+  if (count($current['actions']) == 1){
+    $a = $current['actions'][0];
+    drupal_goto("node/".$a->nid);
+  } else {
+    drupal_goto("home");
+  }
+}
+
+function wtw_share(){
+  $out = "<p>Did you Walk The World on June 12?</p>
+
+<p>You can share your photos and stories with the world.</p>
+
+<p>To find your event, select your country from this pulldown menu:</p>";
+
+  $out .= wtw_over_countrysearch();
+  
+//  $out .= "<p>Alternately, you can share photos by emailing them to <a href='mailto:photos@fighthunger.org'>photos@fighthunger.org</a>.</p>";
+
+  $title = "Share your photos and stories";
+  print theme("page",$out,$title);
+}
+
+function wtw_donate(){
+  header("Location: http://www.wfp.org/walktheworld");
+}
+
+function wtw_click(){
+//  $oldclicks = variable_get("clicks",0);
+//  variable_set("clicks",$oldclicks + 1);
+  wtw_add_click();
+  drupal_goto("invite");
+//  wtw_signup_page("click");
+}
+
+function wtw_contactedit(){
+  global $user;
+  drupal_goto('user/'.$user->uid.'/edit/Contact%20Information');
+}
+
+function wtw_menu($mc){
+  if ($mc){    
+  } else {
+    global $user;
+    $items[] = array(
+      'path'        => 'contactedit',
+      'type'        => MENU_NORMAL_ITEM,
+      'title'       => t('edit my contact information'),
+      'access'      => user_access('edit own civicrm data'),
+      'callback'    => 'wtw_contactedit'
+    );
+    $items[] = array(
+      'path'        => 'click',
+      'callback'    => 'wtw_click',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'        => 'share',
+      'callback'    => 'wtw_share',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'        => 'virtual',
+      'callback'    => 'wtw_splash',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'        => 'mywalk',
+      'callback'    => 'wtw_mywalk',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'        => 'virtual/signup',
+      'callback'    => 'wtw_splash_signup',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'        => 'front',
+      'callback'    => 'wtw_front',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'        => 'home',
+      'callback'    => 'wtw_autumn',
+//      'callback'    => 'wtw_home',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'        => 'wtw05old',
+      'callback'    => 'wtw_home',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+/*
+    // removed to make this uri available for wtwinvite.module
+    $items[] = array(
+      'path'        => 'invite',
+      'callback'    => 'wtw_invite',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    */
+    $items[] = array(
+      'path'        => 'country',
+      'callback'    => 'wtw_over_country',
+      'access'      => 'true',
+      'type'        => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'        => 'admin/over',
+      'title'       => 'administer walkers\' stories',
+      'callback'    => 'wtw_over_admin',
+      'access'      => user_access("administer nodes"),
+      'type'        => MENU_NORMAL
+    );
+  }
+  return $items;
+}
+
+function wtw_over_admin(){
+  $out = wtw_over_stories("admin",NULL,"All Stories");
+  print theme("page",$out);
+}
+
+function wtw_cookie($param=NULL){
+  $wtw_cookie = unserialize($_COOKIE['walk_the_world']);
+
+  if (is_null($wtw_cookie)){
+    return array();
+  } elseif (is_null($param)){
+    return $wtw_cookie;
+  } else {
+    return $wtw_cookie[$param];
+  }
+}
+
+function wtw_cookie_set($param,$value){
+  $wtw_cookie = wtw_cookie();
+
+  $wtw_cookie[$param] = $value;
+  $expire = time()+60*60*24*90;  // expire in 90 days
+  setcookie("walk_the_world",serialize($wtw_cookie),$expire,"/");  
+}
+
+function wtw_front(){
+/*
+// handle cookie logic, then call wtw_home or wtw_splash
+  $cookie_data = wtw_cookie();
+  if (empty($cookie_data)){
+    wtw_splash();
+  } else {
+//    wtw_home();
+    drupal_goto("home");
+  }*/
+  drupal_goto("home");
+}
+
+function wtw_home(){
+  wtw_trans_set(2);
+
+  global $user;
+  if (variable_get("wtw_over",0)){
+    $body = wtw_over_home();
+  } else {  
+    $current = echo_action_get_current_signup();
+    if ($current){
+      $form = '<h2 class="content-title">Welcome, ' . $user->profile_firstname . '</h2>';
+      $form .= wtw_current($current);
+    } else {
+      $form = '<h2 class="content-title">fight hunger: find a walk near you</h2>
+  <p>Take a step to end child hunger by walking the world with us on <strong>12 June 2005</strong>.
+  In 24 hours and in 24 time-zones, join us to raise the funds and awareness we need to end child hunger.</p>';
+      $form .= wtw_search_form();
+    }
+    $vals['form'] = $form;
+    $body = _phptemplate_callback("home",$vals);
+  }
+  
+  print theme("page",$body,"");
+}
+
+function wtw_over_home(){
+/*
+  $out  = "<h2>Fight Hunger: Walk the World 2005 - Success!</h2>";
+  $out .= "<p>On 12 June, more than 200,000 people made history in the global fight to end child hunger. We joined together to Walk the World in 266 cities, 87 countries, and all 24 time zones.</p>";
+  $out .= "<p>Here are our photos and our stories.<p>";
+*/
+
+  $out .= variable_get("wtw_over_homecopy","");  
+  $out .= wtw_over_countrysearch();
+  
+  $out .= wtw_over_gallery("bestof");
+  
+  $caption = "Here's what walkers across the world have to say.";
+  $out .= wtw_over_stories("home","bestof",$caption);
+  
+  return $out;
+}
+
+function wtw_over_countrysearch(){
+  $c = wtw_get_c();
+  $countries = wtw_over_getcountries();
+  $onchange = 'onchange="submit()"';  
+  $form = form_select(t("Choose country"),"c",$c,$countries,NULL,$onchange);
+  // prepare to cringe- this is ugly logic to but the button on the same line as the pulldown
+  // (drupal needs wayy better form abstraction)
+  $form = str_replace("</dd>\n</dl>","",$form);
+  $form .= form_button("go",NULL,"image",array("src"=>"misc/btn_go.png","id"=>"btn_go","align"=>"right"));
+  $form .= "</dd></dl>";
+
+  $out = form($form,"POST","country");
+  
+  return $out;
+}
+
+function wtw_over_getcountries(){
+  $q = "SELECT ean.country,c.name FROM echo_action_node ean, countries c WHERE c.ccid = ean.country GROUP BY ean.country ORDER BY c.name";
+  $rs = db_query($q);
+  $out['--'] = "(Pick a country to see photos and stories.)";
+  while ($a = db_fetch_array($rs)){
+    $out[$a['country']] = ucwords(strtolower($a['name']));
+  }
+  return $out;
+}
+
+function wtw_over_gallery($tag,$instructions=NULL){
+  $flash = !(isset($_GET['noflash']));
+  $out .= echo_slideshow_slideshow($tag,$instructions,$flash);
+  return $out;
+}
+
+function wtw_over_stories($mode,$tag=NULL,$caption="",$node=NULL){
+  if (isset($_GET['noflash'])){
+    return "";
+  } else {
+    if ($mode == "admin"){
+      $rs = db_query("SELECT n.nid FROM wtw_story s, node n WHERE n.nid = s.nid ORDER BY n.created DESC");    
+    } else {
+      $rs = db_query("SELECT n.nid FROM wtw_story s, node n WHERE n.nid = s.nid AND tags LIKE '%%,%s,%%' ORDER BY n.created DESC",$tag);
+      $out .= "<h2>Stories</h2>";
+    }
+    while ($a = db_fetch_array($rs)){
+      $story = node_load(array("nid"=>$a['nid']));
+      $stories[] = $story;
+    }
+  
+    if (count($stories) == 0){
+      switch($mode){
+        case 'node':
+  //          var_dump($node);
+          $out .= "<i>There are no stories from this event.</i>";
+          break;
+        case 'home':
+//          $out .= "<i>No stories yet. If you attended a walk, <a href='share'>click here to add a story or comment</a>.</i>";
+          break;
+        case 'country':
+          $out .= "<i>There are no stories from this country.</i>";
+//          $out .= "<i>No stories yet for this country. If you attended a walk, click on one of the events to the right to share a story or comment.</i>";        
+          break;
+      }
+    } else {
+      $out .= "<p><i>$caption</i></p>\n";
+      foreach ($stories as $node){
+        $out .= "<div class='ea_story'>\n";
+        if (!empty($node->body)){
+          $out .= "<p>".nl2br(strip_tags($node->body))."</p>\n";
+  
+          // find event data
+          $tags = explode(",",$node->tags);
+          foreach($tags as $tag){
+            if (substr($tag,0,1) == "a"){
+              $aid = substr($tag,1);
+            }
+          }
+          $action = node_load(array("nid"=>$aid));
+          switch ($mode){
+            case 'admin':
+              $sig = substr(strip_tags($node->fname),0,1).". ".strip_tags($node->lname)."<br/>".$node->email."<br/>";
+              $sig .= l(wtw_parse_location($action,true),"node/".$action->nid);
+              break;
+            case 'node':
+              $sig = substr(strip_tags($node->fname),0,1).". ".strip_tags($node->lname);
+              break;
+            case 'home':
+              $sig = substr(strip_tags($node->fname),0,1).". ".strip_tags($node->lname) ." in ".l(wtw_countryname($action->country),"node/".$action->nid);
+              break;
+            case 'country':
+              $sig = substr(strip_tags($node->fname),0,1).". ".strip_tags($node->lname) ." in ".l(wtw_parse_location($action),"node/".$action->nid);
+              break;
+          }        
+          $out .= "<p align='right'>- $sig</p>\n";
+  
+          if (node_access("update",$node)){
+            $out .= "<p align='right'><small>tags:".$node->tags."&nbsp;|&nbsp;nid:".$node->nid;
+            $out .= "&nbsp;|&nbsp;".l("edit","node/".$node->nid."/edit")."</small></p>\n";
+          }
+        }
+        $out .= "</div>";
+      }
+    }
+    
+    $out .= theme("pager");
+    
+    return $out;
+  } 
+}
+
+function wtw_over_country($cc=NULL){
+  if (is_null($cc)){
+    $cc = $_POST['edit']['c'];
+    if (empty($cc)){
+      drupal_goto("home");
+    } else {
+      drupal_goto("country/".strtolower($cc));
+    }  
+  }
+  
+  $acount = db_result(db_query("SELECT count(*) FROM echo_action_node WHERE country='%s'",$cc));
+  if ($acount == 1){
+    $nid = db_result(db_query("SELECT nid FROM echo_action_node WHERE country='%s'",$cc));
+    drupal_goto("node/".$nid);
+  }
+
+  $cname = wtw_countryname($cc);
+
+  // set global for wtw_block_country
+  global $_country;
+  $_country['cc'] = $cc;
+  $_country['cname'] = $cname;
+  
+  $tag = "c".strtoupper($cc);
+
+  $i = "You can share your photos by clicking on one of the events listed to the right, or by emailing them to <a href=\"mailto:photos@fighthunger.org\">photos@fighthunger.org</a>.";
+  
+  $out  = "<p>On 12 June '05, more than 200,000 people made history in the global fight to end child hunger. In addition to raising 1.2 million Euros - feeding over 70,000 children - we joined together to Walk the World in 266 cities, 91 countries, and all 24 time zones. <a href='signup06'>Sign up now to walk in 2006!</a></p>";
+  $out .= "<p>Check out the photos and stories from one of the $acount events in $cname-- and add your own:</p>";
+  $out .= wtw_over_gallery($tag,$i);
+  $caption = "Here's what walkers across $cname had to say.";
+  $out .= wtw_over_stories("country",$tag,$caption);
+  
+  print theme("page",$out,$cname);
+}
+
+function wtw_current($current){
+  switch ($current['role']){
+    case 'attendee':
+      $verb = "attending";
+      break;
+    case 'volunteer':
+      $verb = "volunteering with";
+      break;
+    case 'coordinator':
+      $verb = "coordinating";
+      break;
+  }
+  
+  if (count($current['actions']) == 1){
+    $a = array_pop($current['actions']);
+    $out = "<p>You are $verb ".$a->title." in ".wtw_parse_location($a,true).".</p>";
+    $out .= "<p>".l("Visit your event page","node/".$a->nid);
+    $out .= " to download materials, update your event details, and invite others to join you.</p>";
+  } else {
+    $out = "<p>You are ".$verb." the following events:</p>";
+    foreach ($current['actions'] as $a){
+      $actions[] = l(wtw_parse_location($a,true),"node/".$a->nid);
+    }
+    $out .= theme("item_list",$actions);
+    $out .= "<p>Visit each event to download materials, update your event details, and invite others to join you.</p>";
+  }
+  return $out;
+}
+
+function wtw_parse_location($action,$showcountry=false){
+  $out = $action->city;
+  if (isset($action->state) && $action->country == 'US'){
+    $out .= ", ".$action->state;
+  }
+  if ($showcountry){
+    $out .= ", ".wtw_countryname($action->country);
+  }
+  return $out;
+}
+
+function wtw_countryname($in){
+  $in = strtoupper($in);
+
+  static $countries;
+  if (empty($countries)){
+    $rs = db_query("SELECT ccid,name FROM countries");
+    while ($c = db_fetch_array($rs)){
+      $countries[$c['ccid']] = $c['name'];
+    }
+  }
+
+  $out = ucwords(strtolower($countries[$in]));
+  return $out;
+}
+
+function wtw_splash(){
+  if (arg(1) == "F1"){
+    watchdog('wtw','Redirect from WTW-splash to F1');
+    drupal_goto("F1");
+  }
+
+  global $trans;
+  $trans = 1;
+  
+  watchdog("wtw_splash","Viewing the splash page");
+
+  // set cookie
+  $cookie_data = array(
+    'walked'  => false
+  );
+  $expire = time()+60*60*24*90;  // expire in 90 days
+  setcookie("walk_the_world",serialize($cookie_data),$expire,"/");
+
+  // build and display splash page
+  $vals = array(
+    'form'    => wtw_splash_form()
+  );
+  $out = _phptemplate_callback("splash",$vals);
+  print $out;
+}
+
+function wtw_splash_form(){
+  $c = wtw_get_c();
+  $countries = echo_action_get_countries();
+  
+  $form .= form_textfield(t("My Email Address"),"mail","",30,50);
+  $form .= form_select(t("My Home Country"),"c",$c,$countries,NULL,$onchange);
+  $form .= form_checkbox(t("I don't want to get any further information."),"optout");
+  $form .= '
+<input type="image" src="themes/walktheme/images/splash_btn_horiz.gif" name="op" value="submit" alt="submit" id="splash-submit" />
+  ';
+
+  $out = form($form,"POST","virtual/signup");
+
+  return $out;
+}
+
+function wtw_splash_signup(){
+  $edit = $_POST['edit'];
+  watchdog("wtw_signup",$edit['mail']." signed up as a virtual walker");
+  
+  // insert into db
+  $q = "INSERT IGNORE INTO {wtw_walk} SET mail='%s',country='%s',optout=%d,created=%d";
+  db_query($q,$edit['mail'],$edit['c'],$edit['optout'],time());
+  
+  // set cookie
+  $cookie_data = array(
+    'walked'  => true,
+    'mail'    => $edit['mail'],
+    'country' => $edit['c']
+  );
+  $expire = time()+60*60*24*90;  // expire in 90 days
+  setcookie("walk_the_world",serialize($cookie_data),$expire,"/");
+  
+  // direct to homepage
+  drupal_goto("home");
+}
+
+function wtw_confirmapi($op,$flag,$msg=NULL,$uid=NULL,$link=NULL){
+  switch($op){
+    case 'list':
+      return array('splash');
+      break;
+    case 'user_message':
+      return "";
+      break;
+    case 'delay':
+      // two hours
+      return (60 * 60 * 2);
+      break;
+    case 'email':
+      return array(
+        'subject' => variable_get("wtw_$flag_subject",false),
+        'body' => variable_get("wtw_$flag_body",false)
+      );
+    case 'replacevars':
+      return array(
+        '%virtual_link'   => url("virtual",NULL,NULL,TRUE),
+        '%home_link'      => url("home",NULL,NULL,TRUE)
+      );
+  }
+}
+
+function wtw_get_c(){
+  $c = $_GET['edit']['c'];
+  if (empty($c)){
+    $c = wtw_cookie('country');
+  }
+  if (empty($c)){
+    $c = _wtw_iptocountry();
+  }
+  if (empty($c)){
+    $c = "--";
+  }
+  return $c;
+}
+
+function wtw_search_form(){
+  $c = wtw_get_c();
+  $countries = echo_action_get_countries();
+  $onchange = 'onchange="submit()"';  
+  $form = form_select(t("Choose country"),"c",$c,$countries,NULL,$onchange);
+  $out = form($form,"GET");
+  
+  $create_uri = "action/create?c=".$c;
+  
+  $q = "SELECT * FROM {node} n, {echo_action_node} ean ".
+       "WHERE ean.nid = n.nid ".
+       "AND ean.country = '%s' ".
+       "ORDER BY ean.city ASC";
+  $rs = db_query($q,$c);
+
+  if (db_num_rows($rs) > 0){
+    while ($a = db_fetch_object($rs)){
+      $actions[] = wtw_parse_location($a).": ".l($a->title,"node/".$a->nid);
+    }
+    $out .= "<dl>";
+    $out .= "<dt>Events in your country:</dt>";
+    $out .= wtw_event_list($actions);
+    $out .= "</dl>";
+    $out .= "<div class='noevents'>Don't see one near you?</div>".l("<img src='themes/walktheme/images/event_create.png' alt='create your own event' width='79' height='80' class='event_create'>",$create_uri,array(),NULL,NULL,TRUE);
+  } else {
+    $out .= "<div class='noevents'>There are no events in your country yet.</div>".l("<img src='themes/walktheme/images/event_create.png' alt='create your own event' width='79' height='80' class='event_create'>",$create_uri,array(),NULL,NULL,TRUE);
+  }
+  
+  return $out;
+}
+
+function wtw_invite(){
+  $prepop = array(
+    'message'   => variable_get("home_cust",""),
+    'from'      => wtw_cookie("mail")
+  );
+  $msg = variable_get("wtw_invite_message","Can't walk on 12 June? Invite others to Walk the World!");
+  echomailer_page("wtw","Invite Others",$prepop,array(),$msg);
+}
+
+function wtw_settings(){
+  $out = form_checkbox("ACTIVATE POST-WALK GALLERY MODE","wtw_over",1,variable_get("wtw_over",0))."<br/><br/>";
+  $out .= form_textarea(t("Over-mode Frontpage copy"),"wtw_over_homecopy",variable_get("wtw_over_homecopy",""),40,10);
+
+  $form .= form_textarea(t("Prepopulated Message"),"home_cust",variable_get("home_cust",""),40,10,"This message will pre-populate the 'message' field for homepage tell-a-friend.");
+  $form .= form_textfield(t("Email Subject"),"home_suj",variable_get("home_suj",""),30,150,"The email's subject line.");
+  $form .= form_textarea(t("Email Contents"),"home_em",variable_get("home_em",""),40,10,"This body of the email. Use these variables: %virtual_link, %home_link, %custom_text");
+  
+  $out .= form_group("Homepage Tell-A-Friend settings",$form);
+
+  $nform .= form_textfield(t("Email Subject"),"wtw_virt_suj",variable_get("wtw_virt_suj",""),30,150,"The email's subject line.");
+  $nform .= form_textarea(t("Email Contents"),"wtw_virt_body",variable_get("wtw_virt_body",""),40,10,"This body of the email. Use these variables: %home_link");
+  $nform .= form_textfield(t("Delay"),"wtw_virt_delay",variable_get("wtw_virt_delay",120),30,50,"In minutes.");
+  $out .= form_group("Virtual Walkers Notification",$nform);
+  
+  $lform .= form_textarea(t("English"),"wtw_faq_en",variable_get("wtw_faq_en",""),40,10);
+  $lform .= form_textarea(t("French"),"wtw_faq_fr",variable_get("wtw_faq_fr",""),40,10);
+  $lform .= form_textarea(t("Italian"),"wtw_faq_it",variable_get("wtw_faq_it",""),40,10);
+  $lform .= form_textarea(t("Spanish"),"wtw_faq_es",variable_get("wtw_faq_es",""),40,10);
+  $out .= form_group("FAQ",$lform);
+
+  $out .= form_textarea(t("HTML For Press Downloads Block"),"wtw_block_press",variable_get("wtw_block_press",""),40,10);
+
+  $out .= form_textarea(t("Invite others page text"),"wtw_invite_message",variable_get("wtw_invite_message",""),40,10);
+  
+  return $out;
+}
+
+function wtw_user($op, &$edit, &$user, $category = NULL) {
+//  $categories = array('Contact Information','team_up');
+  $categories = array('team_up');
+  switch ($op) {
+    case "logout":
+      // remove the cookie at logout
+      $cookie_data['walked'] = false;
+      $expire = time()+60*60*24*90;  // expire in 90 days
+      setcookie("walk_the_world",serialize($cookie_data),$expire,"/");
+      break;
+    case 'validate':
+      return civicrm_validate_data($edit, $user, 'Contact Information');
+    
+/*
+      if ($category=='account') {
+        foreach($categories as $category) {
+          user_module_invoke('validate', $edit, $user, $category);
+        }
+        return $edit;
+      } 
+*/
+      break;
+    case 'update':
+      return civicrm_form_data($edit, $user, 'Contact Information', false);
+/*
+      if ($category=='account') {
+        foreach($categories as $category) {
+          user_module_invoke('update', $edit, $user, $category);
+        }
+      }
+*/
+      break;
+  }
+}
+
+
+
+function wtw_mailerapi($op,$data){
+  switch ($op){
+    case 'format_email':
+      $replacevars = array(
+        '%virtual_link'   => url("virtual",NULL,NULL,TRUE),
+        '%home_link'      => url("home",NULL,NULL,TRUE),
+        '%custom_text'    => $data['message']);
+      $out['subject'] = variable_get("home_suj",variable_get("site_name",""));
+      $out['message'] = str_replace(array_keys($replacevars),$replacevars,variable_get("home_em",$data['query']['message']));
+      return $out;
+      break;
+    case 'after_invitation':
+      drupal_goto("invite");
+      break;      
+    case 'answer':
+      drupal_goto("splash");
+      break;
+  }
+}
+
+function _wtw_iptocountry($ip=NULL) {
+  if (is_null($ip)){
+    $ip = $_SERVER['REMOTE_ADDR'];
+  }
+
+  $ipnum =  sprintf("%u", ip2long($ip));
+  $country = db_fetch_object(db_query("SELECT cc, cn FROM geoip_ip NATURAL JOIN geoip_cc WHERE %d BETWEEN start AND end", $ipnum));
+  return $country ? $country->cc : "";
+}
+
+function wtw_event_list($items = array()) {
+  if (isset($items)) {
+    $output .= '<dd><ul>';
+    foreach ($items as $item) {
+      $output .= '<li>'. $item .'</li>';
+    }
+    $output .= '</ul></dd>';
+  }
+  return $output;
+}
+
+function wtw_nodeapi(&$node, $op, $teaser=NULL,$page=NULL){
+  switch($op){
+    case 'view':
+      if ($node->nid == 51){
+        $node->body .= wtw_press("2006");
+      } elseif ($node->nid == 1185){
+        $node->body .= wtw_press("2005");      
+      }
+      break;
+    case 'form pre':
+      // featured
+      if (user_access("administer site configuration")){
+        if (isset($node->nid)) {
+          $feature = (variable_get("featured",0) == $node->nid);
+        }
+        $formpre .= form_checkbox( "Featured On Frontpage", "feature", 1, $feature );
+        return $formpre;
+      }
+      break;
+    case 'insert':
+    case 'update':
+      if (user_access("administer site configuration")){
+        if( $node->feature != 0 ) {
+          variable_set("featured",$node->nid);
+        }      
+      }
+      break;      
+  }
+}
+
+function wtw_press($year){
+  $q =  "SELECT n.nid ".
+        "FROM node n, releasedate r ".
+        "WHERE n.nid = r.nid ".
+        "AND n.type = 'story' ".
+        "AND YEAR(FROM_UNIXTIME(r.releasedate)) = '%s' ".
+        "ORDER BY r.releasedate DESC";
+        
+  
+  $rs = db_query($q,$year);
+  while ($a = db_fetch_array($rs)){
+    $node = node_load(array("nid"=>$a['nid']));
+    $stories[] = $node->releasedate_string .": ". l($node->title,"node/".$node->nid);
+  }
+
+  if (!empty($stories)){
+    $out .= "<h3>".t("In the News")." - $year</h3>";
+    $out .= theme("item_list",$stories);
+  }
+  
+  return $out;
+}
+
+function wtw_autumn(){
+  global $hidecol;
+  $hidecol = true;
+  // load data
+  // featured blogpost
+  $featured->nid = variable_get("featured",NULL);
+  $node = node_load($featured);
+  $template['featured'] = node_view($node,true,false);
+  
+  // recent blogposts
+  $rs = db_query("SELECT nid FROM node WHERE type='blog' AND nid != %d AND status=1 ORDER BY created DESC LIMIT 4",$featured->nid);
+  while ($n = db_fetch_object($rs)){
+    $node = node_load($n);
+    $nodes[] = l($node->title,"node/".$node->nid);
+  }
+  $template['blogs'] = theme("item_list",$nodes);
+  
+  // fact
+  $rs = db_fetch_array(db_query("SELECT fact FROM facts ORDER BY rand() LIMIT 1"));
+  $template['fact'] = $rs['fact'];
+  
+  // random graphic
+  $r = rand(1,3);
+  $template['kids_graphic'] = "misc/frontpage_kids/img_kids_$r.gif";
+  
+  // children fed
+  //$template['fed'] = variable_get("bat_value",0);
+  $template['fed'] = echo_bat_get_plot_value(); // talk to the bat, it's the authority now
+    
+  // build and output html
+  $body = _phptemplate_callback("0602_home",$template);
+  print theme("page",$body,"");
+}
+
+function wtw_add_click($val=1){
+/*
+    $clicks = variable_get("clicks",0);
+    variable_set("clicks",$clicks+$val);
+    watchdog('wtw_add', $clicks . ' -> ' . variable_get("clicks",0));
+    //wtw_bat_cron();
+*/
+  
+  $num = db_result(db_query('SELECT nid FROM {clicks} WHERE nid = %d AND gid = %d', 0, 0));
+  if ($num >= 0) {
+    db_query('UPDATE {clicks} SET day_clicks = day_clicks + 1,
+      week_clicks = week_clicks + 1, total_clicks = total_clicks + 1,
+      last = %d WHERE nid = %d AND gid = %d', time(), 0, 0);
+  }
+  else {
+    db_query('INSERT INTO {clicks} VALUES (%d, %d, %d, %d, %d, %d, %d)',
+      0, 0, 1, 1, 1, time(), time());
+  }
+
+}
+
+?>

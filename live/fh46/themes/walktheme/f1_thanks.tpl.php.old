@@ -1,0 +1,39 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>Fight Hunger - Walk the World</title>
+	<meta http-equiv="Content-Style-Type" content="text/css" />
+	<?php print $head ?>
+</head>
+<body>
+
+<h1><? print $M ?></h1>
+<? print $N ?>
+
+<hr/>
+
+<? print $U ?>
+<object classid="clsid:d27cdb6e-ae6d-11cf-96b8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=7,0,0,0" width="140" height="120" id="slideshow" align="middle"><param name="allowScriptAccess" value="sameDomain" /><param name="movie" value="misc/slideshow/slideshow.swf" /><param name="quality" value="high" /><param name="bgcolor" value="#ffffff" />
+<embed src="misc/slideshow/slideshow.swf" quality="high" bgcolor="#ffffff" width="140" height="120" name="slideshow" align="middle" allowScriptAccess="sameDomain" type="application/x-shockwave-flash" pluginspage="http://www.macromedia.com/go/getflashplayer" /></object>
+
+<hr/>
+
+<h1>1:</h1>
+<h2><? print $lefthead ?></h2>
+
+<? print $leftbox ?>
+
+<hr/>
+
+<h1>2:</h1>
+<h2><? print $V ?></h2>
+<? print $W ?>
+<br/>
+<a href="http://www.wfp.org/walktheworld">Contribute</a>
+
+<hr>
+
+<?php print $l_link ?>
+
+</body>

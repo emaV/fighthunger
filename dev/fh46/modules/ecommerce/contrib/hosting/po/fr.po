@@ -1,0 +1,45 @@
+# LANGUAGE translation of Drupal (hosting.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: hosting.module,v 1.1 2005/09/14 17:36:04 wnorrix
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce - Hosting module\n"
+"POT-Creation-Date: 2005-11-01 13:17+0100\n"
+"PO-Revision-Date: 2005-11-01 13:41+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: French\n"
+
+#: hosting.module:11
+msgid "Creates a hosting packagee. Dependency: product.module"
+msgstr "Crée des offres d'hébergement. Dépends du module product (product.module)"
+
+#: hosting.module:18
+msgid "hosting package"
+msgstr "hébergement"
+
+#: hosting.module:31
+msgid "cart checkout"
+msgstr "commander"
+
+#: hosting.module:43;68
+msgid "add to cart"
+msgstr "ajouter au panier"
+
+#: hosting.module:61
+msgid "<p>This item is in <a href=\"%cart_view\">your shopping cart</a>.</p>"
+msgstr "<p>Cet article est dans <a href=\"%cart_view\">votre panier</a>.</p>"
+
+#: hosting.module:65
+msgid "Options"
+msgstr "Paramètres"
+
+#: hosting.module:0
+msgid "hosting"
+msgstr "hébergement"
+

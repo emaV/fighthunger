@@ -1,0 +1,148 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Exact module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-11-04 13:03+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: exact.module:10
+msgid "Credit Card payment"
+msgstr "Paiement carte bancaire"
+
+#: exact.module:22
+msgid "Process payments using E-xact."
+msgstr "Gérer les paiements avec E-xact."
+
+#: exact.module:25
+msgid "You need to have an E-xact account and merchant account in order to use this module. See <a href=\"http://www.e-xact.com/\">http://www.e-xact.com</a> for more information. Already have an E-Xact account? You can manage and get reports for your account <a href=\"https://secure.e-xact.com/\">here</a>."
+msgstr "Vous devez avoir avoir un compte vendeur E-xact pour utiliser ce module. Pour plus d'informations, se référer au site <a href=\"http://www.e-xact.com/\">http://www.e-xact.com</a>. Vous avez déjà un compte ? Utilisez le site <a href=\"https://secure.e-xact.com/\">E-xact</a> pour gérer votre compte et obtenir des rapports."
+
+#: exact.module:28
+msgid "Do not submit this form twice, or you may be double billed!"
+msgstr "La validation de ce formulaire entraîne une facturation effective. Faites attention à ne pas le valider plusieurs fois (n'utilisez pas le bouton 'précédent'), vous risqueriez d'être facturé plusieurs fois."
+
+#: exact.module:38
+msgid "Pay with credit card"
+msgstr "Payer avec une carte bancaire"
+
+#: exact.module:59
+msgid "E-Xact payment processing"
+msgstr "Gestion paiement E-xact"
+
+#: exact.module:60
+msgid "Explanation or submission guidelines"
+msgstr "Explications, guide d'utilisation"
+
+#: exact.module:60
+msgid "This text will be displayed at the top of the credit card submission form."
+msgstr "Ce texte sera affiché au dessus du formulaire de saisie des informations de la carte bancaire."
+
+#: exact.module:61
+msgid "ExactID"
+msgstr "Identifiant E-xact"
+
+#: exact.module:61
+msgid "Identifies the location/terminal that is sending the transaction. This number is of the format Axxxxx-xx and is provided by E-xact upon set-up. The ExactID must be accompanied by a password."
+msgstr "Identifie l'endroit/le terminal qui envoit la transaction. Cet identifiant est de la forme Axxxxx-xx et est fourni par E-xact lors de la mise en place. Cet identifiant E-xact (ExactID) est accompagné d'un mot de passe."
+
+#: exact.module:62
+msgid "Password that is uniquely associated with each ExactID. This value must be kept as secure (and secret) as possible."
+msgstr "Mot de passe associé à l'identifiant Exact. Doit être conservé en lieu sûr autant que possible."
+
+#: exact.module:63
+msgid "Gateway terminal credentials"
+msgstr "Informations de la passerelle de paiement"
+
+#: exact.module:63
+msgid "These terminal credentials establish the interaction between the E-xact software and our payment servers."
+msgstr "Ces informations sur le terminal permettent de mettre en place les échanges entre le logiciel E-xact et les serveurs de paiement."
+
+#: exact.module:64
+msgid "WSDL URL"
+msgstr "URL WSDL"
+
+#: exact.module:64
+msgid "URL to obtain the WSDL for the payment web service."
+msgstr "URL pour obtenir le WSDL du service de paiement web."
+
+#: exact.module:65
+msgid "Successful payment URL"
+msgstr "URL en cas de paiement accepté"
+
+#: exact.module:65
+msgid "This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'. You may also enter '%order-history' to link to the user's order history."
+msgstr "URL de la page vers laquelle seront redirigés vos clients une fois leur paiement validé. Il doit s'agir d'une adresse Drupal. Si vous n'utilisez pas les URL simplifiées, spécifiez uniquement la partie de l'URL se trouvant après '?q='. Dans le doute, utilisez 'node'."
+
+#: exact.module:66
+msgid "SOAP inlcude path"
+msgstr "Chemin d'inclusion SOAP"
+
+#: exact.module:66
+msgid "Location of the PEAR SOAP package."
+msgstr "Emplacement du module SOAP PEAR"
+
+#: exact.module:79
+#: ;160
+msgid "Place your order"
+msgstr "Passer votre commande"
+
+#: exact.module:137
+msgid "%order of <b>%title</b> at %price each"
+msgstr "%order de <b>%title</b> au prix de %price pièce"
+
+#: exact.module:141
+msgid "<div class=\"help\">%exact_help</div>"
+msgstr "<div class=\"help\">%exact_help</div>"
+
+#: exact.module:142
+msgid "Your items"
+msgstr "Vos articles"
+
+#: exact.module:148
+msgid "Month"
+msgstr "Mois"
+
+#: exact.module:149
+msgid "Year"
+msgstr "Année"
+
+#: exact.module:150
+msgid "Expiration Date"
+msgstr "Date d'expiration"
+
+#: exact.module:153
+msgid "Credit Card Number"
+msgstr "Numéro de carte bancaire"
+
+#: exact.module:158
+msgid "Details"
+msgstr "Détails"
+
+#: exact.module:171
+msgid "You must enter a credit card number."
+msgstr "Vous devez entrer un numéro de carte bancaire."
+
+#: exact.module:174
+msgid "Error in credit card number. Please make sure it is typed correctly."
+msgstr "Numéro de carte bancaire incorrect, veuillez vérifier."
+
+#: exact.module:276
+msgid "%order-history"
+msgstr "%order-history"
+
+#: exact.module:137
+msgid "1 order"
+msgid_plural "%count orders"
+msgstr[0] "1 commande"
+msgstr[1] "%count commandes"
+
+#: exact.module:0
+msgid "exact"
+msgstr "e-xact"
+

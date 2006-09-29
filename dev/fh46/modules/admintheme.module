@@ -1,0 +1,27 @@
+<?php
+
+/**
+ * @file
+ * Switches to hardcoded themes for admin/* pages.
+ * 
+ * Very simple module
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function admintheme_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Switches to hardcoded themes for admin/* pages.');
+  }
+}
+
+function admintheme_init(){
+  global $custom_theme;
+  if ((arg(0) == "admin") || (arg(0) == "civicrm")){
+    $custom_theme = "box_grey";
+  }
+}
+
+?>

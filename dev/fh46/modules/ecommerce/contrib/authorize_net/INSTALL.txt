@@ -1,0 +1,79 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: authorize_net module
+Author: Matt Westgate <drupal at asitis dot org>
+********************************************************************
+INSTALLATION:
+
+1. Place the entire authorize_net directory into your Drupal
+   modules/ecommerce/ directory.
+
+2. Load the database definition file (authorize_net.mysql) using the
+   tool of your choice (e.g. phpmyadmin). For mysql and command line
+   access use:
+
+     mysql -u user -p drupal < authorize_net.mysql
+
+   Replace 'user' with the MySQL username, and 'drupal' with the
+   database being used.
+
+3. Enable this module by navigating to:
+
+     administer > modules
+
+4. Configure this module by navigating to:
+
+     administer > settings > authorize_net
+
+5. Modify your includes/conf.php file to allow 'https' traffic.
+   Underneath the $base_url line, add the following:
+
+#
+# Base URL:
+#
+#   The URL of your website's main page.  It is not allowed to have
+#   a trailing slash; Drupal will add it for you.
+#
+$base_url = "http://www.example.com";
+
+if ($_SERVER['HTTPS']) {
+  $base_url = str_replace('http://', 'https://', $base_url);
+}
+
+6. You may need to create symlinks from you ssl directory to the
+   drupal files files located in the public_html section. Here is
+   what I did:
+
+%cd ~/public_ssl/
+%ln -s ~/public_html/index.php index.php
+%ln -s ~/public_html/includes/ includes
+%ln -s ~/public_html/modules/ modules
+%ln -s ~/public_html/files/ files
+%ln -s ~/public_html/misc/ misc
+%ln -s ~/public_html/themes/ themes
+%ln -s ~/public_html/.htaccess .htacess
+%ln -s ~/public_html/xmlrpc.php xmlrpc.php
+%cp ~/public_html/.htaccess .htaccess
+
+7. You should now be able to navigate your Drupal site by going to
+   either: http://www.example.com or https://www.example.com
+
+********************************************************************
+SETTING UP THE AUTHORIZE.NET INTERFACE:
+
+Login to https://secure.authorize.net/ and verify the following
+information is configured as follows.
+
+This module is built for Transaction Version 3.1 for transaction
+processing. Make sure your system is setup for that via
+
+  Settings > Transaction Version
+
+You have to generate a transaction key. This is done at:
+
+  Settings > Obtain Transaction Key
+
+Make sure Test Mode is off
+
+  Settings > Test MOdes

@@ -1,0 +1,21 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: COD module
+********************************************************************
+INSTALLATION:
+
+1. Place the entire cod directory into your Drupal modules/store/ 
+   directory. 
+   
+2. Enable this module by navigating to:
+       
+   administer > configuration > modules
+    
+3. Grant the proper access to user accounts under:
+
+   administer > accounts > permissions
+
+   Optionally, configure any module specific settings under:
+    
+   administer > configuration > modules > cod

@@ -1,0 +1,69 @@
+
+#
+# Table structure for table ec_payment_adjust
+#
+
+CREATE TABLE ec_payment_adjust (
+  rid INT( 5 ) UNSIGNED NOT NULL ,
+   operator ENUM( '+', '-', '*' ) DEFAULT '+' NOT NULL ,
+   operand DECIMAL( 10, 2 ) UNSIGNED DEFAULT '0.0' NOT NULL ,
+   PRIMARY KEY ( rid )
+) TYPE=MyISAM;
+
+# --------------------------------------------------------
+
+#
+# Table structure for table store_transaction
+#
+
+CREATE TABLE ec_transaction (
+  txnid int(10) unsigned NOT NULL auto_increment,
+  uid int(10) unsigned NOT NULL default '0',
+  mail varchar(64) NOT NULL default '',
+  shipping_firstname varchar(32) NOT NULL default '',
+  shipping_lastname varchar(32) NOT NULL default '',
+  shipping_street1 varchar(64) NOT NULL default '',
+  shipping_street2 varchar(64) NOT NULL default '',
+  shipping_zip varchar(10) NOT NULL default '',
+  shipping_city varchar(32) NOT NULL default '',
+  shipping_state varchar(32) NOT NULL default '',
+  shipping_cost decimal(10,2) NOT NULL default '0.00',
+  shipping_country int(11) NOT NULL default '0',
+  billing_firstname varchar(32) NOT NULL default '',
+  billing_lastname varchar(32) NOT NULL default '',
+  billing_street1 varchar(64) NOT NULL default '',
+  billing_street2 varchar(64) NOT NULL default '',
+  billing_zip varchar(10) NOT NULL default '',
+  billing_city varchar(32) NOT NULL default '',
+  billing_state varchar(32) NOT NULL default '',
+  billing_country int(11) NOT NULL default '0',
+  payment_method varchar(32) NOT NULL default '',
+  payment_status varchar(32) NOT NULL default '1',
+  coupon int(10) unsigned NOT NULL default '0',
+  workflow int(10) unsigned NOT NULL default '1',
+  gross decimal(10,2) NOT NULL default '0.00',
+  expires int(11) NOT NULL default '0',
+  created int(11) NOT NULL default '0',
+  changed int(11) NOT NULL default '0',
+  PRIMARY KEY  (txnid)
+) TYPE=MyISAM;
+
+#
+# Table structure for table store_transaction_product
+#
+
+CREATE TABLE ec_transaction_product (
+  txnid int(10) unsigned NOT NULL default '0',
+  nid int(10) unsigned NOT NULL default '0',
+  title varchar(128) default NULL,
+  price decimal(10,2) NOT NULL default '0.00',
+  qty int(10) unsigned NOT NULL default '0',
+  expires int(11) unsigned NOT NULL default '0',
+  is_recurring tinyint(3) unsigned NOT NULL default '0',
+  price_interval tinyint(3) unsigned NOT NULL default '0',
+  price_unit varchar(5) NOT NULL default '',
+  price_cycle int(11) NOT NULL default '0',
+  auto_charge tinyint(3) unsigned NOT NULL default '0',
+  last_notify int(11) unsigned NOT NULL default '0',
+  UNIQUE KEY txnid (txnid,nid)
+) TYPE=MyISAM;

@@ -1,0 +1,49 @@
+<?php
+
+/**
+ * @file
+ * Theme switcher for admin/civicrm/home pages. Switches theme on page init.
+ * 
+ * Notes:
+ * - Some hardcoded theme and file system references
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function themeswitcher_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Theme switcher for admin/civicrm/home pages. Switches theme on page init.');
+  }
+}
+
+function themeswitcher_init(){
+  global $custom_theme;
+  $theme_default = variable_get('theme_default','bluemarine');
+
+  $q = $_GET['q'];
+  if ( preg_match('/^everest/', $q) || 
+       preg_match('/^everest/', drupal_get_path_alias($q)) ){
+    $custom_theme = "FHeverest";
+  } else {
+    switch (arg(0)){
+      case 'admin':
+      case 'civicrm':
+        $custom_theme = "box_grey";
+        break;
+      case 'home':
+        if($theme_default=='walktheme') {
+          theme_add_style('themes/walktheme/style_frontpage.css');  
+        }
+        break;
+      default:
+        if($theme_default=='walktheme') {
+          theme_add_style('themes/walktheme/style_subpage.css');    
+        }
+        break;
+    }
+  }
+}
+
+?>

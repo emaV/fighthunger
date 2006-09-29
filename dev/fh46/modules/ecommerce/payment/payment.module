@@ -1,0 +1,479 @@
+<?php
+// $Id: payment.module,v 1.23.2.4 2005/11/11 21:17:23 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of help_hook()
+ */
+function payment_help($section = "admin/help#payment") {
+  $output = "";
+
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('A payment API for ecommerce.');
+
+    case 'Customer invoice email':
+      return t("Dear %billing_name,\n\nThanks for your recent purchase from %site.  This message includes important information about your order. Please take a moment to read it closely, and be sure to save a copy for future reference.\n\n********************************\nBilling and Shipping Information\n********************************\n%user_data\n********************************\nOrder Details\n********************************\n%items\nQuestions about your order? Please contact us at %email\n\n********************************\nShipping Instructions\n********************************\nWe will notify you by email as soon as your order ships.\n\nThanks for shopping at %site.  We hope to hear from you again real soon!\n\n%uri");
+
+    case 'Processing error':
+      return t("Dear Customer\n\nIt seems there was a problem while processing your order (%txnid). Please contact us at %email for further details.\n\nRegards,\n%site team\n%uri");
+
+    case 'admin/store/settings/payment/adjust':
+      return t("<p>You may define a price adjustment for each role. This adjustment can be a simple price addition, subtraction, or a percentage multiplier. For example, to add 5.00 to every price, enter +5.00. To multiply every price times 75%, enter 75%. If no operator is given, addition is assumed.</p>");
+
+    case 'recurring payment':
+      return t("Dear %billing_firstname %billing_lastname,\n\nThis message is to inform you that the following item will expire in %time_to_expire.\n\n%renewal_item\n\nTo prevent this from happening, please renew the item as soon as possible.\n\nClick the link below to renew:\n%renewal_link\n\nThanks,\n\n%site\n%uri");
+
+    case 'recurring payment expired':
+      return t("Dear %billing_firstname %billing_lastname,\n\nThis message is to inform you that the following item has expired %time_since_expired:\n\n%renewal_item\n\nThanks,\n\n%site\n%uri");
+  }
+}
+
+/**
+ * Implementation of menu_hook()
+ */
+function payment_menu($may_cache) {
+  global $user;
+
+  $items = array();
+  if ($may_cache) {
+    $items[] = array('path' => 'admin/store/settings/payment', 'title' => t('payments'),
+      'callback' => 'payment_admin',
+      'access' => user_access('administer payment'));
+
+    $items[] = array('path' => 'admin/store/settings/payment/adjust', 'title' => t('adjustments'),
+      'access' => user_access('administer store'));
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_checkoutapi().
+ */
+function payment_checkoutapi(&$txn, $op, $arg3 = NULL, $arg4 = NULL) {
+  if ($txn == 'payment') return TRUE;
+  $output = '';
+  switch ($op) {
+    case 'form':
+      drupal_set_title(t('Please select a payment method'));
+      $output = payment_view_methods();
+      $output .= form_submit(t('Continue'));
+      return $output;
+
+    case 'validate':
+      if ($txn->gross > 0 && $txn->payment_method == '') {
+        form_set_error('payment_method', t('Please choose a payment method.'));
+      }
+      else {
+        module_invoke($txn->payment_method, 'paymentapi', $txn, 'on checkout');
+      }
+      break;
+
+    case 'save':
+      $txn->screen++;
+      break;
+
+    case 'review':
+      $box['subject'] = t('Payment details');
+      $box['content'] = module_invoke($txn->payment_method, 'paymentapi', $txn, 'display name');
+      return $box;
+  }
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function payment_settings() {
+  drupal_set_title(t('Payment settings'));
+
+  $group = form_textfield(t('Currency symbol'), 'payment_symbol', variable_get('payment_symbol', '$'), 3, 5, t('Enter the currency symbol you wish to associate with your price. This will be displayed in front of the price. Default is the dollar symbol.'));
+  $group .= form_radios(t('Position of currency symbol'), 'payment_symbol_position', variable_get('payment_symbol_position', 1), array(t('Right'), t('Left')), t('This option places the currency symbol of the left or right side of the price.'));
+  $group .= form_textfield(t('Thousands separator'), 'payment_thousands', variable_get('payment_thousands', ','), 3, 5, t('Enter the sign for the thousands separator.'));
+  $group .= form_textfield(t('Decimal separator'), 'payment_decimal', variable_get('payment_decimal', '.'), 3, 5, t('Enter the sign to seperate real numbers from floating numbers.'));
+  $group .= form_textfield(t('Number of places after the decimal separator'), 'payment_decimal_places', variable_get('payment_decimal_places', 2), 3, 5, t('How many number slots are needed after decimal separator?'));
+  $output = form_group(t('Price formatting'), $group);
+
+  $group = form_textfield(t('Subject of invoice e-mail'), 'payment_new_subject', variable_get('payment_new_subject', 'Your %site order'), 70, 180);
+  $group .= form_textarea(t('Customer invoice e-mail'), 'payment_new', variable_get('payment_new', payment_help('Customer invoice email')), 70, 10, t('This text will be emailed to customers after they make a purchase.'));
+  $group .= form_textfield(t('Subject of error e-mail'), 'payment_error_subject', variable_get('payment_error_subject', 'Purchase Problem, %site'), 70, 180);
+  $group .= form_textarea('Payment error e-mail', 'payment_error', variable_get('payment_error', payment_help('Processing error')), 70, 10, t('This text will be e-mailed to customers if their is a payment processing problem.'));
+  $output .= form_group(t('E-mail notifications'), $group);
+
+  $output .= form_group(t('Recurring payments'), form_radios(t('Recurring payments'), 'payment_recurring', variable_get('payment_recurring', 0), array(t('Disabled'), t('Enabled')), t('If enabled, you\'ll be asked about billing cycle details on the product creation form. If disabled, no recurring payments will take place.')));
+
+  if (variable_get('payment_recurring', 0)) {
+    $group = '';
+    $group .= form_checkboxes(t('Role inheritance'), 'on_payment_roles', variable_get('on_payment_roles', ''), user_roles(1), t('Optionally, select the roles an user is assigned when they purchase a recurring payment item. The user will be removed from these roles when the item expires. Note: requires cron.'));
+    $group .= form_textfield(t('Subject of recurring payment notice e-mail'), 'payment_recurring_subject', variable_get('payment_recurring_subject', 'Your %site renewal'), 70, 180);
+    $group .= form_textarea('Recurring payment notice e-mail', 'payment_recurring_email', variable_get('payment_recurring_email', payment_help('recurring payment')), 70, 10, t('This text will be e-mailed to customers before their recurring payment expires.'));
+
+    $group .= t('<p>You can send up to 5 renewal notifications to the customer. Choose at the interval each notfication is sent before the product expires.</p>');
+
+    //$group = form_checkboxes(t('Frequency of renewal notifications'), 'payment_recurring_notices', $values, $options, $description = NULL, $attributes = NULL, $required = FALSE);
+    $interval = drupal_map_assoc(range(0, 31));
+    $interval[0] = '--';
+    $unit = array(0 => t('-please choose-'), 'D' => t('Day(s)'), 'W' => t('Week(s)'), 'M' => t('Month(s)'), 'Y' => t('Year(s)'));
+
+    $sub_group = '';
+    for ($i = 1; $i <= 2; $i++) {
+      $sub_group .= form_select(t('Interval'), $i. '_price_interval', variable_get($i. '_price_interval', ''), $interval);
+      $sub_group .= form_select(t('Unit'), $i. '_price_unit', variable_get($i. '_price_unit', ''), $unit);
+      $sub_group .= form_checkbox(t('Check to enable'), $i. '_price_status', 1, variable_get($i. '_price_status', 0));
+      $group .= form_group(t('Settings for recurring payment notice %number', array('%number' => $i)), $sub_group);
+      $sub_group = '';
+    }
+
+    $group .= form_textfield(t('Subject of recurring payment expiration e-mail'), 'payment_recurring_expiration_subject', variable_get('payment_recurring_expiration_subject', 'Your %site renewal has expired'), 70, 180);
+    $group .= form_textarea('Recurring payment expiration e-mail', 'payment_recurring_expiration_email', variable_get('payment_recurring_expiration_email', payment_help('recurring payment expired')), 70, 10, t('This text will be e-mailed to customers when their recurring payment expires.'));
+    $output .= form_group(t('Recurring payment settings'), $group);
+  }
+
+  return $output;
+}
+
+/**
+ * Return the entire spool of unexpanded/unparsed recurring payment messages.
+ */
+function payment_get_recurring_email_notifications() {
+  $subject = variable_get('payment_recurring_subject', 'Your %site renewal');
+  $body = variable_get('payment_recurring_email', payment_help('recurring payment'));
+
+  for ($i = 1; $i <= 2; $i++) {
+    if (variable_get($i. '_price_status', 0)) {
+      $note->interval = variable_get($i. '_price_interval', '');
+      $note->unit = variable_get($i. '_price_unit', '');
+      $note->subject = $subject;
+      $note->body = $body;
+      $notifications[] = $note;
+    }
+  }
+
+  // The special case: expired items
+  unset($note);
+  $note->subject = variable_get('payment_recurring_expiration_subject', 'Your %site renewal has expired');
+  $note->body = variable_get('payment_recurring_expiration_email', payment_help('recurring payment expired'));
+  $notifications['expired'] = $note;
+
+  return $notifications;
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+
+/**
+ * Controller. This callback is invoked via menu() when "admin/store/payment*" is hit.
+ *
+ * @return string Completely themed HTML page.
+ */
+ function payment_admin() {
+
+  $edit = $_POST['edit'];
+  $op = $_POST["op"];
+
+  switch (($op) ? $op : arg(4)) {
+    case 'Save configuration':
+      /* Remove any zero values  */
+      foreach ($edit['payment_method'] as $value) {
+        if ($value != "" && $value != "0") {
+          $pm[] = $value;
+        }
+      }
+      variable_set("payment_method", $pm);
+      cache_clear_all();
+      drupal_set_message(t("the configuration options have been saved."));
+      $output = payment_admin_overview();
+      break;
+
+    case "Save payment details":
+      $output = payment_details_save($edit);
+      break;
+
+    case 'adjust':
+      $title = t('Role-based Price Adjustments');
+      $output = payment_adjust();
+      break;
+
+    case 'Save price adjustments':
+      $title = t('Role-based Price Adjustments');
+      $output = payment_adjust_save($edit);
+      break;
+
+    default:
+      $output = payment_admin_overview();
+  }
+
+  print theme('page', $output, $title);
+}
+
+function payment_adjust() {
+
+  $result = db_query('SELECT * FROM {ec_payment_adjust}');
+  while ($data = db_fetch_object($result)) {
+    $adjust[$data->rid] = $data;
+  }
+
+  foreach (user_roles() as $rid => $value) {
+    if ($adjust[$rid]) {
+      if ($adjust[$rid]->operator == '-' || $adjust[$rid]->operator == '+') {
+        $v = $adjust[$rid]->operator . $adjust[$rid]->operand;
+      }
+      else {
+        $v = $adjust[$rid]->operand . '%';
+      }
+    }
+    else {
+      $v = '';
+    }
+
+    $output .= form_textfield(t('Adjustment for the <em>%role_name</em> role', array('%role_name' => $value)), "role_$rid", $v, 10, 15, $description);
+  }
+  $output .= form_submit(t('Save price adjustments'));
+
+  return form($output);
+}
+
+function payment_adjust_save($edit) {
+  $error = false;
+
+  foreach ($edit as $key => $value) {
+
+    $rid = substr($key, strrpos($key, '_') + 1); // trim 'role_'
+
+    if (!empty($value)) {
+      $value = trim($value);
+      $pos1 =  substr($value, 0, 1);
+      if (strstr($pos1, '+')) {
+        $operator = '+';
+        $operand = (int) substr($value, 1, strlen($value));
+      }
+      elseif (strstr($pos1, '-')) {
+        $operator = '-';
+        $operand = (int) substr($value, 1, strlen($value));
+      }
+      elseif (substr($value, strlen($value) - 1) == '%') {
+        $operator = '*';
+        $operand = (int) substr($value, 0, strlen($value) - 1);
+      }
+      else {
+        $operator = '+'; //Default is addition
+        if (!is_numeric($value)) {
+          $error = true;
+        }
+        else {
+          $operand = (int) $value;
+        }
+      }
+
+      db_query('DELETE FROM {ec_payment_adjust} WHERE rid = %d', $rid);
+      db_query("INSERT INTO {ec_payment_adjust} (rid, operator, operand) VALUES (%d, '%s', %f)", $rid, $operator, $operand);
+    }
+  }
+
+  if ($error) {
+    drupal_set_message(t('One of the fields contains non arithmatic information.'), 'error');
+  }
+  else {
+    drupal_set_message(t('Price adjustments have been updated.'));
+  }
+
+  return payment_adjust();
+}
+
+/**
+ * Displays the default configuration screen for managing payment information.
+ *
+ * @return string HTML
+ */
+function payment_admin_overview($edit = null, $error = null) {
+
+  if ($error) {
+    foreach ($error as $message) {
+      $error_str .= $message;
+    }
+  }
+
+  $output = "<h2>". t('Payment processing methods currently enabled') ."</h2>";
+  /* Find out which payment modules exist */
+  foreach (payment_get_methods() as $name) {
+    if (function_exists($name. "_paymentapi")) {
+      $settings = (function_exists($name. "_settings")) ? "[". l(t("settings"), "admin/settings/$name") ."]" : "";
+      $help = $name. "_help";
+      $desc = (function_exists($help)) ? $help("admin/modules#description") : "";
+      $output .= "<p><strong>$name</strong> $settings<br />$desc</p>";
+    }
+  }
+
+  return $output;
+}
+
+function payment_get_methods() {
+  static $methods;
+
+  if (!$methods) {
+    $methods = array();
+    foreach (module_list() as $name) {
+      if (function_exists($name. '_paymentapi')) {
+        $methods[$name] = $name;
+      }
+    }
+    asort($methods);
+  }
+
+  return $methods;
+}
+
+/* This should be themed! */
+function payment_view_methods() {
+
+  foreach((array) payment_get_methods() as $name) {
+    $method_value = module_invoke($name, 'paymentapi', $edit, 'display name');
+    if ($method_value) {
+      $output = '<h3>'. $method_value .'</h3>';
+      $output .= module_invoke($name, 'paymentapi', $edit, 'form');
+      $method[$name] = $output;
+    }
+  }
+
+  $header = array(t('Payment method'), t('Choose one'));
+  $single_method = false;
+  if (count($method) == 1) {
+    $single_method = true;
+    $header = array(t('Payment method'), '');
+  }
+
+  foreach ((array) $method as $m => $data) {
+    $row[] = array($data, ($single_method) ? form_hidden('payment_method', $m) : form_radio(null, 'payment_method', $m, 0));
+  }
+
+  return theme('table', $header, $row);
+}
+
+function payment_get_status($id) {
+  $status = payment_build_status();
+  return t('%payment-status', array('%payment-status' => $status[$id]));
+}
+
+function payment_get_status_id($name) {
+  return array_search(strtolower(t('%payment-status', array('%payment-status' => $name))), payment_build_status());
+}
+
+/**
+ * Return an array of payment workflow settings.
+ */
+function payment_build_status() {
+  $payment_status = array (
+    1 => t('pending'),
+    2 => t('completed'),
+    3 => t('failed'),
+    4 => t('denied'),
+    5 => t('refunded'),
+    6 => t('canceled'),
+  );
+
+  return $payment_status;
+}
+
+/**
+ * The controller for the plugin API hooks. It iterates through the enabled
+ * plugins and calls their *_paymentapi hook if one exists, passing it the
+ * action (via $op) to execute.
+ *
+ * @param object $items
+ * @param string $op The action to execute (e.g., validate, insert, update, delete)
+ * @param string $arg Optional argument to pass along. Currently being used to
+ *                    pass an array of errors during form display
+ *
+ * @return array Collection of output from the all *_paymentapi calls.
+ */
+function payment_invoke_paymentapi(&$items, $op, $arg = 0) {
+
+  $return = array();
+  foreach (module_list() as $name) {
+    $function = $name ."_paymentapi";
+    if (function_exists($function)) {
+      $result = $function($items, $op, $arg);
+      if (isset($result)) {
+        $return = array_merge($return, $result);
+      }
+    }
+  }
+  return $return;
+}
+
+/**
+ * Adjust the price if necessary. Make sure a price is always returned.
+ */
+function payment_productapi(&$node, $op, $arg) {
+  if (user_access('access content')) {
+
+    switch ($op) {
+
+      case 'adjust_price':
+        /* Role based price adjustment */
+        static $adjust;
+
+        $price = $node->price;
+        $has_adjustment = false;
+        $new_price = $node->price;
+        global $user;
+
+        if ($user->uid > 0) {
+          foreach ($user->roles as $rid => $role) {
+            if (!isset($adjust[$rid])) {
+              $adjust[$rid] = db_fetch_object(db_query('SELECT * FROM {ec_payment_adjust} WHERE rid = %d', $rid));
+            }
+
+            if ($adjust[$rid]) {
+              $has_adjustment = true;
+              switch ($adjust[$rid]->operator) {
+                case '+':
+                  $new_price += $adjust[$rid]->operand;
+                  break;
+                case '-':
+                  $new_price -= $adjust[$rid]->operand;
+                  break;
+                case '*':
+                  $new_price *= $adjust[$rid]->operand /100;
+                  break;
+              }
+            }
+          }
+        }
+
+        if ($has_adjustment) {
+          $new_price = number_format(round($new_price, 2), 2);
+          /* Currently we so NO to negative values */
+          return (($new_price >= 0) ? $new_price : 0);
+        }
+        else {
+          return $price;
+        }
+
+        break;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function payment_user($type, &$edit, &$user) {
+  // Only display the link for the user who owns it.
+  if ($type == 'view' && $GLOBALS['user']->uid == $user->uid && variable_get('payment_recurring', 0)) {
+    return array(t('History') => form_item(t('Subscriptions'), l(t('View your subscriptions'), "store/history/$user->uid/subscriptions")));
+  }
+}
+
+/**
+ * Format the price according to payment_settings() config options.
+ */
+function payment_format($price) {
+  $price = number_format((float) $price, variable_get('payment_decimal_places', 2), variable_get('payment_decimal', '.'), variable_get('payment_thousands', ','));
+  return (variable_get('payment_symbol_position', 1) == 1) ? variable_get('payment_symbol', '$') . $price : $price . variable_get('payment_symbol', '$');
+}
+?>

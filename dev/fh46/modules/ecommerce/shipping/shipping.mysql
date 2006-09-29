@@ -1,0 +1,54 @@
+# $Id: shipping.mysql,v 1.5.2.2 2005/10/30 19:07:00 mathias Exp $
+
+#
+# Table structure for table ec_shipping_shipping
+#
+
+CREATE TABLE ec_shipping_shipping (
+  item_slot varchar(25) NOT NULL default '0',
+  price_slot varchar(25) NOT NULL default '0',
+  KEY item_slot (item_slot),
+  KEY price_slot (price_slot)
+) TYPE=MyISAM;
+
+#
+# Dumping data for table ec_shipping_shipping
+#
+
+INSERT INTO ec_shipping_shipping VALUES ('1', '0.00');
+INSERT INTO ec_shipping_shipping VALUES ('2-4', '0.00');
+INSERT INTO ec_shipping_shipping VALUES ('5', '0.00');
+INSERT INTO ec_shipping_shipping VALUES ('6-10', '0.00');
+INSERT INTO ec_shipping_shipping VALUES ('10-1000', '0.00');
+
+# --------------------------------------------------------
+
+#
+# Table structure for table ec_subtotal_shipping
+#
+
+CREATE TABLE ec_subtotal_shipping (
+  item_slot varchar(25) NOT NULL default '0',
+  price_slot varchar(25) NOT NULL default '0',
+  KEY item_slot (item_slot),
+  KEY price_slot (price_slot)
+) TYPE=MyISAM;
+
+#
+# Dumping data for table ec_subtotal_shipping
+#
+
+INSERT INTO ec_subtotal_shipping VALUES ('0-0.99', '0.00');
+INSERT INTO ec_subtotal_shipping VALUES ('1.00-10.99', '0.00');
+INSERT INTO ec_subtotal_shipping VALUES ('11.00-50.00', '0.00');
+INSERT INTO ec_subtotal_shipping VALUES ('50.00-10000', '0.00');
+
+#
+# Table structure for table ec_per_product_shipping
+#
+
+CREATE TABLE ec_per_product_shipping (
+  nid int(10) unsigned NOT NULL default '0',
+  shipping_fee decimal(10,2) unsigned NOT NULL default '0.00',
+  PRIMARY KEY  (nid)
+) TYPE=MyISAM;

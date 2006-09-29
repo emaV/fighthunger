@@ -1,0 +1,356 @@
+# LANGUAGE translation of Drupal (paypalpro.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: paypalpro.module,v 1.1.2.7 2005/10/29 02:41:34 jeremy
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce - PayPal Pro module\n"
+"POT-Creation-Date: 2005-10-30 18:17+0100\n"
+"PO-Revision-Date: 2005-11-01 12:55+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: French\n"
+
+#: paypalpro.module:14
+msgid "Process payments using the PayPal Pro API."
+msgstr "Gérer les paiements en utilisant l'API PayPal Pro"
+
+#: paypalpro.module:29
+msgid "Credit card payment"
+msgstr "Paiement carte bancaire"
+
+#: paypalpro.module:33
+msgid "Express checkout redirect"
+msgstr "Redirection paiement express"
+
+#: paypalpro.module:37
+msgid "PayPal Express Checkout"
+msgstr "Paiement express PayPal"
+
+#: paypalpro.module:53
+msgid "It can be useful to disable secure SSL connections during testing, but it is not recommended for production servers."
+msgstr "Vous pouvez désactiver les connections sécurisées SSL lors de vos tests, mais il est fortement recommandé de les utiliser pour des sites en production."
+
+#: paypalpro.module:56
+msgid "PayPal Web Services requires a valid Express Checkout URL."
+msgstr "Vous devez spécifier une URL de paiement express PayPal valide."
+
+#: paypalpro.module:59
+msgid "PayPal Web Services requires a valid API Server URL."
+msgstr "Vous devez spécifier l'URL d'un serveur PayPal API valide."
+
+#: paypalpro.module:62
+msgid "PayPal Web Services will not work until you enter your account name."
+msgstr "Vous devez spécifier le nom de votre compte PayPal API."
+
+#: paypalpro.module:65
+msgid "PayPal Web Services will not work until you enter your account password."
+msgstr "Vous devez spécifier le mot de passe de votre compte PayPal API."
+
+#: paypalpro.module:69
+msgid "Invalid certificate.  PayPal Web Services will not work until you enter the absolute path to a valid PayPal Digital Certificate."
+msgstr "Certificat invalide. Vous devez indiquer le chemin vers un certificat numérique PayPal API valide."
+
+#: paypalpro.module:73
+msgid "Use secure SSL connection"
+msgstr "Utiliser les connexions sécurisées SSL"
+
+#: paypalpro.module:73
+msgid "Disabled"
+msgstr "Désactivé"
+
+#: paypalpro.module:73
+msgid "Enabled"
+msgstr "Activé"
+
+#: paypalpro.module:73
+msgid "If enabled, credit card information will only be accepted through a secure SSL connection (https://).  Whether or not this is enabled, a secure connection is required to PayPal. %secure_error"
+msgstr "Si activé, les informations de carte bancaire ne seront acceptées qu'en utilisant une connexion SSL (https://). Selon l'activation, une connexion sécurisée vers PayPal sera nécessaire. %secure_error"
+
+#: paypalpro.module:74
+msgid "Express Checkout URL"
+msgstr "URL à utiliser pour le paiement express "
+
+#: paypalpro.module:74
+msgid "For testing you can create a <a href=\"https://developer.paypal.com/devscr?cmd=_home\">PayPal sandbox</a> and use \"https://www.sandbox.paypal.com/cgi-bin/webscr\" which will allow you to simulate express checkout transactions.  For a production server with real transactions use \"https://www.paypal.com/cgi-bin/webscr\".  %express_error"
+msgstr "Pour tester, vous pouvez créer un <a href=\"https://developer.paypal.com/devscr?cmd=_home\">espace virtuel PayPal</a>, et utiliser l'URL API PayPal \"https://www.sandbox.paypal.com/cgi-bin/webscr\". Cela vous permettra de réaliser des simulations de transactions. Pour un serveur en production avec des transactions réelles, l'URL API PayPal est \"https://www.paypal.com/cgi-bin/webscr\". %express_error"
+
+#: paypalpro.module:75
+msgid "API Server URL"
+msgstr "URL du serveur PayPal API"
+
+#: paypalpro.module:75
+msgid "For testing you can create a <a href=\"https://developer.paypal.com/devscr?cmd=_home\">PayPal sandbox</a> and use \"https://api.sandbox.paypal.com/2.0/\" which will allow you to simulate direct payment transactions.  For a production server with real transactions use \"https://api.paypal.com/2.0/\" . %url_error"
+msgstr "Afin de tester le bon fonctionnement du paiement, vous pouvez créer un <a href=\"https://developer.paypal.com/devscr?cmd=_home\">espace virtuel PayPal</a>, et utiliser l'URL \"https://api.sandbox.paypal.com/2.0/\". Ceci vous permettra de simuler des transactions. Pour un serveur de production avec des transactions réelles, il faut utiliser l'URL \"https://api.paypal.com/2.0/\". %url_error"
+
+#: paypalpro.module:76
+msgid "PayPal Web Services API Account Name"
+msgstr "Nom de votre compte PayPal API"
+
+#: paypalpro.module:76
+msgid "Your account name identifies you to the PayPal Web Services API service.  Find your API Account Name by logging into your PayPal account and going to My Account -> Profile -> API Access -> API Certificate Information. %username_error"
+msgstr "Le nom de votre compte permet de vous identifier sur les services web PayPal API. Vous pouvez trouver votre nom de compte API en vous connectant à votre compte PayPal, et en allant sur Mon Compte -> Profil -> Accès à l'API -> Informations sur le certificat d'API. %username_error"
+
+#: paypalpro.module:77
+msgid "PayPal Web Services API Account Password"
+msgstr "Mot de passe de votre compte PayPal API"
+
+#: paypalpro.module:77
+msgid "The password for your PayPal Web Services API username. %password_error"
+msgstr "Le mot de passe de votre compte d'accès API PayPal. %password_error"
+
+#: paypalpro.module:78
+msgid "PayPal Digital Certificate"
+msgstr "Certificat numérique PayPal"
+
+#: paypalpro.module:78
+msgid "The absolute path to your PayPal SSL certificate.  Use the \"cert_key_pem.txt\" file provided by PayPal, do not convert it to P12 format. %sslcert_error"
+msgstr "Le chemin vers votre certificat SSL PayPal.  Il s'agit du fichier \"cert_key_pem.txt\" fourni par PayPal. Ce fichier ne doit pas être converti au format P12. %sslcert_error"
+
+#: paypalpro.module:79
+msgid "Successful payment URL"
+msgstr "URL suite à la validation du paiement "
+
+#: paypalpro.module:79
+msgid "This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path.  If you add '%txnid' (without the quotes) to the path, it wil be replaced by the actual transaction id.  If you are not using clean URLs, specify the part after '?q='. If unsure, leave the default or specify 'node'."
+msgstr "URL vers laquelle seront redirigés vos clients après la validation de leur paiement. Il doit s'agir d'une URL Drupal. Si vous ajoutez \"%txnid\" (sans les guillements) à cette URL, cela sera remplacé par l'identifiant de la transaction. Si vous n'utilisez pas les URL simplifiées, ne spécifiez que la partie après '?q='. Dans le doute, laissez la valeur par défaut ou utilisez 'node'."
+
+#: paypalpro.module:80
+msgid "Explanation or submission guidelines"
+msgstr "Explications/Aide"
+
+#: paypalpro.module:80
+msgid "Optional text to be displayed at the top of the credit card submission form."
+msgstr "Texte optionnel à afficher au dessus du formulaire de saisie des informations de carte bancaire."
+
+#: paypalpro.module:95
+#: ;270
+msgid "Place your order"
+msgstr "Passer votre commande"
+
+#: paypalpro.module:119
+#: ;149;154;219
+msgid "Visa"
+msgstr "Visa"
+
+#: paypalpro.module:119
+#: ;157;219
+msgid "MasterCard"
+msgstr "MasterCard"
+
+#: paypalpro.module:119
+#: ;160;219
+msgid "Discover"
+msgstr "Discover"
+
+#: paypalpro.module:119
+#: ;165;219
+msgid "American Express"
+msgstr "American Express"
+
+#: paypalpro.module:123
+msgid "Please enter your first name how it appear on your credit card."
+msgstr "Veuillez saisir votre prénom, tel qu'il apparaît sur votre carte."
+
+#: paypalpro.module:127
+msgid "Please enter your last name how it appear on your credit card."
+msgstr "Veuillez saisir votre nom, tel qu'il apparaît sur votre carte."
+
+#: paypalpro.module:131
+msgid "Please enter a credit card number."
+msgstr "Veuillez saisir le numéro de votre carte."
+
+#: paypalpro.module:135
+msgid "Please enter a valid credit card number."
+msgstr "Veuillez saisir le numéro de votre carte."
+
+#: paypalpro.module:140
+msgid "Your credit card has expired.  Please try another card."
+msgstr "Votre carte est périmée et ne peut être utilisée. Merci d'en utiliser une autre."
+
+#: paypalpro.module:169
+msgid "The credit card number you have entered is not a valid %type credit card number.  Please fix the credit card type, or re-enter the credit card number."
+msgstr "Le numéro de carte saisi n'est pas un numéro de carte %type valide. Merci de vérifier le type ou le numéro de votre carte."
+
+#: paypalpro.module:178
+msgid "Please enter a CCV2 number."
+msgstr "Veuillez saisir le cryptogramme visuel (CCV2)."
+
+#: paypalpro.module:182
+msgid "Please enter a valid CCV2 number.  Non-numeric characters are not allowed."
+msgstr "Veuillez saisir le cryptogramme visuel (CCV2). Seuls les caractères numériques sont autorisés."
+
+#: paypalpro.module:186
+msgid "Please enter a valid 4 digit CCV2 number.  The CCV2 number on your %type credit card is located on the front above and to the right of the imprinted card number."
+msgstr "Veuillez saisir les 4 chiffres du cryptogramme visuel (CCV2) de votre carte %type. Ces chiffres figurent en haut à droite du numéro de votre carte."
+
+#: paypalpro.module:190
+msgid "Please enter a valid 3 digit CCV2 number.  The CCV2 number on your %type credit card is located on the back in the signature panel after the credit card number."
+msgstr "Veuillez saisir les 3 chiffres du cryptogramme visuel (CCV2) de votre carte %type. Ces chiffres sont les 3 derniers du nombre imprimé sur la partie signature au dos de votre carte."
+
+#: paypalpro.module:234
+msgid "<div class=\"help\">%paypalpro_form_help</div>"
+msgstr "<div class=\"help\">%paypalpro_form_help</div>"
+
+#: paypalpro.module:241
+#: ;601
+msgid "%order of <b>%title</b> at %price each"
+msgstr "%order de <b>%title</b> au prix de %price pièce"
+
+#: paypalpro.module:244
+msgid "Your items"
+msgstr "Vos articles"
+
+#: paypalpro.module:251
+msgid "First name"
+msgstr "Prénom"
+
+#: paypalpro.module:252
+msgid "Middle name or initial"
+msgstr "Initiales ou deuxième prénom"
+
+#: paypalpro.module:253
+msgid "Last name"
+msgstr "Nom"
+
+#: paypalpro.module:257
+msgid "Card type"
+msgstr "Type de carte"
+
+#: paypalpro.module:257
+msgid "Select the type of credit card you would like to use to make your payment."
+msgstr "Sélectionner le type de carte bancaire qui sera utilisée pour le paiement."
+
+#: paypalpro.module:259
+msgid "Card number"
+msgstr "Numéro de carte"
+
+#: paypalpro.module:259
+msgid "Please enter your credit card number without any spaces or dashes."
+msgstr "Merci de saisir le numéro de votre carte sans espace ni tiret."
+
+#: paypalpro.module:260
+msgid "CCV2"
+msgstr "CCV2 (cryptogramme visuel)"
+
+#: paypalpro.module:260
+msgid "The CCV2 is a 3 digit number located on the back of Visa, MasterCard and Discover credit cards in the signature panel, and a 4 digit number located on the front of an American Express card above and to the right of the imprinted card number.  This number is used to provide additional security to internet orders."
+msgstr "Le cryptogramme visuel (CCV2) est un numéro à 3 chiffres situés à la fin du numéro imprimé sur la partie signature au dos de votre carte Visa, MasterCard ou Discover. Pour les cartes American Express, il s'agit d'un numéro à 4 chiffres situé en haut à droite du numéro de la carte. Ce numéro est utilisé pour ajouter une sécurité supplémentaire à vos commandes internet."
+
+#: paypalpro.module:264
+msgid "Month"
+msgstr "Mois"
+
+#: paypalpro.module:265
+msgid "Year"
+msgstr "An"
+
+#: paypalpro.module:266
+msgid "Select your credit card's expiration date"
+msgstr "Sélectionner la date d'expiration de votre carte "
+
+#: paypalpro.module:268
+msgid "Credit card details"
+msgstr "Détails de la carte "
+
+#: paypalpro.module:293
+msgid "Credit card"
+msgstr "Carte bancaire"
+
+#: paypalpro.module:357
+msgid "Select Checkout Method"
+msgstr "Sélectionner la méthode de paiement"
+
+#: paypalpro.module:358
+msgid "Fast, Secure Checkout with PayPal"
+msgstr "Paiement rapide et sécurisé PayPal"
+
+#: paypalpro.module:361
+msgid "Save time.  Checkout securely.<br />Pay without sharing your financial information."
+msgstr "Rapidité, sécurité.<br />Payez sans transmettre d'informations sensibles."
+
+#: paypalpro.module:366
+msgid "Fast, Secure Checkout with %site"
+msgstr "Paiement rapide et sécurisé %site"
+
+#: paypalpro.module:368
+msgid "Checkout locally"
+msgstr "Payer sur le site"
+
+#: paypalpro.module:434
+msgid "One moment please, contacting PayPal."
+msgstr "Veuillez patienter, connexion au site PayPal."
+
+#: paypalpro.module:562
+#: ;571
+msgid "Shipping address"
+msgstr "Adresse de livraison "
+
+#: paypalpro.module:564
+msgid "Please choose where you would like the items to be delivered. You can also %add_address."
+msgstr "Merci de sélectionner l'adresse de livraison de votre commande. Vous pouvez aussi %add_address."
+
+#: paypalpro.module:564
+msgid "add an address"
+msgstr "ajouter une adresse"
+
+#: paypalpro.module:580
+msgid "Billing your PayPal account"
+msgstr "Utiliser votre compte PayPal"
+
+#: paypalpro.module:582
+msgid "%account (%email)"
+msgstr "%account (%email)"
+
+#: paypalpro.module:596
+msgid "The following items are in your order"
+msgstr "Votre commande comporte les articles suivants : "
+
+#: paypalpro.module:601
+msgid "Update or delete?"
+msgstr "Modifier ? Supprimer ?"
+
+#: paypalpro.module:606
+msgid "Shipping"
+msgstr "Frais d'envoi "
+
+#: paypalpro.module:617
+msgid "Total"
+msgstr "Total "
+
+#: paypalpro.module:745
+msgid "You attempted to pay for the items in your shopping cart twice, but your credit card was only charged once."
+msgstr "Plusieurs tentatives de paiement ont été effectuées. Votre carte ne sera utilisée qu'un seule fois."
+
+#: paypalpro.module:749
+msgid "Please re-enter your credit card number."
+msgstr "Merci de saisir votre numéro de carte à nouveau : "
+
+#: paypalpro.module:802
+msgid "PayPalPro configuration error: "
+msgstr "Erreur de configuration PayPal Pro : "
+
+#: paypalpro.module:807
+msgid "Transaction approved.  Thank you for your order!"
+msgstr "La transaction a été validée. Merci de votre confiance !"
+
+#: paypalpro.module:241
+msgid "1 order"
+msgid_plural "%count orders"
+msgstr[0] "1 commande"
+msgstr[1] "%count commandes"
+
+#: paypalpro.module:601
+msgid "%count order"
+msgid_plural "%count orders"
+msgstr[0] "%count commande"
+msgstr[1] "%count commandes"
+
+#: paypalpro.module:0
+msgid "paypalpro"
+msgstr "paypalpro"
+

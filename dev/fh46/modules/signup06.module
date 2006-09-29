@@ -1,0 +1,143 @@
+<?php
+
+/**
+ * @file
+ * New pages for walk sign ups.
+ * 
+ * Depends on
+ * - echo_action.module, echo_action_get_countries()
+ * 
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function signup06_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Walk sign ups.');
+  }
+}
+
+/**
+ * Implementation of hook_menu()
+ * A new signup page 
+ */
+function signup06_menu($mc) {
+  if ($mc){
+    $items[] = array(
+      'path'      => 'signup06',
+      'callback'  => 'signup06_main',
+      'access'    => 'true'
+    );
+  } else {
+  
+  }
+  return $items;
+}
+
+/**
+ * Menu callback. Display sign-up page and redirect form submission
+ */
+function signup06_main() {
+  $edit = $_POST['edit'];
+  if (empty($edit)){
+    signup06_page();
+  } else {
+    signup06_sign($edit);
+  }
+}
+
+/**
+ * Called from signup06_main() to display a hardcoded page and form
+ */
+function signup06_page($data = array()) {
+  $out = "<p>
+Join the United Nations World Food Programme and tens of thousands of individuals around the world to help end child hunger. Together, we'll play a key role in meeting the goals of the U.N. Millennium Development Campaign. 
+</p><p>
+By signing up to participate in what will be the world's largest humanitarian event, you are lending your voice to a growing chorus of citizens all over the world who believe that a world with hungry children is a world that must be changed.
+ </p><p>
+Add your contact information below, and we will send you the latest information on Walk the World 2006- both th if you are interested in organising an event in your area, or participating in a walk. We will work with you every step of the way!
+</p><br><br>";
+  $out .= signup06_form($data);
+  $out .= "<br><br>
+<p>
+Last year, with just a few months preparation, over 200,000 people in 91 countries and 268 cities walked the world on 12 June 2005. These dedicated citizens raise almost $2 million dollars, and as a result, helped to feed over 70,000 children.  We want to double those numbers in 2006.
+</p><p> 
+Sign up today now to join us for this year's Walk!
+</p><p>
+<a href='wtw05'>Click here to see photos of Walk the World 2005 and read personal stories from the Walks!</a>
+</p>";
+  
+  $title = "Walk the World with us on 21 May 2006!";
+  print theme("page",$out,$title);
+}
+
+/**
+ * Display sign-up form
+ */
+function signup06_form($data = array()) {
+  $countries = echo_action_get_countries();
+
+  $form .= form_textfield("First Name","firstname",$data['firstname'],30,50);
+  $form .= form_textfield("Last Name","lastname",$data['lastname'],30,50);
+  $form .= form_textfield("Email Address","mail",$data['mail'],30,50);
+  $form .= form_select(t("My Home Country"),"c",$data['c'],$countries);
+  $form .= form_checkbox(t(" I am interested in organizing a Walk in my area."),"willorganize",$edit['willorganize']);
+  $form .= "<div align='right'>".form_button("submit","op","image",$atts)."</div>";
+  
+  return form($form);
+}
+
+/**
+ * Process form submission, sign-up
+ */
+function signup06_sign($edit) {
+  $errors = signup06_valid($edit);
+  if (empty($errors)){
+    signup06_insert($edit);
+    $message = "<p>Thanks for signing up! Help us make 2006 an even greater success by inviting 5 other people right now to sign up for Walk the World.</p><p>... And please stay in touch by visiting this page!</p>";
+
+    drupal_set_message($message);
+    drupal_goto("blog");
+  } else {
+    $out = "<ul><li>".implode("</li><li>",$errors)."</li></ul>";
+    $out .= signup06_form($edit);
+//    $title = "Walk the World with us on 21 May 2006!";
+    print theme("page",$out,$title);
+  }
+}
+
+/**
+ * Form data validation
+ */
+function signup06_valid($edit) {
+/*
+  if (empty($edit['firstname'])){
+    $errors[] = "Enter a first name.";
+  }
+  if (empty($edit['lastname'])){
+    $errors[] = "Enter a last name.";
+  }
+  */
+  if (empty($edit['mail'])){
+    $errors[] = "Please tell us your email address so we can get in touch with you.";
+  } elseif (!valid_email_address($edit['mail'])){
+    $errors[] = "That doesn't look like an actual email address. Try entering it again.";
+  } 
+  if ($edit['c'] == "--"){
+    $errors[] = "Please let us know where you live.";  
+  }
+  
+  return $errors;
+}
+
+/**
+ * Insert data into 'wtw_walk' table
+ */
+function signup06_insert($edit) {
+  $q = "REPLACE INTO wtw_walk SET mail='%s',country='%s',optout='%d',created=%d,source='%s',firstname='%s',lastname='%s'";
+  db_query($q,$edit['mail'],$edit['c'],$edit['optout'],time(),"signup06",$edit['firstname'],$edit['lastname']);  
+}
+
+?>

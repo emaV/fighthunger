@@ -1,0 +1,366 @@
+<?php
+/* $Id: auction.module,v 1.10.2.2 2005/10/30 19:02:46 mathias Exp $ */
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_help().
+ */
+function auction_help($section = 'admin/help#auction') {
+  $output = "";
+
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Create auction products. Dependency: product.module');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function auction_menu($may_cache) {
+  $items = array();
+
+  if (!$may_cache) {
+    if (arg(0) == 'auction' && is_numeric(arg(1))) {
+      $items[] = array('path' => 'auction', 'title' => t('bid'), 'callback' => 'auction_page',
+          'access' => user_access('access content'), 'type' => MENU_CALLBACK);
+    }
+    $items[] = array('path' => 'auction/checkout', 'title' => t('checkout'), 'callback' => 'auction_checkout_page',
+          'access' => user_access('place bids'), 'type' => MENU_CALLBACK);
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function auction_perm() {
+  return array('place bids');
+}
+
+/**
+ * Implementation of hook_link().
+ */
+function auction_link($type, $node = NULL, $teaser = FALSE) {
+  $links = array();
+
+  if ($type == 'node' && user_access('access content') && $teaser && $node->ptype == 'auction') {
+    if (time() > $node->expires) {
+      $links[] = '<span class="bid-link">'. t('Bidding closed') . '</span>';
+    }
+    else {
+      $links[] = l(t('Bid now'), "node/$node->nid", array('title' => t('Place your bid for this item'), 'class' => 'bid-link'));
+    }
+  }
+
+  return $links;
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function auction_user($type, &$edit, &$user, $category = NULL) {
+  if ($type == 'view' && $GLOBALS['user']->uid == $user->uid) {
+    return array(t('Auction items') => form_item('', l(t('Pay for your winning auction items'), 'auction/checkout')));
+  }
+}
+
+function auction_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  switch ($op) {
+    /* Due to the way we have to build our node, we have to pass an array of values this module collects. */
+    case 'fields':
+      return array('expires' => $node->expires, 'bid_history' => $node->bid_history);
+
+    case 'validate':
+      if (isset($node->expires)) {
+        if (!$node->expires) {
+          form_set_error('expires', t('Please enter an expiration date.'));
+        }
+        if (!is_numeric($node->expires)) {
+          if (strtotime($node->expires) != -1) {
+            $node->expires = strtotime($node->expires);
+          }
+          else {
+            form_set_error('expires', t('Invalid date specified.'));
+          }
+        }
+      }
+      break;
+
+    case 'wizard_select':
+      return array('auction' => t('auction item'));
+
+    case 'adjust_price':
+      $high_bidder = auction_get_current_bid($node->nid);
+      return (($high_bidder->bid) ? $high_bidder->bid : $node->price);
+
+    case 'cart add item':
+      global $user;
+      $expired = (time() > $node->expires) ? true : false;
+      $buyer = db_result(db_query_range('SELECT uid FROM {ec_auction_bid} WHERE uid = %d ORDER BY created DESC', $user->uid, 0, 1));
+      return (($buyer && $expired) ? true : false);
+
+    case 'form':
+      if (!$node->expires) {
+        $node->expires = time();
+      }
+      $node->expires = format_date($node->expires, 'custom', 'Y-m-d H:i O');
+      $output .= form_textfield(t('Expiration date'), 'expires', $node->expires, 30, 50, t('Enter the date this product is no longer open for bidding.'));
+      return $output;
+
+      /* Similar to node_load */
+    case 'load':
+      return db_fetch_object(db_query('SELECT * FROM {ec_product_auction} WHERE nid = %d', $node->nid));
+
+    /* Node has been saved, write to product tables. */
+    case 'insert':
+      return db_query('INSERT INTO {ec_product_auction} (nid, expires) VALUES (%d, %d)', $node->nid, $node->expires);
+
+    case 'in_stock':
+        return true;
+
+    case 'is_shippable':
+        return array(true);
+
+    case 'update':
+      return db_query('UPDATE {ec_product_auction} SET expires = %d WHERE nid = %d', $node->expires, $node->nid);
+
+    case 'delete':
+      db_query('DELETE FROM {ec_product_auction} WHERE nid = %d', $node->nid);
+      db_query('DELETE FROM {ec_auction_bid} WHERE nid = %d', $node->nid);
+  }
+}
+
+function auction_page($nid, $action) {
+  $edit = $_POST['edit'];
+  $op   = $_POST['op'];
+
+  global $user;
+
+  if (!user_access('place bids') && $user->uid < 1) {
+    drupal_goto('user/register');
+  }
+
+  if (user_access('place bids')) {
+    switch ($op ? $op : $action) {
+      case t('Confirm bid'):
+        if (auction_bid_validate($edit)) {
+          auction_bid_save($edit);
+          drupal_goto('node/'. $edit['nid']);
+        }
+        else {
+          $output = auction_bid_form($edit);
+        }
+        break;
+
+      case t('Pay for your items'):
+        drupal_goto('cart/'. $edit['nid']. '/add');
+        break;
+
+      case t('bid'):
+        if (arg(3) == 'history') {
+          $output = auction_bid_history($nid);
+        }
+        else {
+          $edit['nid'] = $nid;
+          $output = auction_bid_form($edit);
+        }
+        break;
+
+      default:
+        $edit['nid'] = $nid;
+        $output = auction_bid_form($edit);
+        break;
+    }
+
+    print theme('page', $output, $title);
+  }
+}
+
+function auction_checkout_page() {
+  $edit = $_POST['edit'];
+  $op   = $_POST['op'];
+
+  global $user;
+
+  if ($user->uid < 1) {
+    drupal_goto('user/login');
+  }
+
+  if (user_access('place bids')) {
+    $title = t('Checkout');
+    switch ($op) {
+      default:
+        $result = db_query('SELECT DISTINCT nid FROM {ec_auction_bid} ORDER BY nid');
+        while ($data = db_fetch_object($result)) {
+          $item = db_fetch_object(db_query('SELECT nid, bid, uid FROM {ec_auction_bid} WHERE nid = %d ORDER BY created DESC', $data->nid));
+          if ($item->uid == $user->uid) {
+            $nids[] = $item->nid;
+            if (db_result(db_query("SELECT qty FROM {ec_cart} WHERE cookie_id = '%s' AND nid = '%d'", cart_get_id(), $item->nid)) == 0) {
+              cart_add_item($item->nid, 1, null);
+            }
+            $add_to_cart[] = $item;
+          }
+        }
+        $paid_for = db_result(db_query('SELECT COUNT(t.txnid) FROM {ec_transaction_product} tp, {ec_transaction} t WHERE t.payment_status = %d AND t.txnid = tp.txnid AND t.uid = %d AND nid IN (%s)', payment_get_status_id('completed'), $user->uid, implode(',', $nids)));
+        if ($add_to_cart && !$paid_for) {
+          drupal_goto('cart/checkout');
+        }
+        else {
+          $title = t('Auction');
+          $output = t('You have no winning items to pay for.');
+        }
+        break;
+    }
+
+    print theme('page', $output, $title);
+  }
+}
+
+/**
+ * Return TRUE if the auction item has already been paid for.
+ */
+function auction_item_paid_for($nid) {
+  global $user;
+
+  $result = db_query('SELECT DISTINCT nid FROM {ec_auction_bid} WHERE nid = %d ORDER BY nid', $nid);
+  while ($data = db_fetch_object($result)) {
+    $item = db_fetch_object(db_query('SELECT nid, bid, uid FROM {ec_auction_bid} WHERE nid = %d ORDER BY created DESC', $data->nid));
+    if ($item->uid == $user->uid) {
+      $nids[] = $item->nid;
+    }
+  }
+
+  return db_result(db_query('SELECT COUNT(t.txnid) FROM {ec_transaction_product} tp, {ec_transaction} t WHERE t.payment_status = %d AND t.txnid = tp.txnid AND t.uid = %d AND nid IN (%s)', payment_get_status_id('completed'), $user->uid, implode(',', $nids)));
+}
+
+function auction_bid_history($nid) {
+  $product = node_load(array('nid' => $nid));
+  drupal_set_title(t('Bid history for  &quot;%product-name&quot;', array('%product-name' => $product->title)));
+
+  $header = array(t('User'), t('Bid'), t('Date of bid'));
+  $result = db_query('SELECT u.name, b.* FROM {ec_auction_bid} b INNER JOIN {users} u ON u.uid = b.uid  WHERE b.nid = %d ORDER BY b.created DESC', $nid);
+  while ($data = db_fetch_object($result)) {
+    $rows[] = array($data->name, payment_format($data->bid), format_date($data->created));
+  }
+
+  if ($rows) {
+    $output = theme('table', $header, $rows);
+  }
+
+  return $output;
+}
+
+function auction_bid_history_count($nid) {
+  return db_result(db_query('SELECT COUNT(bid) FROM {ec_auction_bid} WHERE nid = %d', $nid));
+}
+
+function auction_bid_form($edit) {
+  $product = node_load(array('nid' => $edit['nid']));
+
+  if (time() > $product->expires) {
+    drupal_set_message(t('This auction has ended.'));
+    drupal_goto("node/$product->nid");
+  }
+
+  drupal_set_title(t('Bidding on &quot;%product-name&quot;.', array('%product-name' => $product->title)));
+
+  $current_bid = product_adjust_price($product);
+  $bid_field = form_textfield('', 'bid', $edit['bid'], 10, 50, t('Enter an amount above %base-bid-amount.', array('%base-bid-amount' => payment_format($current_bid))), null, true);
+
+  $output = form_hidden('nid', $edit['nid']);
+  $output .= form_hidden('price', $current_bid);
+
+  $header = array();
+  $rows[] = array(t('Current bid:'), payment_format($current_bid));
+  $rows[] = array(t('Your bid:'), $bid_field);
+  $rows[] = array('&nbsp;', form_submit(t('Confirm bid')));
+
+  $output .= theme('table', $header, $rows);
+
+  return form($output);
+}
+
+function auction_bid_validate($edit) {
+  $errors = array();
+  if (isset($edit['bid'])) {
+    if (is_numeric($edit['bid'])) {
+      if ($edit['price']) {
+        if ($edit['bid'] <= $edit['price']) {
+          $errors['bid'] = t('You must bid more than %current-price.', array('%current-price' => payment_format($edit['price'])));
+        }
+      }
+      else {
+        $errors['bid'] = t('Script error.');
+      }
+    }
+    else {
+      $errors['bid'] = t('You must enter a price.');
+    }
+  }
+  foreach ($errors as $name => $message) {
+    form_set_error($name, $message);
+  }
+  return count($errors) == 0;
+}
+
+function auction_bid_save($edit) {
+  global $user;
+  db_query('INSERT INTO {ec_auction_bid} (nid, uid, bid, created) VALUES (%d, %d, %f, %d)', $edit['nid'], $user->uid, $edit['bid'], time());
+  drupal_set_message(t('Your bid of %bid-amount has been placed.', array('%bid-amount' => payment_format($edit['bid']))));
+}
+
+function auction_get_current_bid($nid) {
+  return db_fetch_object(db_query_range('SELECT * FROM {ec_auction_bid} WHERE nid = %d ORDER BY created DESC', $nid, 0, 1));
+}
+
+function theme_product_auction_view($node, $teaser = 0, $page = 0) {
+
+  if ($teaser) {
+    return $node;
+  }
+
+  $bid = payment_format(product_adjust_price($node));
+  $high_bidder = auction_get_current_bid($node->nid);
+
+  if (auction_productapi($node, 'cart add item')) {
+    $button = (!auction_item_paid_for($node->nid)) ? form_submit(t('Pay for your items')) : t('You\'ve already paid for this item.');
+  }
+  elseif ($node->expires > time()) {
+    $button = form_submit(t('Place bid'));
+  }
+
+  $header = array();
+  $rows[] = array(t('Current bid:'), $bid);
+  $rows[] = array('&nbsp;', $button);
+  $rows[] = array(t('Time left:'), format_interval($node->expires - time()));
+  //$rows[] = array(t('Start time:'), format_date($node->created));
+  if ($high_bidder->bid) {
+    $rows[] = array(t('High bidder:'), db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $high_bidder->uid)));
+    $count = auction_bid_history_count($node->nid);
+    $bid_history = t('(<a href="%bid-history-link">%num-bids</a>)', array('%bid-history-link' => url("auction/$node->nid/bid/history"), '%num-bids' => format_plural($count, '1 previous bid', '%count previous bids')));
+    $rows[] = array(t('Bid history'), $bid_history);
+  }
+  else {
+    $rows[] = array(t('High bidder:'), t('none'));
+  }
+
+  $output = theme('table', $header, $rows);
+
+  if (time() > $node->expires) {
+    $output = form($output, 'post', url("auction/checkout"));
+  }
+  else {
+    $output .= form_hidden('nid', $node->nid);
+    $output = form($output, 'post', url("auction/$node->nid/bid"));
+  }
+  $node->body = $output .'<p>&nbsp;</p><h3>'. t('Description') .'</h3>'. $node->body;
+
+  return $node;
+}
+?>

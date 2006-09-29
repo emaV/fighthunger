@@ -1,0 +1,115 @@
+<?php
+// $Id: ecivicrm.module,v 1.1.2.3 2005/12/23 22:49:37 jeremy Exp $
+
+/**
+ * @file ecivicrm.module
+ *
+ * The ecivicrm module provides an interface between the Drupal e-commerce
+ * module and CiviCRM.
+ */
+
+/**
+ * Implementation of Drupal _help() hook.
+ *
+ * @param  $path    The current path.
+ * @return string   Help text appropriate for the current path.
+ */
+function ecivicrm_help($path = 'admin/help#ecivicrm') {
+  switch ($path) {
+    case 'admin/modules#description':
+      return t('Automatically syncronize data between Drupal\'s ecommerce module and CiviCRM.');
+  }
+}
+
+/**
+ * Implementation of Drupal _settings() hook.
+ *
+ * @return form   Form used to configure the ecivicrm module.
+ */
+function ecivicrm_settings() {
+  $form = form_radios(t('Record activity types'), 'ecivicrm_activity_types', variable_get('ecivicrm_activity_types', 0), array(t('Donations only'), t('All transactions')), t('Select what type of activites should be recorded in the CiviCRM activity history.'));
+  return $form;
+}
+
+/*********************/
+
+function ecivicrm_ec_transactionapi($txn, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'update': // TODO: Maybe there should be special handling for this
+    case 'insert':
+    {
+      // make sure the civicrm system is initialized
+      civicrm_initialize( );
+      require_once 'api/crm.php';
+      $civicrm_userid = crm_uf_get_match_id($txn->uid);
+
+      // build messages for activity history
+      $donation = '';
+      $transaction = '';
+      foreach ($txn->items as $item) {
+        if ($donation) {
+          $donation .= ', ';
+        }
+        if ($transaction) {
+          $transaction .= ', ';
+        }
+
+        if ($item->ptype == 'donate') {
+          $type = t('donation');
+          $donate = 1;
+        }
+        else {
+          $type = $item->ptype;
+          $donate = 0;
+        }
+
+        if ($item->is_recurring) {
+          $type = t('recurring %type', array('%type' => "$type"));
+        }
+        $types = $type .'s';
+
+        // donations are separated from the rest of the transaction
+        if ($donate) {
+          $donation .= t('%type [%sku] for %price', array('%type' => format_plural($item->qty, "1 $type", "%count $types"), '%sku' => $item->sku, '%price' => $item->price));
+        }
+        else {
+          $transaction .= t('%type [%sku] for %price', array('%type' => format_plural($item->qty, "1 $type", "%count $types"), '%sku' => $item->sku, '%price' => $item->price));
+        }
+      }
+      // write donation entry in activity history
+      if ($donation) {
+        $donation .= '.  ';
+        $donation .= t('%paid %total with %payment_method.', array('%paid' => l(t('Paid'), 'store/transaction/view/'. $txn->txnid), '%total' => $txn->gross, '%payment_method' => $txn->payment_method));
+        $params = array('entity_table'     => 'civicrm_contact',
+                        'entity_id'        => $civicrm_userid,
+                        'activity_type'    => t('Donation'),
+                        'module'           => 'E-commerce',
+                        'activity_id'      => $txn->txnid,
+                        'activity_summary' => $donation,
+                        'activity_date'    => date('YmdHis')
+                        );
+        if ( is_a( crm_create_activity_history($params), 'CRM_Core_Error' ) ) {
+          return false;
+        }
+      }
+      // write generic transaction entry in activity history
+      if ($transaction && variable_get('ecivicrm_activity_types', 0)) {
+        $transaction .= '.  ';
+        $transaction .= t('%paid %total with %payment_method.', array('%paid' => l(t('Paid'), 'store/transaction/view/'. $txn->txnid), '%total' => $txn->gross, '%payment_method' => $txn->payment_method));
+        $params = array('entity_table'     => 'civicrm_contact',
+                        'entity_id'        => $civicrm_userid,
+                        'activity_type'    => t('Transaction'),
+                        'module'           => 'E-commerce',
+                        'activity_id'      => $txn->txnid,
+                        'activity_summary' => $transaction,
+                        'activity_date'    => date('YmdHis')
+                        );
+        if ( is_a( crm_create_activity_history($params), 'CRM_Core_Error' ) ) {
+          return false;
+        }
+      }
+    }
+  }
+}
+
+?>

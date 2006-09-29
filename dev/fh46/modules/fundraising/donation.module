@@ -1,0 +1,644 @@
+<?php
+// $Id: donation.module,v 1.168 2005-04-26 15:55:01 jose Exp $
+
+/**
+ * @file
+ * Enables users to add donation options for the published content.
+ * 
+ * Developed by Jose A. Reyero for FightHunger.org
+ * http://www.reyero.net
+ */
+
+define('DONATION_AMOUNT_MAX', 99999999.99);
+/**
+ * Implementation of hook_help().
+ */
+function donation_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Manages donations.');
+  }
+}
+
+/**
+ * Implementation of hook_link()
+ * TO-DO: Do we really need this?
+ */
+function hook_link($type, $node = NULL, $teaser = FALSE) {
+  $links = array();
+
+  if ($type == 'node' && $node->donation) {
+    switch($node->donation->type){
+      case 'plain':
+        $links[] = l(t('make a donation'), "donation");
+        break;
+      case 'event':
+        $links[] = l(t('make a donation'), "donation/$node->nid");
+        break;
+      case 'campaign':
+        break;
+      case 'fee':
+        global $user;
+        if($user->uid && $donation = donation_load(array('uid' => $user->uid, 'nid' => $node->nid, 'status' => 'cleared'))) {
+          $links[] = t('you have paid the fee for this event');
+        } else {
+          $links[] = l(t('pay the event fee'), "donation/$node->nid");
+        }
+        break;        
+    }
+  }
+
+  return $links;
+}  
+/**
+ * Implementation of hook_menu().
+ */
+function donation_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'donation', 'title' => t('donation'),
+      'callback' => 'donation_page',
+      'access' => TRUE);
+    $items[] = array('path' => 'admin/donation', 'title' => t('donations'),
+      'callback' => 'donation_admin',
+      'access' => user_access('administer donations'));     
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_nodeapi()
+ * TO-DO: Validation, updates
+ */
+function donation_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  $settings = variable_get("donation_settings_$node->type", 0);
+  $settings = is_array($settings) ? $settings : array();
+  if ($op == 'settings' || count($settings)) {
+	  switch ($op) {
+	    case 'settings':
+        // Note: Unchecked ones will have a default value of '0'
+ 	      return form_checkboxes(t('Donation types'), "donation_settings_$node->type", $settings, _donation_types(), t('Check the donation options allowed for this content type'));
+	      break;
+	    case 'load':
+	      $node->donation = db_fetch_object(db_query('SELECT * FROM {donation_node} WHERE nid=%d', $node->nid));
+	      $node->donation->active = true;
+	      break;
+	    case 'form post':
+	      if( user_access('set up donations')) {
+	        $alltypes = _donation_types();
+	        $allowed_types = array('' => t('None'));
+	         foreach($settings as $type) {
+	          $allowed_types[$type] = $alltypes[$type];
+	        }
+	        $form = form_radios('','donation][type', $node->donation->type, $allowed_types);
+	        $form .= form_textfield(t('Amount'), 'donation][amount', $node->donation->amount, 10, 10);
+	        $form .= form_select(t('Currency'), 'donation][currency', $node->donation->currency, _donation_currencies());
+	        return form_group(t('Donations'), $form);
+	        //return donation_node_form($node);
+	      }
+	      break;
+      case 'validate':
+        $node->donation = (object)$node->donation;
+/*
+        if($node->donation->type != 'fee' ){
+//           $node->donation->amount = NULL;
+//           $node->donation->currency = NULL;
+        } elseif(!is_numeric($node->donation->amount) || $node->donation->amount <= 0 || !$node->donation->currency) {
+          form_set_error('donation][amount', t('You must enter an amount and currency for this type of donation'));
+        }
+*/
+
+        if( ($node->donation->amount <>'') && (!is_numeric($node->donation->amount) || $node->donation->amount < 0 || !$node->donation->currency) ) {
+          form_set_error('donation][amount', t('You must enter an amount and currency for this type of donation'));
+        }
+        break;
+	    case 'update':
+	      db_query("DELETE FROM {donation_node} WHERE nid=%d", $node->nid);
+          // No break
+      case 'insert':
+        if ($node->donation->type<>'') 
+          db_query("INSERT INTO {donation_node} (nid, type, amount, currency) VALUES(%d, '%s', %d, '%s')", $node->nid, $node->donation->type, $node->donation->amount, $node->donation->currency);
+	      break;
+	    case 'delete':
+	      db_query("DELETE FROM {donation_node} WHERE nid=%d", $node->nid);
+	      break;
+      case 'view':
+        $node->donation->active = $node->donation->active && ($node->donation->type<>'');
+			  if ($page && $node->donation &&  $node->donation->active) {
+          $dl['type'] = $node->donation->type;
+          $dl['amount'] = ($node->donation->amount > 0) ? $node->donation->amount : '';
+          $dl['currency'] = ($node->donation->currency <> '') ? $node->donation->currency : '';
+			    switch($node->donation->type) {
+			      case 'plain':
+              $dl['text'] = t('Make a donation');
+              $dl['link'] = 'donation';
+			        break;
+			      case 'event':
+              $dl['text'] = t('Donate to this event');
+              $dl['link'] = "donation/$node->nid";
+			        break;
+			      case 'campaign':
+              $dl['text'] = t('Donate to this campaign');
+              $dl['link'] = "donation/$node->nid";
+//			        $output = theme('donation_link',$node->donation->type, t('Make a donation'), "donation/$node->nid");
+			        break;
+			      case 'fee':
+			        global $user;
+			        if($user->uid && $donation = donation_load(array('uid' => $user->uid, 'nid' => $node->nid, 'status' => 'cleared'))) {
+                $dl['text'] =t('You have paid the fee for this event'); 
+                $dl['link'] = '';
+//			          $output = theme('donation_link',$node->donation->type, t('You have paid the fee for this event'));
+			        } else {
+                $dl['text'] = t('Pay the event fee'); 
+                $dl['link'] = "donation/$node->nid";
+//			          $output = theme('donation_link',$node->donation->type, t('Pay the event fee'), "donation/$node->nid");
+			        }
+			        break;        
+			    }
+          $node->body .= theme('donation_link', $dl);
+			  }
+        break;      
+	  } 
+  }
+}
+
+/**
+ * Theming donation link for hook_nodeapi()
+ */
+function theme_donation_link($dl) {
+  $out = ($dl['link']<>'') ? l($dl['text'], $dl['link']) : $dl['text'];
+  return  "<div class='donation_link'>$out</div>";
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function donation_perm() {
+  return array('administer donations', 'set up donations');
+}
+
+/**
+ * Implementation of hook_settings()
+ */
+function donation_settings() {
+  $form = '';
+  $form .= form_textarea(t('Presentation'), 'donation_presentation', variable_get('donation_presentation', ''), 60, 10, t('Presentation text for plain donations. This may contain HTML markup.') );
+  return $form;
+}
+
+/**
+ * Implementation of hook_user()
+ */
+function donation_user($op, &$edit, &$user, $category = NULL) {
+  switch($op) {
+    case 'view':
+      if ($user->donation) {
+        return array('donation' => form_item(t('Make a donation'), l(_donation_list($user->donation), "donation/$user->donation") ));
+      }
+      break;
+    case 'form':
+      if ($category == 'account') {
+        return array(array('title' => t('Donations link'), 'data' => form_select(t('Campaign or event'), 'donation', $user->donation, _donation_list(), t('Link for donations from your user page.') ), 'weight' => 0));
+      } 
+  }
+}
+/**
+ * Callbacks for the menu
+ */
+function donation_page($nid = 'plain') {
+  $edit = isset($_POST['edit']) ? $_POST['edit'] : NULL;
+  
+  watchdog("donation $nid", "EDIT: " . print_r($edit, true));
+  // Get donation info and double check everything
+  if($donation = donation_prepare($nid)) {
+    drupal_set_title(check_plain($donation->title));
+	  // Page workflow
+	  if($edit){
+	    // Donation has been submitted
+	    if(donation_validate($donation, $edit)) {
+	      $output = donation_checkout($donation); // This should not return
+	    } else {
+	      $output = donation_form($donation, $edit);
+	    }
+	  } else {
+	    $output = donation_form($donation);
+	  }
+	  print theme('page', "<div class='donation'>$output</div>");    
+  } else {
+    drupal_access_denied();    
+  }
+}
+
+function donation_prepare($nid) {
+  if($nid) {
+    if(is_numeric($nid)) {
+      $node = node_load(array('nid' => $nid));
+    	// Check for user access to node
+      if($node && node_access('view', $node) && isset($node->donation) && $node->donation){
+        $donation = $node->donation;
+  //      $donation->presentation = node_view($node);
+        $donation->presentation = node_view($node, TRUE, TRUE);
+      } else {
+        return NULL;
+      }
+    } else { // Plain or campaign donation
+      $donation = new StdClass();
+      $donation->type = ($nid{0} == 'c') ? 'campaign' : 'plain';
+      $donation->nid = $nid;
+    }
+  } else {
+    return NULL;
+  }
+  
+  // Complete donation information
+  switch($donation->type) {
+    case 'plain':
+      $donation->presentation = variable_get('donation_presentation', '');
+      $donation->partners = NULL;    
+      $donation->title = t('Donate to %name', array('%name' => variable_get('site_name', 'Drupal')));
+      break;
+    case 'fee':
+      $donation->title = t('Event fee for %name', array('%name' => $node->title));
+      $donation->partners = _donation_get_partners($node->nid);
+      $donation->fixed = TRUE; // For fixed amount and currency
+      break;
+    case 'event':
+      $donation->title = t('Donate for %name', array('%name' => $node->title));
+      $donation->partners = _donation_get_partners($node->nid);
+      $donation->affiliation = $donation->partners;
+      break;
+    case 'campaign':
+      $camid = substr($nid,1);
+      $campaign = db_fetch_object(db_query("SELECT * FROM {gathering_campaign} WHERE camid=$camid"));
+      $donation->title = $campaign->name;
+      $donation->presentation = $campaign->description;
+      break;
+  }
+  return $donation;   
+}
+/**
+ * Administration pages
+ */
+function donation_admin($trid = NULL) {
+  if($trid && $donation = donation_load(array('trid' => $trid))) {
+    $output = donation_admin_donation($donation);
+  } else {
+    $output = donation_admin_overview();
+  }
+  print theme('page', $output);
+}
+
+/**
+ * Administration: Paged list of donations
+ */
+function donation_admin_overview() {
+  $result = pager_query('SELECT d.* FROM {donation} d ORDER BY d.created DESC', 20);
+
+  if (db_num_rows($result)) {
+    $header = array(t('transacion'), t('type'),t('status'), t('node'), t('user'), t('amount'), t('currency'), t('created'), t('updated'));
+    while ($data = db_fetch_object($result)) {
+      $rows[] = array(
+        l($data->trid, "admin/donation/$data->trid"), $data->type, $data->status, 
+        $data->nid, $data->uid, $data->amount, 
+        $data->currency, format_date($data->created, 'small'), format_date($data->changed, 'small'));
+    }
+    $output = theme('table', $header, $rows);
+    $output .= theme('pager', NULL, 20);
+  } else {
+    $output = t('No donations yet');
+  }
+  return $output;  
+}
+
+/**
+ * Administration: Single donation
+ */
+function donation_admin_donation($donation) {
+  $output = '<h2>'.t("Donation")."</h2>\n";
+  $output .= form_item(t("Transaction"), $donation->trid);
+  $output .= form_item(t("Type"), $donation->type);
+  $output .= form_item(t("Status"), $donation->status);
+  if($donation->uid) {
+    $user = user_load(array('uid' => $donation->uid));
+    $output .= form_item(t("User"), format_name($user));
+  }
+  $output .= form_item(t("Amount"), $donation->amount);
+  $output .= form_item(t("Currency"), $donation->currency);
+  $output .= form_item(t("Created"), format_date($donation->created, 'small'));
+  $output .= form_item(t("Updated"), format_date($donation->changed, 'small'));
+  // Stored data
+  if($donation->data) {
+    $header = array(t('Field'), t('Value'));
+    foreach($donation->data as $name => $value) {
+      $rows[] = array($name, $value);
+    }
+    $output .= theme('table', $header, $rows);
+  }
+  return $output;
+}
+/**
+ * Administration: Paged list of donations
+ */
+function donation_list($nid = NULL, $data = NULL) {
+  $sql = 'SELECT * FROM {donation} ';
+  $header = array(
+      array('data' => t('transaction'), 'field' => 'trid'),
+		  array('data' => t('status')     , 'field' => 'status'),
+		  array('data' => t('amount')     , 'field' => 'amount'),
+		  array('data' => t('currency')   , 'field' => 'currency'),
+		  array('data' => t('created')    , 'field' => 'created', 'sort' => 'desc')
+  );
+  if ($nid || $data) {
+    $sql_where  = " WHERE ";
+    $sql_where .= ($nid)  ? (" nid = '$nid' " . (($data) ? " AND " : "") ) : "";
+// with serialized data problems with curly braces http://drupal.org/node/12762
+// so we extract fragment serialized from braces 
+    preg_match('/\{(.*)\}/', serialize($data), $matches);
+    $unbraced_serialized_data = $matches[1];
+    $sql_where .= ($data) ? " data LIKE '%$unbraced_serialized_data%' " : "";
+  } else {
+    $sql_where  = "";
+  }
+  $sql .= $sql_where . tablesort_sql($header); 
+  $result = pager_query($sql, 20);
+  if (db_num_rows($result)) {
+    while ($data = db_fetch_object($result)) {
+      $rows[] = array(
+        $data->trid, $data->status, $data->amount, 
+        $data->currency, format_date($data->created, 'small'));
+    }
+    $pager = theme('pager', NULL, 20, 0, tablesort_pager());
+  
+    if (!empty($pager)) {
+      $rows[] = array(array('data' => $pager, 'colspan' => '5'));
+    }
+    
+    $output = theme('table', $header, $rows);
+  } else {
+    $output = t('No donations yet');
+  }
+  return $output;  
+}
+
+
+/**
+ * Process the payment.
+ * 
+ * The user may be redirected or not from here to the payment provider
+ * 
+ */
+function donation_checkout($donation) {
+  $donation->status = 'pending';
+  $donation->collected = 0;
+  // Ready to support more payment systems
+  $donation->payment = 'globalcollect';
+  // Quick fix for wrong country codes
+  $donation->country = _donation_fix_countrycode($donation->country);
+
+  if(donation_save($donation)) {
+    // User may be redirected to payment site
+    $output = module_invoke($donation->payment, 'proceed', $donation);
+  } else {
+    drupal_set_message(t('An error has occurred. Cannot proceed with donation'), 'error');
+    $output = donation_form($donation);
+  }
+  return $output;
+}
+
+/**
+ * Fix some country codes
+ * YU > CS
+ * CD > ZR
+ * UK > GB
+ * GG > GB
+ * IM > GB
+ * JE > GB 
+ */
+function _donation_fix_countrycode($code){
+  switch($code) {
+    case 'UK':
+    case 'GG':
+    case 'IM':
+    case 'JE':
+      return 'GB';
+    case 'YU':
+      return 'CS';
+    case 'CD':
+      return 'ZR';
+    default:
+      return $code; 
+  }
+}
+/**
+ * Database layer
+ */
+function donation_save(&$donation) {
+  $donation->changed = time();
+  // Serialize additional data
+  $data = $donation->data ? serialize($donation->data) : NULL;
+  if($donation->trid) {
+    db_query("UPDATE {donation} SET type='%s', uid=%d, nid='%s', amount=%d, currency='%s', status='%s', collected=%d, changed=%d, partnerid = %d, data='%s' WHERE trid=%d",
+      $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->changed, $donation->partnerid, $data, $donation->trid);
+  } else {
+    $donation->trid = db_next_id("{donation}_trid");
+    $donation->created = $donation->changed;
+    db_query("INSERT INTO {donation}(trid, type, uid, nid, amount, currency, status, collected, created, changed, partnerid, data) VALUES(%d, '%s', %d, '%s', %d, '%s', '%s', %d, %d, %d, %d, '%s')", 
+      $donation->trid, $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->created, $donation->changed, $donation->partnerid, $data);
+  }
+
+  return db_affected_rows() ? TRUE : FALSE;
+}
+
+function donation_load($params = NULL) {
+  foreach($params as $field => $value) {
+    $conds[] = "$field = '".db_escape_string($value)."'";
+  }
+  $donation = db_fetch_object(db_query("SELECT * FROM {donation} WHERE ". implode(' AND ',$conds)));
+  if($donation) {
+    $donation->data = $donation->data ? unserialize($donation->data) : array();
+    $donation->active = true;
+    return $donation;
+  } else {
+    return NULL;
+  }
+}
+/**
+ * TO-DO: Validation
+ */
+function donation_validate(&$donation, $edit = array()) {
+  global $user;
+  // Check for user logged in
+  if($user->uid) {
+    $donation->uid = $user->uid;
+    $donation->country = $user->country ? $user->country : $edit['country'];
+  } else {
+    form_set_error('login', t('This is not a valid user'));
+  }
+  if(!$donation->country || $donation->country == '--') {
+    form_set_error('country', t('You must select a country'));
+  }
+  if(!$donation->fixed) {
+    $donation->amount = $edit['amount'];
+    $donation->currency = $edit['currency'];
+  }
+  // Check amount and currency
+  if(!$donation->amount || !is_numeric($donation->amount) || !($donation->amount > 0) || $donation->amount > DONATION_AMOUNT_MAX) {
+    form_set_error('amount', t('Amount must be a number'));
+  }
+  if(!$donation->currency || !_donation_currency_name($donation->currency)) {
+    form_set_error('currency', t('This is not a valid currency'));
+  }
+  // Check affiliation
+  if($edit['partnerid'] && array_key_exists($edit['partnerid'], $donation->affiliation)) {
+    $donation->partnerid = $edit['partnerid'];
+  }
+  // Add some data
+  if($edit['donation_source']) $donation->data = array('donation_source' => $edit['donation_source']);
+  // Final check and return
+  if(form_get_errors()) {
+    return FALSE;
+  } else {
+    $donation->validated = TRUE;
+    return TRUE;
+  }
+}
+
+function donation_form($donation, $edit = array()) {
+  // Presentation
+  $form_pre = theme('donation_presentation', $donation);
+
+  // Partners
+  $form_par = ($donation->partners) ? form_group(t('Partners'), theme('item_list', $donation->partners)) : '';
+
+  // Donation subform
+  $form_don = ($edit['donation_source']) ? form_hidden('donation_source', $edit['donation_source']) : form_hidden('donation_source', 'plain_page');
+  if(isset($donation->affiliation) && count($donation->affiliation)) {
+    $form_don .= form_select(t('Affiliation'), 'partnerid', $edit['partnerid'], $donation->affiliation);
+  }
+  if($donation->fixed) {
+    $form_don .= form_item(t('Amount'), $donation->amount);
+    $form_don .= form_item(t('Currency'), _donation_currency_name($donation->currency));
+  } else {
+    if (!isset($edit['amount']) && ($donation->amount > 0))
+      $edit['amount'] = $donation->amount; 
+	  $form_don .= form_textfield(t('Amount'), 'amount', $edit['amount'], 10, 10);
+    if (!isset($edit['currency']) && ($donation->currency <> ''))
+      $edit['currency'] = $donation->currency; 
+	  $form_don .= form_select(t('Currency'), 'currency', $edit['currency'], _donation_currencies(array('' => '--')));
+  }
+  $form_don = form_group(t('Donation'), $form_don);
+  $form_x = $form_par . $form_don; 
+  
+  // is a user logged in?
+  global $user;
+  if ($user->uid > 0) {
+    // user is logged in
+    $form_user = theme("form_element",t("EMail"),$user->mail);
+    // If the user has no country, shows a drop down else the country
+    $countries =  _gathering_get_countries();
+    if(!$user->country) {
+      $form_user .= form_select(t("Country"), 'country', $donation->country, $countries,NULL,NULL,NULL,TRUE);
+    } else {
+      $form_user .= theme("form_element",t("Country"),$countries [$user->country]);
+    }
+    $form_user = form_group(t('Contact Information'), $form_user);
+    // Add button and complete form
+    $form =  $form_user . $form_x;
+    $form .= theme('donation_btn_donate');
+    $out .= form($form, 'post', "donation/$donation->nid");
+  } else {
+    $out = wtw_user_login_form(
+      'donation',  // module
+      array(
+        'first_name'      => array('required'=>1),
+        'last_name'       => array('required'=>1),
+        'country'           => array('required'=>1)
+      ),            // fields
+      array(
+        'op'          => 'donate',
+        'nid'         => $donation->nid
+      ),            // variables
+      t("Donate"), // button
+      $form_x        // extra form
+    );
+  }
+  $out = $form_pre . $out;
+  return $out;  
+}
+
+// API callback for wtw_user.module
+function donation_wtw_user_completed($vars) {
+  donation_page($vars['nid']);
+}
+
+/**
+ * Get partner list for a node with donation 
+ */
+function _donation_get_partners($nid) {
+  $result = db_query("SELECT n.nid, n.title FROM {node} n INNER JOIN {partners_partners} p ON n.nid = p.pid INNER JOIN {partners_node} pn ON pn.nid = n.nid WHERE p.nid=%d  AND pn.active ", $nid);
+  while($partner = db_fetch_object($result)) {
+    $list[$partner->nid] = $partner->title;
+  }
+  return isset($list) ? $list : NULL;
+}
+
+/**
+ * List of events and campaigns for user page
+ */
+function _donation_list($key = NULL) {
+  $list = array(0 => t('None'));
+  $list['plain'] = t('Plain donation');
+  $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");
+  while($campaign = db_fetch_object($result)) {
+    $list['c' . $campaign->camid] = t('Campaign') . ": $campaign->name";
+    $resultE = db_query("SELECT n.nid, n.title, g.city, g.country " .
+        "FROM {donation_node} d " . 
+        "INNER JOIN {node} n ON d.nid = n.nid " .
+        "LEFT JOIN {gathering_node} g ON n.nid = g.nid " .
+        "WHERE d.type IN ('event') AND g.camid = %d", $campaign->camid);
+    while($event = db_fetch_object($resultE)) {
+      $list[$event->nid]  = t('Event') . ": $event->title";
+      $list[$event->nid] .= ($event->city)  ? " @ $event->city"  : '';
+      $list[$event->nid] .= ($event->country) ? " ($event->country)" : '';
+    }
+  }
+  return ($key) ? $list[$key] : $list;
+}
+
+function _donation_types($types = array()) {
+  $types['plain'] = t('Plain donation');
+  $types['fee'] = t('Event fee');
+  $types['event'] = t('Event donation');
+  $types['campaign'] = t('Campaign donation');
+  return $types;
+}
+
+/**
+ * Returns list of currency codes and names
+ */
+function _donation_currencies($list = array()) {
+		$list['AUD'] = t("Australian Dollar");
+		$list['CAD'] = t("Canadian Dollar");
+		$list['EUR'] = t("Euro");
+		$list['GBP'] = t("Pound Sterling");
+		$list['JPY'] = t("Yen");
+		$list['USD'] = t("US Dollar");
+    return $list;
+}
+
+function _donation_currency_name($code) {
+  $currency = _donation_currencies();
+  return $currency[$code];
+}
+
+/**
+ * Themeable functions
+ */
+function theme_donation_btn_donate() {
+  return form_submit(t("Donate"));
+}
+function theme_donation_presentation($donation) {
+  return "<div class='info'>$donation->presentation</div>";
+}
+?>

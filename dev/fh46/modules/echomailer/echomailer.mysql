@@ -1,0 +1,49 @@
+-- phpMyAdmin SQL Dump
+-- version 2.6.2-pl1
+-- http://www.phpmyadmin.net
+-- 
+-- Host: localhost
+-- Generation Time: Aug 28, 2005 at 03:17 PM
+-- Server version: 4.0.24
+-- PHP Version: 4.4.0
+-- 
+-- Database: `bread`
+-- 
+
+-- --------------------------------------------------------
+
+-- 
+-- Table structure for table `echomailer_emails`
+-- 
+
+CREATE TABLE echomailer_emails (
+  iid int(10) NOT NULL auto_increment,
+  uid int(10) NOT NULL default '0',
+  module varchar(255) NOT NULL default '',
+  from_name varchar(255) NOT NULL default '',
+  from_mail varchar(255) NOT NULL default '',
+  subject varchar(255) NOT NULL default '',
+  message mediumtext NOT NULL,
+  query text NOT NULL,
+  created int(11) NOT NULL default '0',
+  PRIMARY KEY  (iid)
+) TYPE=MyISAM;
+
+-- --------------------------------------------------------
+
+-- 
+-- Table structure for table `echomailer_queue`
+-- 
+
+CREATE TABLE echomailer_queue (
+  eid int(10) NOT NULL auto_increment,
+  iid int(10) NOT NULL default '0',
+  recipient varchar(255) NOT NULL default '',
+  sent int(11) NOT NULL default '0',
+  open int(11) NOT NULL default '0',
+  clickthrough int(11) NOT NULL default '0',
+  status enum('unsent','sent','opened','clicked') NOT NULL default 'unsent',
+  open_ip varchar(255) NOT NULL default '',
+  click_ip varchar(255) NOT NULL default '',
+  PRIMARY KEY  (eid)
+) TYPE=MyISAM;

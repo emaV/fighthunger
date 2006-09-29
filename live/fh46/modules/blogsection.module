@@ -1,0 +1,58 @@
+<?php
+
+/**
+ * Implementation of hook_help().
+ */
+function blogsection_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Adds a block for RSS subscribing.');
+  }
+}
+
+function blogsection_nodeapi(&$node,$op,$teaser,$page){
+  switch($op){
+    case 'view':
+      if (($page) && ($node->type == "blog")){
+        global $blogsection;
+        $blogsection = true;
+      } 
+  }
+}
+
+function blogsection_init(){
+  global $blogsection;
+  $blogsection = false;
+  $q = $_GET['q'];
+  if (($q == "blog") || (arg(0) == "comment")){
+    $blogsection = true;
+  }
+}
+
+function blogsection_block($op="list",$delta=0){
+  if ($op == "list"){
+    $blocks[0]['info'] = "Blog XML feed";
+    return $blocks;
+  } else {
+    switch ($delta){
+      case 0:
+        return blogsection_block_xml();
+        break;
+    }
+  }
+}
+
+function blogsection_block_xml(){
+  global $blogsection;
+  if ($blogsection){
+    $block['content'] = "Subscribe to RSS:<br/>";
+    $block['content'] .= '<a href="blog/feed"><img src="misc/xml.png"/></a>';
+  } else {
+    $block = false;
+  }
+  return $block;
+}
+
+
+
+?>

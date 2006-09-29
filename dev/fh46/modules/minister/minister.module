@@ -1,0 +1,403 @@
+<?php
+
+/**
+ * @file
+ * Module for UN WFP E-mail a Minister application
+ * 
+ * Depends on:
+ * - echomailer.module
+ * - urlfilter.module
+ * 
+    minister - a handy module for e-mailing ministers
+    Copyright (C) 2005 EchoDitto, inc. (scott@echoditto.com)
+    
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+*/
+
+/**
+ * Implementation of hook_help().
+ */
+function minister_help($section = 'admin/help#minister') {
+  $output = "";
+
+  switch ($section) {
+    case 'admin/modules#description':
+      $output = t("Module for UN WFP E-mail a Minister application");
+      break;
+  }
+  return $output;
+}
+/**
+ * Implementation of hook_menu().
+ */
+function minister_menu($may_cache){
+    $items = array();
+	if ($may_cache) {
+              
+		$items[] = array('path' => variable_get('minister_pagename','minister'),
+		'access' => TRUE,
+		'callback' => 'minister_page',
+		'type' => MENU_CALLBACK);
+
+		$items[] = array('path' => variable_get('minister_pagename','minister').'/js',
+		'access' => TRUE,
+		'callback' => 'minister_javascript',
+		'type' => MENU_CALLBACK);
+		
+		$items[] = array('path' => variable_get('minister_pagename','minister').'/thanks',
+		'access' => TRUE,
+		'callback' => 'minister_thanks',
+		'type' => MENU_CALLBACK);
+		
+		$items[] = array('path' => variable_get('minister_pagename','minister').'/send',
+		'access' => TRUE,
+		'callback' => 'minister_submit',
+		'type' => MENU_CALLBACK);
+
+     }
+   
+     return $items;
+}
+
+
+/**
+ * Implementation of hook_settings().
+ */
+function minister_settings() {
+	if(user_access('administer minister')){
+		
+		$output .= form_textfield(t('Page Path'), 'minister_pagename', variable_get('minister_pagename','minister'), 80,100);
+		//$output .= form_textfield(t('Click redirect path'), 'minister_click_redirect', variable_get('minister_click_redirect','http:/www.fighthunger.org/minister'), 80,100);
+		$output .= form_textarea(t('Intro Paragraph'), 'minister_intro', variable_get('minister_intro','Welcome'), 80,10);
+		$output .= form_textarea(t('Subject (to Minister)'), 'minister_to_minister_subject', variable_get('minister_to_minister_subject','E-Mail to my Minister'), 80,10);
+		$output .= form_textarea(t('Subject (tell a friend)'), 'minister_to_friend', variable_get('minister_to_friend','Please Email Your Minister'), 80,10);
+		$output .= form_textarea(t('Thanks message (on TAF page)'), 'minister_thanksmessage', variable_get('minister_thanksmessage','Thanks for telling your minister! Now tell your friends'), 80,10);
+		$output .= form_textarea(t('Default Letter Text'), 'minister_default_text', variable_get('minister_default_text','lipsum'), 80, 10);
+		$output .= form_textarea(t('Post-TAF thanks text'), 'minister_thanks_taf', variable_get('minister_thanks_taf','Thanks for telling your friends.'), 80, 10);
+		$output .= form_textarea(t('Tell a Friend default text'), 'minister_taf_message', variable_get('minister_taf_message','Tell your friends!'), 80, 10);
+		$output .= form_textarea(t('Can\'t find your country text'), 'minister_cantfind_text',variable_get('minister_cantfind_text',"Can't find your country?"), 80, 10);
+		$output .= form_textarea(t('Another language?'), 'minister_otherlanguage',variable_get('minister_otherlanguage','another language?'), 80, 10);
+
+		return $output;
+	}
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function minister_perm() {
+  return array("administer minister"); 
+}
+
+/**
+ * The main form
+ */
+function minister_form(){
+	$posted = $_POST['edit'];
+	//format the top of the page
+
+	$output .= variable_get('minister_intro','Welcome');
+	if(empty($posted)){
+	global $user;
+	$uid = $user->uid;
+	$posted = db_fetch_array(db_query("SELECT p1.value as first, p2.value as last, u.mail as email
+	FROM users u
+	LEFT JOIN profile_values p1 ON (p1.uid=u.uid AND p1.fid=1)
+	LEFT JOIN profile_values p2 ON (p2.uid=u.uid AND p2.fid=2)
+	WHERE u.uid=$uid"));
+		
+	}
+	//create the form
+	unset($set);
+	$set .= form_textfield(t('First Name'), 'first', $posted['first'], 40, 255,NULL,array('onChange'=>'changeFirstName(this)'),FALSE);
+	$set .= form_textfield(t('Last Name'), 'last', $posted['last'], 40, 255,NULL,array('onChange'=>'changeLastName(this)'),FALSE);
+	$set .= form_textfield(t('Your Email'), 'email', $posted['email'], 40, 255,NULL,NULL,FALSE);
+	
+	$set .= form_select(t('Your Country'), 'country', $posted['country'],
+    minister_list_array(),'','onChange="changeMinisterName(this)"',FALSE,FALSE);
+    
+    $set .= "<p><small>" . variable_get('minister_cantfind_text',"Can't find your country?") . "</small></p>";
+    
+    //display the mail box
+    $set .= minister_mailbox($posted);
+    $set .= "<em><p>all fields are required.</p></em>";
+/*	$set .= '<div class="minister_submit">';
+    $set .= form_submit("");
+	$set .= '</div>';*/
+	$set .= '<input type="image" class="form-image" name="" value="Send"  src="modules/minister/images/btn_orange_send.png" />';
+	$form = form($set,"POST",variable_get('minister_pagename','minister')."/send",array("name"=>"theform"));
+
+	$output .= "\n" . $form;
+	$output .= "<p><small>" . variable_get('minister_otherlanguage','another language?') . "</small></p>";
+	
+	return $output;
+
+}
+
+/**
+ * Returns a list of ministers (object)
+ */
+function minister_list_array(){
+	$list_results = db_query("SELECT ministerID, ministerCountry from minister_minister ORDER BY ministerCountry ASC");
+	$minister_array[0] = '--Select a Country--';
+	while($result = mysql_fetch_array($list_results,MYSQL_ASSOC)){
+		$minister_array["$result[ministerID]"] = $result['ministerCountry'] ;
+	}
+	return $minister_array;
+}
+
+/**
+ * Returns the code for the 'mailbox'
+ */
+function minister_mailbox($posted){
+	
+	if(!strlen($posted['text']))
+		$text_content = variable_get('minister_default_text','');
+	else
+		$text_content = $posted['text'];
+	
+	$output .= "<div id='minister_mailbox'>
+	<div id='minister_name'>&nbsp;</div>";
+	$output .= "<div id='mailbox_lettertext'>";
+	$output .= form_textarea(NULL, 'text', $text_content, 40, 20, NULL,NULL, FALSE);
+  	$output .= "</div>";
+  	$output .= '<p>
+<div id="minister_firstname" style="display:inline"></div>&nbsp;<div id="minister_lastname" style="display:inline"></div>
+</p>
+  	';
+	$output .="</div>";
+	
+	return $output;
+}
+
+/**
+ * Implementation of hook_load().
+ */
+function minister_init(){
+
+	if(stristr($_SERVER['QUERY_STRING'],variable_get("minister_pagename","minister"))){
+		//add the style sheet
+		drupal_set_html_head("\n<style type=\"text/css\" media=\"all\">@import \"modules/minister/includes/style.css\";</style>\n");
+
+		//add some javascript
+		$addition = '<SCRIPT LANGUAGE="JavaScript" SRC="' . variable_get("minister_pagename","minister") . '/js"></SCRIPT>';
+		drupal_set_html_head($addition);	
+	}
+}
+
+/**
+ * Form submission
+ */
+function minister_submit(){
+	
+	if(minister_validate()) {
+		//send the email
+		print theme("page",minister_send());		
+	}else{
+		print theme("page", minister_form());	
+	}
+}
+
+/**
+ * Send the email
+ */
+function minister_send(){
+	$posted = $_POST['edit'];
+	$info = minister_get_info($posted[country]);
+	global $user;
+	
+	$from_name = "$posted[first] $posted[last]";
+	$from_mail = $posted['email'];
+	$recipients = array(); 
+	$recipients[] = $info['ministerEmail'];
+	$subject = variable_get('minister_to_minister_subject',"E-Mail to My Minister");
+	$message = $posted[text];
+	$module = 'minister';
+	
+	//create query
+	$query = array('type' => 1, 'country' => $info['ministerCountry']);
+	
+	//alter message to add names
+    //newlines make the plaintext version work 
+	$message = "<p>$info[ministerName],</p>\n\n<p>".$message."</p>\n\n<p>$from_name</p>";
+	echomailer_queue($user->uid, $from_name, $from_mail, $recipients, $subject, $message, $module,$query);
+	
+	$form_data['subject'] = variable_get('minister_to_friend','Thanks for telling your friends.');
+	$form_data['firstname'] = $posted['first'];
+	$form_data['lastname'] = $posted['last'];
+	$form_data['mail'] = $from_mail;
+	$form_data['message'] = variable_get('minister_taf_message','Tell your friends!');
+	
+	$output .= "<p>" . variable_get('minister_thanksmessage','Thanks for telling your minister! Now tell your friends') . "</p>";
+	
+	//create query
+	$query = array('type' => 2);
+	$output .= echomailer_form('minister',"Tell your friends",$form_data,$query);
+	
+	return $output;
+	
+}
+
+/**
+ * Form validation
+ */
+function minister_validate(){
+	$edit = $_POST['edit'];
+	$errors = 0;
+	
+
+   
+   if (!strlen($edit['first'])) {
+        $errors = 1;
+        form_set_error("first", t('You did not provide your first name.'));
+   }
+   
+   if (!strlen($edit['last'])) {
+        $errors = 1;
+        form_set_error("last", t('You did not provide your last name / surname.'));
+   }
+   
+   if (!_minister_is_valid_email($edit['email'])) {
+        $errors = 1;
+        form_set_error("email", t('You did not provide a valid email address.'));
+   }
+   
+   if ($edit['country'] == 0) {
+        $errors = 1;
+        form_set_error("country", t('You did not specify a country.'));
+   }
+   
+   if (!strlen($edit['text'])) {
+        $errors = 1;
+        form_set_error("text", t('You did not create a message.'));
+   }
+   
+   if($errors == 0)
+   		return TRUE;
+   else
+   		return FALSE;	
+   
+}
+
+
+/**
+ * The javascript include!
+ */
+function minister_javascript(){
+		//find the countries, names and emails
+		
+		$list_results = db_query("SELECT ministerID, ministerName, ministerEmail from minister_minister");
+	
+
+		$addition = 'function changeFirstName(here){
+	
+	document.getElementById("minister_firstname").innerHTML = here.value;
+}
+
+function changeLastName(here){
+	
+	document.getElementById("minister_lastname").innerHTML = here.value;
+	
+}
+
+function changeMinisterName(select){
+//grab the name
+	var countries = new Array();
+	countries[0] = "Minister";
+';	
+	while($result = mysql_fetch_array($list_results,MYSQL_ASSOC)){
+			$formatted = $result['ministerName'];
+			$addition .= "countries[$result[ministerID]] = \"$formatted\";\n";
+	}
+
+	$addition .= '	
+    var name = select.value;
+
+    //display the name
+	document.getElementById(\'minister_name\').innerHTML = countries[name] + ",";
+}';
+		
+	echo $addition;
+}
+
+/**
+ * Output the page in the theme
+ */
+function minister_page(){
+	//print the page
+	drupal_set_title('email your minister!');
+	print theme('page',minister_form());		
+}
+
+/**
+ * Utility: Check for valid e-mail address
+ */
+function _minister_is_valid_email($email){
+ $pattern = '/^([-\w\d_\.\+\/]+)@([-\w\d\.]+)\.(\w{2,4})$/i';
+ return preg_match($pattern,$email);
+}
+
+/**
+ * Utility: Check for valid e-mail address
+ */
+function minister_get_info($id){
+	$minister_info = db_fetch_array(db_query("SELECT ministerCountry, ministerName, ministerEmail FROM minister_minister WHERE ministerID = $id"));
+	
+	return $minister_info;
+}
+
+/**
+ * Implementation of EchoMailer API
+ */
+function minister_mailerapi($op,$data){
+	switch ($op){
+    case 'after_invitation':
+    	$path = variable_get('minister_pagename','minister') . "/thanks";
+	    drupal_goto($path);
+	    
+	case 'format_email':
+		
+		/*$message = eregi_replace(
+    "(http|https|ftp)://([[:alnum:]/+-=%&:_.~?]+[#[:alnum:]+]*)",
+    "<a href=\"\\1://\\2\">\\1://\\2</a>",
+    $message);*/
+	$message = nl2br($data['message']);
+	$message = urlfilter_filter('process',0,-1,$message);
+    
+        $subject = $data['subject'];
+        return array('subject'=>$subject,'message'=>$message);
+	
+	
+	case 'error_page':
+		$form_data = $_POST['edit'];
+		$query = array('type' => 2);
+		$output .= echomailer_form('minister',"Tell your friends",$form_data,$query);
+		print theme('page',$output);
+	
+	
+/*	case 'answer':
+		$path = "location: " . variable_get('minister_click_redirect','http://www.fighthunger.org/minister');
+		header("$path");
+	*/
+}
+	
+}
+
+function minister_thanks(){
+	$output = variable_get('minister_thanks_taf','Thanks for telling your friends!');
+	print theme('page',$output);	
+}
+?>

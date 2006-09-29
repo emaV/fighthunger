@@ -1,0 +1,26 @@
+-- phpMyAdmin SQL Dump
+-- version 2.6.4-pl3-Debian-1
+-- http://www.phpmyadmin.net
+-- 
+-- Host: localhost
+-- Generation Time: Nov 09, 2005 at 02:16 PM
+-- Server version: 4.1.14
+-- PHP Version: 5.0.5-Debian-0.8~sarge1
+-- 
+-- Database: `rcsadb`
+-- 
+
+-- --------------------------------------------------------
+
+-- 
+-- Table structure for table `ec_ccard`
+-- 
+
+CREATE TABLE `ec_ccard` (
+  `txnid` int(10) unsigned NOT NULL default '0',
+  `amount` decimal(10,2) NOT NULL default '0.00',
+  `orderno` varchar(32) NOT NULL default '',
+  `refnum` varchar(32) NOT NULL default '',
+  `reason` varchar(128) NOT NULL default '',
+  PRIMARY KEY  (`txnid`)
+) TYPE=MyISAM;

@@ -1,0 +1,159 @@
+# LANGUAGE translation of Drupal (linkpoint_api.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: linkpoint_api.module,v 1.3 2005/10/12 04:06:07 mathias
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce - Linkpoint API module\n"
+"POT-Creation-Date: 2005-11-01 13:17+0100\n"
+"PO-Revision-Date: 2005-11-04 00:23+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: French\n"
+
+#: linkpoint_api.module:16
+msgid "Credit Card Payment"
+msgstr "Paiement carte bancaire (LinkPoint)"
+
+#: linkpoint_api.module:29
+msgid "Process payments using Linkpoint.com."
+msgstr "Utiliser LinkPoint.com pour les paiements."
+
+#: linkpoint_api.module:32
+msgid "You need to have an Linkpoint merchant account in order to use this module."
+msgstr "Vous devez avoir un compte vendeur LinkPoint pour pouvoir utiliser ce module."
+
+#: linkpoint_api.module:35
+msgid "Do not submit this form twice, or you may be double billed!"
+msgstr "La validation de ce formulaire entraine une facturation effective. Faites attention à ne pas le valider plusieurs fois, vous risqueriez d'être facturé plusieurs fois."
+
+#: linkpoint_api.module:40
+msgid "Explanation or submission guidelines"
+msgstr "Explication, guide d'utilisation"
+
+#: linkpoint_api.module:40
+msgid "This text will be displayed at the top of the credit card submission form."
+msgstr "Ce texte sera affiché au dessus du formulaire de saisie des informations de la carte bancaire."
+
+#: linkpoint_api.module:41
+msgid "Login ID"
+msgstr "Identifiant (login id) "
+
+#: linkpoint_api.module:41
+msgid "Enter your merchant login ID."
+msgstr "Entrez votre identifiant (compte vendeur,login id)"
+
+#: linkpoint_api.module:42
+msgid "Transaction key"
+msgstr "Clé de transaction"
+
+#: linkpoint_api.module:42
+msgid "Enter your merchant transaction key."
+msgstr "Entrez votre clé de transaction."
+
+#: linkpoint_api.module:43
+msgid "Linkpoint processing URL"
+msgstr "URL de traitement LinkPoint"
+
+#: linkpoint_api.module:43
+msgid "URL of the secure payment processing page."
+msgstr "URL de la page de paiement sécurisé "
+
+#: linkpoint_api.module:44
+msgid "Successful payment URL"
+msgstr "URL suite à la validation du paiement "
+
+#: linkpoint_api.module:44
+msgid "This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'."
+msgstr "URL de la page vers laquelle seront redirigés vos clients une fois leur paiement validé. Il doit s'agir d'une adresse Drupal. Si vous n'utilisez pas les URL simplifiées, spécifiez uniquement la partie de l'url se trouvant après '?q='. Dans le doute, utilisez 'node'."
+
+#: linkpoint_api.module:45
+msgid "Linkpoint test mode"
+msgstr "Mode de test LinkPoint"
+
+#: linkpoint_api.module:45;46
+msgid "Disabled"
+msgstr "Désactivé"
+
+#: linkpoint_api.module:45;46
+msgid "Enabled"
+msgstr "Activé"
+
+#: linkpoint_api.module:45
+msgid "If enabled, transactions will be sent in test mode and cards will not be charged."
+msgstr "Si activé, les transactions sont effectuées en mode de test, et aucun prélèvement ne sera effectué."
+
+#: linkpoint_api.module:46
+msgid "Email Linkpoint Reciept"
+msgstr "Envoi d'un reçu LinkPoint par e-mail "
+
+#: linkpoint_api.module:46
+msgid "If enabled, the customer will recieve a payment confirmation email from Authorize.Net. Keep in mind the ecommerce package sends it own transaction summary as well. Enabling this option is recommended because it provides the customer with an accurate confirmation of the amount you have charged."
+msgstr "Si activé, le client recevra un e-mail de confirmation de paiement, envoyé par LinkPoint. Gardez à l'esprit que le module E-Commerce envoit sa propre notification sur l'état de la transaction. Il est cependant conseillé d'activer cette option afin de fournir au client une information précise sur le montant prélevé."
+
+#: linkpoint_api.module:59
+msgid "Pay with credit card"
+msgstr "Payer avec une carte bancaire"
+
+#: linkpoint_api.module:101;163
+msgid "Place your order"
+msgstr "Passer votre commande"
+
+#: linkpoint_api.module:139
+msgid "%order of <b>%title</b> at %price each"
+msgstr "%order de <b>%title</b> au prix de %price pièce"
+
+#: linkpoint_api.module:143
+msgid "<div class=\"help\">%linkpoint_api_help</div>"
+msgstr "<div class=\"help\">%linkpoint_api_help</div>"
+
+#: linkpoint_api.module:145
+msgid "Your items"
+msgstr "Vos articles"
+
+#: linkpoint_api.module:151
+msgid "Month"
+msgstr "Mois"
+
+#: linkpoint_api.module:152
+msgid "Year"
+msgstr "An"
+
+#: linkpoint_api.module:153
+msgid "Expiration Date"
+msgstr "Date d'expiration"
+
+#: linkpoint_api.module:156
+msgid "Credit Card Number"
+msgstr "Numéro de la carte"
+
+#: linkpoint_api.module:161
+msgid "Details"
+msgstr "Détails"
+
+#: linkpoint_api.module:174
+msgid "You must enter a credit card number."
+msgstr "Vous devez indiquer un numéro de carte bancaire."
+
+#: linkpoint_api.module:177
+msgid "Error in credit card number. Please make sure it is typed correctly."
+msgstr "Numéro de carte incorrect, veuillez vérifier."
+
+#: linkpoint_api.module:315
+msgid "%linkpoint_api_error"
+msgstr "%linkpoint_api_error"
+
+#: linkpoint_api.module:139
+msgid "1 order"
+msgid_plural "%count orders"
+msgstr[0] "%count commande"
+msgstr[1] "%count commandes"
+
+#: linkpoint_api.module:0
+msgid "linkpoint_api"
+msgstr "linkpoint_api"
+

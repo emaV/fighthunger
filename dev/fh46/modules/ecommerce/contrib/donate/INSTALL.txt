@@ -1,0 +1,25 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: Donate module
+Author: Matt Westgate <drupal at asitis dot org>
+Dependancies:
+  This module requires the ecommerce packageto work properly.
+
+INSTALLATION:
+********************************************************************
+1. Place the entire donate directory into your Drupal modules/ecommerce/contrib/
+   directory.
+
+2. Enable this module by navigating to:
+
+     administer > modules
+
+CREATING A DONATION PRODUCT:
+********************************************************************
+
+The next time you create a product, you'll see a 'donation' item in
+the product type drop-down box.
+
+When creating donation product types, choose 0 for the price and select
+the 'hide' option for the 'add to cart' link.

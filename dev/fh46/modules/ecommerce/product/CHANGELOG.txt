@@ -1,0 +1,19 @@
+Product module
+
+Dec 15, 2004
+  * Removed the 'access products' user permission and updated the product module to use node level permissions instead.
+
+Dec 14, 2004
+  * Added a new view hook that gives product types a chance to inspect and alter the node before it is rendered.
+
+Nov 23, 2004
+  * Fixed bug #13264: Make products work with flexinode node types. Reported by gjxl.
+
+Nov 23, 2004
+  * Fixed bug #13198: admin product link was visible for anonymous users. Reported by gjxl.
+
+Apr 18, 2004
+  * Fixed bug #7216: No product validation errors when editing existing products. Reported by zackp1
+
+Mar 23, 2004
+  * Product view collection page is now sorted by static, then by date added rather than node id.

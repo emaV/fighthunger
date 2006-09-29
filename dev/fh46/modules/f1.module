@@ -1,0 +1,526 @@
+<?php
+
+/**
+ * @file
+ * Provides 2005 special page
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function f1_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('2005 special page.');
+  }
+}
+
+function f1_menu($mc){
+  if ($mc){
+    $items[] = array(
+      'path'      => 'F1',
+      'callback'  => 'f1_main',
+      'access'   => true,
+      'type'      => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'      => 'f1',
+      'callback'  => 'f1_redir',
+      'access'   => true,
+      'type'      => MENU_CALLBACK
+    );
+    
+    $items[] = array(
+      'path'      => 'admin/f1',
+      'callback'  => 'f1_admin',
+      'title'     => "f1",
+      'acccess'   => user_access("administer nodes"),
+      'type'      => MENU_NORMAL
+    );  
+    $items[] = array(
+      'path'                => 'admin/f1/en',
+      'callback'            => 'f1_admin',
+      'callback arguments'  => array('en'),
+      'access'              => user_access("administer nodes"),
+      'title'               => 'English',
+      'type'                => MENU_DEFAULT_LOCAL_TASK
+    );
+    $items[] = array(
+      'path'                => 'admin/f1/fr',
+      'callback'            => 'f1_admin',
+      'callback arguments'  => array('fr'),
+      'access'              => user_access("administer nodes"),
+      'title'               => 'French',
+      'type'                => MENU_LOCAL_TASK
+    );    
+  } else {
+  }
+  return $items;
+}
+
+function f1_confirmed(){
+  $l = arg(5);
+  wtw_cookie_set("prix_language",$l);
+  $v = f1_vals($l);
+  $v['leftboxtop'] = $v['Z'];
+  f1_main("thanks",$v);
+}
+
+function f1_signup(){
+  $edit = $_POST['edit'];
+  watchdog("F1-signup","F1 Signup: ".$edit['mail']);
+  
+  db_query("INSERT IGNORE INTO wtw_walk SET mail='%s',country='%s',optout=%d,created=%d,source='%s'",$edit['mail'],$edit['c'],$edit['optout'],time(),"f1");
+  
+  if (!wtw_cookie('prix_mail')){
+    wtw_cookie_set("prix_mail",$edit['mail']);
+  }
+  
+  $l = f1_l();
+  $v = f1_vals($l);
+
+  // does a user with this email exist- if so, is it secured
+  $u = user_load(array("mail"=>$edit['mail']));
+  if ($u->confirm_status == "secured"){
+    // yes-- so ask for their password
+    global $ask_for_password;
+    $ask_for_password = true;
+    $v['P'] .= "<br><br>".$v['password']." ".$v['if_forgotten'].l($v['click_reset'],"confirm/password/".$uid);
+
+  }
+  
+  if (isset($edit['mail'])){
+    $v['mail'] = $edit['mail'];
+  } else {
+    $v['mail'] = wtw_cookie("prix_mail");
+  }
+
+  $v['lefthead'] = $v['O'];
+  $v['leftboxtop'] = $v['P'];
+  $v['leftboxlow'] = f1_taf_form($v);
+
+  f1_main("thanks",$v);
+}
+
+function f1_sent(){
+  $l = f1_l();
+  $v = f1_vals($l);
+  $v['lefthead'] = $v['M'];
+  $v['nothanks'] = true;
+  
+  $v['leftboxtop'] = theme_status_messages();
+  f1_main("thanks",$v);
+}
+
+function f1_frontform($v){
+  global $base_url;
+
+  $c = wtw_get_c();
+  $countries = echo_action_get_countries();
+  $countries["--"] = "(".$v['choose'].")";
+  $l = f1_l();
+  
+  $form .= form_textfield(t($v['L']),"mail","",30,50);
+  $form .= form_select(t($v['K']),"c",$c,$countries);
+  $form .= form_checkbox("<small>".$v['L2']."</small>","optout");
+  $form .= f1_form_element("",'<input align="right" type="image" src="'.$base_url.'/themes/walktheme/f1_images/'.$l.'_btn_click.gif" alt="Send"  border="0" />');
+
+  $out = f1_form($form,"POST","F1/signup");
+  return $out;
+}
+
+function f1_taf_form($v){
+  global $_EDIT;
+  if ($_EDIT){
+    $v['mail'] = $_EDIT['from'];
+    $v['recipients'] = $_EDIT['recipients'];
+    $v['message'] = $_EDIT['message'];
+  }
+  global $user;
+  if ($user->uid > 0){
+    $v['mail'] = $user->mail;
+  }
+
+  $form .= form_item($v['Q'],$v['mail']);
+  $form .= form_hidden("from",$v['mail']);
+  global $ask_for_password;
+  if ($ask_for_password){
+    $form .= form_password($v['pwd'],"pass",$data['pass'],30,50,NULL,NULL,TRUE);
+  }
+  $form .= form_textarea($v['R'],'recipients',$v['recipients'],20,2);
+  $form .= form_item($v['S2'],$v['S3']);
+  $form .= form_textarea($v['S1'],'message',$v['message'],20,4);
+  
+  $l = f1_l();
+  $q['l'] = $l;
+  $form .= echomailer_form_hidden("f1","",$q);
+//  $form .= form_submit("send >>");
+  global $base_url;
+  $form .= f1_form_element("",'<input align="right" type="image" src="'.$base_url.'/themes/walktheme/f1_images/'.$l.'_btn_send.gif" alt="Send"  border="0" />');
+  $out = f1_form($form,"POST","F1/mailer");
+  return $out;
+}
+
+function f1_taf_error($edit){
+  $l = f1_l();
+  $v = f1_vals($l);
+
+/*
+  $v['mail'] = $edit['from'];
+  $v['recipients'] = $edit['recipients'];
+  $v['message'] = $edit['message'];
+*/
+
+  $v['lefthead'] = $v['O'];
+
+  $v['leftboxtop'] = theme_status_messages();
+  $v['leftboxlow'] = f1_taf_form($v);
+
+  f1_main("thanks",$v);
+}
+
+function f1_mailerapi($op,$data){
+  switch ($op){
+    case 'error':
+      f1_taf_error($data);
+      exit();
+      break;
+    case 'format_email':
+      $v = f1_vals($data['query']['l']);
+      $u = user_load(array("uid" => $data['uid']));
+      $replacevars = array(
+        '%mail'           => $u->mail,
+        '%f1_link'        => $data['url'],
+        '%virtual_link'   => url("virtual",NULL,NULL,TRUE),
+        '%home_link'      => url("home",NULL,NULL,TRUE),
+        '%custom_text'    => $data['message']);
+      $out['subject'] = $v['S3'];
+      $out['message'] = str_replace(array_keys($replacevars),$replacevars,$v['invitation']);
+      return $out;
+      break;
+    case 'after_invitation':
+      f1_main("sent");
+//      drupal_goto("F1/sent");
+      break;      
+    case 'answer':
+      // we dont actually use echomailer's clickthrough handling,
+      //      so this will never be called
+/*
+      var_dump($data);
+      $v = f1_vals($data['query']['l']);
+//      $v['mail'] = $data['query']['from'];
+      f1_main("F1",$v);
+      */
+      break;
+  }
+}
+
+function f1_redir(){
+  drupal_goto("F1");
+}
+
+function f1_new_l(){
+  wtw_cookie_set('prix_language',arg(2));
+  drupal_goto("F1/".arg(3));
+}
+
+function f1_mailer(){
+  global $_EDIT;
+  $_EDIT = $_POST['edit'];
+  echomailer_validate();
+}
+
+function f1_vid(){
+  $f = arg(2);
+  wtw_cookie_set("vid",$f);
+  drupal_goto("F1");
+}
+
+function f1_get_vid(){
+  $f = wtw_cookie("vid");
+  if (empty($f)){
+    // try to guess format by user agent
+    $agent = strtolower($_SERVER['HTTP_USER_AGENT']);
+    if (strstr($agent,"windows")){
+      $f = "wmv";
+    } else {
+      $f = "mov";
+    }
+  }
+  return $f;
+}
+
+function f1_main($page="",$v=NULL){
+  switch ($page){
+    case 'sendconf':
+      f1_sendconf(arg(2));
+      break;
+    case 'mailer':
+      f1_mailer();
+      break;
+    case 'l':
+      f1_new_l();
+      break;
+    case 'vid':
+      f1_vid();
+      break;
+    case 'signup':
+      f1_signup();
+      break;
+    case 'sent':
+      f1_sent();
+      break;
+    case 'contribute':
+      f1_contribute();
+      break;
+    case 'thanks':
+    default:
+      $l = f1_l();
+    
+      if (is_null($v)){
+        $v = f1_vals($l);
+      }
+
+      // language link
+      switch ($l){
+        case 'en':
+          $nl = "fr";
+          break;
+        case 'fr':
+          $nl = "en";
+          break;
+      }
+      $v['l_link'] = l($v['G']." &raquo;","F1/l/$nl/".arg(1));
+      $v['count'] = f1_count();
+      global $base_url;
+      $v['base_url'] = $base_url;
+      $v['head'] = drupal_get_html_head();
+  
+
+      switch ($page){
+        case 'thanks':
+          $out = _phptemplate_callback("f1_thanks",$v);
+          break;
+        case '':
+          watchdog("F1-frontpage-view","F1 page view");
+          $v['frontform'] = f1_frontform($v);
+          
+          $v['vid'] = f1_get_vid();
+          
+          $out = _phptemplate_callback("f1_front",$v);
+          break;
+      }
+      print $out; 
+      break;
+  }  
+}
+
+function f1_count(){
+  return variable_get("walkers",0);
+}
+
+function f1_admin($l=NULL){
+  if (is_null($l)){
+    drupal_goto('admin/f1/en');
+  }
+
+  $edit = $_POST['edit'];
+  
+  if ($edit){
+    db_query("REPLACE INTO wtw_trans SET text=%d,language='%s',value='%s'",23,$l,serialize($edit));
+    drupal_set_message("These values have been saved.");
+  }
+  
+  $d = f1_vals($l,true);
+  
+  foreach ($d as $var=>$val){
+    $form .= form_textarea($var,"$var",$val,40,5);
+  }
+  $form .= form_submit("save");
+
+  $out = f1_form($form);
+  
+  print theme("page",$out);
+}
+
+function f1_vals($l,$nobr=false){
+
+  $v = unserialize(db_result(db_query("SELECT value FROM wtw_trans WHERE text=%d AND language='%s'",23,$l)));
+  
+  $d = array(
+    'A'   => "one click to feed one child",
+    'B'   => "In 5 seconds, a Formula One car goes from 0 to 200 KPH. In the same 5 seconds, a child dies of hunger. We can't stop time, but we can stop the dying. It costs just 19 cents to feed a child for one day. 
+
+<b>When you enter your email address below, TNT Global Express, Logistics & Mail will sponsor the cost of feeding one child for one day through the U.N. World Food Programme's Global School Feeding campaign.</b>",
+    'D1'   => "Select video format",
+    'D2'  => "Quicktime",
+    'D3'  => 'Windows Media',
+    'F'   => 'Formula One racing driver Jano Trulli has joined the fight to end child hunger. Play the video above to hear a 30-second message about about the race to end child hunger.',
+    'G'   => 'version franaise',
+    'H'   => 'World Food Programme',
+    'I'   => 'Privacy Policy',
+    'J1'   => 'Formula One fans:',
+    'J2'   => 'drive away hunger',
+    'K'    => 'country',
+    'L'    => 'email address',
+    'L2'  => 'I do not wish to receive occasional email updates.',
+    'M'    => 'Thank you.',
+    'N'    => 'One more hungry child will receive a nutritious meal at school
+
+... But an average of 12 more children will die of hunger and hunger-related diseases in the next hour. Here are 2 things you can do right now to help end the crisis.',
+    'O'   => 'Tell Others',
+    'P'   => 'Help us feed even more children by inviting your friends, family, and co-workers to visit this page. Enter each email address in the box below, separated by commas.',
+    'Q'   => 'from',
+    'R'   => 'to',
+    'S1'   => 'message',
+    'S2'   => 'subject',
+    'S3'   => 'One click to drive away child hunger',
+    'U'     => '300 million poor children in the world either do not attend school or do not receive a meal during the school day.',
+    'V'    => 'Support WFP',
+    'W'     => 'Feed an entire classroom. For an average of just 19 cents per day, or US$34 annually, you can feed a child in school for one year. When food is offered at school, enrollment and attendance increase and a student\'s ability to learn improves. 
+
+As the largest humanitarian organization in the world, WFP provides food aid to an average of 90 million people, including 56 million hungry children, in more than 80 countriesthe poorest of the poor for whom natural disasters, strife and abject poverty prevent an escape from hunger and access to development opportunities. 
+
+To learn more about how and where WFP delivers food, please <a href="http://www.fighthunger.org/faq">visit our FAQ page</a>. ',
+  'W2'    => 'This text goes under the contribute button',
+  'Y'     => 'Your invitations have been queued. They will be sent as soon as you confirm your email address by following the instructions sent to your inbox.',
+  'Z'   => 'Thank you. Your invitations have been sent. Now you can help feed more children by contributing to WFP or inviting more people to visit this website.',
+  'message' => '(prepopulated message text here)',
+  'invitation' => '(format the invitation. use the variables %f1_link, %virtual_link, %home_link, %custom_text)',
+  'if_you' =>  "If you have not received an email, ",
+  'click_to' => "click here to send another one.",
+  'password' => "Enter your password to log in.",
+  'if_forgotten' => "If you've forgotten your password you can ",
+  'click_reset' => "click here to reset it.",
+  'bad_password' => 'The password you entered was incorrect- please try again.',
+  'confirm_email_subject' => 'Before we send your invitations...',
+  'confirm_email_body' => 'Thank you for inviting others to help us Drive Away Hunger at FightHunger.org.
+
+We want to be sure to send your invitations from the correct email address.
+
+IMPORTANT: To send your invitations, click here to confirm your email address, or copy and paste this link into your web browser:
+%link',
+    'pwd' => "password",
+    "choose" => "Choose your home country"
+  );
+  
+  if (empty($v)){
+    foreach ($d as $var=>$val){
+      $v[$var] = $d[$var];
+    }
+  } 
+  else {  
+    foreach ($d as $var=>$val){
+      if (empty($v[$var])){
+        $v[$var] = $d[$var];
+      }
+    }
+  }
+  
+  // hackey nl2br management
+  if (!$nobr){
+    $nohtml = array('message','invitation','confirm_email_body','confirm_email_subject');
+    foreach ($v as $var=>$val){
+      if (!in_array($var,$nohtml)){
+        $v[$var] = nl2br($val);
+      }
+    }
+  }
+  
+  $v['la'] = $l;
+    
+  return $v;
+}
+
+function f1_sendconf($uid){
+  _echoconfirm_lost($uid);
+}
+
+function f1_confirm_msg($msg,$uid=NULL){
+  $l = f1_l();
+  $v = f1_vals($l);
+
+  // this is weird
+  if (!is_numeric($uid)){
+    $uid = $uid['uid'];
+  }
+
+  switch($msg){
+    case 'new':
+    case 'sent':
+    case 'confirmed':
+      // this user is new
+      $out = $v['Y']."<br><br>".$v['if_you'].l($v['click_to'],"F1/sendconf/".$uid);
+      break;
+/*
+// this doesnt make any sense
+    case 'sent':
+    case 'confirmed':
+      // this user has been sent a confirmation email but not followed it
+      // or, this user has confirmed, but is not yet secured
+      $out = $v['Y']." ".$v['if_you'].l($v['click_to'],"confirm/send/".$uid);
+      break;*/
+    case 'password':
+      // user must enter a password
+      $out = $v['password']." ".$v['if_forgotten'].l($v['click_reset'],"confirm/password/".$uid);
+      $out .= "<br/>".f1_taf_form($v);
+      break;
+    case 'wrong_password':
+      $out = $v['bad_password']." ".$v['if_forgotten'].l($v['click_reset'],"confirm/password/".$uid);
+      $out .= "<br/>".f1_taf_form($v);
+      $out .= "zimzimzim";
+      break;
+    case 'secured':
+      $out = $v['Z'];
+      break;
+  }
+  return $out;
+}
+
+function f1_l(){
+  $out = wtw_cookie("prix_language");
+  if (empty($out)){
+    $out = "en";
+    wtw_cookie_set("prix_language","en");
+  }
+  return $out;
+}
+
+// called by echoconfirm_getmessage
+function f1_getconfirmemail($r){
+  $l = f1_l();
+  $v = f1_vals($l);
+  
+  $r['%link'] .= "/F1/".$l;
+  
+  $message['subject'] = $v['confirm_email_subject'];
+  $message['body'] = str_replace(array_keys($r),$r,$v['confirm_email_body']);
+  return $message;
+}
+
+function f1_form_element($title,$value,$description=NULL,$id=NULL,$required=NULL,$error=NULL){
+  if (!empty($title)){
+    $title .= ":";
+  }
+  
+  $out = 	'<tr valign="top">';
+	$out .= '<td class="formleft">'.$title.'</td>';
+	$out .= '<td class="formright">'.$value.'</td>';
+	$out .= '</tr>';
+	return $out;
+}
+
+function f1_form($form,$method="POST",$action=NULL,$attributes=NULL){
+  $out = '<table border="0" cellspacing="0" cellpadding="0" class="formtable">';
+  $out .= $form;
+  $out .= '</table><!-- end form -->';
+  
+  return form($out,$method,$action,$attributes);
+}
+
+function f1_contribute(){
+  watchdog("f1-contribute","Clicked on contribute link: ".wtw_cookie("prix_mail"));
+  header("Location: http://www.wfp.org/driveawayhunger/");
+}
+
+?>

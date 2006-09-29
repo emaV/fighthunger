@@ -1,0 +1,69 @@
+# LANGUAGE translation of Drupal (ecivicrm.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: ecivicrm.module,v 1.1.2.2 2005/10/29 03:32:32 jeremy
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce - ecivicrm module\n"
+"POT-Creation-Date: 2005-10-30 20:18+0100\n"
+"PO-Revision-Date: 2005-10-30 19:37+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: French\n"
+
+#: ecivicrm.module:20
+msgid "Automatically syncronize data between Drupal's ecommerce module and CiviCRM."
+msgstr "Synchronisation automatique des données entre les modules Drupal E-Commerce et CiviCRM."
+
+#: ecivicrm.module:30
+msgid "Record activity types"
+msgstr "Enregistrer le type d'activité"
+
+#: ecivicrm.module:30
+msgid "Donations only"
+msgstr "Dons uniquement"
+
+#: ecivicrm.module:30
+msgid "Donations and other transactions"
+msgstr "Dons et autres types de transactions"
+
+#: ecivicrm.module:30
+msgid "Select what type of activites should be recorded in the CiviCRM activity history."
+msgstr "Sélectionnez le type d'opérations à enregistrer dans l'historique CiviCRM."
+
+#: ecivicrm.module:58
+msgid "donation"
+msgstr "don"
+
+#: ecivicrm.module:67
+msgid "recurring %type"
+msgstr "paiement récurrent %type"
+
+#: ecivicrm.module:73;76
+msgid "%type [%sku] for %price"
+msgstr "%type [%sku] au prix de %price"
+
+#: ecivicrm.module:82;101
+msgid "%paid %total with %payment_method."
+msgstr "%paid de %total en utilisant %payment_method."
+
+#: ecivicrm.module:82;101
+msgid "Paid"
+msgstr "Paiement"
+
+#: ecivicrm.module:85
+msgid "Donation"
+msgstr "Don"
+
+#: ecivicrm.module:104
+msgid "Transaction"
+msgstr "Transaction"
+
+#: ecivicrm.module:0
+msgid "ecivicrm"
+msgstr "ecivicrm"
+

@@ -1,0 +1,94 @@
+<?php
+// $Id: cod.module,v 1.2.2.3 2006/02/21 04:19:50 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_help().
+ */
+function cod_help($section = 'admin/help#cod') {
+
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Process payments using cash on delivery.');
+  }
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function cod_settings() {
+  $output = form_textfield(t('Title to use for COD'),
+    'cod_title', variable_get('cod_title', t('COD')), 70, 180,
+    t('Description to show shoppers for this type of payment.'));
+
+  $output .= form_textfield(t('Page to go to after payment'),
+    'cod_url', variable_get('cod_url', 'node'), 70, 180,
+    t('Page to go to after payment is completed.'));
+
+  $output .= form_radios(t('Mark transaction as paid?'),
+    'cod_txn_paid', variable_get('cod_txn_paid', 0),
+    array(t('No'), t('Yes')),
+    t('Whether to mark transactions as paid immediately, or wait till the store admin marks them as paid'));
+
+  $output .= form_radios(t('Mark transaction workflow as completed?'),
+    'cod_txn_completed', variable_get('cod_txn_completed', 0),
+    array(t('No'), t('Yes')),
+    t('Marks transactions that have no shippable items as completed in the workflow'));
+
+  return $output;
+}
+
+/**
+ * The Controller to create a new payment interface.
+ */
+function cod_paymentapi(&$txn, $op, $arg = '') {
+  switch ($op) {
+    case 'display name':
+      return variable_get('cod_title', t('COD'));;
+
+    case 'payment page':
+      return cod_goto($txn);
+      break;
+  }
+}
+
+function cod_goto($txn) {
+  $edit = $_POST['edit'];
+
+  if (variable_get('cod_txn_paid', 0)) {
+    $edit['payment_status'] = payment_get_status_id('completed');
+
+    drupal_set_message(t('Your purchase has been completed.'));
+
+    if (variable_get('cod_txn_completed', 0)) {
+      // Check if we have shippable items
+      $has_shippable_item = false;
+      foreach($txn->items as $key => $value) {
+        if (product_is_shippable($value->nid)) {
+          $has_shippable_item = true;
+        }
+      }
+
+      if (!$has_shippable_item = true) {
+        $edit['workflow'] = 6;
+      }
+    }
+
+    $edit['txnid'] = $txn->txnid;
+    // Update the transaction
+    $txnid = store_transaction_save($edit);
+    if ($txnid) {
+      // Send an email notification
+      store_send_invoice_email($txnid);
+    }
+  }
+  else {
+    drupal_set_message(t('Your purchase has been received.'));
+  }
+
+  drupal_goto(variable_get('cod_url', 'product'));
+}
+

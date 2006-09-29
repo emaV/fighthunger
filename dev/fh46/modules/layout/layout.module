@@ -1,0 +1,2342 @@
+<?php
+
+include_once(drupal_get_path('module', 'layout')  . '/support.inc');
+
+$layout_section = false;
+
+define("layout_WEIGHTED_ROWS", 1);
+define("layout_GRID", 2);
+
+define("layout_BLOCK", 1);
+define("layout_LIST", 2);
+define("layout_NODE", 3);
+define("layout_PAGE", 4);
+
+define("layout_TITLE", 1);
+define("layout_CONTENT", 2);
+define("layout_TITLE_AND_CONTENT", layout_TITLE|layout_CONTENT);
+define("layout_FULLNODE", 8);
+define("layout_TEASER", 16);
+define("layout_FULLNODE_WITH_TEASER", layout_FULLNODE|layout_TEASER);
+define("layout_LISTING", 32);
+define("layout_LISTING_AND_CONTENT", layout_LISTING|layout_CONTENT);
+
+define("layout_DONT_CARE", 1);
+define("layout_IS_FALSE", 2);
+define("layout_IS_TRUE", 3);
+
+define("layout_PERM_DONT_CARE", 1);
+define("layout_NOT_LOGGED_IN", 2);
+define("layout_LOGGED_IN", 3);
+define("layout_PERM_SPECIFIC", 4);
+
+/**
+ * Implementation of hook_help().
+ */
+function layout_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Manages multiple layouts.');
+  }
+}
+
+/**
+ * Provides a link to the CSS stylesheet associated with this module.
+ *
+ * @return a &lt;style&gt; tag that indicates what file browsers should import
+ */
+function layout_html_head($path) {
+	static $been_here = 0;
+	
+	if ( ! $been_here )
+	{
+  	return '<style type="text/css">@import url(' . $path . ');</style>';
+  }
+  
+  $been_here = 1;
+} 
+
+function layout_node_name()
+{
+	if ( user_access("create layout node") )
+	{
+		return('layout node');
+	}
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function layout_perm() {
+  return array('create layout node', 'view layout node');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function layout_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('create layout node');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('create layout node') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+  
+  if ( $op == 'view' )
+  {
+  	return user_access('view layout node');
+  }
+
+  return FALSE;
+}
+
+function layout_menu($may_cache)
+{
+
+  drupal_set_html_head(layout_html_head(drupal_get_path('module', 'layout')  . '/layout.css'));
+  
+  $items = array();
+	$access = user_access("administer site configuration");
+	
+  if ($may_cache) {
+    $items[] = array('path' => 'layout', 'title' => t('layout'),
+                    'callback' => 'layout_page',
+                     'access' => TRUE,
+                     'type' => MENU_CALLBACK);
+
+                     
+    $items[] = array('path' => 'admin/layout', 'title' => t('layout'),
+      'access' => $access,
+      'callback' => 'layout_admin');
+    $items[] = array('path' => 'admin/layout/list', 'title' => t('list'),
+      'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
+    $items[] = array('path' => 'admin/layout/page/add', 'title' => t('add layout page'),
+      'access' => $access,
+      'callback' => 'layout_page_edit',
+      'type' => MENU_LOCAL_TASK);
+    $items[] = array('path' => 'admin/layout/page/edit', 'title' => t('edit layout page'),
+      'access' => $access,
+      'callback' => 'layout_page_edit',
+      'type' => MENU_CALLBACK);
+      
+    $items[] = array('path' => 'admin/layout/section/add', 'title' => t('add layout section'),
+      'access' => $access,
+      'callback' => 'layout_section_edit',
+      'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/layout/section/edit', 'title' => t('edit layout section'),
+      'access' => $access,
+      'callback' => 'layout_section_edit',
+      'type' => MENU_CALLBACK);       
+    
+    $items[] = array('path' => 'admin/layout/block/add', 'title' => t('add layout block'),
+      'access' => $access,
+      'callback' => 'layout_block_edit',
+      'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/layout/block/edit', 'title' => t('edit layout block'),
+      'access' => $access,
+      'callback' => 'layout_block_edit',
+      'type' => MENU_CALLBACK);
+      
+    $items[] = array('path' => 'admin/layout/list/add', 'title' => t('add layout list'),
+      'access' => $access,
+      'callback' => 'layout_list_edit',
+      'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/layout/list/edit', 'title' => t('edit layout list'),
+      'access' => $access,
+      'callback' => 'layout_list_edit',
+      'type' => MENU_CALLBACK);
+      
+    $items[] = array('path' => 'admin/layout/node/add', 'title' => t('add layout node'),
+      'access' => $access,
+      'callback' => 'layout_node_edit',
+      'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/layout/node/edit', 'title' => t('edit layout node'),
+      'access' => $access,
+      'callback' => 'layout_node_edit',
+      'type' => MENU_CALLBACK);
+      
+    $items[] = array('path' => 'admin/layout/testlayout', 'title' => t('test layout page layout'),
+      'access' => $access,
+      'callback' => 'layout_testlayout',
+      'type' => MENU_CALLBACK);  
+   }
+
+	
+  return $items;
+}
+
+function layout_form($edit)
+{
+	$options  = layout_page_list();
+	$output .=  form_select(t("Source Page"), 'page_source', $edit->page_source, $options, t('The name of a previously defined layout page.  The contents of which will be displayed in the node'));
+
+  if (function_exists('taxonomy_node_form')) {
+    $output .= implode('', taxonomy_node_form('page', $node));
+  }
+  
+	return $output;
+}
+
+function layout_page_list()
+{
+	$list = array();
+	
+	$list[-1] = "Select layout page";
+	
+  $sql = "SELECT hid, page_name from {layout_pages}"; 
+  $result = db_query($sql, $page);
+
+	while ( $obj =  db_fetch_object($result) )
+	{
+		$list[$obj->page_name] = $obj->page_name;
+  }
+  
+  return $list;
+}
+
+function layout_load(&$node)
+{	
+	$layout_node = db_fetch_object(db_query("SELECT * FROM {layout_node} WHERE nid = %d", $node->nid));
+	
+  return $layout_node;
+}
+
+function layout_insert(&$edit)
+{
+    db_query("INSERT INTO {layout_node} (nid, page_source) 
+    					VALUES  (%d, '%s')",
+    					$edit->nid, $edit->page_source);
+}
+
+function layout_update(&$edit)
+{
+	db_query("UPDATE {layout_node} SET page_source = '%s' WHERE nid = %d", $edit->page_source, $edit->nid);
+}
+
+function layout_view(&$node, $teaser = FALSE, $page = FALSE)
+{
+
+	$node->title = 'Hello World';
+	$node->teaser = layout_page($node->page_source, TRUE);
+	$node->body = $node->teaser;
+	
+	return $node;
+}
+
+function layout_admin() {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  if ($op == t('Save blocks')) {
+    drupal_set_message('Data saved +++'); // block_admin_save($edit));
+    drupal_goto('admin/layout');
+  }
+  print theme('page', layout_admin_display());
+}
+
+
+function layout_page_edit($hid = 0) {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  switch ($op) {
+    case t('Save page'):
+      drupal_set_message(layout_page_save($edit));
+      drupal_goto('admin/layout');
+
+    case t('Delete page'):
+      $form = '<p>'. t('Are you sure you want to delete the layout page %name?', array('%name' => '<em>'. $edit['page_name'] .'</em>')) ."</p>\n";
+      $form .= form_submit(t('Delete'));
+      $output = form($form);
+      break;
+
+    case t('Delete'):
+      db_query('DELETE FROM {layout_pages} WHERE hid = %d', $hid);
+      drupal_set_message(t('The layout page has been deleted.'));
+      drupal_goto('admin/layout');
+
+    default:
+      if ( $hid ) {
+        $output = layout_page_form(layout_page_get($hid));
+      }
+      else {
+        $output = layout_page_form();
+      }
+  }
+
+  print theme('page', $output);
+}
+
+function layout_permission_list()
+{
+	$list = array();
+	
+  foreach (module_list() as $module)
+  {
+    if ($perms = module_invoke($module, 'perm'))
+    {
+      asort($perms);
+      foreach ($perms as $perm)
+      {
+				$list[$perm] = $module . ' - ' . $perm;
+      }
+    }
+  }
+  
+  return $list;
+}
+
+function layout_form_permissions($edit, $help)
+{
+	$options = array(layout_PERM_DONT_CARE => "Anyone", layout_NOT_LOGGED_IN => "Not logged in", layout_LOGGED_IN => "Logged in", layout_PERM_SPECIFIC => "Specified Access", );
+	$output .= form_radios("Permissions", 'perm_type', ($edit['perm_type']?$edit['perm_type']:layout_PERM_DONT_CARE), $options, t('Determine the level of access checking'));
+	$options  = layout_permission_list();
+	$output .=  form_select("Specified permission", 'permission', $edit['permission'], $options, t('Determines the specified permission to use <b>if</b> "Specified Access"'));
+	
+	return $output;
+}
+
+function layout_page_form($edit = array())
+{  
+	$output .= '<div class="node-form">';
+  $output .= form_textfield(t("Page Name"), 'page_name', $edit['page_name'], 32, 64, t('Name of this layout page') , NULL, FALSE);
+  $output .= form_textfield(t("CCS file"), 'css_file', $edit['css_file'], 32, 64, t('Optional css file to theme this layout. Path should be relative to root of site') , NULL, FALSE);
+	$options = array(layout_WEIGHTED_ROWS => "Weighted rows", layout_GRID => "Grid layout");
+	$output .= form_radios("Page Layout", 'layout', ($edit['layout']?$edit['layout']:layout_WEIGHTED_ROWS), $options, t('Determines how the page is layed out'));
+	$output .= layout_form_permissions($edit, 'Determines who can view the page');
+	
+  $output .= form_submit(t("Save page"));
+
+  if ( $edit['hid'] )
+  {
+  	$output .= form_hidden('hid', $edit['hid']);
+ 		$output .= form_submit(t("Delete page"));
+  }
+	$output .= '</div>';
+
+  return form($output);
+}
+
+function layout_page_get($hid)
+{
+	$page = db_fetch_array(db_query('SELECT * FROM {layout_pages} WHERE hid = %d', $hid));
+	return $page;
+}
+
+function layout_page_save($edit)
+{
+  if ($edit['hid']) {
+    db_query("UPDATE {layout_pages} SET page_name = '%s', css_file = '%s', layout = %d, perm_type = %d, permission = '%s' WHERE hid = %d", $edit['page_name'], $edit['css_file'], $edit['layout'], $edit['perm_type'], $edit['permission'],  $edit['hid']);
+    return t('The layout page has been updated.');
+  }
+  else {
+  	$hid = db_next_id('layout_pages');
+    db_query("INSERT INTO {layout_pages} (hid, page_name, css_file, layout, perm_type, permission) VALUES  (%d, '%s', '%s', %d, %d, '%s')", $hid, $edit['page_name'], $edit['css_file'], $edit['layout'], $edit['perm_type'], $edit['permission']);
+    return t('The new layout page has been added.');
+  }
+
+}
+
+function layout_section_edit($hid, $sid = 0) {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  switch ($op) {
+    case t('Save section'):
+      drupal_set_message(layout_section_save($edit));
+      drupal_goto('admin/layout');
+
+    case t('Delete section'):
+      $form = '<p>'. t('Are you sure you want to delete the layout section %name?', array('%name' => '<em>'. $edit['page_name'] .'</em>')) ."</p>\n";
+      $form .= form_submit(t('Delete'));
+      $output = form($form);
+      break;
+
+    case t('Delete'):
+      db_query('DELETE FROM {layout_sections} WHERE sid = %d', $sid);
+      drupal_set_message(t('The layout page has been deleted.'));
+      drupal_goto('admin/layout');
+
+    default:
+      if ( $sid ) {
+        $output = layout_section_form($hid, layout_section_get($sid));
+      }
+      else {
+        $output = layout_section_form($hid);
+      }
+  }
+
+  print theme('page', $output);
+}
+
+function layout_section_form($hid, $edit = array())
+{
+	if ( $hid == 0 )
+	{
+		$hid = $edit['hid'];
+	}
+	
+	$output .= '<div class="node-form">';
+	$output .= layout_section_general($edit, $hid);
+	
+  $output .= form_submit(t("Save section"));
+
+  $output .= form_hidden('hid', $hid);
+  	
+  if ( $edit['sid'] )
+  {
+  	$output .= form_hidden('sid', $edit['sid']);
+ 		$output .= form_submit(t("Delete section"));
+ 		$output .= '<br />';
+  }
+  
+	$output .= '</div>';
+	
+  return form($output);
+}
+
+function layout_getlayout($hid)
+{
+  $sql = "SELECT layout from {layout_pages} WHERE hid = %d"; 
+  $result = db_query($sql, $hid);
+
+	if (db_num_rows($result) == 0 )
+	{
+		return layout_WEIGHTED_ROWS;
+	}
+	
+	$page =  db_fetch_object($result);
+	
+	return $page->layout;
+}
+
+function layout_section_general($edit, $hid)
+{
+
+  $output .= form_textfield('Tab Label', 'tab_label', $edit['tab_label'], 64, 256, t('text on section tab, if blank no tab is displayed, see ') . l(t('help'), 'node/13') . t(' for formatting details') , NULL, FALSE);
+  $output .= form_textfield('Description', 'description', $edit['description'], 32, 64, t('used to label section on adminstrative pages') , NULL, FALSE);
+	$output .= form_checkbox('Enable', 'enabled', 1, ($edit['sid']?$edit['enabled']:1), t('Section must be enabled to show on page'));
+  $output .= form_textfield('Width', 'width', $edit['width'], 8, 8, t('the width of the column in the layout') , NULL, FALSE);
+
+	$options = array(0 => "Horizontal", 1 => "Vertical");
+	$output .= form_radios("Section layout", 'vertical', $edit['vertical'], $options, t('Determines how blocks are layed out in the section'));
+
+
+	switch ( layout_getlayout($hid) )
+	{
+	case layout_GRID:
+	  $output .= form_textfield('Row', 'row', ($edit['row']?$edit['row']:1), 3, 3, t('Row in section grid') , NULL, FALSE);
+	  $output .= form_textfield('Row Span', 'rowspan', ($edit['rowspan']?$edit['rowspan']:1), 3, 3, t('Number of rows this section spans in grid') , NULL, FALSE);
+	  $output .= form_textfield('Column', 'col', ($edit['col']?$edit['col']:1), 3, 3, t('Column in section grid') , NULL, FALSE);
+	  $output .= form_textfield('Column Span', 'colspan', ($edit['colspan']?$edit['colspan']:1), 3, 3, t('Number of columns this section spans in grid') , NULL, FALSE);
+	default:
+	  $output .= form_weight('Weight', 'weight', $edit['weight'], 10, t('Determines section order, smaller numbers float up, bigger numbers float down'));
+	}
+	
+  $output .= form_textfield('CSS Class', 'css_class', $edit['css_class'], 32, 64, t('Optional, if present added to class list for outer most HTML') , NULL, FALSE);
+  $output .= layout_form_permissions($edit, 'Determines who can view the section');
+  $output .= form_textarea(t('Section header (if content)'), 'header_if_content', $edit['header_if_content'], 70, 5, t('This text will be displayed at the top of the section <b>if</b> there is content'));
+  $output .= form_textarea(t('Section header (if no content)'), 'header_if_no_content', $edit['header_if_no_content'], 70, 5, t('This text will be displayed at the top of the section <b>if</b> there is <b>no</b> content <b>and</b> the "hide if no content" flag is no set'));
+  $output .= form_textarea(t('Section footer'), 'trailer', $edit['trailer'], 70, 5, t('This text will be displayed at the bottom of the section <b>if</b> there is content'));
+	$output .= form_checkbox('Hide if no content', 'hide_if_no_content', 1, $edit['hide_if_no_content'], t('If set, section produces no output if empty'));
+
+  return $output;
+}
+
+function layout_section_get($sid)
+{
+	return db_fetch_array(db_query('SELECT * FROM {layout_sections} WHERE sid = %d', $sid));
+}
+
+function layout_section_save($edit)
+{	
+  if ($edit['sid']) {
+    db_query("UPDATE {layout_sections}
+    		SET tab_label = '%s',description = '%s',enabled = %d, vertical = %d, width='%s',row = %d,col = %d,rowspan = %d,colspan = %d,
+    		css_class = '%s', header_if_content = '%s', header_if_no_content = '%s', trailer = '%s', hide_if_no_content  = %d,
+    		weight = %d, perm_type = %d, permission = '%s'
+    		WHERE sid = %d",
+    		$edit['tab_label'], $edit['description'], $edit['enabled'], $edit['vertical'], $edit['width'], $edit['row'], $edit['col'], $edit['rowspan'], $edit['colspan'],
+    		$edit['css_class'], $edit['header_if_content'], $edit['header_if_no_content'], $edit['trailer'], $edit['hide_if_no_content'],
+    		$edit['weight'], $edit['perm_type'], $edit['permission'],
+    		$edit['sid']);
+    return t('The layout section has been updated.');
+  }
+  else {
+  	if ( ! $edit['description'] )
+  	{
+  		$edit['description'] = $edit['tab_label'];
+  	}
+  	
+  	$sid = db_next_id('layout_sections');
+    db_query("INSERT INTO {layout_sections} (sid,hid,tab_label,description,enabled,vertical,width,row,col,rowspan,colspan,css_class,
+    					header_if_content, header_if_no_content, trailer, hide_if_no_content,
+    					weight,perm_type,permission) 
+    					VALUES  (%d, %d, '%s', '%s', %d, %d, '%s', %d, %d, %d, %d, '%s', '%s', '%s', '%s', %d, %d, %d, '%s')",
+    					$sid, $edit['hid'], $edit['tab_label'], $edit['description'], $edit['enabled'], $edit['vertical'], $edit['width'], $edit['row'], $edit['col'], $edit['rowspan'], $edit['colspan'],
+    					$edit['css_class'], $edit['header_if_content'], $edit['header_if_no_content'], $edit['trailer'], $edit['hide_if_no_content'],
+    					$edit['weight'], $edit['perm_type'], $edit['permission']);
+    return t('The new layout section has been added.');
+  }
+
+}
+
+function layout_block_edit($hid, $sid, $bid = 0) {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+	if ( !$hid )
+	{
+		$hid = $edit['hid'];
+	}
+	
+	if ( !$sid )
+	{
+		$sid = $edit['sid'];
+	}
+	
+	$path = "admin/layout";
+
+  switch ($op) {
+    case t('Save block'):
+      drupal_set_message(layout_block_save($edit));
+      drupal_goto($path);
+
+    case t('Delete block'):
+      $form = '<p>'. t('Are you sure you want to delete the section block %name?', array('%name' => '<em>'. $edit['description'] .'</em>')) ."</p>\n";
+      $form .= form_submit(t('Delete'));
+      $output = form($form);
+      break;
+
+    case t('Delete'):
+      db_query('DELETE FROM {layout_blocks} WHERE bid = %d', $bid);
+      drupal_set_message(t('The section block has been deleted.'));
+      drupal_goto($path);
+
+    default:
+      if ( $bid ) {
+        $output = layout_block_form($hid, $sid, layout_block_get($bid));
+      }
+      else {
+        $output = layout_block_form($hid, $sid);
+      }
+  }
+
+  print theme('page', $output);
+}
+
+function layout_block_form($hid, $sid, $edit = array())
+{
+	if ( $hid == 0 )
+	{
+		$hid = $edit['hid'];
+	}
+	
+	if ( $sid == 0 )
+	{
+		$sid = $edit['sid'];
+	}
+	
+	$output .= '<div class="node-form">';
+	$output .= layout_block_general($edit);
+	
+  $output .= form_submit(t("Save block"));
+
+  $output .= form_hidden('hid', $hid);
+  $output .= form_hidden('sid', $sid);
+  	
+  if ( $edit['bid'] )
+  {
+  	$output .= form_hidden('bid', $edit['bid']);
+ 		$output .= form_submit(t("Delete block"));
+  }
+	$output .= '</div>';
+	
+  return form($output);
+}
+
+function layout_list_edit($hid, $sid, $bid = 0) {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+	if ( !$hid )
+	{
+		$hid = $edit['hid'];
+	}
+
+	if ( !$sid )
+	{		
+		$sid = $edit['sid'];
+	}
+	
+	$path = "admin/layout";
+
+  switch ($op) {
+    case t('Save list'):
+      drupal_set_message(layout_list_save($edit));
+      drupal_goto($path);
+
+    case t('Delete section'):
+      $form = '<p>'. t('Are you sure you want to delete the section list %name?', array('%name' => '<em>'. $edit['description'] .'</em>')) ."</p>\n";
+      $form .= form_submit(t('Delete'));
+      $output = form($form);
+      break;
+
+    case t('Delete'):
+      db_query('DELETE FROM {layout_blocks} WHERE bid = %d', $bid);
+      drupal_set_message(t('The section list has been deleted.'));
+      drupal_goto($path);
+
+    default:
+      if ( $bid ) {
+        $output = layout_list_form($hid, $sid, layout_block_get($bid));
+      }
+      else {
+        $output = layout_list_form($hid, $sid);
+      }
+  }
+
+  print theme('page', $output);
+}
+
+function layout_list_form($hid, $sid, $edit = array())
+{
+	if ( $hid == 0 )
+	{
+		$hid = $edit['hid'];
+	}
+	
+	if ( $sid == 0 )
+	{
+		$sid = $edit['sid'];
+	}
+	
+	$output .= '<div class="node-form">';
+	$output .= layout_list_general($edit);
+	
+  $output .= form_submit(t("Save list"));
+
+  $output .= form_hidden('hid', $hid);
+	$output .= '<div class="node-form">';  
+  $output .= form_hidden('sid', $sid);
+  	
+  if ( $edit['bid'] )
+  {
+  	$output .= form_hidden('bid', $edit['bid']);
+ 		$output .= form_submit(t("Delete list"));
+  }
+	$output .= '</div>';
+	
+  return form($output);
+}
+
+function layout_list_general($edit)
+{
+
+  $output .= form_textfield('Description', 'description', $edit['description'], 32, 64, t('used to label section on adminstrative pages') , NULL, FALSE);
+	$output .= form_checkbox('Enable', 'enabled', 1, ($edit['bid']?$edit['enabled']:1), t('Section must be enabled to show on page'));
+  $output .= form_textfield('Width', 'width', $edit['width'], 8, 8, t('the width of the column in the layout') , NULL, FALSE);
+  $output .= form_weight('Weight', 'weight', $edit['weight'], 10, t('Negative blocks float left in section, postive blocks float right'));
+	$options = array(layout_TITLE => "Node Title", layout_CONTENT => "Node Content", layout_TITLE_AND_CONTENT => "Node Title and Content", layout_FULLNODE => "Full Node", layout_FULLNODE_WITH_TEASER => "Full Node with teaser");
+	// $options = array(layout_LISTING => "Titles Only", layout_LISTING_AND_CONTENT => "Title and Content");
+	$output .= form_radios("Display", 'display', ($edit['display']?$edit['display']:layout_LISTING), $options, t('Determines what is shown for each node in list'));
+  
+  $output .= layout_form_permissions($edit, 'Determines who can view the list');
+  $output .= form_textfield('CSS Class', 'css_class', $edit['css_class'], 32, 64, t('Optional, if present added to class list for outer most HTML') , NULL, FALSE);
+
+	$options = module_list();
+	$output .= form_select("Source module", 'module', $edit['module'], $options, t('Drupal module to use for content'));
+  $output .= form_textfield('Title Source', 'title_source', ($edit['title_source']?$edit['title_source']:"@title@"), 64, 256, t('the field to use for title, see') . l(t('help'), 'node/13') . t(' for extended options') , NULL, FALSE);
+  $output .= form_textfield('Content Source', 'content_source', ($edit['content_source']?$edit['content_source']:"@body@"), 64, 256, t('the field to use for content, see') . l(t('help'), 'node/13') . t(' for extended options') , NULL, FALSE);
+  $output .= form_textfield('Limit Content', 'limit_content', $edit['limit_content'], 8, 8, t('limit the content length <b>if</b> node content is selected for display') , NULL, FALSE);
+	$output .= form_checkbox('Sort by sticky', 'sort_by_sticky', 1, ($edit['sort_by_sticky']?$edit['sort_by_sticky']:1), t('If checked sticky items will float to top of listing'));
+	$options = array(layout_DONT_CARE => "Don't care", layout_IS_FALSE => "Not published", layout_IS_TRUE => "Published");
+	$output .= form_radios("Node Status", 'use_status', ($edit['use_status']?$edit['use_status']:layout_IS_TRUE), $options, t('Set selection criteria for node status'));
+	$options = array(layout_DONT_CARE => "Don't care", layout_IS_FALSE => "Not promoted to frontpage", layout_IS_TRUE => "Promoted to frontpage");
+	$output .= form_radios("Place On Frontpage (promote)", 'use_promote', ($edit['use_promote']?$edit['use_promote']:layout_DONT_CARE), $options, t('Set selection criteria for node promote field'));
+	$options = array(layout_DONT_CARE => "Don't care", layout_IS_FALSE => "Not sticky", layout_IS_TRUE => "Sticky");
+	$output .= form_radios("Sticky status", 'use_sticky', ($edit['use_sticky']?$edit['use_sticky']:layout_DONT_CARE), $options, t('Set selection criteria for node promote field'));
+  $output .= form_textfield('Join Table', 'join_table', $edit['join_table'], 32, 32, t('the table to join with the node table') , NULL, FALSE);
+  $output .= form_textfield('Custom Sort', 'custom_sort', $edit['custom_sort'], 32, 128, t('additional sort fields') , NULL, FALSE);
+  $output .= form_textfield('Custom Where', 'custom_where', $edit['custom_where'], 32, 128, t('additional parts to where clause') , NULL, FALSE);
+  $output .= form_textfield('Limit Rows', 'row_limit', $edit['row_limit'], 32, 128, t('Limits number of rows returned by query. Set to 0 for unlimited.') , NULL, FALSE);
+  $output .= form_textfield('More Link', 'more_link', $edit['more_link'], 32, 64, t('optional link for additional information') , NULL, FALSE);
+  $output .= form_textfield('More Text', 'more_text', $edit['more_text'], 32, 128, t('text of optional link') , NULL, FALSE);
+  
+  return $output;
+}
+
+function layout_modulelist()
+{
+{
+	$modules = array();
+	
+	$result = db_query("SELECT DISTINCT type from {node}");
+	
+  while ($data = db_fetch_object($result))
+  {
+  	$modules[$data->type] = $data->type;
+  }	
+  
+  asort($modules);
+  
+  return $modules;
+}
+}
+
+function layout_list_save($edit)
+{	
+  if ($edit['bid']) {
+    db_query("UPDATE {layout_blocks}
+    		SET description = '%s',enabled = %d,width = '%s',weight = %d,display = %d, css_class = '%s',
+    					module = '%s', title_source = '%s', content_source = '%s', limit_content = %d,
+    					sort_by_sticky = %d, use_status = %d, use_promote = %d, use_sticky = %d,
+    					join_table = '%s', custom_sort = '%s', custom_where = '%s', row_limit = %d,
+    					more_link = '%s', more_text = '%s',
+    					perm_type = %d, permission = '%s'
+    		WHERE bid = %d",
+    		$edit['description'], $edit['enabled'], $edit['width'], $edit['weight'], $edit['display'], $edit['css_class'],
+    		$edit['module'], $edit['title_source'], $edit['content_source'], $edit['limit_content'],
+    		$edit['sort_by_sticky'], $edit['use_status'], $edit['use_promote'], $edit['use_sticky'],
+     		$edit['join_table'], $edit['custom_sort'], $edit['custom_where'], intval($edit['row_limit']),
+     		$edit['more_link'], $edit['more_text'], $edit['perm_type'], $edit['permission'],
+    		$edit['bid']);
+    return t('The section node has been updated.');
+  }
+  else {
+  	$bid =db_next_id('layout_blocks');
+    db_query("INSERT INTO {layout_blocks} (bid,sid,block_type,description,enabled,
+    						width,weight,display,css_class,
+    						module,title_source,content_source,limit_content,
+    						sort_by_sticky,use_status,use_promote,use_sticky,
+    						join_table, custom_sort, custom_where, row_limit,
+    						more_link, more_text, perm_type, permission) 
+    					VALUES  (%d, %d, %d, '%s', %d,
+    										'%s', %d, %d, '%s',
+    										'%s', '%s', '%s', %d,
+    										%d, %d, %d, %d,
+    										'%s', '%s', '%s', %d,
+    										'%s', '%s', %d, '%s')",
+    					$bid, $edit['sid'], layout_LIST, $edit['description'], $edit['enabled'],
+    					$edit['width'], $edit['weight'], $edit['display'], $edit['css_class'],
+    	    		$edit['module'], $edit['title_source'], $edit['content_source'], $edit['limit_content'],
+				    	$edit['sort_by_sticky'], $edit['use_status'], $edit['use_promote'],$edit['use_sticky'],
+				     	$edit['join_table'], $edit['custom_sort'], $edit['custom_where'], intval($edit['custom_where']),
+				     	$edit['more_link'], $edit['more_text'], $edit['perm_type'], $edit['permission']);
+    return t('The new section node has been added.');
+  }
+
+}
+
+/**
+ * Creates a query to either insert or update an layout_blocks entry in the database.
+ *
+ * @param $fields The fields to be retrieved.
+ * @param $node The node we are inserting or updating.
+ * @param &$v
+ * @param $insert Whether or not this is an insert query.
+ * @return The SQL statement generated by the above criteria.
+ */
+function layout_create_block_query($fields, $node, &$v, $insert = 1)
+{
+  foreach ($fields as $field) {
+        
+    $v[] = $node->$field;
+    
+    if ( is_numeric($node->$field) )
+    {
+    	$f = "%d";
+    }
+    else
+    {
+    	$f = "'%s'";
+    }
+    
+    if ($insert) {
+      $k[] = db_escape_string($field);
+      $s[] = $f;
+    }
+    else {
+      $q[] = db_escape_string($field) ." = " . $f;
+    }
+
+
+  }
+
+  if ($insert) {
+    return "INSERT INTO {layout_blocks} (". implode(", ", $k) .") VALUES(". implode(", ", $s) .")";
+  }
+  else {
+    return "UPDATE {layout_blocks} SET ". implode(", ", $q) ." WHERE nid = '$node->bid'";
+  }
+
+}
+
+function layout_block_fields()
+{
+	return array('description','enabled','width','weight','display','css_class',
+    						'module','title_source','content_source','limit_content',
+    						'sort_by_sticky','use_status','use_promote',
+    						'join_table','custom_sort','custom_where','row_limit','more_link','more_text');
+}
+
+function layout_save_block($node, $block_type)
+{
+ 	$fields = layout_block_fields();
+ 	
+  if ( $edit['bid'])
+  {
+  	$insert = 0;
+  }
+  else
+  {
+  	$fields[] = 'sid';
+  	$fields[] = 'block_type';
+  	$edit['block_type'] = $block_type;
+  	$insert = 1;
+  }
+  
+  $sql = alerts_create_query($fields, $node, $values, $insert);
+  foreach ($values as $value) {
+    $vals[] = is_array($value) ? serialize($value) : $value;
+  }
+  db_query($sql, $vals);
+  
+}
+
+function layout_blocklist()
+{
+	$blocks = array();
+	
+	$result = db_query("SELECT DISTINCT module from {blocks} ORDER BY MODULE");
+	
+  while ($data = db_fetch_object($result))
+  {
+  	$module = $data->module;
+  	
+    $module_blocks = module_invoke($module, 'block', 'list');
+    if ($module_blocks)
+    {
+      foreach ($module_blocks as $delta => $block)
+      {
+				$key = "$module.$delta";
+				$blocks[$key] = $module . " - " . $block['info'];
+      }
+    }
+  }	
+  
+  return $blocks;
+}
+
+function layout_block_general($edit)
+{
+
+  $output .= form_textfield('Description', 'description', $edit['description'], 32, 64, t('used to label section on adminstrative pages') , NULL, FALSE);
+	$options = layout_blocklist();
+	if ( $edit['module'] )
+	{
+		$block = $edit['module'] . "." . $edit['delta'];
+	}
+	else
+	{
+		$block = '';
+	}
+	
+	$output .= form_select("Source Block", 'block', $block, $options, t('Drupal block to use for content'));
+	
+	$output .= form_checkbox('Enable', 'enabled', 1, ($edit['bid']?$edit['enabled']:1), t('Section must be enabled to show on page'));
+  $output .= form_textfield('Width', 'width', $edit['width'], 8, 8, t('the width of the column in the layout') , NULL, FALSE);
+  $output .= form_weight('Weight', 'weight', $edit['weight'], 10, t('Negative blocks float left in section, postive blocks float right'));
+	$output .= layout_form_permissions($edit, 'Determines who can view the block');
+	$options = array(layout_CONTENT => "Content only", layout_TITLE_AND_CONTENT => "Title and Content");
+	$output .= form_radios("Display", 'display', ($edit['display']?$edit['display']:layout_CONTENT), $options, t('Determines what is shown from block'));
+  $output .= form_textfield('CSS Class', 'css_class', $edit['css_class'], 32, 64, t('Optional, if present added to class list for outer most HTML') , NULL, FALSE);
+
+return $output;
+}
+
+function layout_block_get($bid)
+{
+	return db_fetch_array(db_query('SELECT * FROM {layout_blocks} WHERE bid = %d', $bid));
+}
+
+function layout_block_save($edit)
+{	  
+	if ( $edit['block'] )
+	{
+		$parts = explode(".", $edit['block']);
+		$module = $parts[0];
+		$delta = $parts[1];
+	}
+	else
+	{
+		$module = '';
+		$delta = 0;
+	}
+	
+  if ($edit['bid']) {
+    db_query("UPDATE {layout_blocks}
+    		SET description = '%s',enabled = %d,module = '%s',delta = '%s',width = '%s',weight = %d, display = %d,
+    		css_class = '%s', perm_type = %d, permission = '%s'
+    		WHERE bid = %d",
+    		$edit['description'], $edit['enabled'], $module, $delta, $edit['width'], $edit['weight'], $edit['display'],
+    		$edit['css_class'], $edit['perm_type'], $edit['permission'], $edit['bid']);
+    return t('The section block has been updated.');
+  }
+  else {
+  	$bid =db_next_id('layout_blocks');
+    db_query("INSERT INTO {layout_blocks} (bid,sid,block_type,description,enabled,module,delta,width,weight,display,css_class,perm_type,permission) 
+    					VALUES  (%d, %d, %d, '%s', %d, '%s', '%s', '%s', %d, %d, '%s', %d, '%s')",
+    					$bid, $edit['sid'], layout_BLOCK, $edit['description'], $edit['enabled'], $module, $delta, $edit['width'], $edit['weight'], $edit['display'], $edit['css_class'], $edit['perm_type'], $edit['permission']);
+    return t('The new section block has been added.');
+  }
+
+}
+
+function layout_node_edit($hid, $sid, $bid = 0) {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+	if ( !$hid )
+	{
+		$hid = $edit['hid'];
+	}
+	
+	if ( !$sid )
+	{
+		$sid = $edit['sid'];
+	}
+	
+	$path = "admin/layout";
+
+  switch ($op) {
+    case t('Save node'):
+      drupal_set_message(layout_node_save($edit));
+      drupal_goto($path);
+
+    case t('Delete node'):
+      $form = '<p>'. t('Are you sure you want to delete the section node %name?', array('%name' => '<em>'. $edit['description'] .'</em>')) ."</p>\n";
+      $form .= form_submit(t('Delete'));
+      $output = form($form);
+      break;
+
+    case t('Delete'):
+      db_query('DELETE FROM {layout_blocks} WHERE bid = %d', $bid);
+      drupal_set_message(t('The section node has been deleted.'));
+      drupal_goto($path);
+
+    default:
+      if ( $bid ) {
+        $output = layout_node_form($hid, $sid, layout_block_get($bid));
+      }
+      else {
+        $output = layout_node_form($hid, $sid);
+      }
+  }
+
+  print theme('page', $output);
+}
+
+function layout_node_form($hid, $sid, $edit = array())
+{
+	if ( $hid == 0 )
+	{
+		$hid = $edit['hid'];
+	}
+	
+	if ( $sid == 0 )
+	{
+		$sid = $edit['sid'];
+	}
+	
+	$output .= '<div class="node-form">';
+	$output .= layout_node_general($edit);
+	
+  $output .= form_submit(t("Save node"));
+
+  $output .= form_hidden('hid', $hid);
+  $output .= form_hidden('sid', $sid);
+  	
+  if ( $edit['bid'] )
+  {
+  	$output .= form_hidden('bid', $edit['bid']);
+ 		$output .= form_submit(t("Delete node"));
+  }
+	$output .= '</div>';
+	
+  return form($output);
+}
+
+function layout_node_general($edit)
+{
+
+  $output .= form_textfield('Description', 'description', $edit['description'], 32, 64, t('used to label section on adminstrative pages') , NULL, FALSE);
+	$output .= form_checkbox('Enable', 'enabled', 1, ($edit['bid']?$edit['enabled']:1), t('Section must be enabled to show on page'));
+  $output .= form_textfield('Width', 'width', $edit['width'], 8, 8, t('the width of the column in the layout') , NULL, FALSE);
+  $output .= form_weight('Weight', 'weight', $edit['weight'], 10, t('Negative blocks float left in section, postive blocks float right'));
+	$output .= layout_form_permissions($edit, 'Determines who can view the page');
+	$options = array(layout_TITLE => "Node Title", layout_CONTENT => "Node Content", layout_TITLE_AND_CONTENT => "Node Title and Content", layout_FULLNODE => "Full Node", layout_FULLNODE_WITH_TEASER => "Full Node with teaser");
+	$output .= form_radios("Display", 'display', ($edit['display']?$edit['display']:layout_CONTENT), $options, t('Determines what is shown from each node'));
+  $output .= form_textfield('Node Path List', 'node_path', $edit['node_path'], 40, 80, t('Comma seperated list of nodes to display, each node can be of form node id (ex. 1), or a node path (ex. node/1 or my_named_path') , NULL, FALSE);
+  $output .= form_textfield('Title Source', 'title_source', ($edit['title_source']?$edit['title_source']:"@title@"), 64, 256, t('the field to use for title, see') . l(t('help'), 'node/13') . t(' for extended options') , NULL, FALSE);
+  $output .= form_textfield('Content Source', 'content_source', ($edit['content_source']?$edit['content_source']:"@body@"), content_source, t('the field to use for content <b>if</b> node content is selected for display') , NULL, FALSE);
+  $output .= form_textfield('Limit Content', 'limit_content', $edit['limit_content'], 8, 8, t('limit the content length <b>if</b> node content is selected for display') , NULL, FALSE);
+  $output .= form_textfield('CSS Class', 'css_class', $edit['css_class'], 32, 64, t('Optional, if present added to class list for outer most HTML') , NULL, FALSE);
+
+  return $output;
+}
+	
+function layout_node_save($edit)
+{	
+  if ($edit['bid']) {
+    db_query("UPDATE {layout_blocks}
+    		SET description = '%s',enabled = %d,width = '%s',
+    					weight = %d, display = %d, css_class = '%s',
+    					node_path = '%s', title_source = '%s', content_source = '%s', limit_content = %d,
+    					perm_type = %d, permission = '%s'
+    		WHERE bid = %d",
+    		$edit['description'], $edit['enabled'], $edit['width'],
+    		$edit['weight'], $edit['display'], $edit['css_class'],
+    		$edit['node_path'], $edit['title_source'], $edit['content_source'], $edit['limit_content'],
+    		$edit['perm_type'], $edit['permission'],
+    		$edit['bid']);
+    return t('The section node has been updated.');
+  }
+  else {
+   	$bid = db_next_id('layout_blocks');
+    db_query("INSERT INTO {layout_blocks} (bid,sid,block_type,description,enabled,width,
+    						weight,display,css_class,
+    						node_path,title_source,content_source,limit_content,perm_type,permission) 
+    					VALUES  (%d, %d, %d, '%s', %d, '%s',
+    											%d, %d, '%s',
+    										 '%s','%s','%s', %d, %d, '%s')",
+    					$bid, $edit['sid'], layout_NODE, $edit['description'], $edit['enabled'],
+    					$edit['width'], $edit['weight'], $edit['display'], $edit['css_class'],
+    					$edit['node_path'], $edit['title_source'], $edit['content_source'], $edit['limit_content'],
+    					$edit['perm_type'], $edit['permission']);
+    return t('The new section node has been added.');
+  }
+
+}
+
+function layout_listblocks($hid, $sid)
+{
+  $header = array(t('Section Content'), t('Operations'));
+
+  $blocks = layout_get_block_summary($sid);
+
+  foreach ($blocks as $block) {
+  	
+		switch ( $block->block_type )
+		{
+			case layout_BLOCK:
+				$link = l(t('edit block'), "admin/layout/block/edit/$hid/$block->sid/$block->bid");
+				break;
+				
+			case layout_NODE:
+				$link = l(t('edit node'), "admin/layout/node/edit/$hid/$block->sid/$block->bid");
+				break;
+				
+			case layout_LIST:
+				$link = l(t('edit list'), "admin/layout/list/edit/$hid/$block->sid/$block->bid");
+				break;
+				
+			default:
+				$link = "Invalid block type";
+				break;
+		}
+					
+    $rows[] = array($block->description,  $link);
+  }
+
+  $table = theme('table', $header, $rows);
+  
+  $output .= '<table border=0 cellpadding=30>';
+  $output .= '<tr>';
+  $output .= '<td>';
+  $output .= $table;
+  $output .= '</td>';
+  $output .= '<td>';
+  $output .= l(t('Add block'), "admin/layout/block/add/$hid/$sid") . '<br />';
+  $output .= l(t('Add list'), "admin/layout/list/add/$hid/$sid") . '<br />';
+  $output .= l(t('Add node'), "admin/layout/node/add/$hid/$sid") . '<br />';
+  $output .= '</td>';
+  $output .= '</tr>';
+  $output .= '</table>';
+  
+  return $output;
+}
+
+function layout_get_block_summary($sid)
+{
+	$result = db_query("SELECT bid,sid,block_type,description FROM {layout_blocks} WHERE sid = $sid ORDER BY weight,description");
+	
+  $blocks = array();
+  while ($data = db_fetch_object($result)) {
+    $blocks[] = $data;
+  }
+
+  return $blocks;
+}
+
+function layout_block_table($hid, $sid)
+{
+  $header = array(t('Section Content'), t('Operations'));
+
+  $blocks = layout_get_block_summary($sid);
+
+  foreach ($blocks as $block) {
+  	
+		switch ( $block->block_type )
+		{
+			case layout_BLOCK:
+				$link = l(t('edit block'), "admin/layout/block/edit/$hid/$block->sid/$block->bid");
+				break;
+				
+			case layout_NODE:
+				$link = l(t('edit node'), "admin/layout/node/edit/$hid/$block->sid/$block->bid");
+				break;
+				
+			case layout_LIST:
+				$link = l(t('edit list'), "admin/layout/list/edit/$hid/$block->sid/$block->bid");
+				break;
+				
+			default:
+				$link = "Invalid block type";
+				break;
+		}
+					
+    $rows[] = array($block->description,  $link);
+  }
+
+  $table = theme('table', $header, $rows, array('class' => 'layout-content-table'));
+  
+  return $table;
+}
+
+function layout_section_table($hid)
+{
+	$count = 0;
+  $header = array(t('Section'), array('data' => t('Section Operations'), 'colspan' => 4));
+
+  $sections = layout_get_sections($hid);
+  if ($sections)
+  {
+    foreach ($sections as $section) {
+    	$rows[] = array($section->description,
+    															l(t('edit section'), "admin/layout/section/edit/$hid/$section->sid"),
+																	l(t('add block'), "admin/layout/block/add/$hid/$section->sid"),
+																	l(t('add list'), "admin/layout/list/add/$hid/$section->sid"),
+																	l(t('add node'), "admin/layout/node/add/$hid/$section->sid"));
+																	
+			$data = layout_block_table($hid, $section->sid);
+    	$rows[] = array(array('data' => $data, 'colspan' => 5));
+			$count++;
+      //$data .= $section->description .' ('. l(t('edit section'), "admin/layout/section/edit/$section->hid/$section->sid") .')<br />';
+    }
+    
+    if ( $count > 0 )
+    {
+	    $attr = array('class' => 'layout-section-table');
+	    return theme('table', $header, $rows, $attr);
+    }
+    else
+    {
+    	return('No sections defined');
+    }
+  }
+  else
+  {
+  	return('No sections defined');
+  }
+}
+
+function layout_admin_display_orig()
+{
+
+  $header = array(t('Name'), array('data' => t('Operations'), 'colspan' => 3));
+
+  $pages = layout_get_pages();
+
+  foreach ($pages as $page) {
+
+    $rows[] = array($page->page_name,  l(t('edit page'), "admin/layout/page/edit/$page->hid"), l(t('add section'), "admin/layout/section/add/$page->hid"), l(t('test layout'), "admin/layout/testlayout/$page->hid"));
+
+    $sections = layout_get_sections($page->hid);
+    if ($sections)
+    {
+      unset($data);
+      foreach ($sections as $section) {
+        $data .= $section->description .' ('. l(t('edit section'), "admin/layout/section/edit/$section->hid/$section->sid") .')<br />';
+      }
+      $rows[] = array(array('data' => $data, 'colspan' => 4));
+    }
+  }
+
+  return theme('table', $header, $rows);
+}
+
+function layout_admin_display()
+{
+
+  $header = array(t('Name'), array('data' => t('Operations'), 'colspan' => 3));
+
+  $pages = layout_get_pages();
+
+  foreach ($pages as $page) {
+
+    $rows[] = array($page->page_name,  l(t('edit page'), "admin/layout/page/edit/$page->hid"), l(t('add section'), "admin/layout/section/add/$page->hid"), l(t('test layout'), "admin/layout/testlayout/$page->hid"));
+
+		$data = layout_section_table($page->hid);
+    $rows[] = array(array('data' => $data, 'colspan' => 4));
+  }
+
+  return theme('table', $header, $rows);
+}
+
+function layout_get_pages()
+{
+	$result = db_query('SELECT * FROM {layout_pages} ORDER BY page_name');
+	
+  $pages = array();
+  while ($data = db_fetch_object($result)) {
+    $pages[] = $data;
+  }
+
+  return $pages;
+}
+
+function layout_get_sections($hid)
+{
+	$result = db_query('SELECT sid, hid, description FROM {layout_sections} WHERE hid = ' . $hid . ' ORDER BY row,col');
+	
+  $sections = array();
+  while ($data = db_fetch_object($result)) {
+    $sections[] = $data;
+  }
+
+  return $sections;
+}
+
+function layout_page_orig()
+{
+
+  $breadcrumbs = array(
+    l(t('Home'), NULL),
+    l(t('layout'), 'layout')
+  );
+
+	$ret_val = '';
+	
+    $sql = 'SELECT n.nid, n.title FROM {node} n WHERE n.status = 1';
+    $result = db_query(db_rewrite_sql($sql));
+
+
+		if (db_num_rows($result))
+		{
+		
+			while ( $obj =  db_fetch_object($result) )
+			{
+				if ( true || user_access('access content') )
+				{
+					if ( $ret_val )
+					{
+						$ret_val .= '<br>';
+					}
+					$ret_val .= l(t($obj->title), 'node/' . $obj->nid);
+				}
+			}
+		}
+		else
+		{
+			$ret_val = $sql;
+		}
+	
+	drupal_set_title('');
+	drupal_set_breadcrumb($breadcrumb);
+	print theme('page', $ret_va);
+}
+
+function layout_testlayout($hid)
+{
+	if ( ! $hid )
+	{
+		$output = "Invalid layout page id";
+		print theme('page', $output);
+		return;
+	}
+
+  $sql = "SELECT hid, layout from {layout_pages} WHERE hid = %d"; 
+  $result = db_query($sql, $hid);
+
+
+	if (db_num_rows($result) == 0 )
+	{
+		$output = "Invalid layout page id";
+		print theme('page', $output);
+		return;
+	}
+	
+	$page =  db_fetch_object($result);
+	
+	if ( $page->layout == layout_GRID )
+	{
+		layout_test_gridlayout($hid);
+	}
+	else
+	{
+		layout_test_rowlayout($hid);
+	}
+}
+
+function layout_test_rowlayout($hid)
+{
+
+	$sql = "SELECT description from {layout_sections} WHERE hid = %d AND enabled = 1 ORDER BY weight"; 
+	$result = db_query($sql, $hid);
+	
+	if (db_num_rows($result) == 0 )
+	{
+		$output = "No sections defined for page";
+		print theme('page', $output);
+		return;
+	}	
+	
+	while ( $section =  db_fetch_object($result) )
+	{
+		$output .= $section->description . '<br>';
+	}
+	drupal_set_title("layout page layout (row)");
+	print theme('page', $output);
+}
+
+function layout_test_gridlayout($hid)
+{
+
+	$sql = "SELECT description, row, col, rowspan, colspan from {layout_sections} WHERE hid = %d AND enabled = 1 ORDER BY row,col"; 
+	$result = db_query($sql, $hid);
+	
+	if (db_num_rows($result) == 0 )
+	{
+		$output = "No sections defined for page";
+		print theme('page', $output);
+		return;
+	}	
+	
+
+
+
+
+
+
+
+	$max_row = 0;
+	$max_col = 0;
+	$cells = array();
+	
+	while ( $section =  db_fetch_object($result) )
+	{
+		$end_row = $section->row + ($section->rowspan>0?$section->rowspan- 1:0);
+		$end_col = $section->col + ($section->colspan>0?$section->colspan- 1:0);
+		if ( $end_row > $max_row )
+		{
+			$max_row = $end_row;
+		}
+		
+		if ( $end_col > $max_col )
+		{
+			$max_col = $end_col;
+		}
+		
+		for ( $row = $section->row; $row < $section->row+$section->rowspan; $row++ )
+		{
+			if ( ! $cells[$row] )
+			{
+				$cells[$section->row] = array();
+			}
+
+			for ( $col = $section->col; $col < $section->col+$section->colspan; $col++ )
+			{
+				$cells[$row][$col] = 1;
+			}
+		}
+		
+		$cells[$section->row][$section->col] = $section;
+	}
+	
+	$output = "rows = $max_row<br>";
+	$output .= "cols = $max_col<br>";
+	
+	$output .= "<table border=1>";
+	for ( $row = 1; $row <= $max_row; $row++ )
+	{
+		$output .= "<tr>";
+		
+		for ( $col = 1; $col <= $max_col; $col++ )
+		{
+			switch ( $cells[$row][$col] )
+			{
+			case 0:
+				$output .= "<td>BLANK</td>";
+				break;
+			case 1:	// Spanned cell
+				break;
+			default:
+				$section = $cells[$row][$col];
+				$content = $section->description;
+				
+				if ( !$skip )
+				{
+					$output .= "<td";
+					if ( $section->rowspan > 1 )
+					{
+						$output .= " rowspan='" . $section->rowspan . "'";
+					}
+					if ( $section->colspan > 1 )
+					{
+						$output .= " colspan='" . $section->colspan . "'";
+					}					
+					$output .= '>';
+					$output .= $content;
+					$output .= '</td>';
+				}
+				break;
+			}
+		}
+
+		$output .= "</tr>";		
+	}
+	$output .= "</table>";
+	
+	drupal_set_title("layout page layout (grid)");
+	print theme('page', $output);
+}
+
+function layout_checkaccess($obj, $what)
+{
+	global $user;
+	
+	switch ( $obj->perm_type )
+	{
+	case layout_PERM_DONT_CARE:
+		return true;
+		
+	case layout_NOT_LOGGED_IN:
+		return !$user->uid;
+		
+	case layout_LOGGED_IN:
+		return $user->uid;
+	
+	case layout_PERM_SPECIFIC:
+		return user_access($obj->permission);
+	}
+	
+}
+
+function layout_page($page, $as_node = FALSE)
+{
+/*
+	drupal_set_message(drupal_get_normal_path('event'));
+	drupal_set_message(drupal_get_normal_path('event/today'));	
+	drupal_set_message(drupal_get_normal_path('node/1'));
+	drupal_set_message(drupal_get_normal_path('TaskForce'));
+	$path = $_GET['q'];
+	$_GET['q'] = drupal_get_normal_path('event/today');
+	//ob_start();
+
+	$GLOBALS['layout_section'] = true;
+	$GLOBALS['layout_buffer'] = '';
+	menu_execute_active_handler();
+	$GLOBALS['layout_section']  = false;
+	ob_clean(); 
+	$output = $GLOBALS['layout_buffer'];
+	$_GET['q'] = $path;
+	print theme('page', $output);
+
+
+	$GLOBALS['layout_section'] = true;
+	$output = drupal_eval("<?php menu_execute_active_handler(); ?>");
+	$GLOBALS['layout_section'] = false;
+	print theme('page', $output);
+	return;
+*/
+
+
+	
+	$sections = array();
+	
+  $breadcrumbs = array(
+    l(t('Home'), NULL),
+    l(t('layout'), 'layout')
+  );
+	
+    $sql = "SELECT * from {layout_pages} WHERE page_name = '%s'"; 
+    $result = db_query($sql, $page);
+
+
+		if (db_num_rows($result))
+		{
+		
+			$obj =  db_fetch_object($result);
+			
+			if ( !layout_checkaccess($obj, "page") )
+			{
+				drupal_access_denied();
+				return;
+			}
+			
+			if ( $obj->css_file )
+			{
+				drupal_set_html_head(layout_html_head($obj->css_file));
+			}
+			
+			$hid = $obj->hid;
+			
+			$sql = "SELECT * from {layout_sections} WHERE hid = %d AND enabled = 1 ";
+			if ( $obj->layout == layout_GRID )
+			{
+				$sql .= "ORDER BY row,col"; 
+			}
+			else
+			{
+				$sql .= "ORDER BY weight"; 
+			}
+			
+    	$result = db_query($sql, $hid);
+    	
+    	if (db_num_rows($result))
+			{
+				if ( $obj->layout == layout_GRID )
+				{
+					$sections = layout_display_by_grid($result);
+				}
+				else
+				{
+					$sections = layout_display_by_row($result);
+				}
+			}
+    	
+		}
+	
+		if ( $obj->layout == layout_GRID )
+		{
+			$output = theme('layout_page_as_grid', $sections, $breadcrumbs, $as_node);
+		}
+		else
+		{
+			$output = theme('layout_page_by_row', $sections, $breadcrumbs, $as_node);
+		}
+		
+		if ( $as_node )
+		{
+			return $output;
+		}
+		else
+		{
+			print $output;
+		}
+	
+}
+
+function layout_display_by_row($result)
+{
+	$sections = array();
+	
+	while ( $obj =  db_fetch_object($result) )
+	{
+		if ( layout_checkaccess($obj, "section") )
+		{
+			$obj->content = layout_display_section($obj);
+			$sections[] = $obj;
+		}
+	}
+	
+	return $sections;
+}
+
+function layout_display_by_grid($result)
+{
+	$max_row = 0;
+	$max_col = 0;
+	$cells = array();
+	
+	while ( $section =  db_fetch_object($result) )
+	{
+		if ( layout_checkaccess($section, "section") )
+		{
+			$end_row = $section->row + ($section->rowspan>0?$section->rowspan- 1:0);
+			$end_col = $section->col + ($section->colspan>0?$section->colspan- 1:0);
+			if ( $end_row > $max_row )
+			{
+				$max_row = $end_row;
+			}
+			
+			if ( $end_col > $max_col )
+			{
+				$max_col = $end_col;
+			}
+			
+			for ( $row = $section->row; $row < $section->row+$section->rowspan; $row++ )
+			{
+				if ( ! $cells[$row] )
+				{
+					$cells[$section->row] = array();
+				}
+	
+				for ( $col = $section->col; $col < $section->col+$section->colspan; $col++ )
+				{
+					$cells[$row][$col] = 1;
+				}
+			}
+			
+			$section->content = layout_display_section($section);
+			$cells[$section->row][$section->col] = $section;
+		}
+	}
+	
+	$sections->max_row = $max_row;
+	$sections->max_col = $max_col;
+	$sections->cells = $cells;
+	
+	return $sections;
+}
+
+function layout_display_section($section)
+{
+	$blocks = array();
+	
+	$sql = "SELECT * from {layout_blocks} WHERE sid = %d AND enabled = 1 ORDER BY weight"; 
+	$result = db_query($sql, $section->sid);
+	
+	if (db_num_rows($result))
+	{
+
+		while ( $obj =  db_fetch_object($result) )
+		{
+			if ( layout_checkaccess($obj, "sub-section") )
+			{
+				switch( $obj->block_type )
+				{
+				case layout_BLOCK:
+					$obj->output = layout_display_block($obj);
+					$obj->type = "block";
+					break;
+					
+				case layout_LIST:
+					$obj->output = layout_display_list($obj);
+					$obj->type = "list";
+					break;				
+	
+				case layout_NODE:
+					$obj->output = layout_display_node($obj);
+					$obj->type = "node";
+					break;
+					
+				default:
+					$obj->output = "opps";
+					break;
+				}
+				
+				$blocks[] = $obj;
+			}
+		}
+	}
+	
+	return theme('layout_section', $section, $blocks);
+
+}
+
+function layout_display_block($block)
+{		
+    $content = module_invoke($block->module, 'block', 'view', $block->delta);
+    if ( $content )
+    {
+    	$block->content->content = $content['content'];
+    	$block->content->subject = $content['subject'];
+			$output = theme('layout_block', $block);
+    }
+    
+    return $output;
+    
+    return $output;
+}
+
+function layout_display_node($node_data)
+{		
+
+	if ( !$node_data->node_path )
+	{
+		return;
+	}
+	
+	$node_list = explode(",", $node_data->node_path);
+	
+	$count = 1;
+	$node_count = count($node_list);
+	
+	foreach ( $node_list as $node_path )
+	{
+		$output .= layout_get_node($node_data, $node_path, $count, $count==$node_count);
+		$count++;
+	}
+	
+	return $output;
+}
+
+function layout_get_node($node_data, $node_path, $count, $last_item)
+{
+	if ( is_numeric($node_path) )
+	{
+		$nid = $node_path;
+	}
+	else
+	{
+		$path = drupal_get_normal_path($node_path);
+		
+		if ( strpos($path, 'node/') != 0 )
+		{
+			return "node not found";
+		}
+		
+		$nid = substr($path, 5);
+		
+	}
+	
+
+	$node = node_load(array('nid' => $nid));
+
+
+	if ( $node )
+	{
+		$class = 'layout-node ';
+		if ( $count % 2 == 0 )
+		{
+			$class .= 'even';
+		}
+		else
+		{
+			$class .= 'odd';
+		}
+		if ( $last_item )
+		{
+			$class .= ' last-item';
+		}
+		
+		$output = "<div class='$class'>";
+		
+		if ( user_access("administer site configuration") )
+		{
+			$img = '<img src="' . drupal_get_path('module', 'layout') . '/layoutcontent.gif" class="layout-content-edit" />';
+			$output .= l($img, "node/$node->nid/edit", array(), NULL, NULL, FALSE, TRUE);
+		}
+	
+	  if ( $node_data->display & layout_FULLNODE )
+	  {
+	  	$teaser = ($node_data->display & layout_TEASER ? true : false);
+
+			$output .= node_view($node, $teaser);
+		}
+		else
+	  {
+	  		if ( $node_data->display & layout_TITLE )
+	  		{
+	  			$node->title = l(t($node->title), "node/$node->nid");
+	  			$output .= '<div class="title">' . layout_translate($node_data->title_source, $node) . '</div>';
+	  		}
+	  		
+	  		if ( $node_data->display & layout_CONTENT )
+	  		{
+			  	$text = layout_translate($node_data->content_source, $node);
+	
+			  	if ( $node_data->limit_content > 0 && strlen($text) > $node_data->limit_content )
+			  	{
+			  		$text = substr($text, 0, $node_data->limit_content) . ' ' . l(t('[more]'), "node/$node->nid");
+			  	}
+			  	
+			  	$text = check_output($text, $node->format);
+			  	
+			  	$output .= $text;
+		  	}
+	  }
+	  
+	  $output .= "</div>";
+
+	}
+
+   
+  return $output;
+}
+
+function layout_display_list($node_data)
+{		
+	$list_items = array();
+
+	$sql = 'SELECT n.*, u.name, u.uid FROM {node} n '. $join .' INNER JOIN {users} u ON n.uid = u.uid where type = "blog"';
+
+	if ( strlen($node_data->join_table) == 0 )
+	{
+		$sql = 'SELECT 1 as count, n.*, u.name, u.uid FROM {node} n ' . ' INNER JOIN {users} u ON n.uid = u.uid  WHERE ';
+	}
+	else
+	{
+		$sql = 'SELECT n.*, o.* FROM {' . $node_data->join_table . '} o INNER JOIN {node} n USING (nid) WHERE ';
+		$join = 'INNER JOIN {' . $node_data->join_table . '} o USING ON n.nid = o.nid';
+		
+		$sql = 'SELECT 2 as count, n.*, o.*, u.name, u.uid FROM {node} n '. $join .' INNER JOIN {users} u ON n.uid = u.uid WHERE';
+	}
+	/*
+
+	if ( strlen($node_data->join_table) == 0 )
+	{
+		$sql = 'SELECT n.* FROM {node} n WHERE ';
+	}
+	else
+	{
+		$sql = 'SELECT n.*, o.* FROM {' . $node_data->join_table . '} o INNER JOIN {node} n USING (nid) WHERE ';
+	}
+	*/
+	
+	$sql .= " type = '" . $node_data->module . "'";
+	
+	if ( $node_data->use_status == layout_IS_TRUE )
+	{
+   	$sql .= ' AND n.status = 1';
+  }
+  else if ( $node_data->use_status == layout_IS_FALSE )
+	{
+   	$sql .= ' AND n.status = 0';
+  }
+  
+	if ( $node_data->use_promote == layout_IS_TRUE )
+	{
+   	$sql .= ' AND n.promote = 1';
+  }
+	else if ( $node_data->use_promote == layout_IS_FALSE )
+	{
+   	$sql .= ' AND n.promote = 0';
+  }
+
+	if ( $node_data->use_sticky == layout_IS_TRUE )
+	{
+   	$sql .= ' AND n.sticky = 1';
+  }
+	else if ( $node_data->use_sticky == layout_IS_FALSE )
+	{
+   	$sql .= ' AND n.sticky = 0';
+  }
+      
+  if ( $node_data->custom_where  )
+  {
+  	$sql .= ' AND ' . layout_translate($node_data->custom_where);
+  }
+  
+  // Add custom sort here
+  
+  if ( $node_data->sort_by_sticky )
+  {
+  	$sql .= ' ORDER BY sticky DESC';
+  	
+		if ( $node_data->custom_sort )
+		{
+			$sql .= ', ' . $node_data->custom_sort;
+		}
+  }
+  else if ( ! $node_data->sort_by_sticky )
+  {
+  	$sql .= ' ORDER BY ' . $node_data->custom_sort;
+  }
+  
+  // drupal_set_message($sql);
+  
+  if ( $node_data->row_limit > 0 )
+  {
+  			$result = db_query_range(db_rewrite_sql($sql), 0, $node_data->row_limit);
+  }
+  else
+  {
+		$result = db_query(db_rewrite_sql($sql));
+	}
+
+	if (db_num_rows($result))
+	{
+	
+		while ($node =  db_fetch_object($result) )
+		{
+		
+		  $node->data = unserialize($node->data);
+		  if (is_array($node->data)) {
+		    foreach ($node->data as $field => $value) {
+		      $node->$field = $value;
+		    }
+		  }
+		  
+			//drupal_set_message("node=" . $node->nid . ", " . $node->title);
+			//  drupal_set_message("node=" . $node['nid'] . ", " . $node->title);
+		  if ( $node_data->display & layout_FULLNODE )
+		  {
+		  	$teaser = ($node_data->display & layout_TEASER ? true : false);
+				$node->header = '';
+				$node->content = node_view($node, $teaser);
+			}
+			else
+		  {
+		  	$node->header = '';
+		  	
+	  		if ( $node_data->display & layout_TITLE )
+	  		{
+					$text = $node->title;
+					$node->title = l(t($text), "node/$node->nid");
+					$node->header = layout_translate($node_data->title_source, $node);
+				}
+
+			  if ( $node_data->display & layout_CONTENT )
+			  {
+			  	$text = layout_translate($node_data->content_source, $node);
+	
+			  	if ( $node_data->limit_content > 0 && strlen($text) > $node_data->limit_content )
+			  	{
+			  		$text = substr($text, 0, $node_data->limit_content) . ' ' . l(t('[more]'), "node/$node->nid");
+			  	}
+			  	
+			  	$text = check_output($text, $node->format);
+			  	
+			  	$node->content = $text;
+			  }
+			}
+		  
+		  $list_items[] = $node;
+		}
+	}
+   
+  return theme('layout_list', $node_data, $list_items);
+}
+
+define (layout_INCODE, 1);
+define (layout_TEXT, 2);
+define (layout_FIELD, 3);
+
+function layout_translate($text, $node=null)
+{
+	$state = layout_TEXT;
+	$last_state = $state;
+	$buffer = '';
+	$code_buffer = '';
+	$all = '';
+	$retval = '';
+	$len = strlen($text);
+	
+	for ( $i = 0; $i < $len; $i++ )
+	{
+		$token = substr($text, $i, 1);
+		// drupal_set_message($token . ' /' . $all . '/');
+		
+		switch ( $state )
+		{
+		case layout_TEXT:
+				switch ( $token )
+				{
+				case '{':
+					$all .= $buffer;
+					$buffer = '';
+					$code_buffer = '';
+					$last_state = $state;
+					$state = layout_INCODE;
+					break;
+					
+				case '@':
+					$all .= $buffer;
+					$buffer = '';
+					$last_state = $state;
+					$state = layout_FIELD;
+					break;				
+					
+				default:
+					$buffer .= $token;
+				}
+				break;
+				
+			case layout_INCODE:
+				switch ( $token )
+				{
+				case '}':
+					// $all .= drupal_eval('$retval = ' . $code_buffer);
+					eval('$retval = ' . $code_buffer);
+					$all .= $retval;
+					$code_buffer = '';
+					$last_state = $state;
+					$state = layout_TEXT;
+					break;
+					
+				case '@':
+					$buffer = '';
+					$last_state = $state;
+					$state = layout_FIELD;
+					break;				
+					
+				default:
+					$code_buffer .= $token;
+				}
+				break;
+				
+			case layout_FIELD:
+				if ( preg_match('/[a-z]|[A-Z]|[0-9]|_/', $token, $matches) )
+				{
+					$buffer .= $token;
+				}
+				else if ( $last_state == layout_INCODE && $token == '}' )
+				{
+					$code_buffer .= ($node?$node->$buffer:'');
+					// $all .= drupal_eval('$retval = ' . $code_buffer);
+					eval('$retval = ' . $code_buffer);
+					$all .= $retval;
+					$code_buffer = '';
+					$buffer = '';
+					$state = layout_TEXT;
+					break;
+				}
+				else if ( $last_state == layout_INCODE )
+				{
+					if ( $token == '@' && strlen($buffer) == 0 )
+					{
+						$code_buffer .= '@';
+						$buffer = '';
+						$state = layout_INCODE;
+					}
+					else
+					{				
+						$code_buffer .= ($node?$node->$buffer:'');
+						if ( $token != '@' )
+						{
+							$code_buffer .= $token;
+						}
+						$buffer = '';
+						$state = $last_state;
+					}
+				}
+				else
+				{
+					if ( $token == '@' && strlen($buffer) == 0 )
+					{
+						$all .= '@';
+						$buffer = '';
+						$state = layout_TEXT;
+					}
+					else
+					{
+						$all .= ($node?$node->$buffer:'');
+						if ( $token == '{' )
+						{
+							$code_buffer = $token;
+							$buffer = '';
+							$state = layout_INCODE;
+						}
+						else
+						{
+							if ( $token == '@' )
+							{
+								$buffer = '';
+							}
+							else
+							{
+								$buffer = $token;
+							}
+							$state = layout_TEXT;
+						}
+					}
+				}
+				break;
+		}
+	}
+	
+	switch ( $state )
+	{
+	case layout_TEXT:
+		$all .= $buffer;
+		break;
+		
+	case layout_FIELD:
+		if ( strlen($buffer) > 0 )
+		{
+			$all .= ($node?$node->$buffer:'');
+		}
+		break;
+	}
+
+	return $all;
+}
+
+function layout_run($text, $node)
+{
+}
+
+function theme_layout_page_by_row($sections, $breadcrumb = NULL, $as_node = FALSE)
+{
+	foreach ( $sections as $section )
+	{
+		$content .= $section->content;
+	}
+	
+	if ( $as_node )
+	{
+		return $content;
+	}
+	else
+	{
+		drupal_set_title('');
+		drupal_set_breadcrumb($breadcrumb);
+		return theme('page', $content);
+	}
+}
+
+function theme_layout_page_as_grid($sections, $breadcrumb = NULL, $as_node = FALSE)
+{
+	$output .= "<table width='100%' border=0>";
+	for ( $row = 1; $row <= $sections->max_row; $row++ )
+	{
+		$output .= "<tr>";
+		
+		for ( $col = 1; $col <= $sections->max_col; $col++ )
+		{
+			switch ( $sections->cells[$row][$col] )
+			{
+			case 0:
+				$output .= "<td valign='top'>&nbsp;</td>";
+				break;
+			case 1:	// Spanned cell
+				break;
+			default:
+				$section = $sections->cells[$row][$col];
+				
+				if ( !$skip )
+				{
+					$output .= "<td  valign='top'";
+					if ( $section->rowspan > 1 )
+					{
+						$output .= " rowspan='" . $section->rowspan . "'";
+					}
+					if ( $section->colspan > 1 )
+					{
+						$output .= " colspan='" . $section->colspan . "'";
+					}					
+					$output .= '>';
+					$output .= $section->content;
+					$output .= '</td>';
+				}
+				break;
+			}
+		}
+
+		$output .= "</tr>";		
+	}
+	$output .= "</table>";
+	
+	if ( $as_node )
+	{
+		return $output;
+	}
+	else
+	{
+		drupal_set_title('');
+		drupal_set_breadcrumb($breadcrumb);
+		return theme('page', $output);
+	}
+}
+
+function theme_layout_section($section, $blocks)
+{
+	$block_count = count($blocks);
+	
+	if ( $section->hide_if_no_content )
+	{
+		if ( $block_count == 0 )
+		{
+			return;
+		}
+	}
+	
+	$css_class = "layout-outer";
+	
+	if ( $section->css_class && strlen($section->css_class) )
+	{
+		$css_class .= " $section->css_class";
+	}
+	
+	$output = "<div class='$css_class'>";
+	
+	if ( user_access("administer site configuration") )
+	{
+		$img = '<img src="' . drupal_get_path('module', 'layout') . '/layoutsection.gif" class="layout-section-edit" />';
+		$output .= l($img, "admin/layout/section/edit/$section->hid/$section->sid", array(), NULL, NULL, FALSE, TRUE);
+	}
+	
+	if ( $section->tab_label )
+	{
+		$output .= '<table class="tab-tab-label">';
+		$output .= '<tr>';
+		$output .= '<td class="tab-left"></td>';
+		$output .= '<td class="tab-center">';
+		$output .= layout_translate($section->tab_label);
+		$output .= '</td>';
+		$output .= '<td class="tab-right"></td>';
+		$output .= '</tr>';
+		$output .= '</table>';
+	}
+	
+	if ($block_count > 0  )
+	{		
+		$output .= "<div class=layout-section-content>";
+		
+		$output .= '<table class="block-set">';
+		if ( $section->header_if_content )
+		{
+			$output .= "<tr><td class='section-header' colspan=$block_count>" . $section->header_if_content . '</td></tr>';
+		}
+		
+		if ( ! $section->vertical )
+		{
+			$output .= '<tr>';
+		}
+
+		$img = '<img src="' . drupal_get_path('module', 'layout') . '/layoutpart.gif" class="layout-part-edit" />';
+
+		foreach ( $blocks as $block )
+		{
+			$css_class = "layout-block";
+	
+			if ( $block->css_class && strlen($block->css_class) )
+			{
+				$css_class .= " $block->css_class";
+			}
+
+			if ( $section->vertical )
+			{
+				$output .= '<tr>';
+			}
+			
+			$output .= "<td class='$css_class'";
+			if ( $block->width )
+			{
+				$output .= ' WIDTH="' . $block->width . '"';
+			}
+			$output .= '>';
+			
+			if ( user_access("administer site configuration") )
+			{
+				
+				$output .= l($img, "admin/layout/$block->type/edit/$section->hid/$block->sid/$block->bid", array(), NULL, NULL, FALSE, TRUE);
+			}
+			
+			$output .= $block->output;
+			$output .= '</td>';
+			
+			if ( $section->vertical )
+			{
+				$output .= '</tr>';
+			}
+		}
+
+		if ( ! $section->vertical )
+		{
+			$output .= '</tr>';
+		}
+		
+		if ( $section->trailer )
+		{
+			$output .= "<tr><td class='section-trailer' colspan=$block_count>" . $section->trailer . '</td></tr>';
+		}
+		
+		$output .= '</table>';
+
+		
+		$output .= '</div>';	 
+	}
+	else if ( $section->header_if_no_content ) 
+	{
+		$output .= '<div class=layout-section-content no-content>' . $section->header_if_no_content . '</div>' ;
+	}
+	
+	$output .= '</div>';
+	return $output;
+}
+
+function theme_layout_block($block)
+{
+	if ( $block->content )
+	{
+		if ( $block->display == layout_CONTENT )
+		{
+			$block->content->subject = '';
+		}
+
+		$content = theme('block', $block->content);
+	}
+	else
+	{
+		$content = 'This space for rent';
+	}
+	
+	$output = '<div class="layout-block-wrapper">';
+	if ( $block->module == 'block' && user_access("administer site configuration") )
+	{
+		$img = '<img src="' . drupal_get_path('module', 'layout') . '/layoutcontent.gif" class="layout-content-edit" />';
+		$output .= l($img, "admin/block/edit/$block->delta", array(), NULL, NULL, FALSE, TRUE);
+	}
+	$output .= $content;
+	$output .= '</div>';
+
+	return $output;
+}
+
+function theme_layout_node($node)
+{
+}
+
+function theme_layout_list($node_data, $list)
+{
+	// drupal_set_message("theme_layout_list");
+	$item_count = count($list);
+	$count = 1;
+
+	foreach ($list as $node)
+	{		
+
+		$output .= '<div class="list-item' . ($node->content?' has-content':'') . ($node->sticky?' sticky':'') . ($count == $item_count?' last-item':'') . '">';
+		
+		if ( user_access("administer site configuration") )
+		{
+			$img = '<img src="' . drupal_get_path('module', 'layout') . '/layoutcontent.gif" class="layout-content-edit" />';
+			$output .= l($img, "node/$node->nid/edit", array(), NULL, NULL, FALSE, TRUE);
+		}
+		
+		if ( $node->header )
+		{
+			$output .= '<div class="title">' . $node->header . '</div>';
+		}
+		
+		if ( $node->content )
+		{
+			$output .= '<div class="content">' . $node->content . '</div>';
+		}
+
+		$output .= '</div>';
+		$count++;
+	}
+	
+	if ( strlen($node_data->more_link) > 0 && strlen($node_data->more_text) > 0 )
+	{
+		$output .= '<div class="move-right">';
+		$output .= l('[' . t($node_data->more_text) . ']', $node_data->more_link);
+		$output .= '</div>';
+	}
+	
+	return $output;
+		
+}
+
+
+?>

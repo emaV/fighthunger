@@ -1,0 +1,37 @@
+********************************************************************
+                     D R U P A L    M O D U L E
+********************************************************************
+Name: Store module
+Author: Matt Westgate <drupal at asitis dot org>
+********************************************************************
+INSTALLATION:
+
+1. Place the entire store directory into your Drupal modules/store/ 
+   directory. 
+   
+2. If you plan on using the whole ecommerce system of Drupal, you can 
+   load the database definition file for all the ecommerce modules 
+   using the tool of your choice (e.g. phpmyadmin). For mysql and 
+   command line access use:
+   
+     mysql -u user -p drupal < store.mysql
+   
+   Replace user with the MySQL username, and drupal with the table 
+   being used.
+   
+   Database definitions for any modules that are not part of the core 
+   ecommerce module need to be installed separately. See the INSTALL.txt
+   for any contributed modules you plan on using. These modules are
+   located in the ecommerce/contrib directory.
+   
+3. Enable this module by navigating to:
+       
+     administer > configuration > modules
+     
+4. Grant the proper access to user accounts under:
+
+    administer > accounts > permissions
+
+5.  Check what other modules should be installed under:
+    
+    administer > configuration > modules > store

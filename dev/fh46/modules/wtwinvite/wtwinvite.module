@@ -1,0 +1,152 @@
+<?php
+
+/**
+ * @file
+ * Walk tool: email wtw invites.
+ * 
+ * Depends on:
+ * - echomailer.module
+ * 
+    wtwinvite - a handy module for e-mailing wtwinvites
+    Copyright (C) 2005 EchoDitto, inc. (scott@echoditto.com)
+    
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+*/
+
+/**
+ * Implementation of hook_help().
+ */
+function wtwinvite_help($section = 'admin/help#wtwinvite') {
+
+  switch ($section) {
+    case 'admin/modules#description':
+      $output = t("fighthunger.org invite module. A handy module for e-mailing wtw invites.");
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function wtwinvite_menu($may_cache){
+    $items = array();
+	
+    if ($may_cache) {
+
+		$items[] = array('path' => variable_get('wtwinvite_pagename','invite'),
+		'access' => TRUE,
+		'callback' => 'wtwinvite_page',
+		'type' => MENU_CALLBACK);
+
+     }
+   
+     return $items;
+}
+
+
+/**
+ * Implementation of hook_settings().
+ */
+function wtwinvite_settings() {
+	if(user_access('administer wtwinvite')){
+		$output .= form_textfield(t('Redirect Path'), 'wtwinvite_pathafter', variable_get('wtwinvite_pathafter',''), 80,100);
+		$output .= form_textfield(t('Page Path'), 'wtwinvite_pagename', variable_get('wtwinvite_pagename','invite'), 80,100);
+		$output .= form_textarea(t('Subject'), 'wtwinvite_subject', variable_get('wtwinvite_subject','Please visit fighthunger.org'), 80,10);
+		$output .= form_textarea(t('Default Text'), 'wtwinvite_text', variable_get('wtwinvite_text','Tell your friends!'), 80,10);
+		$output .= form_textarea(t('Message on success'), 'wtwinvite_successmessage', variable_get('wtwinvite_successmessage',"Thanks for inviting your friends!"), 80,10);
+		$output .= form_textarea(t('Default auto-add message'), 'wtwinvite_bottomtext', variable_get('wtwinvite_bottomtext','This goes at the bottom.'), 80,10);
+		
+		$output .= form_textarea(t('Message at top of page'), 'wtwinvite_message', variable_get('wtwinvite_message','Please invite your friends'), 80,10);
+		
+			
+
+		return $output;
+	}
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function wtwinvite_perm() {
+  return array("administer wtwinvite"); 
+}
+
+/**
+ * The main form
+ */
+function wtwinvite_page(){
+	
+	global $user;
+	$uid = $user->uid;
+	$user_info = db_fetch_array(db_query("SELECT p1.value as firstname, p2.value as lastname, u.mail as mail
+	FROM users u
+	LEFT JOIN profile_values p1 ON (p1.uid=u.uid AND p1.fid=1)
+	LEFT JOIN profile_values p2 ON (p2.uid=u.uid AND p2.fid=2)
+	WHERE u.uid=$uid"));
+	
+	$user_info['subject'] = variable_get('wtwinvite_subject','Please visit fighthunger.org');
+	$user_info['message'] = variable_get('wtwinvite_text','Tell your friends!');
+	$output .= variable_get('wtwinvite_message','Please invite your friends.');
+	$output .= echomailer_form('wtwinvite', 'Thank you', $user_info, NULL);
+	$output .= '<div class="preview"><strong>This text will be added to the end of your message:</strong><br>'.variable_get('wtwinvite_bottomtext','This goes at the bottom.').'</div>';
+	print theme('page',$output);
+	
+}
+
+/**
+ * Implementation of EchoMailer API
+ */
+function wtwinvite_mailerapi($op,$data){
+	switch ($op){
+    case 'after_invitation':
+    	drupal_set_message(variable_get('wtwinvite_successmessage',"Thanks for inviting your friends!"));
+    	$path = variable_get('wtwinvite_pathafter','');
+	    drupal_goto($path);
+	    
+	case 'format_email':
+        // called by _echomailer_send() to format the email's text
+        // $data is an associative array with values 'message' and 'uid'
+        // return an associative array with values 'subject' and 'body'
+        $message = nl2br($data['message']);
+        $subject = $data['subject'];
+        
+        $message .= "<br><hr><br>" . variable_get('wtwinvite_bottomtext','This goes at the bottom.');
+	    return array('subject'=>$subject,'message'=>$message);
+          
+	case 'error_page':
+		$user_info = $_POST['edit'];
+		$output .= variable_get('wtwinvite_message','Please invite your friends.');
+		$output .= echomailer_form('wtwinvite', 'Thankyou', $user_info, NULL);
+		$output .= '<div class="preview"><strong>This text will be added to the end of your message:</strong><br>'.variable_get('wtwinvite_bottomtext','This goes at the bottom.');
+		print theme('page',$output);
+	}
+
+}
+
+/**
+ * Implementation of hook_load().
+ */
+function wtwinvite_init(){
+
+		//add the style sheet
+		//drupal_set_html_head("\n<style type=\"text/css\" media=\"all\">@import \"modules/echomailer/includes/style.css\";</style>\n");
+
+	
+}
+
+
+?>

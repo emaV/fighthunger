@@ -1,0 +1,41 @@
+<?
+
+/**
+ * @file
+ * Displays configurable welcome message on user account page
+ * 
+ * This is a very small module.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function user_welcome_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Displays configurable welcome message on user account page.');
+  }
+}
+
+function user_welcome_settings(){
+  $out .= form_textarea(t("Message"),"user_welcome",variable_get("user_welcome",""),60,10);
+  return $out;
+}
+
+function user_welcome_user($op, &$edit, &$user, $category = NULL){
+  switch ($op){
+    case 'view':
+      $thisuser = $user;
+      global $user;
+      if ($thisuser->uid == $user->uid){
+        $msg = variable_get("user_welcome",false);
+        if ($msg){
+          drupal_set_message(check_output(t($msg)));
+        }
+      }
+  }
+  return $out;
+}
+
+
+?>

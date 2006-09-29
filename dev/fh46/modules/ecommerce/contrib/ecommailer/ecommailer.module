@@ -1,0 +1,107 @@
+<?php
+/* $Id: ecommailer.module,v 1.2 2005/10/14 05:09:32 mathias Exp $ */
+
+/**
+ * @module ecommailer
+ * @package ecommerce
+ * @description Provides integration of Drupal ecommerce and massmailer packages.
+ * @author Jeff Robbins - jjeff - robbins at jjeff d0t com
+ *
+ */
+ 
+/**
+  * To do:
+  *   _ Add per-product settings for mailing list support
+  *   _ Add setting to choose naming convention for lists
+  *   _ Get sku into transaction object ($t)
+  */
+ 
+/**
+  * Implementation of hook_help()
+  *
+  */
+ 
+function ecommailer_help($section = 'admin/help#class') {
+  switch ($section) {
+    case 'admin/modules#description':
+      $help = t('Integrates ecommerce and massmailer. (requires both) ');
+      if (module_exist('ecommailer')) {
+        $help .= l(t('more info'), 'admin/help/ecommailer');
+      }
+      return $help;
+    case 'admin/help#ecommailer':
+      return t('<p>The ecommailer (pronounced e-com-mailer) module acts as a go-between for ecommerce and massmailer.</p>
+<p>When a user completes a transaction from the store, their shopping cart is parsed and the user is subscribed to a series of lists representing the products that they\'ve bought. The end result is that massmailer will contain a list named with the sku for every product you\'ve sold. And each list will contain the email addresses of users who purchased that item.</p>
+<p>MassMailer/PHPlist has the advantage of not sending the same message to the same user twice even if they are subscribed to multiple lists. So if you send a message to all of the lists representing the different books sold on your site, users will only get one email - even if they\'ve purchased multiple books.</p>');
+  }
+}
+
+/**
+  * Implementation of hook_ecommercapi()
+  *
+  */
+
+function ecommailer_ecommerceapi($t, $op) {
+  switch ($op) {
+    case 'on payment completion':
+      foreach ($t['items'] as $item) {
+        ecommailer_add_to_list($t['uid'], _ecommailer_get_sku($item[nid]), $t);
+      }
+  }
+}
+
+function ecommailer_add_to_list($uid, $listname, $t) {
+  
+  if (module_exist('massmailer')) {
+    // if there's no list for this sku, create one.
+    $lid = _ecommailer_search_lists($listname);
+    if (!is_numeric($lid)) {
+      $edit = array('name'=>$listname, 'description'=>'Users who have purchased '.$listname.' from our store', 'listorder'=>'5', 'active'=>'1', 'public'=>'0', 'owner'=>'1');
+      if (massmailer_engine('_create_list', array($edit))) {
+        variable_set('mm_hidden_'.trim(substr($listname, 0, 35)), TRUE);
+        watchdog('ecommailer', t('New MassMailer list "'.$listname.'" has been created.'), WATCHDOG_NOTICE);
+        // get the list id (lid) for new list
+        $lid = _ecommailer_search_lists($listname);
+      }
+      else {
+        watchdog('ecommailer', t('An error occured. The list "'.$listname.'" may not have been created.'), WATCHDOG_ERROR);
+      }
+    }
+    
+    // convert drupal $uid to phplist $id
+    if (! $subscriber = massmailer_engine('_get_subscriber_by_system_id', array($uid))) {
+      $subscriber->email = $t['mail'];
+      $subscriber->drupalid = $uid;
+    }
+    
+    // now that we've created the list, let's add this user to it
+    if (is_numeric($lid)) {
+      massmailer_engine('_add_subscribers', array(array($subscriber), 'lid'=>$lid));
+    }
+    else {
+      watchdog('ecommailer', t('Could not add user '.$id.' to list '.$listname.' because I could not get the list id.'), WATCHDOG_ERROR);
+    }
+  }
+  else {
+    watchdog('ecommailer', t('massmailer.module must be installed and enabled for ecommailer.module to function.'), WATCHDOG_ERROR);
+  }
+}
+
+function _ecommailer_get_sku($nid) {
+  return db_result(db_query('SELECT sku FROM {ec_product} WHERE nid = %d', $nid));
+}
+
+function _ecommailer_search_lists($listname) {
+  $lists = massmailer_engine('_get_lists');
+  if (!$lists) {
+    $lists = array();
+  }
+  foreach ($lists as $list) {
+    if ($list->name == $listname) {
+      return $list->lid;
+    }
+  }
+  return FALSE;
+}
+
+?>

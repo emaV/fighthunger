@@ -1,0 +1,72 @@
+
+CREATE TABLE layout_node (
+  nid int(10) unsigned NOT NULL default 0,
+  page_source text NOT NULL default '',
+  PRIMARY KEY  (nid)
+);
+
+CREATE TABLE layout_pages (
+  hid int(10) unsigned NOT NULL default 0,
+  page_name text NOT NULL default '',
+  layout tinyint(2) NOT NULL default 1,
+  perm_type tinyint(3) NOT NULL default 1,
+  permission text NOT NULL default '',
+  css_file text NOT NULL default '',
+  PRIMARY KEY  (hid)
+);
+
+CREATE TABLE layout_sections (
+  sid int(10) unsigned NOT NULL default 0,
+  hid int(10) unsigned NOT NULL,
+  tab_label text NOT NULL default '',
+  description text NOT NULL default '',
+  enabled tinyint(1) NOT NULL default 1,
+  vertical tinyint(1) NOT NULL default 0,
+  width text NOT NULL default '',
+  row tinyint(4) NOT NULL default 0,
+  col tinyint(4) NOT NULL default 0,
+  rowspan tinyint(4) NOT NULL default 0,
+  colspan tinyint(4) NOT NULL default 0,
+  weight tinyint(3) NOT NULL default 0,
+  css_class text NOT NULL default '',
+  header_if_content text NOT NULL default '',
+  header_if_no_content text NOT NULL default '',
+  trailer text NOT NULL default '',
+  hide_if_no_content tinyint(1) NOT NULL default 0,
+  perm_type tinyint(3) NOT NULL default 1,
+  permission text NOT NULL default '',
+  PRIMARY KEY  (sid)
+);
+
+CREATE TABLE layout_blocks (
+  bid int(10) unsigned NOT NULL default 0,
+  sid int(10) unsigned NOT NULL,
+  description text NOT NULL default '',
+  enabled tinyint(1) NOT NULL default 1,  
+  weight tinyint(3) NOT NULL default 0,
+  block_type tinyint(2) unsigned NOT NULL default 0,
+  module text NOT NULL default '',
+  delta varchar(32) NOT NULL default '',
+  width text NOT NULL default '',
+	display tinyint(4) NOT NULL default 0,
+	css_class text NOT NULL default '',
+	title_source text NOT NULL default '',
+	content_source text NOT NULL default '',
+	limit_content int(10) NOT NULL default 0,
+	limit_to int(10) NOT NULL default 0,
+	use_sticky tinyint(2) NOT NULL default 0,
+	use_status tinyint(2) NOT NULL default 0,
+	use_promote tinyint(2) NOT NULL default 0,
+	sort_by_sticky tinyint(1) NOT NULL default 0,
+	node_path text NOT NULL default '',
+	node_id tinyint(4) NOT NULL default 0,
+	join_table text NOT NULL default '',
+	custom_sort text NOT NULL default '',
+	custom_where text NOT NULL default '',
+	row_limit int(10) unsigned  NOT NULL default '',
+	more_link text NOT NULL default '',
+	more_text text NOT NULL default '',
+  perm_type tinyint(3) NOT NULL default 1,
+  permission text NOT NULL default '',
+  PRIMARY KEY  (bid)
+);

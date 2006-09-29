@@ -1,0 +1,21 @@
+#
+# Table structure for table `ec_product_auction`
+#
+
+CREATE TABLE ec_product_auction (
+  nid int(10) unsigned NOT NULL default '0',
+  expires int(11) NOT NULL default '0',
+  PRIMARY KEY  (nid)
+) TYPE=MyISAM;
+
+#
+# Table structure for table `ec_auction_bid_history`
+#
+
+CREATE TABLE ec_auction_bid (
+  nid int(10) unsigned NOT NULL default '0',
+  uid int(10) unsigned NOT NULL default '0',
+  bid decimal(10,2) NOT NULL default '0.00',
+  created int(11) unsigned NOT NULL default '0',
+  KEY nid (nid)
+) TYPE=MyISAM;

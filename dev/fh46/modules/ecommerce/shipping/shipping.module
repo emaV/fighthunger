@@ -1,0 +1,531 @@
+<?php
+// $Id: shipping.module,v 1.19.2.6 2005/12/15 23:46:53 mathias Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_help()
+ */
+function shipping_help($section = 'admin/help#shipping') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enable a shipping module API for ecommerce.');
+    case 'admin/store/shipping':
+      return t("First, choose a method to calculate shipping costs, then configure the shipping details for the method selected.");
+    case 'admin/settings/shipping':
+      return t('Shipping calculation methods are <a href="%shipping_calc_url">here</a>.', array('%shipping_calc_url' => url('admin/store/shipping')));
+    case t('Shipping email'):
+      return t("Hello %first_name,\n\nWe have shipped the following item(s) from Order #%txnid, received  %order_date.\n\nItems(s) Shipped:\n%items\n%shipping_to\nQuestions about your order? Please contact us at %email.\n\nThanks for shopping at %site.  We hope to hear from you again real soon!\n\n%uri");
+  }
+
+  return $output;
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function shipping_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array('path' => 'admin/store/settings/shipping', 
+                     'title' => t('shipping'), 'callback' => 'shipping_admin', 
+                     'access' => user_access('administer store'));
+    $items[] = array('path' => 'admin/store/shipping', 
+                     'title' => t('shipping'), 'callback' => 'shipping_admin', 
+                     'access' => user_access('administer store'));
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_settings()
+ */
+function shipping_settings() {
+  $output = form_textfield(t('Subject of shipping e-mail'), "shipping_subject", variable_get("shipping_subject", t("Your %site order has shipped (#%txnid)")), 70, 180);
+  $output .= form_textarea(t("Shipping email"), "shipping_new", variable_get("shipping_new", shipping_help("Shipping email")), 70, 10, t("This text will be emailed to customers after their order has been shipped."));
+  return $output;
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+
+/**
+ * Controller. This callback is invoked via menu() when "admin/store/shipping*" is hit.
+ */
+function shipping_admin($action = '') {
+
+  $edit = $_POST['edit'];
+  $op = $_POST["op"];
+
+  switch ($op ? $op : $action) {
+    case t('Save configuration'):
+      variable_set("shipping_method", $edit["shipping_method"]);
+      drupal_set_message(t('shipping options have been saved'));
+      $output = shipping_admin_overview();
+      break;
+
+    case t('Save shipping details'):
+      if (shipping_details_validate($edit)) {
+        shipping_details_save($edit);
+        drupal_goto('admin/store/shipping');
+      }
+      else {
+        $output = shipping_admin_overview($edit);
+      }
+      break;
+
+    case 'send':
+      drupal_set_title(t('Shipping notification'));
+      $output = shipping_preview_email(arg(4), 1);
+      break;
+
+    case t('Send shipping notification'):
+      if ($edit['destination'] && shipping_send_email($edit)) {
+        drupal_set_message(t('Shipping notification has been sent.'));
+        unset($_REQUEST['destination']);
+        unset($_REQUEST['edit']['destination']);
+        drupal_goto(base64_decode(urldecode($edit['destination'])));
+      }
+      else {
+        drupal_set_message(t('Unable to send email.'), 'error');
+      }
+      break;
+
+    default:
+      $output = shipping_admin_overview();
+  }
+
+  print theme('page', $output);
+}
+
+/**
+ * Displays the default configuration screen for managing shipping information.
+ *
+ * @return string HTML
+ */
+function shipping_admin_overview($edit = null) {
+  /* Grab shipping methods from other modules */
+  $method = shipping_invoke_shippingapi($edit, 'method select');
+  $radio['per_product'] = t('Shipping costs are calculated on a <strong>per product</strong> basis.');
+  foreach ($method as $key => $desc) {
+    $radio[$key] = $desc;
+  }
+  $radio['subtotal'] = t('Shipping costs are calculated based on the <strong>total cost of items</strong> in the cart.');
+  $radio["none"] = t("Do not calculate shipping costs.");
+
+  $group  = form_radios(t('Choose one'), "shipping_method", variable_get("shipping_method", "none"), $radio);
+  $group .= form_submit(t("Save configuration"));
+  $output .= form_group(t("Shipping calculation methods"), $group);
+
+  $config = form($output);
+
+  /* goodie goodie, now let's display the form specifc to the shipping method chosen. */
+  $shipping_instance_settings = '';
+  if (variable_get("shipping_method", "none") != "none") {
+    $fields = module_invoke(variable_get("shipping_method", ""), "shippingapi", $edit, 'form');
+    if ($fields) {
+      $fields .= form_submit(t('Save shipping details'));
+      $shipping_instance_settings = form(form_group(t("Shipping details"), $fields));
+    }
+  }
+
+  return $config . $shipping_instance_settings;
+}
+
+function shipping_preview_email($txnid, $preview = null) {
+
+  $t = store_transaction_load($txnid);
+
+if ($t->shipping_firstname && $t->shipping_firstname) {
+    $shipping_to = t("Shipping to:\n");
+    $shipping_to .= ucfirst($t->shipping_firstname). ' '. ucfirst($t->shipping_lastname). "\n";
+    $shipping_to .= ($t->shipping_street2) ? $t->shipping_street1 ."\n". $t->shipping_street2 : $t->shipping_street1. "\n";
+    $shipping_to .= $t->shipping_city. ', '. $t->shipping_state. ' '. $t->shipping_zip. "\n";
+    $shipping_to .= address_get_country($t->shipping_country). "\n";
+  }
+
+  $billing_to = "Billing to:\n";
+  $billing_to .= ucfirst($t->billing_firstname). ' '. ucfirst($t->billing_lastname). "\n";
+  $billing_to .= ($t->billing_street2) ? $t->billing_street1 ."\n". $t->billing_street2 : $t->billing_street1 . "\n";
+  $billing_to .= $t->billing_city. ", ". $t->billing_state. " ". $t->billing_zip. "\n";
+  $billing_to .= address_get_country($t->billing_country). "\n";
+
+  $first_name = ucfirst($t->billing_firstname);
+
+  $items = "";
+  if ($t->items) {
+    foreach ($t->items as $p) {
+      $product = product_load($p);
+      $subtotal += $p->qty * $p->price;
+      $items[] = t('%order of %title at %price each', array('%order' => format_plural($p->qty, '1 order', '%count orders'), '%title' => $p->title, '%price' => payment_format(product_adjust_price($product)))). "\n";
+    }
+  }
+
+  global $base_url;
+  $variables  = array(
+      "%first_name"   => $first_name,
+      "%txnid"        => $t->txnid,
+      "%billing_to"   => $billing_to,
+      "%shipping_to"  => $shipping_to,
+      "%items"        => implode("\n", (array) $items),
+      "%email"        => variable_get("site_mail", ini_get("sendmail_from")),
+      "%order_date"   => format_date($t->created),
+      "%site"         => variable_get("site_name", "drupal"),
+      "%uri"          => $base_url,
+      "%uri_brief"    => substr($base_url, strlen("http://")),
+      "%date"         => format_date(time())
+      );
+
+  if ($t->mail && valid_email_address($t->mail)) {
+    $to = $t->mail;
+  } elseif ($t->uid != 0) {
+    $to = db_result(db_query("SELECT mail FROM {users} WHERE uid = '%d'", $t->uid));
+  }
+
+  $from       = variable_get("site_mail", ini_get("sendmail_from"));
+  $subject    = strtr(variable_get("shipping_subject", t("Your %site order has shipped (#%txnid)")), $variables);
+  $body       = strtr(variable_get("shipping_new", shipping_help(t("Shipping email"))), $variables);
+  $headers    = "From: $from\nReply-to: $from\nX-Mailer: PHP\nReturn-path: $from\nErrors-to: $from";
+
+  $form = t("<p>This is a preview of the message to be sent.</p>");
+  $form .= "<p>". t("To: "). "<strong>$to</strong><br />";
+  $form .= t("From: "). "<strong>$from</strong><br />";
+
+  if ($_GET['wf']) {
+    $form .= t('<p><strong>Note:</strong> Sending this email will change the transaction workflow to <strong>%new_workflow</strong>.</p>', array('%new_workflow' => transaction_get_workflow($_GET['wf'])));
+  }
+
+  $form .= form_hidden('to', $to);
+  $form .= form_hidden('from', $from);
+  $form .= form_hidden('headers', $headers);
+  $form .= form_hidden('wf', $_GET['wf']);
+  $form .= form_hidden('txnid', $txnid);
+  $edit['destination'] = ($edit['destination']) ? $edit['destination'] : $_GET['destination'];
+  $form .= form_hidden('destination', $edit['destination']);
+  $form .= form_textfield(t('Subject'), 'subject', $subject, 60, 255, NULL);
+  $form .= form_textarea(t('E-mail content'), 'body', $body, 60, 20, NULL);
+  $form .= form_submit(t('Send shipping notification'));
+
+  return form($form);
+}
+
+function shipping_send_email($edit) {
+
+  $mail_sent = user_mail($edit['to'], $edit['subject'], $edit['body'], $edit['headers']);
+  if ($mail_sent) {
+    if (is_numeric($edit['wf'])) {
+      db_query("UPDATE {ec_transaction} SET workflow = '%d' WHERE txnid = '%d'", $edit['wf'], $edit['txnid']);
+    }
+  }
+
+  return $mail_sent;
+}
+
+/**
+ * Run the validation routines
+ */
+function shipping_details_validate(&$edit) {
+  /* We use this instead of module_invoke to avoid passing $edit by reference. */
+  $f = variable_get("shipping_method", ""). "_shippingapi";
+  if (function_exists($f)) {
+    $f($edit, 'validate');
+  }
+
+  return ((form_get_errors()) ? false : true);
+}
+
+/**
+ * Save the shipping information.
+ *
+ * This function doesn't save any information itself. Instead it calls other
+ * method save functions.
+ *
+ * @return string shipping_admin_overview()
+ */
+function shipping_details_save($edit) {
+  module_invoke(variable_get("shipping_method", ""), "shippingapi", $edit, "save");
+  drupal_set_message('Shipping information updated.');
+}
+
+/**
+ * Calculcate the shipping cost
+ *
+ * Invoke the methods pf the current shipping scheme to calculate shipping cost.
+ *
+ * @param array $item A sequential array of all items in a user's cart
+ *
+ * @return float The actual cost of shipping
+ */
+function shipping_calculate_cost($item) {
+  return module_invoke(variable_get("shipping_method", ""), "shippingapi", $item, "calculate");
+}
+
+/**
+ * The controller for the plugin API hooks. It iterates through the enabled
+ * plugins and calls their *_shippingapi hook if one exists, passing it the
+ * action (via $op) to execute.
+ *
+ * @param object $items
+ * @param string $op The action to execute (e.g., validate, insert, update, delete)
+ * @param string $arg Optional argument to pass along. Currently being used to
+ *                    pass an array of errors during form display
+ *
+ * @return array Collection of output from the all *_shippingapi calls.
+ */
+function shipping_invoke_shippingapi(&$items, $op, $arg = 0) {
+
+  $return = array();
+  foreach (module_list() as $name) {
+    $function = $name ."_shippingapi";
+    if (function_exists($function)) {
+      $result = $function($items, $op, $arg);
+      if (isset($result)) {
+        $return = array_merge($return, $result);
+      }
+    }
+  }
+  return $return;
+}
+
+/********************************************************************
+ * Default Shipping Method Functions
+ *
+ *  - I wanted to have a default shipping calculation method, and this
+ *    seemed like the best place to put it.
+ ********************************************************************/
+
+/**
+ * The Controller to create a new shipping interface.
+ */
+function shipping_shippingapi(&$items, $op) {
+
+  switch ($op) {
+    case 'method select': /*      module name => desc    */
+      return array('shipping' => t('Shipping costs are calculated based on the <strong>total quantity of items</strong> in the cart.'));
+
+    case 'calculate':
+      return shipping_calculate($items);
+
+    case 'form':
+      return shipping_form($items);
+
+    case 'validate':
+      shipping_validate($items);
+    break;
+
+    case 'save':
+      return shipping_save($items);
+  }
+}
+
+function shipping_calculate($items) {
+
+  $type = variable_get("shipping_method", "");
+  $pivot_element = 0;
+  $cost = 0;
+
+  if ($type == "subtotal") {
+    foreach ($items as $item) {
+      $pivot_element += $item->qty * $item->price;
+    }
+  }
+  else {
+    foreach ($items as $item) {
+      $pivot_element += $item->qty;
+    }
+  }
+
+  $function = $type. "_load";
+  $ship = $function();
+  $numset = count($ship['ship_item_slot']);
+  for ($i = 0; $i < $numset; $i++) {
+    $item       = $ship['ship_item_slot'][$i];
+    $price      = $ship['ship_price_slot'][$i];
+
+    /* Check for range match */
+    if (strstr($item, '-')) {
+      list($low, $high) = explode('-', $item);
+      if ($pivot_element >= $low and $pivot_element <= $high) {
+        $cost = $price;
+      }
+    }
+    /* Check for exact item quantity match */
+    elseif ($item == $pivot_element) {
+      $cost = $price;
+    }
+  }
+
+  return $cost;
+}
+
+function shipping_validate(&$edit) {
+  $errors = array();
+
+  if (variable_get("shipping_method", "") == "subtotal") {
+    $row_1_error = t("One of the subtotal columns contain an invalid format.");
+  }
+  else {
+    $row_1_error = t("One of the item quantities columns contain an invalid format.");
+  }
+
+  $numset = count($edit['ship_item_slot']);
+  for ($i = 0; $i < $numset; $i++) {
+
+    $item   = $edit['ship_item_slot'][$i];
+    $price  = $edit['ship_price_slot'][$i];
+
+    if ($item != '' && $price != '') {
+      if (!preg_match("/^[0-9.]+([-]?[0-9.]+)*$/", $item)) {
+        $errors['ship_item_slot'] = $row_1_error;
+      }
+
+      /* Remove the currency symbol at the beginning of the price if it exists */
+      if (substr($price, 0, 1) == variable_get('payment_symbol', '$')) {
+        $price = substr($price, count(variable_get('payment_symbol', '$')));
+        $edit['ship_price_slot'][$i] = $price;
+      }
+      $price = str_replace(',', '', $price);
+      if (!is_numeric($price)) {
+        $errors['ship_price_slot'] = t("Please enter a numeric value for the shipping cost.");
+      }
+    }
+    elseif (($item == '' && $price != '') || ($item != '' && $price == '')) {
+      $errors['ship_blank_field'] = t("You need to enter a value for both columns of a row and not just one of the fields.");
+    }
+  }
+
+  foreach ($errors as $name => $message) {
+    form_set_error($name, $message);
+  }
+  return count($errors) == 0;
+}
+
+function shipping_form($edit = null) {
+
+  if (!$edit) {
+    $edit = shipping_load();
+  }
+
+  $type = variable_get("shipping_method", "");
+  if ($type == "subtotal") {
+    $column_name = t("Subtotal");
+    $sentance_pre = t("A subtotal of ");
+    $sentance_post = t("costs ");
+    $help = "<p>". t("Enter the subtotals a customer should have for a given shipping cost to be applied.  This can be a single price (e.g. 1.00, 2.99, 5.34) or a range (e.g. 1.00-3.99, 4.00-10.26). Then, enter the cost of shipping for that subtotal (e.g. .99, 5.00). If conflicting shipping rules exist, the last rule that matches will always be executed. Only hyphens, dots and numbers are allowed.") ."</p>";
+  }
+  else {
+    $column_name = t("Item quantity");
+    $sentance_pre = t("A quantity of ");
+    $sentance_post = t("items cost ");
+    $help = "<p>". t("Enter the number of items a customer should have for a given shipping cost to be applied.  This can be a single digit (e.g. 1, 2, 5) or a range (e.g. 1-3, 4-10, 5-100). Then, enter the cost of shipping for that quantity (e.g. .99, 5.00). If conflicting shipping rules exist, the last rule that matches will always be executed. Only hyphens, dots and numbers are allowed.") ."</p>";
+  }
+
+  $header = array($column_name, t("Shipping cost"));
+  $fields = 10;
+
+  for ($i = 0; $i < $fields; $i++) {
+    $item_slot  = "$sentance_pre <input type=\"text\" size=\"10\" name=\"edit[ship_item_slot][]\" value=\"". $edit['ship_item_slot'][$i] ."\"> $sentance_post";
+    $price_slot = "<input type=\"text\" size=\"10\" name=\"edit[ship_price_slot][]\" value=\"". $edit['ship_price_slot'][$i] ."\"> ". t("in shipping.");
+
+    $row[] = array($item_slot, $price_slot);
+  }
+
+  $output .= $help . theme("table", $header, $row);
+
+  return $output;
+}
+
+function shipping_save($edit) {
+
+  $type = variable_get("shipping_method", ""). "_shipping";
+  $numset = count($edit['ship_item_slot']);
+  /* As a safeguard, don't delete the old shipping values unless we're sure we
+     got at least one update. */
+  if ($numset) {
+    db_query("DELETE FROM {ec_$type}");
+  }
+
+  for ($i = 0; $i < $numset; $i++) {
+    $item       = $edit['ship_item_slot'][$i];
+    $price      = $edit['ship_price_slot'][$i];
+    if ($item && $price) {
+      db_query("INSERT INTO {ec_$type} (item_slot, price_slot) VALUES ('%s', '%s')", $item, $price);
+    }
+  }
+
+  drupal_set_message(t("the shipping options have been saved"));
+}
+
+function shipping_load() {
+
+  $type = variable_get("shipping_method", ""). "_shipping";
+  $result = db_query("SELECT * FROM {ec_$type}");
+
+  while ($data = db_fetch_array($result)) {
+    $output['ship_item_slot'][] = $data['item_slot'];
+    $output['ship_price_slot'][] = $data['price_slot'];
+  }
+
+  return $output;
+}
+
+/**
+ * Some young whipper snapper voodoo. I have extended the shipping module with
+ * two plugins in this shipping API module.  They are both so very similar that
+ * i didn't overlap code.  Kids, don't try this at home. Technically only one
+ * shipping api should be in each module
+ */
+function subtotal_shippingapi(&$items, $op, $arg = '') {
+  return shipping_shippingapi($items, $op, $arg);
+}
+
+function subtotal_load() {
+  return shipping_load();
+}
+
+function per_product_shippingapi(&$items, $op) {
+
+  switch ($op) {
+    case 'calculate':
+      return per_product_calculate($items);
+    case 'per_product' :
+      return TRUE;
+    case 'per_product_load':
+      return db_fetch_object(db_query('SELECT * FROM {ec_per_product_shipping} WHERE nid = %d', $items->nid));
+
+    case 'per_product_form':
+      return form_textfield(t('Shipping charge'), 'shipping_fee', $items->shipping_fee, 25, 50, t('Enter any shipping or handling charges for this product here.'));
+
+    case 'per_product_validate':
+      if ($items->shipping_fee != NULL && !is_numeric($items->shipping_fee)) {
+        form_set_error('shipping_fee', t('You must enter a numeric value for the shipping fee.'));
+      }
+      return form_get_errors();
+
+    case 'per_product_update':
+    case 'per_product_insert':
+      return per_product_save($items);
+  }
+}
+
+function per_product_save($node) {
+  if ($node->per_product_shipping) {
+    db_query('DELETE FROM {ec_per_product_shipping} WHERE nid = %d', $node->nid);
+    db_query('INSERT INTO {ec_per_product_shipping} (nid, shipping_fee) VALUES (%d, %f)', $node->nid, $node->shipping_fee);
+  }
+}
+
+/**
+ * An array of items is passed in.
+ */
+function per_product_calculate($items) {
+  $shipping = 0;
+  foreach ($items as $nid => $i) {
+    $shipping += $i->qty * $i->shipping_fee;
+  }
+  return $shipping;
+}
+?>

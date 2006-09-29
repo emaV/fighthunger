@@ -24,7 +24,7 @@
   }
   if($user->profile_blog) {
     print "<p style='vertical-align : middle'><img src='themes/FHbidi/images/feed-icon.png' 
-style='vertical-align:middle'> " . l("My blog/web site",$user->profile_blog) . "</p>"; 
+style='vertical-align:middle'> " . l("My blog / web site",$user->profile_blog) . "</p>"; 
   }
   if($user->profile_delicious) {
     print "<p style='vertical-align : middle'><img src='themes/FHbidi/images/delicious.gif' style='vertical-align:middle'> " . l("My delicious tags",$user->profile_delicious) . "</p>"; 

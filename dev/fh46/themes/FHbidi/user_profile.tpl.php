@@ -47,7 +47,7 @@ style='vertical-align:middle'> " . l("My blog/web site",$user->profile_blog) . "
 <?php 
 if($fields['donation_obj']) {
   print "  <h3 class='profile'>Donate to Help Child Hunger with me!</h3>";
-  //print donation_form($fields['donation_obj'], array('donation_source' => $user->uid)); 
+//print donation_form($fields['donation_obj'], array('donation_source' => $user->uid)); 
     $form_don  = theme('donation_presentation', $fields['donation_obj']);
     $form_don .= theme('donation_btn_donate');
 //  $form_don .= form_hidden('amount', 10);

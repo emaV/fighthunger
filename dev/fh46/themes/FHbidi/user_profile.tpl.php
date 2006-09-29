@@ -50,7 +50,7 @@ if($fields['donation_obj']) {
   //print donation_form($fields['donation_obj'], array('donation_source' => $user->uid)); 
     $form_don  = theme('donation_presentation', $fields['donation_obj']);
     $form_don .= theme('donation_btn_donate');
-  //  $form_don .= form_hidden('amount', 10);
+//  $form_don .= form_hidden('amount', 10);
     $form_don  = form($form_don, 'post', 'donation/' . $fields['donation_obj']->nid);
     print $form_don;
   print "  <h3 class='profile'>My donation to date</h3>"; 

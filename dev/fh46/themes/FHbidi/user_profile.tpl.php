@@ -80,7 +80,6 @@ Walk with us!</p>
 //    print "<h3>$key</h3>";
 //    print "<p>" . htmlentities(print_r($value,true)) . "</p>";
 //  }  
-
 //  print "<hr /><pre>" . print_r($fields, true) . "</pre>";
 ?>
 

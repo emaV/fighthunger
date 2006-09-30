@@ -76,7 +76,6 @@ Walk with us!</p>
 //  print _donation_list($user->donation);
 //  print "<hr />";
 //  foreach($fields as $key => $value) {
-
 //  foreach($user as $key => $value) {
 //    print "<h3>$key</h3>";
 //    print "<p>" . htmlentities(print_r($value,true)) . "</p>";

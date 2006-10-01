@@ -69,7 +69,6 @@ Walk with us!</p>
 <div class='profile_footer'>
 
 <?php
-
 //  print '<hr /><h3>$fields["donation_obj"]</h3><pre>' . print_r($fields['donation_obj'], true) . "</pre>";
 //  print '<hr /><h3>$user->donation</h3><pre>' . print_r($user->donation, true) . "</pre>";
 //  print "<hr />";

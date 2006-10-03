@@ -1,0 +1,22 @@
+# Robots.txt file from http://www.kuznetsov.uklinux.net/
+#
+# All robots will spider the domain
+
+User-agent: *
+Disallow: /crmfiles/
+Disallow: /includes/
+Disallow: /misc/
+Disallow: /modules/
+Disallow: /scripts/
+Disallow: /sites/
+Disallow: /themes/
+Disallow: cron.php
+Disallow: phpinfo.php
+Disallow: update.php
+Disallow: xmlrpc.php
+Disallow: /user/
+Disallow: /search/
+Disallow: /comment/reply/
+Disallow: /node/add/
+Disallow: /taxonomy/
+Disallow: /filter/

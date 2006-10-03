@@ -153,6 +153,7 @@ function file_check_upload($source) {
           case 'application/msword':
           case 'audio/x-ms-wma':
           case 'audio/mp3':
+          case 'image/pjpeg':
             $file->filemime = $_FILES["edit"]["type"][$source];
             break;
         }

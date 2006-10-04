@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gallery>
+  <album title="GPC/WTW" description="Fight Hunger: Walk The World" lgPath="http://localhost/wtw/misc/slideshow/gallery/prix/large/">
+    <img src="a.jpg" />
+    <img src="b.jpg" />
+    <img src="c.jpg" />
+    <img src="d.jpg" />
+    <img src="e.jpg" />
+    <img src="f.jpg" />
+    <img src="g.jpg" />
+    <img src="h.jpg" />
+    <img src="i.jpg" />
+    <img src="j.jpg" />
+  </album>
+</gallery> 

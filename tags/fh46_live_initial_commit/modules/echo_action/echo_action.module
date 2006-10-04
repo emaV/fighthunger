@@ -1,0 +1,1655 @@
+<?php
+
+/**
+ * @file
+ * Creates flexible / templated nodes for online political organizing.
+ */
+
+function echo_action_help($sec){
+  switch ($sec){
+    case "admin/modules#description":
+      return t('Creates flexible / templated nodes for online political organizing.');
+  }
+}
+
+function echo_action_access($op,$node){
+  $admin = user_access("administer echo_action");
+  $name = echo_action_node_name($node);
+  switch ($op){
+    case 'delete':
+      return $admin;
+    case 'update':
+      global $user;
+      return ($admin || ($node->uid == $user->uid));
+      break;
+    case 'view':
+      return true;
+      break;
+    case 'create':
+      return ($admin || user_access("create $name actions"));
+      break;
+    case 'attend':
+      return (!echo_action_get_user_action());
+//      return ((!echo_action_get_user_action()) && (user_access("attend $name actions")));
+      break;
+  }
+}
+
+function echo_action_validate(&$node){
+  if (empty($node->starttime)){
+    form_set_error("starttime","Please enter a start time.");
+  }
+  if (empty($node->endtime)){
+    form_set_error("endtime","Please enter an end time.");
+  }
+  if (_ea_parsetime($node->endtime) < _ea_parsetime($node->starttime)){
+    form_set_error("starttime","Your event can not end before it begins!");
+  }
+  
+  if (empty($node->address1)){
+    form_set_error("address1","Please enter a start location.");
+  }
+
+  if (empty($node->address2)){
+    form_set_error("address2","Please enter a street address.");
+  }
+
+  if (empty($node->city)){
+    form_set_error("city","Please enter a city.");
+  }
+
+  if (empty($node->state)){
+    form_set_error("state","Please enter a region or province.");
+  }
+
+  if ($node->country == "--"){
+    form_set_error("country","Please enter a country.");
+  }
+
+  // handle "newtype"
+  if (isset($node->newtype) && user_access("administer nodes")){
+    // remove invalid taxonomy
+    $q =  "SELECT tn.* ".
+          "FROM term_node tn, term_data td, vocabulary v ".
+          "WHERE v.vid = td.vid ".
+          "AND td.tid = tn.tid ".
+          "AND tn.nid = %d ".
+          "AND v.nodes NOT LIKE '%%%s%%'";
+    $rs = db_query($q,$node->nid,$node->newtype);
+    while ($row = db_fetch_array($rs)){
+      db_query("DELETE FROM term_node WHERE nid=%d AND tid=%d",$row['nid'],$row['tid']);
+    }
+
+    // reassign type
+    $node->type = $node->newtype;
+  }
+}
+
+function echo_action_get_replacevars($action,$uid=NULL){
+  $user = user_load(array("uid"=>$uid));
+  
+  $details = $action->title."\n".
+             date("j F, Y",_ea_parsetime($action->startdate))."- ".
+             date("g:i A",_ea_parsetime($action->starttime))."\n".
+             (($action->address1) ? $action->address1 . "\n" : "").
+             (($action->address2) ? $action->address2 . "\n" : "").
+             (($action->city) ? $action->city : "").
+             (($action->city && $action->state) ? ", " . $action->state : $action->state);
+
+  $replacevars = array(
+    '%event_link'     => url("mywalk/".$uid,NULL,NULL,TRUE),
+    '%virtual_link'   => url("virtual",NULL,NULL,TRUE),
+    '%event_details'  => $details,
+    '%firstname'      => $user->profile_fistname,
+    );
+  
+  return $replacevars;
+}
+
+function echo_action_mailerapi($op,$data){
+  switch($op){
+    case 'after_invitation':
+      drupal_set_message("Your invitations have been queued and will be sent within ten minutes.");
+      drupal_goto("node/".$data['nid']);
+      break;
+    case 'format_email':
+      $node = node_load(array("nid"=>$data['query']['nid']));
+      $replacevars = echo_action_get_replacevars($node,$data['uid']);
+      $replacevars['%custom_text'] = $data['message'];
+      switch ($data['query']['role']){
+        case 'attendee':
+        case 'volunteer':
+          $out['subject'] = variable_get("ea_att_suj",variable_get("site_name",""));
+          $out['message'] = str_replace(array_keys($replacevars),$replacevars,variable_get("ea_att_em",$data['query']['message']));
+        case 'coordinator':
+          $out['subject'] = variable_get("ea_coo_suj",variable_get("site_name",""));
+          $out['message'] = str_replace(array_keys($replacevars),$replacevars,variable_get("ea_coo_em",$data['query']['message']));
+          break;
+      }
+      return $out;
+      break;
+    case 'answer':
+      // these emails do not include the echomailer clickthrough link, so the 'answer' hook will not be called
+      break;
+  }
+}
+
+function echo_action_confirmapi($op,$flag,$msg=NULL,$uid=NULL,$node=NULL){
+  switch($op){
+    case 'list':
+      return array('create','signup');
+      break;
+    case 'user_message':
+      switch ($flag){
+        case 'create':
+          switch ($msg){
+            case 'new':
+            case 'secured':          
+              drupal_set_message("You have succesfully created this event! Thanks for joining us on 12 June.");
+              break;
+          }
+          break;
+        case 'signup':
+          drupal_set_message("You have succesfully signed up to attend this event! Thanks for joining us on 12 June.");
+          break;        
+      }
+      return false;
+      break;
+    case 'replacevars':
+      $user = user_load(array("uid"=>$uid));
+
+      return echo_action_get_replacevars($node,$uid);
+      break;
+  }
+}
+
+function echo_action_create($atid=2){
+  $edit = $_POST['edit'];
+  $edit['type'] = "echo_action-".$atid;
+
+  switch($atid){
+    case 1:
+      $title = "TNT and WFP: Add Your Event";
+      break;
+    case 2:
+      $title = "Start a Walk Near You";
+      break;
+  }
+
+  if (isset($_POST['edit'])){
+    // data is being submitted
+    //is our node valid?
+    
+    $node = node_validate($edit);
+    if (form_get_errors()){
+      // failure-- return the form
+      print theme("page",echo_action_create_form($edit),$title);  
+      return;
+    }
+    
+    // node validates. process user
+    $proc = echoconfirm_process($edit,'echo_action','create',$node);
+    switch ($proc['status']){
+      case 'new':
+      case 'secured':
+        // try to create the event
+        echo_action_node_save($edit,$proc['user']);
+        break;
+      case 'sent':
+      case 'confirmed':
+      case 'password':
+      case 'wrong_password';
+      case 'error':
+        // return the form with errors
+        wtw_trans_set(3);
+        print theme("page",echo_action_create_form($edit),$title);          
+        break;
+    }
+    /*
+    // were we succesful?
+    if (!($user->uid > 0)){
+      // no, so return form with errors
+      print theme("page",echo_action_create_form($edit),"Start a walk near you");          
+      return;
+    }
+    // yes, so try to save the node
+    echo_action_node_save($edit);
+    return;
+    */
+  } else {
+    wtw_trans_set(3);
+    print theme("page",echo_action_create_form($edit),$title);  
+    return;
+  }
+}
+
+function echo_action_node_save($edit,$user_in){
+  // log in
+  global $user;
+  $user = $user_in;
+
+  // validate the node
+  $node = node_validate($edit);
+  
+  // log out
+  $user = false;
+  
+  // were we succesful?
+  if (form_get_errors()){
+    // failure-- return the form
+    print theme("page",echo_action_create_form($edit),"Start a walk near you");  
+  } else {
+    // success-- save the node and go to it
+    wtw_trans_set(4);
+    $nid = node_save($node);    
+    drupal_goto("node/".$nid);
+  }
+}
+
+function echo_action_create_form($edit){
+
+  $eform = "<p>This information will be visible to anyone interested in joining your Fight Hunger: Walk the World event on 12 June.</p>";
+
+  $eform .= form_textfield("Event Name","title",$edit['title'],30,50,"A title for your event",NULL,TRUE);
+  $param = array();
+  $node = array2object($edit);
+  $eform .= echo_action_form($node,$param);
+
+  if ($node->type == "echo_action-1"){
+    $form = "<p>If you are a TNT or WFP Fight Hunger: Walk the World event coordinator, please enter your event details on this page to list your event on the official website.</p>";
+  }
+
+  $form .= "<p>If you do not know all of your event information yet, you can still create your walk now and update the details later.</p>";
+  $form .= "<p><em>Items marked with a ".theme("mark")." are required.</em></p>";
+  $form .= form_group("Your contact information",echo_action_user_form($edit,"create"));
+  $form .= form_group("Your event",$eform);
+
+  $button_img = variable_get("echo_action_button_start","");
+  if (!empty($button_img)){
+    $button_atts = array("src"=>$button_img);
+    $form .= form_button(t('Start Event'),NULL,'image', $button_atts);
+  } else {
+    $form .= form_submit(t('Start Event'));  
+  }
+
+  return form($form);
+}
+
+function echo_action_signupcount($node){
+  if (is_numeric($node)){
+    $node = node_load(array("nid"=>$node));
+  }
+  
+  $count = 1;
+
+  $signups = echo_action_get_signups($node->nid);
+  if (!empty($signups)){
+    foreach($signups as $s){
+      $count += 1;
+      $count += $s['guests'];
+    }
+  }
+  
+  $count += $node->signup_pad;
+
+  return $count;
+}
+
+function echo_action_view(&$node,$teaser=FALSE,$page=FALSE,$formvals=NULL){
+  $at_count = echo_action_signupcount($node);
+	
+  // lets parse this delightfully complex taxonomy object
+  $sponsor_ar = taxonomy_node_get_terms_by_vocabulary($node->nid,1);
+  $sponsor_obj = array_pop($sponsor_ar);
+  $sponsor = $sponsor_obj->tid;
+  switch ($sponsor){
+    case '1':
+      $trclass = "blue_tr_tnt";
+ //     $brimg = "<img src=\"themes/walktheme/images/sponsor_tnt.png\" align=\"right\" />";
+      $sponsortext = 'This event is sponsored by <em>TNT</em>';
+      break;
+    case '2':
+      $trclass = "blue_tr_wfp";
+//      $brimg = "<img src=\"themes/walktheme/images/sponsor_wfp.png\" align=\"right\" />";
+      $sponsortext = 'This event is sponsored by <em>The World Food Programme</em>';
+      break;
+    case '3':
+      $trclass = "blue_tr_joint";
+//      $brimg = "<img src=\"themes/walktheme/images/sponsor_joint.png\" style=\"float: right; clear: none;\" />";
+      $sponsortext = 'This event is jointly sponsored by <em>TNT</em> and <em>The World Food Programme</em>';
+      break;
+    default:
+      $trclass = "blue_tr";
+//      $brimg = "";
+      $sponsortext = "";
+      break;
+  }
+  
+  if (variable_get("wtw_over",0)){
+    $trclass= "blue_tr";
+  }
+  
+  if (!empty($node->sponsors)){
+    if (empty($sponsortext)){
+      $sponsortext = "This event is sponsored by: <em>".nl2br($node->sponsors)."</em>";
+    } else {
+      $sponsortext .= ".<br/>Other local sponsors: <em>".nl2br($node->sponsors)."</em>";
+      $trim_spons = echo_action_details_trim($node->nid,$sponsortext);
+      if ($trim_spons){
+        $sponsortext = $trim_spons."</em>";
+      }
+    }
+  }
+
+	if (user_access("administer nodes")){
+		$out .= "<p>Tag photos for this event with \"<strong>a".$node->nid."</strong>\" and \"<strong>c".$node->country."</strong>\".</p>";
+	}
+  
+  $signup = echo_action_get_signup($node);
+  switch ($signup->role){
+    case 'attendee':
+      wtw_trans_set(9);
+      $out = "<strong>You are attending this event.</strong>";
+      break;
+    case 'volunteer':
+      wtw_trans_set(9);
+      $out = "<strong>You are volunteering for this event.</strong>";
+      break;
+    case 'coordinator':
+      wtw_trans_set(6);
+      $out = "<strong>You are coordinating this event.</strong>";
+      break;
+    default:
+      wtw_trans_set(7);
+      break;
+  }
+
+  if ($page){
+    $startdate = date("j F, Y",_ea_parsetime($node->startdate));  
+    $starttime = date("g:i A",_ea_parsetime($node->starttime));
+    $endtime = date("g:i A",_ea_parsetime($node->endtime));
+  
+    $out .= '<div class="blue_bl"><div class="blue_br"><div class="blue_tl"><div class="'.$trclass.'">';
+//    $out .= '<div class="blue_bl"><div class="'.$brclass.'"><div class="blue_tl"><div class="blue_tr">';
+//    $out .= '<div class="blue_bl"><div class="blue_br"><div class="blue_tl"><div class="blue_tr">';
+//    $out .= $brimg;
+    $out .= form_item("When","$startdate: $starttime - $endtime");
+    
+    $where = "<strong>".wtw_parse_location($node,true)."</strong><br/>";
+    $where .= $node->address1."<br/>".$node->address2."<br/>";
+
+    $out .= form_item("Where",$where);
+    
+    if ((!empty($node->route)) && (!variable_get("wtw_over",0)))  {
+      $trimroute = echo_action_details_trim($node->nid,$node->route);
+      if ($trimroute){
+        $out .= form_item("Route",nl2br($trimroute));
+      } else {
+        $out .= form_item("Route",nl2br($node->route));
+      }
+    }
+
+    $atype = echo_action_load_type($node);
+    if ((!(($atype->signups == "false") || (($atype->signups == node) && ($node->signup_status == 1)))) && (!variable_get("wtw_over",0))){
+      $out .= form_item("Who","$at_count " . ($at_count != 1 ? 'people' : 'person') . " expected to walk.");
+    }
+    
+    if (!empty($sponsortext)){
+      $out .= form_item("",$sponsortext);
+    }
+    
+    $out .= '</div></div></div></div><div class="clear">&nbsp;</div>';
+
+    $out .= echo_action_subpage($node,$signup,$formvals);
+    
+    $node->body = $out;
+  } else {
+    $startdate = date("j F, Y",_ea_parsetime($node->startdate));  
+    $starttime = date("g:i A",_ea_parsetime($node->starttime));
+    $endtime = date("g:i A",_ea_parsetime($node->endtime));
+  
+    $node->title .= " ($at_count walker" . ($at_count != 1 ? 's' : '') . " signed up online)";
+    $node->body = $starttime." (local time), $date<br/>";
+    $node->body .= $node->address1."<br/>Region, Country";
+    
+    if (!$teaser){
+      $node->body .= "<p>".$node->description."</p>";
+    }
+  }
+}
+
+function echo_action_userlinks($node,$signup,$this){
+  if (variable_get("wtw_over",0)){
+        $out .= "<li "._ea_atts("scrapbook",$this).">".l(t("<b>Scrapbook</b>"),"node/".$node->nid,NULL)."</li>\n";
+        $out .= "<li "._ea_atts("photosend",$this).">".l(t("Add Photos"),"node/".$node->nid,NULL,"photosend")."</li>\n";
+        $out .= "<li "._ea_atts("storysend",$this).">".l(t("Share a Story"),"node/".$node->nid,NULL,"storysend")."</li>\n";
+        if (echo_action_details($node)){
+          $out .= "<li "._ea_atts("details",$this).">".l(t("Event Details"),"node/".$node->nid,NULL,"details")."</li>\n";
+        }
+  } else {
+    switch ($signup->role){
+      case 'attendee':
+      case 'volunteer':
+        $out .= "<li "._ea_atts("invite",$this).">".l(t("Invite Others"),"node/".$node->nid,NULL)."</li>\n";
+        $out .= "<li "._ea_atts("contact",$this).">".l(t("Contact Coordinator"),"node/".$node->nid,NULL,"contact")."</li>\n";
+        if (echo_action_details($node)){
+          $out .= "<li "._ea_atts("details",$this).">".l(t("Event Details"),"node/".$node->nid,NULL,"details")."</li>\n";
+        }
+        $out .= "<li "._ea_atts("cancel",$this).">".l(t("Cancel"),"node/".$node->nid,NULL,"cancel")."</li>\n";
+        break;
+      case 'attendee':
+        $out .= "<li "._ea_atts("volunteer",$this).">".l(t("Volunteer"),"node/".$node->nid,NULL,"volunteer")."</li>\n";
+        if (echo_action_details($node)){
+          $out .= "<li "._ea_atts("details",$this).">".l(t("Event Details"),"node/".$node->nid,NULL,"details")."</li>\n";
+        }
+        $out .= "<li "._ea_atts("cancel",$this).">".l(t("Cancel")."node/".$node->nid,NULL,"cancel")."</li>\n";
+        break;
+      case 'coordinator':
+        $out .= "<li "._ea_atts("invite",$this).">".l(t("Invite Others"),"node/".$node->nid,NULL)."</li>\n";
+        $out .= "<li "._ea_atts("contact",$this).">".l(t("Contact Walkers"),"node/".$node->nid,NULL,"contact")."</li>\n";
+        if (echo_action_details($node)){
+          $out .= "<li "._ea_atts("details",$this).">".l(t("Event Details"),"node/".$node->nid,NULL,"details")."</li>\n";
+        }
+        $out .= "<li "._ea_atts("edit",$this).">".l(t("Edit Event"),"node/".$node->nid."/edit",NULL)."</li>\n";
+        break;
+      default:
+        if (echo_action_allow_signups($node)){
+          $out .= "<li "._ea_atts("signup",$this).">".l(t("Signup"),"node/".$node->nid,$formvals)."</li>\n";
+        }
+        if (echo_action_details($node)){
+          $out .= "<li "._ea_atts("details",$this).">".l(t("Event Details"),"node/".$node->nid,NULL,"details")."</li>\n";
+        }
+        break;
+    }
+  }
+  
+  $out = "<ul class='tabs primary' id='eventtabs'>\n".$out."</ul>";
+
+  return $out;
+}
+
+// utility for echo_action_userlinks
+function _ea_atts($one,$two){
+  if ($one == $two){
+    return "class='active'";
+  }
+}
+
+function echo_action_subpage($node,$signup=NULL,$formvals=NULL){
+  if (is_null($signup)){
+      $signup = echo_action_get_signup($node);
+  }
+  
+  /*
+  $msg_html = "";
+  if ($_SESSION['messages']){
+    $msg_html = "<div id='message'>".theme_status_messages()."</div>";
+  }
+  */
+  
+  if (isset($_GET['details'])){
+    $thispage = "details";
+    $subp = echo_action_details($node);
+  } elseif(variable_get("wtw_over",0)){
+    $data = echo_action_subpage_over($node,$signup,$formvals);
+    $thispage = $data['thispage'];
+    $subp = $data['subp'];
+  } else {
+    switch ($signup->role){
+      case "attendee":
+      case "volunteer":
+      case "coordinator":
+        if (isset($_GET['contact'])){
+          $thispage = "contact";
+          if (echo_action_get_signups($node->nid) > 1){
+            $subp = echo_action_contact_form($node,$signup->role,$formvals);
+          } else {
+            $subp = echo_action_nocontact();
+          }
+        } elseif (isset($_GET['volunteer'])){
+          $subp = "This feature is not yet implemented.";
+        } elseif (isset($_GET['cancel'])){
+          $thispage = "cancel";
+          $subp = echo_action_cancel($node->nid);
+        } else {
+          $thispage = "invite";
+          $subp = echo_action_invite_form($node,$signup->role,"event",$formvals);
+        }
+        break;
+      case false:
+        global $user;
+        if (echo_action_get_user_action()){
+          $thispage = "details";
+          $subp = echo_action_details($node);
+        } elseif (echo_action_allow_signups($node)) {
+          $thispage = "signup";
+          $subp = echo_action_signup_form($node,$formvals);
+        } else {
+          $thispage = "details";
+          $subp = echo_action_details($node);        
+        }
+        break;
+    }
+  }
+  
+  $out = $msg_html . echo_action_userlinks($node,$signup,$thispage) . $subp;
+  
+  return $out;
+}
+
+function echo_action_subpage_over($node,$signup=NULL,$formvals=NULL){
+  $atag = "a".$node->nid;
+  $ctag = "c".$node->country;
+  
+  if(isset($_GET['photosend']) || (arg(1) == "photosend")) {
+    $e = wtw_cookie("email");
+    
+    $form  = form_hidden("tags","$atag $ctag");
+    $form .= form_textfield("Your email address","email",$e,40,50);
+    $form .= form_file("Select a photo","photo",NULL,"Use a JPEG, GIF or PNG.");
+    $form .= form_submit("Add photo");
+    
+    $ats['enctype'] = "multipart/form-data";
+    
+    $s  = "<h2>Share your photos</h2>";
+    $s .= "<p>Did you take photos of this Walk? Add each picture to the collection using the form below, or email them to <a href='mailto:photos@fighthunger.org'>photos@fighthunger.org</a>.</p>";
+    $s .= form($form,"POST","action/photosend/".$node->nid,$ats);    
+    
+    $out['thispage'] = 'photosend';
+    $out['subp'] = $s;
+  } elseif(isset($_GET['storysend']) || (arg(1) == "storysend")){
+    $form .= "<p><em>Items marked with a ".theme("mark")." are required.</em></p>";
+    $form .= form_textfield("Your first name","fname",$formvals['fname'],40,50,"The name you enter here will be displayed with your comment.",NULL,true);
+    $form .= form_textfield("Your last name","lname",$formvals['lname'],40,50,NULL,NULL,true);
+    $form .= form_textfield("Your email address","email",$formvals['email'],40,50,"Your email address will not appear on the website.",NULL,true);
+    $form .= form_textarea("Your story","body",$formvals['body'],40,10,NULL,NULL,true);
+    $form .= form_submit("Add story");    
+
+    $s  = "<h2>Share your story</h2>";
+    $s .= "<p>If you walked at this event, tell the world about it here! Your comments will be appear in the scrapbook, below the photos.</p>";
+    $s .= form($form,"POST","action/storysend/".$node->nid);
+    
+
+    $out['thispage'] = 'storysend';
+    $out['subp'] = $s;
+  } else {
+    $loc = wtw_parse_location($node,true);
+    $cname = wtw_countryname($node->country);
+    $s .= "<p>On June 12, we Walked the World in $loc to fight child hunger. Here are just a few of our photos and stories.</p>";
+    if (db_result(db_query("SELECT count(*) FROM echo_action_node WHERE country='%s'",$node->country)) > 1 ){
+      $s .= "<p><i>".l("Click here to see other events in $cname.","country/".strtolower($node->country))."</i></p>";
+    }
+
+    $i = "Do you have photos from this event? <a href='node/".$node->nid."&photosend'>Click here to add them to the scrapbook</a>.";
+    $s .= wtw_over_gallery($atag,$i);
+    $s .= wtw_over_stories("node",$atag,"Here's what people at this walk had to say:",$node);
+    
+    $out['thispage'] = 'scrapbook';
+    $out['subp'] = $s;
+  }
+  return $out;
+}
+
+function echo_action_photosend(){
+  if ($_FILES){
+    $photoid = echo_slideshow_process_upload($_FILES['edit'], $_POST['edit']);
+  }
+  if ($photoid){
+    db_query("INSERT INTO echo_slideshow SET email='%s',flickr=%d",$_POST['edit']['email'],$photoid);
+    drupal_set_message("Thank you! Your photo will appear in <a href='node/".arg(2)."'>the scrapbook</a> momentarily. Now you can add additional photos using the form below.");
+  } else {
+  
+  }
+  drupal_goto("node/".arg(2)."&photosend");
+}
+
+function echo_action_storysend(){
+  $edit = $_POST['edit'];
+  $nid = arg(2);
+  $node= node_load(array("nid"=>$nid));
+  
+  $tags[] = "a".$node->nid;
+  $tags[] = "c".db_result(db_query("SELECT country FROM echo_action_node WHERE nid=%d",$node->nid));
+  $story = array2object($edit);
+  $story->approved = 1;
+  $story->title = "Story";
+  $story->tags = implode(",",$tags);
+  $story->type = "wtw";
+  $story->uid = 1;
+  node_validate($story);
+
+  if (form_get_errors()){
+    echo_action_view($node,FALSE,TRUE,$edit);
+    $out = theme("node",$node,FALSE,TRUE);
+    print theme("page",$out,$node->title);
+  } else {    
+    node_save($story);
+    
+    drupal_set_message("Your story has been saved.");
+    drupal_goto("node/".$nid);
+  }
+/*
+    */
+}
+
+function echo_action_nocontact(){
+  $out = "<p>
+          As soon as others register for your Fight Hunger: Walk the World event, you will be able to contact them through this page.
+          </p><p>
+          Click the <strong>'invite others'</strong> tab, above, to invite your friends, family, and co-workers to sign-up for your event on 12 June!
+          </p>";
+  return $out;
+}
+
+function echo_action_details($node){
+  static $details;
+  if (empty($details)){
+    $details = echo_action_details_content($node);
+  }
+  
+  if (empty($details)){
+    return false;
+  } else {
+    return "<h3>Event Details</h3>".$details;
+  }
+}
+
+function echo_action_details_content($node){
+  $atype = echo_action_load_type($node);
+
+  if (($atype->signups == node) && ($node->signup_status == "1")){
+    if ($node->signup_count <= echo_action_signupcount($node->nid)){
+      // signups have been exceeded
+      // show ccoord message or attendee message?
+      global $user;
+      $s_g = echo_action_get_signup($node,$user->uid);
+      $s_c = echo_action_get_signup($node,wtw_cookie("uid"));
+      if (($s_g->role == "coordinator") || ($s_c->role == "coordinator")){
+        $out = "<p>Your event has reached its maximum number of attendees.</p>";
+      } else {      
+        $out .= "<p>
+Thank you for your interest in this Fight Hunger: Walk the World event. Unfortunately, we have already surpassed the number of people that we can accommodate at this location. 
+</p><p>
+Please ".l("return to the homepage","home")." to find another event in your country, or to start your own event!
+</p>";
+      }
+    } else {
+      $out .= "<p>This event can accomodate a total of ".$node->signup_count." people for 2005.</p>";
+    }
+  }
+
+  if (!empty($node->directions)){
+    $out .= form_item("Directions",nl2br($node->directions));
+  }
+  
+  if (echo_action_details_trim($node->nid,$node->route) || (variable_get("wtw_over",0) && (!empty($node->route)))){
+    $out .= form_item("Route",nl2br($node->route));
+  }
+
+  if (echo_action_details_trim($node->nid,$node->sponsors)){
+    $out .= form_item("Other local sponsors",nl2br($node->sponsors));
+  }
+
+  if (!empty($node->description)){
+    $out .= form_item("Additional Info",nl2br($node->description));
+  }
+  return $out;
+}
+
+// return truncated text if this text is truncated in the eventbox and displayed in the details page
+// used for route and sponsors
+// otherwise return false
+function echo_action_details_trim($nid,$text){
+  $trimmed = _echo_action_first_sentence($text);
+  if (strlen($trimmed) == strlen($text)){
+    $out = false;
+  } else {
+    $out = $trimmed;
+    if (!isset($_GET['details'])){
+      $out .= l("More >>","node/".$nid."?details");
+    } else {
+      $out .= "(continued below...)";
+    }
+  }
+  return $out;
+}
+
+function echo_action_invite_form($node,$role,$from,$prepop=NULL){
+  $query = array(
+    'nid' => $node->nid,
+    'role' => $role,
+    'from' => $from
+  );
+  switch ($role){
+    case 'attendee':
+    case 'volunteer':
+      $prepop['message'] = variable_get('ea_att_cust','');
+      break;
+    case 'coordinator':
+      $prepop['message'] = variable_get('ea_coo_cust','');
+      break;
+  }
+  return "<h3>Invite others to walk with you</h3>\n".echomailer_form("echo_action","",$prepop,$query);
+}
+
+function echo_action_signup_form($node,$data=NULL){
+  if (empty($data['opencomment'])){
+    $data['opencomment'] = 1;
+  }
+  
+  global $user;
+
+  if ($node->type == "echo_action-1"){
+    $coord = $node->profile_firstname." ".$node->profile_lastname." (".$node->name.")";
+    //exciting javascript popup business
+    $js = '
+  <SCRIPT LANGUAGE="JavaScript">
+  <!-- Beginning of JavaScript - //
+  function MsgBox (amichecked) {
+    if (amichecked){
+      alert ("Please contact the event coordinator, '.$coord.', to ensure that you are counted among the TNT walkers.\n\nYou do NOT need to register on this website.\n\nThank you!") }}
+  // - End of JavaScript -->
+  </SCRIPT>  
+    ';
+    drupal_set_html_head($js);
+    $atts['onClick'] = "MsgBox(checked)";
+    $form .= "<br/>".form_checkbox(t("I am a TNT employee, family/friend of a TNT employee, or a customer/supplier of TNT."),"tntemployee",1,FALSE,NULL,$atts);
+  }
+
+  $form .= echo_action_user_form($data);
+
+  $form .= form_textfield(t("My guests"),"guests","0",5,5,"I am bringing this many others to walk with me.");
+  
+  $form .= form_textarea(t("Comment (optional)"),"comment",$data['comment'],40,5,"Feel free to leave a comment for the other attendees.");
+  $form .= form_checkbox(t("Show my comment in the attendee list."),"opencomment",1,$data['opencomment'])."<br/>";
+
+  $form .= form_checkbox(t("I would like to volunteer to help organize this event."),"volunteer",1,$data['volunteer']);
+  
+  $form .= "<p><em>Items marked with a ".theme("mark")." are required.</em></p>";
+
+  $button_img = variable_get("echo_action_button_walk","");
+  if (!empty($button_img)){
+    $button_atts = array("src"=>$button_img);
+    $form .= form_button(t('Walk!'),NULL,'image', $button_atts);
+  } else {
+    $form .= form_submit(t('Walk!'));  
+  }
+  
+  $out = "<h3>Walk with us!</h3>\n";
+  $out .= form($form,"POST","action/signup/".$node->nid,array("class"=>"form_signup","name"=>"signupform"));
+  return $out;
+}
+
+function echo_action_user_form($data=array(),$role="signup"){
+  global $user;
+  if ($user->uid != 0){
+    return form_item("Email Address",$user->mail);
+  }
+
+  if (empty($data)){
+    $data = $_POST['edit'];
+  }
+  if (empty($data['mail'])){
+    $data['mail'] = wtw_cookie('mail');
+  }
+  
+
+  $form = "<p>Your name is the only personal information that will be listed on the website.</p>";
+  if ($user->uid == 0){
+    $form .= form_textfield(t("Email"),"mail",$data['mail'],30,50,NULL,NULL,TRUE);
+    $askfornames = true;
+  } else {
+    $form .= form_item(t("Email"),$user->mail);
+    if (empty($user->profile_firstname)){
+      $askfornames = true;
+    }
+  }
+    
+  global $ask_for_password;
+  if ($ask_for_password){
+    $form .= form_password("Password","pass",$data['pass'],30,50);
+  } else {  
+    if ($askfornames){
+      $form .= form_textfield(t("First Name"),"profile_firstname",$data['profile_firstname'],30,50,NULL,NULL,TRUE);
+      $form .= form_textfield(t("Last / Surname"),"profile_lastname",$data['profile_lastname'],30,50,NULL,NULL,TRUE);
+      // todo- make phone number only required for coordinators, not attendees
+      $form .= form_textfield(t("Phone Number"),"profile_phone",$data['profile_phone'],30,50,NULL,NULL,TRUE);
+    }
+  
+    if ($role == "create"){
+      if (empty($data['profile_country'])){
+        if (isset($_GET['c'])){
+          $data['profile_country'] = $_GET['c'];
+        } else {
+          $data['profile_country'] = wtw_get_c();
+        }
+      }
+  
+      $form .= form_textfield(t("Street Address"),"profile_address",$data['profile_address'],30,50);
+      $form .= form_textfield(t("City"),"profile_city",$data['profile_city'],30,50);
+      $form .= form_textfield(t("State / Province"),"profile_state",$data['profile_state'],30,50);
+      $form .= form_textfield(t("Postal Code"),"profile_zipcode",$data['profile_zipcode'],30,50);
+      $form .= form_select(t("Country"),"country",$data['profile_country'],echo_action_get_countries());
+    }
+  }
+  
+  return $form;
+}
+
+function echo_action_signup_validate(&$edit,$node){
+  $atype = echo_action_load_type($node);
+  if ($atype->signup_pad == 1){
+    if (($edit['guests'] < 0) || ($edit['guests'] > 100)){
+      form_set_error("guests","You can bring between 0 and 100 others.");
+    }
+  } else {
+    $edit['guests'] = 0;
+  }
+}
+
+function echo_action_signup($nid){
+  $edit = $_POST['edit'];
+  global $user;
+
+  // if user is logged in, is it ok for them to sign up?
+  if (echo_action_get_user_action()){
+    drupal_set_message("You cannot sign up for this event.");
+    return;
+  }
+
+  $node = node_load(array("nid"=>$nid));
+
+  // validate signup form
+  echo_action_signup_validate($edit,$node);  
+  if (form_get_errors()){
+    // there were errors
+    echo_action_view($node,FALSE,TRUE,$edit);
+    $out = theme("node",$node,FALSE,TRUE);
+    print theme("page",$out);
+    return;
+  }
+  
+  $proc = echoconfirm_process($edit,'echo_action','signup',$node);
+  // were we succesful?
+  switch ($proc['status']){
+    case 'new':
+    case 'sent':
+    case 'confirmed':
+    case 'secured':
+      $ok = true;
+      break;
+    default:
+      $ok = false;
+      break;
+  }
+
+  if ($ok){
+    // if we're here, we haven't exited, so success
+    // insert the signup
+    if ($edit['volunteer'] == 1){
+      $role = 'volunteer';
+    } else {
+      $role = 'attendee';
+    }
+    
+    $this_user = $proc['user'];
+    
+    db_query("INSERT INTO echo_action_signup SET aid=%d,uid=%d,role='%s',comment='%s',opencomment='%s',timestamp=NOW(),guests=%d,tntemployee=%d",$nid,$this_user->uid,$role,$edit['comment'],$edit['opencomment'],$edit['guests'],$edit['tntemployee']);
+    
+    wtw_trans_set(8);
+    drupal_goto("node/".$nid);
+    
+  } else {
+      // no, so return form with errors
+    $node = node_load(array("nid"=>$nid));
+    echo_action_view($node,FALSE,TRUE,$edit);
+    print theme("page",$node->body,$node->title);
+    return;
+  }
+
+}
+
+function echo_action_contact_form($node,$role,$data=NULL){
+  switch ($role){
+    case 'attendee':
+    case 'volunteer':
+      $title = t("Contact the event coordinator");
+      break;
+    case 'coordinator':
+      $title = t("Contact attendees");
+      $options = array(
+        'all' => 'all attendees',
+        'vol' => 'volunteers only'
+      );
+      $form = form_select(t("To"),"to",$data['to'],$options);
+      break;
+  }
+  $form .= form_textfield(t("Subject"),"subject",$data['subject'],30,50);
+  $form .= form_textarea(t("Message"),"message",$data['message'],40,10);
+  $form .= form_hidden("nid",$node->nid);
+  $form .= form_submit(t("send"));
+  
+  $out = "<h3>$title</h3>\n";
+  $out .= form($form,"POST","action/sendmail");
+
+  return $out;
+}
+
+function echo_action_sendmail(){
+  $edit = $_POST['edit'];
+  $node = node_load(array("nid"=>$edit['nid']));
+  $signup = echo_action_get_signup($node);
+  global $user;
+  
+//  $type = array("type"=>"contact");
+  switch ($signup->role){
+    case 'attendee':
+    case 'volunteer':
+      $coord = user_load(array("uid"=>$node->uid));
+
+      echomailer_queue($user, array($coord->mail), $edit['subject'], $edit['message'],"echo_action");
+      drupal_set_message("Your email was sent to ".$coord->profile_firstname." ".$coord->profile_lastname);
+      break;
+    case 'coordinator':
+      if ($signups = echo_action_get_signups($node->nid)){;
+        foreach ($signups as $s){
+          $u = user_load(array("uid"=>$s['uid']));
+          $recips[] = $u->mail;
+        }
+        echomailer_queue($user, $recips, $edit['subject'], $edit['message'],"echo_action");
+        drupal_set_message("Your email was sent to ".count($signups)." attendees.");
+      } 
+      break;
+  }
+
+  
+  drupal_goto("node/".$node->nid);
+}
+
+function echo_action_insert($node){
+  $fields = array(
+    "nid",
+    "atid",
+    "startdate",
+    "starttime",
+    "enddate",
+    "endtime",
+    "address1",
+    "address2",
+    "city",
+    "state",
+    "zipcode",
+    "country",
+    "description",
+    "directions",
+    "route",
+    "signup_status",
+    "signup_count",
+    'signup_pad',
+    'sponsors'
+  );
+
+  $atype = echo_action_load_type($node);
+  $node->atid = $atype->atid;
+  if (empty($node->startdate)){
+    switch ($atype->datelimits){
+      case 'no':
+        break;
+      case 'single':
+        $node->startdate = $atype->startdate;
+    }
+  }
+
+  switch ($atype->timelimits){
+    case 'node':
+      $node->starttime = date("H:i:00",_ea_parsetime($node->starttime));
+      $node->endtime = date("H:i:00",_ea_parsetime($node->endtime));
+      break;
+    case 'type':
+      $node->starttime = $atype->starttime;
+      $node->endtime = $atype->endtime;
+    case 'notime':
+      break;
+  }
+  
+  
+  
+  $args[0] = "INSERT INTO {echo_action_node} SET ";
+  foreach ($fields as $field){
+    $query[] .= $field . "='%s'";
+    $args[] = $node->$field;
+  }
+  $args[0] .= implode(",",$query);
+  call_user_func_array("db_query",$args);
+}
+
+function echo_action_update($node){
+  db_query("DELETE FROM echo_action_node WHERE nid=%d",$node->nid);
+  echo_action_insert($node);
+}
+
+function echo_action_delete(&$node){
+  db_query("DELETE FROM echo_action_node WHERE nid=%d",$node->nid);  
+  db_query("DELETE FROM echo_action_signup WHERE aid=%d",$node->nid);
+}
+
+function echo_action_load($node){
+  $out = db_fetch_object(db_query("SELECT * FROM echo_action_node WHERE nid=%d",$node->nid));
+  return $out;
+}
+
+function echo_action_get_type_list(){
+  $list = echo_action_get_types();
+  foreach ($list as $var=>$row){
+    $out[$var] = $row['name']." action";
+  }
+  return $out;
+}
+
+function echo_action_form(&$node, &$param){
+  $atype = echo_action_load_type($node);
+  if (empty($node->country)){
+    if (isset($_GET['c'])){
+      $node->country = $_GET['c'];
+    } else {
+      $node->country = wtw_get_c();
+    }
+  }
+  
+  if (function_exists('taxonomy_node_form')) {
+    $output .= implode('', taxonomy_node_form($node->type, $node));
+  }
+  
+  if (user_access("administer nodes")){
+    $atypes = echo_action_get_type_list();
+    $output .= form_select(t("Node type"),"newtype",$node->type,$atypes);
+  }
+  
+  if ($atype->signups == "node"){
+    $opts = array(0=>"No",1=>"Yes- Limit my online signups");
+
+    $output .= form_select(t("Limit Signups?"),"signup_status", $node->signup_status, $opts,"Is there a limit on online signups?");
+
+    $output .= form_textfield(t("Maximum Signups"),"signup_count",$node->signup_count,10,10,"If yes, then how many people at most can sign up for this event?");
+  }
+
+  if ($atype->signup_pad == 1){
+    $output .= form_textfield(t("Expected Walkers"),"signup_pad",$node->signup_pad,10,10,"How many people do you expect to walk in addition to your on-line signups? The total number will be displayed on your event page.");
+  }
+    
+  switch ($atype->datelimits){
+    case 'no':
+      break;
+    case 'single':
+      $datestring = date("j F, Y",_ea_parsetime($atype->startdate));
+      $output .= form_item("Date",$datestring);
+      break;
+    case 'range':
+    case 'any':
+      $output .= form_item("Select date","This feature is not yet implemented.");
+      break;
+  }
+
+  switch($atype->timelimits){
+    case 'node':
+      if (empty($node->starttime)){
+        $starttime = date("h:i A",_ea_parsetime(strtolower($atype->starttime)));        
+      } else {
+        $starttime = date("h:i A",_ea_parsetime($node->starttime));
+      }
+      $output .= form_textfield("Start Time","starttime",$starttime,20,10,"local time",NULL,TRUE);
+      if (empty($node->endtime)){
+        $endtime = date("h:i A",_ea_parsetime($atype->endtime));    
+      } else {
+        $endtime = date("h:i A",_ea_parsetime($node->endtime));          
+      }
+      $output .= form_textfield("End Time","endtime",$endtime,20,10,"local time",NULL,TRUE);
+      break;
+    case 'type':
+      $starttime = date("h:i a",_ea_parsetime($atype->starttime));
+      $output .= form_item("Start Time",$starttime);
+      $endtime = date("h:i a",_ea_parsetime($atype->endtime));    
+      $output .= form_item("End Time",$endtime);
+      break;
+    case 'notime':
+      break;
+  }
+  
+  $output .= form_textarea("Route","route",$node->route,40,2,"Describe the general route for your walk, including approximate length and any landmarks.");
+  $output .= form_textfield(t("Start Location"),"address1",$node->address1,30,50,"The name of the specific place where participants will meet (e.g. Central Fountain).",NULL,TRUE);
+  $output .= form_textfield(t("Street Address"),"address2",$node->address2,30,100,NULL,NULL,TRUE);
+  $output .= form_textfield(t("City"),"city",$node->city,30,50,NULL,NULL,TRUE);
+  $output .= form_textfield(t("State / Province"),"state",$node->state,30,50,NULL,NULL,TRUE);
+  $output .= form_select(t("Country"),"country",$node->country,echo_action_get_countries(),NULL,NULL,NULL,TRUE);
+
+  $output .= form_textarea("Directions","directions",$node->directions,40,2,"What is the best way to find your start location?");
+  
+  $output .= form_textarea("Local Sponsors","sponsors",$node->sponsors,40,2,"Enter any local event sponsors here (optional). Sponsors will listed after the text, \"Local sponsors:\"");
+        
+  $output .= form_textarea("Additional Information","description",$node->description,40,5,"Use this space to mention any local sponsors, unique information about your event, and logistical details for your participants.");
+
+  return $output;
+}
+
+function _ea_range($nums){
+  foreach($nums as $x){
+    $out[$x] = $x;
+  }
+  return $out;
+}
+
+function _ea_parsetime($t){
+  $out = strtotime($t);
+
+  return $out;
+}
+
+// returns action type details for an echo_action node
+function echo_action_load_type($in){
+  static $atypes;
+  
+  if (is_numeric($in)){
+    $atid = $in;
+  } elseif (is_string($in)){
+    $atid = substr($in,12);
+  } else {
+    $atid = substr($in->type,12);  
+  }
+  
+  $atype = db_fetch_object(db_query("SELECT * FROM {echo_action_type} WHERE atid=%d",$atid));
+
+  $atype->fields = array();
+  $result = db_query('SELECT * FROM {echo_action_field} WHERE atid = %d ORDER BY weight ASC, label ASC', $atid);
+  while ($field = db_fetch_object($result)) {
+    $field->options = unserialize($field->options);
+    $atype->fields[] = $field;
+  }
+  
+  $atypes["echo_action-".$row['atid']] = $atype;
+  
+  return $atype;
+}
+
+
+function echo_action_node_types(){
+  $types = echo_action_get_types();
+  $out = array_keys($types);
+
+  return $out;
+}
+
+function echo_action_node_name($node){
+  $type = is_string($node) ? $node : (is_array($node) ? $node['type'] : $node->type);
+
+  $types = echo_action_get_types();
+  $out = $types[$type]['name']." action";
+
+  return $out;
+}
+
+function echo_action_get_types(){
+  static $atypes;
+  if (empty($atypes)){
+    $rs = db_query("SELECT * FROM echo_action_type");
+    while ($row = db_fetch_array($rs)){
+      $atypes["echo_action-".$row['atid']] = $row;
+    }
+  }
+  
+  return $atypes;
+}
+
+function echo_action_perm(){
+  $perm[] = 'administer echo_actions';
+  /*
+  $types = echo_action_get_types();
+  foreach ($types as $atype){
+    $perm[] = "create ".$atype['name']." actions";
+    switch ($atype['signups']){
+      case 'no':
+        break;
+      case 'yes':
+      case 'admin':
+        $perm[] = t('attend '.$atype['name'].' actions');
+        break;
+    }
+  }
+*/
+  return $perm;
+}
+
+function echo_action_menu($mc){
+  if ($mc){
+    $items[] = array(
+      'path'      => 'admin/echo_action',
+      'title'     => t('echo actions'),
+      'access'    => user_access('administer echo_actions'),
+      'callback'  => 'echo_action_page_admin'
+    );
+
+    $types = echo_action_get_types();
+    foreach ($types as $atype){
+      $nodetype = "echo_action-".$atype['atid'];
+      $typename = echo_action_node_name($nodetype);
+      $items[] = array(
+        'path'    => 'node/add/'.$nodetype,
+        'title'   => $typename,
+        'access'  => echo_action_access('create',NULL)
+//        'access'  => user_access("create ".$atype['name']." actions")
+      );
+    }
+  } else {
+    $items[] = array(
+      'path'      => 'action/signup',
+      'callback'  => 'echo_action_signup',
+      "access"    => true,
+      'type'      => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'      => 'action/sendmail',
+      'callback'  => 'echo_action_sendmail',
+      "access"    => true,
+      'type'      => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'      => 'action/create',
+      'callback'  => 'echo_action_create',
+      "access"    => true,
+      'type'      => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'      => 'action/storysend',
+      'callback'  => 'echo_action_storysend',
+      "access"    => true,
+      'type'      => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'      => 'action/photosend',
+      'callback'  => 'echo_action_photosend',
+      "access"    => true,
+      'type'      => MENU_CALLBACK
+    );
+  }
+  
+  return $items;
+}
+
+function echo_action_page_admin(){
+  $q = "DESCRIBE echo_action_type";
+  $rs = db_query($q);
+  while ($row = db_fetch_array($rs)){
+    $header[] = $row["Field"];
+  }
+  $cols = count($header);
+  
+  $q = "SELECT * FROM echo_action_type";
+  $rs = db_query($q);
+  while ($row = db_fetch_array($rs)){
+    $rows[] = $row;
+  }
+  
+  $out = theme("table",$header,$rows);
+  
+  print theme("page",$out);
+}
+
+function echo_action_settings(){
+  $aform .= form_textarea(t("Prepopulated Message"),"ea_att_cust",variable_get("ea_att_cust",""),40,10,"This message will pre-populate the 'message' field for event-attendees tell-a-friend.");
+  $aform .= form_textfield(t("EMail Subject"),"ea_att_suj",variable_get("ea_att_suj",""),30,50,"The email's subject line.");
+  $aform .= form_textarea(t("EMail Contents"),"ea_att_em",variable_get("ea_att_em",""),40,10,"This body of the email. Use these variables: %event_link, %event_details, %virtual_link, %custom_text");
+
+  $cform .= form_textarea(t("Prepopulated Message"),"ea_coo_cust",variable_get("ea_coo_cust",""),40,10,"This message will pre-populate the 'message' field for event-coordinators tell-a-friend.");
+  $cform .= form_textfield(t("EMail Subject"),"ea_coo_suj",variable_get("ea_coo_suj",""),30,50,"The email's subject line.");
+  $cform .= form_textarea(t("EMail Contents"),"ea_coo_em",variable_get("ea_coo_em",""),40,10,"This body of the email. Use these variables: %event_link, %event_details, %virtual_link, %custom_text");
+
+  $bform .= form_textfield(t("\"WALK\" Button Image Location"),"echo_action_button_walk",variable_get("echo_action_button_walk",""),30,50,"Path and filename relative to the Drupal installation. Leave empty for an HTML default button.");
+  $bform .= form_textfield(t("\"START EVENT\" Button Image Location"),"echo_action_button_start",variable_get("echo_action_button_start",""),30,50,"Path and filename relative to the Drupal installation. Leave empty for an HTML default button.");
+  
+  $dform .= form_textarea(t("For attendees"),"echo_action_downloads_att",variable_get("echo_action_downloads_att",""),40,10);
+  $dform .= form_textarea(t("For coordinators"),"echo_action_downloads_coo",variable_get("echo_action_downloads_coo",""),40,10);
+  
+  
+  $out = form_group("Attendees Tell-A-Friend",$aform) . form_group("Coordinators Tell-A-Friend",$cform) . form_group("Button Images",$bform) . form_group("Event downloads block contents (HTML)",$dform);
+
+  return $out;
+}
+
+function echo_action_block($op="list",$delta=0){
+  if ($op=="list"){
+    $blocks[0]['info'] = t("List of action signups");
+    $blocks[1]['info'] = t("Action Downloads/Resources");
+    return $blocks;
+  } else {
+    switch ($delta){
+      case 0:
+        $block = echo_action_block_signups();
+        return $block;
+        break;
+      case 1:
+        $block = echo_action_block_downloads();
+        return $block;
+        break;      
+    }
+  }
+}
+
+function echo_action_block_downloads(){
+  global $action_page_node;
+  $signup = echo_action_get_signup($action_page_node);
+  switch ($signup->role){
+    case 'attendee':
+    case 'volunteer':
+      $block['subject'] = 'Downloads for Attendees';
+      $block['content'] = variable_get("echo_action_downloads_att","");
+      break;
+    case 'coordinator':
+      $block['subject'] = 'Downloads for Coordinators';
+      $block['content'] = variable_get("echo_action_downloads_coo","");
+      break;
+    default:
+      $block = false;
+  }
+  if ($block && user_access("administer modules")){
+    $block['content'] .= "<br/><br/>".l('michael, edit this here','admin/settings/echo_action');
+  }
+  return $block;
+}
+
+function echo_action_block_signups(){
+  global $action_page_node;
+  if ($action_page_node && !(variable_get("wtw_over",0))){
+    $signups = echo_action_get_signups($action_page_node->nid);
+
+    $atype = echo_action_load_type($action_page_node);
+    if (($atype->signups == "false") || (($atype->signups == "node") && (($action_page_node->signup_status == 1) && ($action_page_node->signup_count == 0)))){
+      $out = false;
+    } else {   
+      // start list with coordinator
+      $result = db_query("SELECT uid FROM node WHERE nid=%d",$action_page_node->nid);
+      $coord = db_fetch_object($result);
+      $u = user_load(array("uid" => $coord->uid));
+      $li  = $u->profile_firstname . " " . substr($u->profile_lastname,0,1) .".";
+      $li .= " (coordinator)";
+      $list[] = $li;
+      // build list of attendees
+      if (!empty($signups)){
+        foreach ($signups as $s){
+          $u = user_load(array("uid" => $s['uid']));
+          $li = $u->profile_firstname . " " . substr($u->profile_lastname,0,1) .".";
+          if ($s['guests'] > 0){
+            $li .= " (+".$s['guests']." guests)";
+          }
+          if ($s['opencomment'] && !empty($s['comment'])){
+            // truncating comment for now. TODO: make this nicer
+            $li .= "<div class='comment'>".substr($s['comment'],0,1000)."</div>\n";
+          }
+          $list[] = $li;
+        }
+      } 
+      $out['content'] = theme("item_list",$list);
+      $out['subject'] = t("walkers");
+    }
+  } else {
+    $out = false;
+  }
+    
+  return $out;
+}
+
+// TODO: Move all these into the _view and _update hooks (why the hell am I using a _nodeapi here??)
+function echo_action_nodeapi(&$node,$op,$teaser=NULL,$page=NULL){
+  switch ($op){
+    case 'view':
+      if ($page && (node_get_module_name($node) == "echo_action")){
+        global $action_page_node;
+        $action_page_node = $node;
+      }
+      break;
+    case 'update':
+      if (node_get_module_name($node) == "echo_action"){
+        drupal_set_message("You have successfully updated the details for your Walk the World event. If you need to alert your partipants to this change, click ".l('"contact attendees".',"node/".$node->nid."&contact"));
+      }
+      break;
+  }
+}
+
+function echo_action_get_countries(){
+  static $countries;
+  if (empty($countries)){
+    $rs = db_query("SELECT * FROM countries ORDER BY name ASC");
+    while ($c = db_fetch_array($rs)){
+      $countries[$c['ccid']] = ucwords(strtolower($c['name']));
+    }
+    $s = array("--"=>"(choose your home country)");
+    $countries = array_merge($s,$countries);
+  }
+  return $countries;
+}
+
+/**
+ * Return a themed form element.
+ *
+ * @param $title the form element's title
+ * @param $value the form element's data
+ * @param $description the form element's description or explanation
+ * @param $id the form element's ID used by the &lt;label&gt; tag
+ * @param $required a boolean to indicate whether this is a required field or not
+ * @param $error a string with an error message filed against this form element
+ *
+ * @return a string representing the form element
+ */
+/*
+function phptemplate_form_element($title, $value, $description = NULL, $id = NULL, $required = FALSE, $error = FALSE) {
+  
+  if ((arg(0) == "F1") || (arg(1) == "F1")){
+    $output = f1_form_element($title,$value,$description,$id,$required,$error);
+  } else {
+    if ($title){
+      $output  = "\n<dl>\n";
+    }
+  
+    $required = $required ? theme('mark') : '';
+  
+    if ($title) {
+      if ($id) {
+        $output .= " <dt for=\"$id\">$title:$required</dt>\n";
+      }
+      else {
+        $output .= " <dt>$title:$required</dt>\n";
+      }
+      $output .= "<dd>";
+    }
+  
+    
+    if ($description) {
+      $output .= " <div class=\"description\">$description</div>";
+    }
+  
+    $output .= "$value";
+  
+    if ($title){
+      $output .= "</dd>\n</dl>\n";
+    }
+  }
+  
+  return $output;
+}
+*/
+function echo_action_cancel($aid){
+  global $user;
+  if (echo_action_get_user_action() == $aid){
+    if ($_GET['cancel'] == 'yes'){ 
+      db_query("DELETE FROM echo_action_signup WHERE aid=%d AND uid=%d",$aid,$user->uid);
+      drupal_set_message("You have cancelled your attendance.");
+      drupal_goto("node/$aid");
+    } else {
+      $out = l("Click here","node/".$aid."&cancel=yes")." to cancel your attendance.";
+      return $out;
+    }
+  }
+}
+
+function echo_action_allow_signups($node){
+// disallow signups if node attendance limit is too high or if user is already doing an event
+
+  // does user already have an action?
+  if (echo_action_get_user_action()){
+    // set message?
+    return false;
+  } elseif(wtw_cookie('uid')){
+    $cuid = wtw_cookie('uid');
+    if (echo_action_get_user_action($cuid)){
+      return false;
+    } 
+  } 
+
+  // user does not have another action, so check attendance limit
+  $atype = echo_action_load_type($node);
+  switch($atype->signups){
+    case 'no':
+      return false;
+      break;
+    case 'yes':
+      return true;
+      break;
+    case 'node':
+      if ($node->signup_status == "0"){
+        return true;
+      } else {
+        $count = echo_action_signupcount($node->nid);
+        if (intval($node->signup_count) <= $count){
+          return false;
+        } else {
+          return true;
+        }
+      }
+      break;
+  }
+}
+
+// find which events each user is attending or coordinating
+// returns lots of data
+function echo_action_get_current_signup($uid=NULL){
+  if (is_null($uid)){
+    global $user;
+    $uid = $user->uid;
+  }
+  if ($uid == 0){
+    return false;
+  }
+
+  // search attendees
+  $q = "SELECT * FROM {node} n, {echo_action_signup} eas, {echo_action_node} ean WHERE eas.aid = n.nid AND ean.nid = n.nid AND eas.uid=%d";
+  $rs = db_fetch_object(db_query($q,$uid));
+  if (!empty($rs)){
+    $out['role'] = $rs->role;
+    $out['actions'][] = $rs;
+    return $out;
+  }
+  
+  // search coordinators
+  $q = "SELECT * FROM {node} n, {echo_action_node} ean WHERE n.uid=%d AND n.nid = ean.nid";
+  $rs = db_query($q,$uid);
+  while ($a = db_fetch_object($rs)){
+    $out['actions'][] = $a;
+  }
+  if (!empty($out)){
+    $out['role'] = 'coordinator';
+    return $out;
+  } else {  
+    return false;
+  }
+}
+
+// find which event a user is attending
+// returns an integer node-id
+function echo_action_get_user_action($uid=NULL){
+  if (is_null($uid)){
+    global $user;
+    $uid = $user->uid;
+  }
+  
+  if ($uid==0){
+    return false;
+  }
+  
+  $attending = db_result(db_query("SELECT aid FROM echo_action_signup WHERE uid=%d",$uid));
+  if ($attending){
+    return $attending;
+  } else {
+    $coordinating = db_result(db_query("SELECT n.nid FROM node n, echo_action_node ean WHERE n.uid=%d AND ean.nid = n.nid",$uid));
+    if ($coordinating){
+      return $coordinating;
+    } else {
+      return false;
+    }
+  }
+}
+
+// get all signups for a given node
+function echo_action_get_signups($nid){
+  static $actions_signups;
+  
+  if (empty($action_signups[$node->nid])){
+    $rs = db_query("SELECT * FROM echo_action_signup WHERE aid=%d ORDER BY timestamp DESC",$nid);
+    while ($s = db_fetch_array($rs)){
+      $signups[] = $s;
+    }
+    $action_signups[$node->nid] = $signups;
+  }
+  
+  return $action_signups[$node->nid];
+}
+
+// find the relationship between a particular user and a particular node
+function echo_action_get_signup($node,$uid=NULL){
+  if (is_null($uid)){
+    global $user;
+    $uid = $user->uid;
+  }
+  
+  $rs = db_fetch_object(db_query("SELECT * FROM echo_action_signup WHERE aid=%d AND uid=%d",$node->nid,$uid));
+  if ($rs){
+    return $rs;
+  } elseif ($node->uid == $uid) {
+    $out->role = "coordinator";
+    return $out;
+  } else {
+    return false;
+  } 
+}
+
+function _echo_action_first_sentence($text){
+  if (empty($text)){
+    return false;
+  } else {
+    $pos = _ea_getbreak($text);
+    if (!$pos){
+      return $text;
+    } else {
+      return substr($text,0,$pos);
+    }
+  }
+}
+
+function _ea_getbreak($text,$size=200){
+  if (strlen($text) <= $size){
+    return false;
+  }
+
+  $pos[] = strpos($text,"\n",$size);
+  $pos[] = strpos($text,".\n",$size);
+
+  $x = strpos($text,". ",$size);
+  if ($x > 0){
+    $pos[] = $x + 2;
+  }
+
+  sort($pos);
+  while ((!$out) && (count($pos))){
+    $out = array_shift($pos);
+  }
+  return $out;
+}
+
+?>

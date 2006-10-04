@@ -1,0 +1,13 @@
+urlfilter.module - January, 7th 2002
+------------------------------------
+- partial rewrite of the regular expressions should get rid of all double-replacement bugs
+- URLs at the end of a sentence (i.e. followed by a comma or dot) will be appropriately handled
+
+urlfilter.module - November, 11th 2001
+--------------------------------------
+- fixed bug: hyperlinks with an URL as their caption would get refiltered
+
+
+urlfilter.module - November, 10th 2001
+--------------------------------------
+- initial release.

@@ -1,0 +1,1183 @@
+<?php
+
+
+/**
+ * @file
+ * This module implements a flash card sending
+ * interface in which senders choose from a number
+ * of flashcards and are able to specify custom
+ * messages and other variables used to modify
+ * the presentation of the flash animation when
+ * it is viewed by the recipient.
+ * 
+ * This code is organized in an aproximation
+ * of the PEAR module class declrartion structure.
+ * The main "modules" are flashcard_send and 
+ * flashcard_admin, all functions with these strings
+ * as a prefix are part of these modules.  I have
+ * tried to implement something of an MVC structure
+ * within the code, breaking up the controllers (named
+ * after the modules), the different views (form pages, etc.)
+ * and the data model functions (the private *_db_* funcs).
+ * 
+ * @author Ethan Winn <ebwebw@gmail.com>
+ * @package flashcard
+ * @copyright Copyright &copy; 2005, Ethan Winn
+ */
+
+define('FLASHCARD_MAX_RECIPIENTS', 3);
+
+/**
+ * Implementation of hook_help().
+ */
+function flashcard_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Implements a flashcard sending interface, with custom messages and other variables.');
+  }
+}
+
+/**
+ * Implementation of hook_init()
+ */
+function flashcard_init() {
+  theme_add_style("modules/flashcard/flashcard.css");
+}
+
+/**
+ * Implementation of hook_onload()
+ */
+function flashcard_onload() {
+  global $_flashcard_customize_form_js;
+  // this is a hack because there's no drupal_set_onload in 4.5.2 so i'm using a global instead
+  // luckily, this gets called later, by the them pages
+  if ($_flashcard_customize_form_js == true)
+    return array ('flashcard_customize_form_init()');
+}
+
+/**
+ * Implementation of hook_perm()
+ * 
+ * @return array Permissions levels: flashcard_admin (create, delete, edit campaigns and cards), flashcard_manage (manage cards), flashcard_send (send cards), flashcard_view (view cards as recipient)
+ */
+function flashcard_perm() {
+  return array ('admin', 'manage', 'send', 'view');
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function flashcard_menu($may_cache) {
+  $items = array ();
+  $has_admin = user_access('admin');
+  $has_manage = user_access('manage');
+  $has_send = user_access('send');
+  $has_view = user_access('view');
+  if (!$may_cache) {
+    $items[] = array ('path' => 'flashcard/test', 'callback' => 'flashcard_test', 'access' => true, 'type' => MENU_CALLBACK);
+
+    $items[] = array ('path' => 'flashcard/send', 'title' => t('send a flashcard'), 'callback' => 'flashcard_send', 'access' => $has_send, 'type' => MENU_CALLBACK);
+
+    $items[] = array ('path' => 'flashcard/view', 'title' => t('view a flashcard'), 'callback' => 'flashcard_view', 'access' => $has_view, 'type' => MENU_CALLBACK);
+
+    // default view is a log of all flashcard activity
+    $items[] = array ('path' => 'admin/flashcard', 'title' => t('flashcard'), 'callback' => 'flashcard_admin_logs', 'access' => ($has_admin || $has_manage), 'type' => MENU_CALLBACK);
+    $items[] = array ('path' => 'admin/flashcard/logs', 'title' => t('flashcard logs'), 'callback' => 'flashcard_admin_logs', 'access' => ($has_admin || $has_manage), 'weight' => -10, 'type' => MENU_DEFAULT_LOCAL_TASK);
+
+    // card management
+    // question: is it better to use explicit or switch with $op arg formulation (I like explicit because it is clean/clear)
+    $items[] = array ('path' => 'admin/flashcard/card', 'title' => t('administer flashcards'), 'access' => ($has_admin || $has_manage), 'callback' => 'flashcard_admin_card', 'type' => MENU_LOCAL_TASK);
+    $items[] = array ('path' => 'admin/flashcard/card/list', 'title' => t('list flashcard cards'), 'callback' => 'flashcard_admin_card', 'access' => ($has_admin || $has_manage), 'weight' => -5, 'type' => MENU_DEFAULT_LOCAL_TASK);
+    $items[] = array ('path' => 'admin/flashcard/card/add', 'title' => t('add flashcard card'), 'callback' => 'flashcard_admin_card', 'access' => ($has_admin || $has_manage), 'type' => MENU_LOCAL_TASK);
+    $items[] = array ('path' => 'admin/flashcard/card/test', 'title' => t('test sending ui'), 'callback' => 'flashcard_send', 'access' => ($has_admin), 'type' => MENU_LOCAL_TASK);
+
+	// Settings Tabs
+	$items[] = array ('path' => 'admin/settings/flashcard/error_messages', 'title' => t('administer flashcard error messages'), 'callback' => 'flashcard_settings', 'access' => ($has_admin), 'type' => MENU_LOCAL_TASK);
+	
+	
+  }
+  return $items;
+}
+
+// BEGIN "FORM CONTROLLERS"
+
+/**
+ * Implementation of hook_settings as a Controller for settings form pages
+ * Controller for form text displayed in signup forms.
+ */
+function flashcard_settings() {
+  // TODO: add CVSed error messages and group labels for customize form
+  $text_form = _flashcard_settings_textandtitles_form();
+  $helper_text_form = _flashcard_settings_customize_helper_form();
+  $flashcard_form = _flashcard_settings_flashcard_form();
+  $form = form_group(t('Send Form Text and Titles'), $text_form, t('Instruction text, titles and such for flashcard sending and viewing pages'));
+  $form .= form_group(t('Customize Form Help Text'), $helper_text_form, t('Help text for various fields in the flashcard customize form'));
+  $form .= form_group(t('Flashcard andd Email Content'), $flashcard_form);
+  return $form;
+}
+
+/**
+ *  Controller for admin flashcard card form pages
+ * 
+ * @param string operation to be preformed, default is 'list'
+ */
+function flashcard_admin_card($op = NULL) {
+  if (is_null($op))
+    $op = arg(3);
+  switch ($op) {
+    case 'list' :
+      flashcard_admin_card_list();
+      break;
+    case 'add' :
+      flashcard_admin_card_add();
+      break;
+    case 'edit' :
+      if (is_numeric(arg(4)))
+        flashcard_admin_card_edit(arg(4));
+      else
+        flashcard_admin_card('');
+      break;
+    case 'delete' :
+      if (is_numeric(arg(4))) {
+        if ($_POST['op'] == 'Confirm')
+          flashcard_admin_card_delete(arg(4));
+        else
+          flashcard_admin_card_delete_confirm(arg(4));
+      } else
+        flashcard_admin_card('');
+      break;
+    case 'submit' :
+      flashcard_admin_card_submit();
+      break;
+    default :
+      flashcard_admin_card('list');
+  }
+}
+
+/**
+ * Controller for "send a flashcard" form pages
+ * 
+ * @param string operation to be performed, defaults is "choose"
+ */
+function flashcard_send($op = NULL) {
+  if (is_null($op))
+    $op = isset ($_POST['op']) ? $_POST['op'] : arg(2);
+  switch ($op) {
+    case 'choose' :
+      flashcard_send_choose();
+      break;
+    case 'confirm' :
+      if (is_numeric(arg(3)))
+        flashcard_send_confirm(arg(3));
+      else
+        drupal_goto("flashcard/send/choose");
+      break;
+    case 'customize' :
+      if (is_numeric(arg(3)))
+        flashcard_send_customize(arg(3));
+      else
+        drupal_goto("flashcard/send/choose");
+      break;
+    case 'submit' :
+      flashcard_send_submit();
+      break;
+    default :
+      drupal_goto("flashcard/send/choose");
+  }
+}
+
+//function flashcard_admin_campaign_list() {
+//}
+//
+//function flashcard_admin_campaign_add() {
+//}
+//
+//function flashcard_admin_campaign_edit() {
+//}
+//
+//function flashcard_admin_campaign_delete() {
+//}
+
+// BEGIN ADMIN FORM PAGES
+
+/**
+ * List all flashcards currently in db, with edit/delete links.
+ * 
+ * @ingroup themeable
+ */
+function flashcard_admin_card_list() {
+  $header[] = array ('data' => t('ID'), field => 'cid');
+  $header[] = array ('data' => t('Name'), field => 'name');
+  $header[] = array ('data' => t('SWF URL'), field => 'swf_url');
+  $header[] = array ('data' => t('Edit'));
+  $header[] = array ('data' => t('Delete'));
+  $result = _flashcard_db_card_list($header, 50);
+  while ($flashcard_card = db_fetch_array($result)) {
+    $row = array ();
+    $row[] = $flashcard_card['cid'];
+    $row[] = $flashcard_card['name'];
+    $row[] = $flashcard_card['swf_url'];
+    $row[] = l(t('Edit'), "admin/flashcard/card/edit/{$flashcard_card['cid']}");
+    $row[] = l(t('Delete'), "admin/flashcard/card/delete/{$flashcard_card['cid']}");
+    $rows[] = $row;
+  }
+  if ($pager = theme('pager', NULL, 50, 0)) {
+    $rows[] = array (array ('data' => $pager, 'colspan' => 5));
+  }
+  $table = theme("table", $header, $rows);
+  print theme("page", $table);
+}
+
+/**
+ * Generate and process form for entering new flashcard entries
+ * int the database.
+ * 
+ * @param string operation in progress, (form|submit)
+ */
+function flashcard_admin_card_add($form_values = array ()) {
+  $form = '';
+  $form .= _flashcard_admin_card_form($form_values);
+  print theme("page", theme_box(t('add flashcard'), form($form, 'post', 'admin/flashcard/card/submit')));
+}
+
+function flashcard_admin_card_edit($cid = null, $card_to_edit = null) {
+    // this is a bit of a semantic hack because the form and db fields have the 
+    // same name so the structure of card_to_edit and form_fields is the same
+  if ((!is_null($card_to_edit)) || ($card_to_edit = _flashcard_db_card_load((int) $cid))) {
+    $form = _flashcard_admin_card_form($card_to_edit);
+    print theme("page", theme_box('edit flashcard', form($form, 'post', 'admin/flashcard/card/submit')));
+  } else
+    drupal_goto('admin/flashcard/card');
+}
+
+function flashcard_admin_card_delete($cid) {
+  $success = false;
+  $success = _flashcard_db_card_delete($cid);
+  if ($success)
+    drupal_set_message(t('Deletion Successful'));
+  else
+    drupal_set_message(t('Unable to delete flashcard'));
+  flashcard_admin_card('');
+}
+
+function flashcard_admin_card_delete_confirm($cid) {
+  if ($flashcard_to_delete = _flashcard_db_card_load($cid)) {
+    //drupal_set_message('Are you sure you want to delete the flashcard named "' . $flashcard_to_delete['name'] . '"?');
+    $cancel_url = url("admin/flascard/card");
+    $confirm_url = url("admin/flashcard/card/delete/{$cid}/confirmed");
+    $msg = "You are about to delete the flashcard named \"{$flashcard_to_delete['name']}\".  Are you sure you want to do this?";
+    $output .= '<p>'.$msg.'</p>';
+    $output .= '<div class="container-inline">';
+    $output .= form_submit(t('Confirm'));
+    $output .= l($no ? $no : t('Cancel'), $cancel_path);
+    $output .= "</div>\n";
+    $output = theme_box(t("delete flashcard?"), form($output));
+    print theme("page", $output);
+  } else {
+    drupal_set_message(t('There was an error loading the entry you specified.'));
+    flashcard_admin_card('');
+  }
+}
+
+function flashcard_admin_card_submit() {
+  $errors = null;
+  $form_values = $_POST['edit'];
+  if (!flashcard_admin_card_commit($form_values, $errors)) {
+    foreach ($errors as $elem => $elem_errors) {
+      foreach ($elem_errors as $error) {
+        form_set_error($elem, $error);
+      }
+    }
+    drupal_set_title('Correct flashcard data');
+    // TODO: cleanup, this is not very MVC, now is it...
+    if (isset ($form_values['cid'])) {
+      flashcard_admin_card_edit($form_values['cid'], $form_values);
+    } else {
+      flashcard_admin_card_add($form_values);
+    }
+    //_flashcard_admin_card_form($form_values);
+  } else {
+    drupal_set_message('Data saved successfully');
+    drupal_goto('admin/flashcard/card');
+  }
+}
+
+function flashcard_admin_logs() {
+  $header = array ('sender', 'flashcard', 'date');
+  $rows[] = array ('first flashcard', 'link', 'link');
+  $rows = $card_list_html = theme("table", $header, $rows);
+  print theme("page", $card_list_html);
+}
+
+// BEGIN ADMIN PUBLIC ACTION FUNCTIONS
+
+/**
+ * Validate form input and commit if input valid
+ * 
+ * @param array Values from form, indexed by form element
+ * @param array Error array, passed by reference
+ * 
+ * @returns bool Success of commit
+ */
+function flashcard_admin_card_commit($form_values, & $errors) {
+  if (_flashcard_admin_card_form_validate($form_values, $errors)) {
+    return _flashcard_db_card_commit($form_values);
+  } else {
+    return false;
+  }
+}
+
+function flashcard_send_choose() {
+  // retrieve list of all flashcards from db
+  if ($load_result = _flashcard_db_card_list()) {
+    // TODO: make customizable from admin/modules/flashcard panel
+    $output .= "<div id='flashcard_choose_text'>"._flashcard_variable_get('send_choose_text')."</div>\n";
+    $output .= "<h3>Step One: Choose a card</h3>";
+    $output .= "<ul id='flashcard_list'>\n";
+    while ($flashcard = db_fetch_array($load_result)) {
+      // TODO: replace load image size call with hardcoded size for speed
+      $flashcard_image = theme_image(_flashcard_url_make_absolute($flashcard['screenshot_url']), $flashcard['name'], t("Click to choose"), array ('id' => 'flashcard_image'), false);
+      //$flashcard_image = '<img src="'._flashcard_url_make_absolute($flashcard['screenshot_url']).'" />';
+      $flashcard_link_content = '<div class="flashcard_img_link">'.$flashcard_image.'</div>';
+      $flashcard_link_content .= '<div class="flashcard_text_link">'.$flashcard['name'].'</div>';
+      //			$flashcard_img_link = l($flashcard_image,'flashcard/send/confirm/' . $flashcard['cid'],null,null,null,false,true);
+      //			$flashcard_name_link = l($flashcard['name'],'flashcard/send/confirm/' . $flashcard['cid'],null,null,null,false,true);
+      $flashcard_link = l($flashcard_link_content, 'flashcard/send/confirm/'.$flashcard['cid'], null, null, null, false, true);
+      //			$output .= "<li><div class=\"flashcard_img_link\">$flashcard_img_link</div><div class=\"flashcard_text_link\">$flashcard_name_link</div></li>\n";
+      $output .= "<li>$flashcard_link</li>\n";
+    }
+    $output .= "</ul>\n";
+    // margin-left for this title
+//    drupal_set_title(_flashcard_variable_get('send_choose_title'));
+    drupal_set_title("");
+    $output = "<h2 id='flashcard_choose_title'>"._flashcard_variable_get('send_choose_title')."</h2>\n".$output;
+  } else {
+    drupal_set_title(t('No Flashcards in database'));
+    $output = '';
+    $drupal_set_message (t('Unable to load flashcards from database'));
+  }
+  print theme("page", $output);
+}
+
+function flashcard_send_confirm($flashcard_id) {
+  $output = '';
+  if ($flashcard = _flashcard_db_card_load($flashcard_id)) {
+    // provide forward and back buttons 
+    $output .= '<div id="flashcard_preview">';
+    $output .= '<div id="flashcard_buttons">';
+    $output .= "<a href='flashcard/send/choose'><img id='btn_more' src='misc/btn_morecards.gif'/></a>";
+    $output .= "<a href='flashcard/send/customize/{$flashcard_id}'><img id='btn_continue' src='misc/btn_continue.gif'/></a>";
+    $output .= "</div>";
+    //    $output .= l(t('<< Choose another'), 'flashcard/send/choose', array ("class" => "flashcard_send_decline_link"));
+    //    $output .= l(t('Coninue').' >>', "flashcard/send/customize/{$flashcard_id}", array ("class" => "flashcard_send_confirm_link"));
+    // display example swf
+    $output .= _flashcard_html_embed($flashcard);
+    $output .= "</div>";
+    drupal_set_title(_flashcard_variable_get('send_confirm_title'));
+    print theme('page', form($output, 'post', 'flashcard/send/customize'));
+  } else {
+    drupal_set_message(t('Unable to load flashcard for previewing'));
+    flashcard_send('choose');
+  }
+}
+
+function form_textarea_m($title, $name, $value, $cols, $rows, $description = NULL, $attributes = NULL, $required = FALSE) {
+  $cols = $cols ? ' cols="'. $cols .'"' : '';
+  $pre = '';
+  $post = '';
+  if (empty($description)) $description = 'Words used: <span id="edit-'.$name.'WordCount"></span>';
+
+  // optionally plug in a WYSIWYG editor
+  foreach (module_list() as $module_name) {
+    if (module_hook($module_name, 'textarea')) {
+      $pre  .= module_invoke($module_name, 'textarea', 'pre', $name);
+      $post .= module_invoke($module_name, 'textarea', 'post', $name);
+    }
+  }
+
+  return theme('form_element', $title, $pre .'<textarea wrap="virtual"'. $cols .' rows="'. $rows .'" name="edit['. $name .']" id="edit-'. $name .
+	       '" class="wordcount '. _form_get_class('textarea', $required, _form_get_error($name)) .'"'. drupal_attributes($attributes) .
+	       '>'. check_plain($value) .'</textarea>'. $post, $description, 'edit-'. $name, $required, _form_get_error($name));
+} 
+
+function flashcard_send_customize($flashcard_id) {
+  // maxlength javascript
+  drupal_set_html_head("\n".'<script type="text/javascript" src="modules/flashcard/common.js"></script>');
+  drupal_set_html_head('<script type="text/javascript" src="modules/flashcard/maxlength.js"></script>');
+
+
+  // setup sidebar thumbnail
+  $card = _flashcard_db_card_load($flashcard_id);
+  global $fc_thumb;
+  $fc_thumb = "<img id='flashcard_sidebar_img' src='".$card['screenshot_url']."'/>";
+
+  //TODO: support custom variables on a flashcard by flashcard basis
+  drupal_set_title(_flashcard_variable_get('send_customize_title'));
+  $output = '<p>'._flashcard_variable_get('send_customize_text').'</p>';
+  $form_values = isset ($_POST['edit']) ? $_POST['edit'] : array ();
+  $output .= _flashcard_send_customize_form($flashcard_id, $form_values);
+  print theme('page', $output);
+}
+
+function flashcard_send_submit($errors = array ()) {
+  $form_values = $_POST['edit'];
+  //  var_dump($form_values);
+  $flashcard_id = $form_values['flashcard_id'];
+  $recipient_count = (int) $form_values['recipient_count'];
+  $recipient_emails = _flashcard_form_variable_array_decode($form_values, "email_to", $recipient_count);
+  $recipient_names = _flashcard_form_variable_array_decode($form_values, "toname", $recipient_count);
+  $errors = array ();
+  if (_flashcard_send_customize_form_validate($form_values, $recipient_names, $recipient_emails, $errors)) {
+    // update recipient_count because arrays have been filtered of empty recipient pairs
+    $recipient_count = count($recipient_names);
+    if (!is_numeric($flashcard_id))
+      flashcard_error(t('Invalid flashcard chosen.'));
+    $from_name = $form_values['fromname'];
+    $from_mail = $form_values['email_from'];
+    $salutation = $form_values['headline'];
+    $flashcard_msg = $form_values['userMessage'];
+    for ($i = 0; $i < $recipient_count; $i ++) {
+      if (!flashcard_send_transmission($flashcard_id, $from_mail, $from_name, $recipient_emails[$i], $recipient_names[$i], $flashcard_msg, $salutation)) {
+        flashcard_error(t('Unable to send cards at this time.'));
+      }
+    }
+    
+    // set "clicks" ("children fed")
+    wtw_add_click($recipient_count);
+    
+    drupal_set_title(_flashcard_variable_get('send_submit_success_title'));
+    $output = '<p>'._flashcard_variable_get('send_submit_success_text').'</p>';
+    print theme("page", $output);
+  } else {
+    // TODO: polish and confirm all error messages
+    // TODO: move to a more rational location
+    foreach ($errors as $elem => $elem_errors) {
+      foreach ($elem_errors as $error) {
+        form_set_error($elem, $error);
+      }
+    }
+    //var_dump($errors);
+    //drupal_goto('flashcard/send/customize/'.$flashcard_id);
+    flashcard_send_customize($flashcard_id);
+  }
+}
+
+/**
+ * Send single transmission using EchoMailer and commit transmission data to DB
+ * 
+ * @param $flashcard_id (int) cid of flashcard
+ * @param $from_mail (string) Email address of sender
+ * @param $from_name (string) Sender name
+ * @param $to_email (string) Single recipient email
+ * @param $to_name (string) Single recipient name
+ * @param $flashcard_msg (string) Message to be shown in flashcard
+ * 
+ * @return ID of new transmission on success, null/false on fail
+ */
+function flashcard_send_transmission($flashcard_id, $from_mail, $from_name, $to_mail, $to_name, $flashcard_msg, $salutation) {
+  $user = 0;
+  // TODO: this is really a map, it would be nice to clean up the forms, etc so the all used the same field names
+  $variable_array = array ('name_From' => $from_name, 'name_To' => $to_name, 'user_Message' => $flashcard_msg, 'holiday_Salutation' => $salutation);
+  $embed_vars = serialize($variable_array);
+  if (!($tid = _flashcard_db_transmission_insert($flashcard_id, $to_mail, $from_mail, $embed_vars)))
+    return false;
+  $link_url = _flashcard_html_transmission_url($tid);
+
+  // replace admin templates with user info
+  $tags = array ('TONAME' => 'name_To', 'FROMNAME' => 'name_From', 'URL' => 'url');
+  $variable_array['url'] = l($link_url,$link_url);
+  $email_subject = _flashcard_replace_tags(_flashcard_variable_get('email_subject'), $variable_array, $tags); // it would be nice for this to be more personal, but too hard to translate
+  $email_message = _flashcard_replace_tags(_flashcard_variable_get('email_message'), $variable_array, $tags);
+  echomailer_queue($user, $from_name, $from_mail, array ($to_mail), $email_subject, $email_message, $module = 'flashcard', $query = array ()); // using hook directly because it has to many args for this version of module.inc			
+  return true; // TODO: check on and commit EchoMailer return status
+}
+
+function flashcard_view($transmission_id = null) {
+//  if (is_null($transmission_id)) {
+    if (isset ($_GET['hash'])) {
+      $transmission_id = _flashcard_url_hash_decode($_GET['hash']);
+    } else {
+      $transmission_id = _flashcard_url_hash_decode(arg(2));
+    }
+//  }
+  if (!($transmission = _flashcard_db_transmission_load($transmission_id)))
+    flashcard_error(t('Invalid Flashcard'));
+  //var_dump($transmission);
+  if (!($flashcard = _flashcard_db_card_load($transmission['flashcard_id'])))
+    flashcard_error(t('Invalid Flashcard'));
+  $custom_vars = unserialize($transmission['variables']);
+  $output = '<div class="flashcard_swf">';
+  $output .= _flashcard_html_embed($flashcard, $custom_vars);
+  $output .= '</div>';
+  $output .= '<div class="flashcard_view_footer_text">'._flashcard_variable_get('view_footer_text').'</div>';
+
+  if (module_exist("wtw_signup")) {
+    $form_data['mail'] = $transmission['email_to'];
+    $output .= wtw_signup_form($form_data, "flashcard");
+  }
+
+  //drupal_set_title($custom_vars['holiday_Salutation']);
+  drupal_set_title(_flashcard_variable_get('view_title'));
+  print theme('page', $output);
+}
+
+function flashcard_error($msg) {
+  drupal_set_message($msg);
+  drupal_set_title('Error');
+  print theme("page", "");
+  exit ();
+}
+
+// BEGIN PRIVATE FUNCTIONS
+
+// BEGIN ADMIN FORM FUNCTIONS
+
+/**
+ * Build form for adding and editing flashcard cards
+ * 
+ * @param $form_values (array) Previous form values (for validation errors) or existing card info (for edits)
+ * @param $errors (array) Errors, indexed by form attribute
+ * 
+ * @return (string) form string to be processed by form()
+ */
+function _flashcard_admin_card_form($form_values = array (), $errors = array ()) {
+    // TODO: add custom email message??
+    // TODO: add custom credits/ubiquitous text
+    // TODO: add variable height/width field
+  $form = form_textfield(t('Name'), 'name', $form_values['name'], 30, 255, null, null, true);
+  $form .= form_textarea(t('Description'), 'description', $form_values['description'], 30, 15, t('Enter a brief description for this flashcard. This message will be embedded in the end of this card.'), null);
+  $form .= form_textfield(t('SWF File URL'), 'swf_url', $form_values['swf_url'], 60, 255, t('The web address from which the flash file for this ecard should be downloaded'), null, true);
+  $form .= form_textfield(t('Screenshot URL'), 'screenshot_url', $form_values['screenshot_url'], 60, 255, t('The URL at which a jpeg image of a screenshot from the flashcard is loacted'), null, false);
+  $form .= form_textfield(t('SWF Width'), 'width', $form_values['width'], 10, 255, null, null, true);
+  $form .= form_textfield(t('SWF Height'), 'height', $form_values['height'], 10, 255, null, null, true);
+  if (isset ($form_values['cid']))
+    $form .= form_hidden('cid', $form_values['cid']);
+  $form .= form_submit(isset ($form_values['submit']) ? $form_values['submit'] : 'Submit');
+  foreach ($errors as $form_elem => $elem_errors) {
+    foreach ($elem_errors as $error) {
+      form_set_error($form_elem, $error);
+    }
+  }
+  return $form;
+}
+
+/**
+ * Validate input from add card form
+ * 
+ * @param array Values from form, indexed by form element (usualy just $_POST['edit'])
+ */
+function _flashcard_admin_card_form_validate($form_values, & $errors) {
+  $valid = true;
+  $required_msgs = array ('name' => t('Please enter a name for this flashcard.'), 'swf_url' => t('Please enter the URL where the flash SWF file is located.'), 'width' => t('Please specify width'), 'height' => t('Please specify height'));
+  foreach ($required_msgs as $field => $msg)
+    $valid = _flashcard_form_check_required($field, $form_values, $msg, $errors) && $valid;
+  return $valid;
+}
+
+// END ADMIN FORM FUNCTIONS
+
+// BEGIN FLASHCARD SEND FORM FUNCTIONS
+
+function _flashcard_send_customize_form($flashcard_id, $form_values = array ()) {
+    // TODO: add support for multiple email recipients
+  drupal_set_html_head(_flashcard_html_customize_form_js($form_values));
+  $defaults = array ('fromname' => '', 'email_from' => '', 'toname' => '', 'email_to' => '', 'headline' => _flashcard_variable_get('default_salutation'), 'userMessage' => '');
+  $defaults = $form_values + $defaults; // array merge
+  $form = '';
+  $form_sender .= form_textfield(t('Name'), 'fromname', $defaults['fromname'], 60, 127, _flashcard_variable_get('fromname_help'), null, true);
+  $form_sender .= form_textfield(t('Email'), 'email_from', $defaults['email_from'], 60, 255, _flashcard_variable_get('email_from_help'), null, true);
+  $form .= form_group(t('Your Information'), $form_sender);
+  $form .= '<div id="flashcard_customize_addremove_instructions">' . _flashcard_variable_get('addremove_help') . '</div>';
+  $form .= "<div id='flashcard_customize_addremove_buttons'><a href=\"#\" onClick=\"addInput(); return false;\" id='flashcard_add_recip'>".t('add friend')."<img src='themes/walktheme/images/plus.png'/></a>";
+  $form .= "<br/><br/>";
+  $form .= "<a href=\"#\" onClick=\"deleteInput(); return false;\" id='flashcard_del_recip'>".t('remove friend')."<img src='themes/walktheme/images/minus.png'/></a></div>";
+  //  $form .= "<div><a href=\"javascript:addInput()\" id='flashcard_add_recip'>" . t('add recipient') . "</a>";
+  //  $form .= "<a href=\"javascript:deleteInput()\" id='flashcard_del_recip'>" . t('remove recipient') . "</a></div>";
+  $form .= '<div id="recipient_info"></div>';
+
+  //  $form .= form_button(t('Add Recipient'), 'add_recipient', 'button', array ('onClick' => 'addInput()'));
+  //  $form .= form_button(t('Remove Recipient'), 'remove_recipient', 'button', array ('onClick' => 'deleteInput()'));
+  $salutationLimit = variable_get("flashcard_salutation_max_length",20);
+  $messageLimit = variable_get("flashcard_email_message_max_length",255);
+
+  $form_card .= form_textfield_maxlength(t("Holiday Greeting"), 'headline', $defaults['headline'], 60, $salutationLimit, _flashcard_variable_get('headline_help')."<br/><span id='edit-headlineCount'></span> of $salutationLimit characters allowed", null, true);
+  $form_card .= form_textarea_maxlength(t('Your Message'), 'userMessage', $defaults['userMessage'], 30, 5, _flashcard_variable_get('userMessage_help')."<br/><span id='edit-userMessageCount'></span> of $messageLimit characters allowed",NULL,NULL,$messageLimit);
+  $form .= form_group(t('Message'), $form_card);
+  $form .= form_hidden('flashcard_id', $flashcard_id);
+  // need to add this manually to add id
+  $form .= "<input type='hidden' name=\"edit[recipient_count]\" value='0' id='recipient_count' />\n";
+  //  $form .= form_submit(t('Send'));
+  $form .= form_button(t('Send'), NULL, "image", array ("src" => "misc/btn_send.gif"));
+  return form($form, 'post', 'flashcard/send/submit', array ('name' => 'flashcard_customize_form', 'id' => 'flashcard_customize_form'));
+}
+
+function form_textfield_maxlength($title, $name, $value, $size, $maxlength, $description = NULL, $attributes = NULL, $required = FALSE) {
+  $size = $size ? ' size="'. $size .'"' : '';
+  if (empty($description)) $description = 'Characters allowed: <span id="edit-'.$name.'Count"></span>';
+  return theme('form_element', $title, '<input type="text" maxlength="'. $maxlength .
+	       '" class="maxlength max_'.$maxlength.' '. _form_get_class('form-text', $required, _form_get_error($name)) .'" name="edit['. $name .']" id="edit-'. $name .'"'. $size .' value="'. strip_tags($value) .'"'. drupal_attributes($attributes) .' />', $description, 'edit-'. $name, $required, _form_get_error($name));
+}
+
+function form_textarea_maxlength($title, $name, $value, $cols, $rows, $description = NULL, $attributes = NULL, $required = FALSE, $maxlength) {
+  $cols = $cols ? ' cols="'. $cols .'"' : '';
+  $pre = '';
+  $post = '';
+  if (empty($description)) $description = 'Characters used: <span id="edit-'.$name.'Count"></span>';
+
+  // optionally plug in a WYSIWYG editor
+  foreach (module_list() as $module_name) {
+    if (module_hook($module_name, 'textarea')) {
+      $pre  .= module_invoke($module_name, 'textarea', 'pre', $name);
+      $post .= module_invoke($module_name, 'textarea', 'post', $name);
+    }
+  }
+
+  return theme('form_element', $title, 
+               $pre .'<textarea wrap="virtual"'. $cols .' rows="'. $rows .'" name="edit['. $name .']" id="edit-'. $name .
+	             '" class="maxlength max_'.$maxlength.' '. _form_get_class('textarea', $required, _form_get_error($name)) .
+	             '"'. drupal_attributes($attributes) .'>'. strip_tags($value) .'</textarea>'. $post, 
+	             $description, 'edit-'. $name, $required, _form_get_error($name));
+} 
+
+function _flashcard_send_customize_form_validate($form_values, & $recipient_names, & $recipient_emails, & $errors) {
+  //var_dump($errors);
+  $valid = true;
+  $required_msgs = array ('fromname' => t('Please enter your name'), 'email_from' => t("Please enter your email address'"), 'userMessage' => t("Please enter a greeting"));
+  $email_msgs = array ('email_from' => t('Your email is not valid'));
+  $recipient_count = count($recipient_names); // use this instead of recipient_count in form in case pseudo array decoding knows more than we do
+  $email_regex = '/^([a-zA-Z0-9])+([a-zA-Z0-9\._-])*@([a-zA-Z0-9_-])+(\.[a-zA-Z0-9\._-]+)+$/';
+  // Check Recipient Information Pairs
+  $valid_pair_ids = array ();
+  for ($i = 0; $i < $recipient_count; $i ++) {
+    // check if pair non-empty
+    if ($recipient_emails[$i] == '' && $recipient_names[$i] == '')
+      continue;
+    // check for either empty
+    if ($recipient_emails[$i] == '') {
+      $errors['email_to_'.$i][] = t('Please enter an email for recipient '. ($i +1));
+      $valid = false;
+      continue;
+    }
+    if ($recipient_names[$i] == '') {
+      $errors['name_to_'.$i][] = t('Please enter a name for recipient '. ($i +1));
+      $valid = false;
+      continue;
+    }
+    // check for email well formed
+    if (_flashcard_form_check_regex('email_to_'.$i, $email_regex, $form_values, t('Please enter a valid email for recipient '. ($i +1)), $errors)) {
+      $valid_pair_ids[] = $i;
+    } else {
+      $valid = false;
+    }
+  }
+  //var_dump($errors);
+  // check at least one valid pair
+  if ((count($valid_pair_ids) == 0) && $valid) {
+    $errors['name_to_0'][] = t('Please enter at least one recipient');
+    $valid = false;
+    //    var_dump($errors);
+  } else {
+    //    var_dump($errors);
+    // erase invalid recipient info from arrays
+    $valid_recipient_names = array ();
+    $valid_recipient_emails = array ();
+    foreach ($valid_pair_ids as $valid_recipient) {
+      $valid_recipient_names[] = $recipient_names[$valid_recipient];
+      $valid_recipient_emails[] = $recipient_emails[$valid_recipient];
+    }
+    $recipient_names = $valid_recipient_names;
+    $recipient_emails = $valid_recipient_emails;
+  }
+
+  // check for other required fields
+  foreach ($required_msgs as $field => $msg)
+    $valid = _flashcard_form_check_required($field, $form_values, $msg, $errors) && $valid;
+    
+  //check salutation and message lengths
+  if (strlen($form_values['headline']) > (int)_flashcard_variable_get('salutation_max_length')) {
+  	$errors['headline'][] = t('The holiday greeting you entered is too long.');
+  	$valid = false;	
+  }
+
+  if (strlen($form_values['userMessage']) > (int)_flashcard_variable_get('email_message_max_length')) {
+  	$errors['userMessage'][] = t('The message you entered is too long.');
+  	$valid = false;	
+  }
+
+  return $valid;
+}
+
+// END FLASHCARD SEND FORM FUNCTIONS
+
+// BEGIN FLASHCARD SETTINGS FORMS
+
+function _flashcard_settings_textandtitles_form() {
+  $text_form = '';
+  $text_form .= form_textfield(t('Title of flashcard selection page'), 'flashcard_send_choose_title', _flashcard_variable_get('send_choose_title'), 40, 255, t('This text will be displayed as the title of the "Choose Flashcard" screen in the flashcard sending wizard.'));
+  $text_form .= form_textarea(t('Text on flashcard selection page'), 'flashcard_send_choose_text', _flashcard_variable_get('send_choose_text'), 40, 5, t('This text will be displayed as instruction text on the "Choose Flashcard" screen in the flashcard sending wizard.'));
+  $text_form .= form_textfield(t('Title of flashcard confirmation page'), 'flashcard_send_confirm_title', _flashcard_variable_get('send_confirm_title'), 40, 255, t('This text will be displayed as the title of the "Confirm Flashcard" screen in the flashcard sending wizard.'));
+  $text_form .= form_textfield(t('Title of flashcard customization page'), 'flashcard_send_customize_title', _flashcard_variable_get('send_customize_title'), 40, 255, t('This text will be displayed as the title of the "Customize Flashcard" screen in the flashcard sending wizard.'));
+  $text_form .= form_textarea(t('Text on flashcard customization page'), 'flashcard_send_customize_text', _flashcard_variable_get('send_customize_text'), 40, 5, t('This text will be displayed as instruction text on the "Customize Flashcard" screen in the flashcard sending wizard.'));
+  $text_form .= form_textfield(t('Title of flashcard send success page'), 'flashcard_send_submit_success_title', _flashcard_variable_get('send_submit_success_title'), 40, 255, t('This text will be displayed as the title of the page presented on send success.'));
+  $text_form .= form_textarea(t('Text on flashcard customization page'), 'flashcard_send_submit_success_text', _flashcard_variable_get('send_submit_success_text'), 40, 5, t('This text will be displayed on successulf processing of sent flashcards.'));
+  $text_form .= form_textfield(t('Title of flashcard viewing page'), 'flashcard_view_title', _flashcard_variable_get('view_title'), 40, 255, t('This text will be displayed as the title of the page viewed by recipients of a flashcard.'));
+  $text_form .= form_textarea(t('Footer text on flashcard viewing page'), 'flashcard_view_footer_text', _flashcard_variable_get('view_footer_text'), 40, 5, t('Text presented with flashcard presentation (legal, etc).'));
+  return $text_form;	
+}
+
+function _flashcard_settings_customize_helper_form() {
+  $helper_text_form = '';
+  $helper_text_form .= form_textfield(t('Sender Name'), 'flashcard_fromname_help', _flashcard_variable_get('fromname_help'), 40, 255, t('Help text for sender name field'));
+  $helper_text_form .= form_textfield(t('Sender Email'), 'flashcard_email_from_help', _flashcard_variable_get('email_from_help'), 40, 255, t('Help text for sender name field'));
+  $helper_text_form .= form_textarea(t('+/- Recipient Instructions'),'flashcard_addremove_help',_flashcard_variable_get('addremove_help'),40,5,t('Instructions for adding and removing Recipients'));
+  $helper_text_form .= form_textfield(t('Recipient Name'), 'flashcard_toname_help', _flashcard_variable_get('toname_help'), 40, 255, t('Help text for recipient name field'));
+  $helper_text_form .= form_textfield(t('Recipient Email'), 'flashcard_email_to_help', _flashcard_variable_get('email_to_help'), 40, 255, t('Help text for recipient name field'));
+  $helper_text_form .= form_textfield(t('Holiday Salutation'), 'flashcard_headline_help', _flashcard_variable_get('headline_help'), 40, 255, t('Help text for salutation field'));
+  $helper_text_form .= form_textfield(t('User Message'), 'flashcard_userMessage_help', _flashcard_variable_get('userMessage_help'), 40, 255, t('Help text for message field'));  	
+  return $helper_text_form;
+}
+
+function _flashcard_settings_flashcard_form() {
+  $flashcard_form = form_textfield(t('Email subject'), 'flashcard_email_subject', _flashcard_variable_get('email_subject'), 40, 255, t('The subject of the email recipients receive.'));
+  $flashcard_form .= form_textarea(t('Email message content'), 'flashcard_email_message', _flashcard_variable_get('email_message'), 40, 5, t('Appended to the body of the email message sent to recipients with the card url (specified in the message text with %URL%, sender name with %FROMNAME%, recipient %TONAME%)'));
+  $flashcard_form .= form_textfield(t('Message Max. Length'), 'flashcard_email_message_max_length', _flashcard_variable_get('email_message_max_length'), 10, 63, t('Maximum length the user message can be without breaking the flashcard animations'));
+  $flashcard_form .= form_textfield(t('Default Salutation'), 'flashcard_default_salutation', _flashcard_variable_get('default_salutation'), 40, 255, t('This text will be presented as the default salutation (holiday greeting, etc.) text in the flashcard send form.'));
+  $flashcard_form .= form_textfield(t('Salutation Max. Length'), 'flashcard_salutation_max_length', _flashcard_variable_get('salutation_max_length'), 10, 63, t('Maximum length a salutation can be without breaking the flashcard animations'));
+  return $flashcard_form;	
+}
+
+// END FLASHCARD SETTINGS FORMS
+// BEGIN FORM HELPER FUNCTIONS
+
+/**
+ * Make sure a single required field is not empty
+ */
+function _flashcard_form_check_required($key, $form_values, $msg, & $errors) {
+  $valid = true;
+  if ((!isset ($form_values[$key]) || $form_values[$key] == '')) {
+    $errors[$key][] = $msg;
+    $valid = false;
+  }
+  return $valid;
+}
+
+/**
+ * Check that at least one of a set of fields in an array is set
+ * 
+ * @param $form_values (array)
+ * @param $recipient_count (array) number of recipients
+ * @param &$valid_pair_ids (array) returns valid pair ids
+ * @param @$errors (array)
+ */
+function _flashcard_form_check_recipient_info_pairs($form_values, $recipient_count, & $valid_pair_ids, & $invalid_pair_ids, & $empty_pair_ids) {
+  for ($i = 0; $i < $recipient_count; $i ++) {
+
+  }
+  $count = 0;
+  foreach ($keys as $key) {
+    if (isset ($form_values[$key]) && ($form_values[$key] == ''))
+      $count ++;
+  }
+  if ($count >= $min_count) {
+    return true;
+  } else {
+    $errors[$keys[0]][] = $msg;
+    return false;
+  }
+}
+
+/**
+ * Check a field's contents against a regex.
+ */
+function _flashcard_form_check_regex($key, $regex, $values, $msg, & $errors) {
+  $valid = true;
+  if (preg_match($regex, $values[$key]) != 1) {
+    $errors[$key][] = $msg;
+    $valid = false;
+  }
+  return $valid;
+}
+// END FORM HELPER FUNCTIONS
+
+// BEGIN DB FUNCTIONS
+
+/**
+ * Commit a card to the database, swtch edit/add based on 'id' in values array
+ * 
+ * @param array Values to be inserted/updated
+ * 
+ * @return DB result obj on success, FALSE on failure
+ */
+function _flashcard_db_card_commit($values) {
+  if (isset ($values['cid'])) {
+    $update_sql = "UPDATE {flashcard_cards} SET `name`='%s', `description`='%s', `swf_url`='%s', `screenshot_url`='%s', width=%d, height=%d WHERE `cid`=%d";
+    $result = db_query($update_sql, $values['name'], $values['description'], $values['swf_url'], $values['screenshot_url'], $values['width'], $values['height'], $values['cid']);
+  } else {
+    $cid = db_next_id("flashcard_cards", 'cid');
+    $insert_sql = "INSERT INTO {flashcard_cards} (`cid`,`name`,`description`,`swf_url`,`screenshot_url`,`width`,`height`) VALUES (%d,'%s','%s','%s','%s',%d,%d)";
+    $result = db_query($insert_sql, $cid, $values['name'], $values['description'], $values['swf_url'], $values['screenshot_url'], $values['width'], $values['height']);
+  }
+  return $result;
+}
+
+/**
+ * Load single card entry from DB
+ * 
+ * @param int ID of entry to load
+ * @return array Database row loaded
+ */
+function _flashcard_db_card_load($cid) {
+  $select_sql = "SELECT * FROM {flashcard_cards} WHERE cid=%d";
+  $result = db_query($select_sql, $cid);
+  if (!$result)
+    return false;
+  return db_fetch_array($result);
+}
+
+/**
+ * Delete single card entry from DB
+ * 
+ * @param int ID of entry to delete
+ * @return object DB object on success, false on failure
+ */
+function _flashcard_db_card_delete($cid) {
+  $select_sql = "DELETE FROM {flashcard_cards} WHERE cid=%d";
+  $result = db_query($select_sql, $cid);
+  return $result;
+}
+
+/**
+ * Load a list of db cards 
+ * 
+ * @param array Optional header array to generate sortable list
+ * 
+ * @return object db query result object
+ */
+function _flashcard_db_card_list($header = array (), $count = 20) {
+  if (count($header) > 0) {
+    $select_sql = "SELECT ";
+    $multiple_fields = false;
+    // Build SQL statement from the header columns so we load what is needed
+    foreach ($header as $col) {
+      if (isset ($col['field'])) {
+        $select_sql .= ($multiple_fields ? ',' : '').$col['field'];
+        $multiple_fields = true;
+      }
+    }
+    $select_sql .= " FROM {flashcard_cards}";
+    $select_sql .= tablesort_sql($header);
+  } else {
+    $select_sql = "SELECT * FROM {flashcard_cards}";
+  }
+  $result = pager_query($select_sql, $count);
+  return $result;
+}
+
+/**
+ * Insert a new flashcard transmission into the database
+ * 
+ * @param $flashcard_id (int) id of flashcard being sent
+ * @param $email_to (string) email address of recipient
+ * @param $email_from (string) email address of sender
+ * @param $variables (string) serialized variables array for use in embed tag
+ * 
+ * @return (int) id of inserted transmission 
+ */
+function _flashcard_db_transmission_insert($flashcard_id, $email_to, $email_from, $variables) {
+  $insert_sql = "INSERT INTO {flashcard_transmissions} (tid,flashcard_id,email_to,email_from,variables) values (%d,%d,'%s','%s','%s')";
+  $new_id = db_next_id('flashcard_transmissions', 'tid');
+  $success = db_query($insert_sql, $new_id, $flashcard_id, $email_to, $email_from, $variables);
+  if ($success)
+    return $new_id;
+  else
+    return false;
+}
+
+/**
+ * Delete a flashcard transmission from the database
+ */
+function _flashcard_db_transmission_delete($transmission_id) {
+  $delete_sql = "DELETE FROM {flashcard_transmissions} WHERE tid = $transmission_id";
+  $success = db_query($delete_sql);
+  return $success;
+}
+
+/**
+ * Load a flashcard transmission from the database
+ */
+function _flashcard_db_transmission_load($transmission_id) {
+  if ($transmission_id){
+    $select_sql = "SELECT * FROM {flashcard_transmissions} WHERE tid = $transmission_id";
+    $result = db_query($select_sql);
+    if ($result) {
+      return db_fetch_array($result);
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+// END DB FUNCTIONS
+
+
+function flashcard_test(){
+  $card = _flashcard_db_card_load(arg(2));
+  $custom['holiday_Salutation'] = "HOLIDAY_SALUTATION";
+  $custom['name_To'] = "NAMETO_VAR";
+  $custom['name_From'] = "NAMEFROM_VAR";
+  $custom['user_Message'] = "It's been a long time
+  I shouldnta left you
+  Without a dope beat to step to
+  Think of how many weak shows you slept through
+  Times up- sorry I kept you.";
+  $out = _flashcard_html_embed($card,$custom);
+  
+  print theme("page",$out);
+}
+
+
+// BEGIN FLASHCARD PRESENTATION FUNCTIONS
+/**
+ * Build object/embed tag with correct param tags.
+ * 
+ * @param array flashcard details (name, swf url, etc.)
+ * @param array Variables specified in customize section of the send user form
+ * 
+ * @return string html tags
+ */
+function _flashcard_html_embed($flashcard, $custom = array ()) {
+  if (empty ($custom)) {
+    $custom = _flashcard_html_embed_defaultvals();
+  }
+
+  // move flashcard description into flashvars
+  // replace FROMNAME
+  $custom['our_Message'] = str_replace("%FROMNAME%", $custom['name_From'], $flashcard['description']);
+
+  // attempt to resemble real grammar
+  $custom['holiday_Salutation'] .= ", ";
+
+  // remove linebreaks
+  $custom['user_Message'] = str_replace(array("\n","\r")," ",$custom['user_Message']);
+
+  $swf_url = _flashcard_url_make_absolute($flashcard['swf_url']);
+  $flashvars = null;
+  foreach ($custom as $var => $val) {
+    $flashvars .= !is_null($flashvars) ? '&' : '';
+    $flashvars .= $var.'='.urlencode($val);
+  }
+  $width = $flashcard['width'];
+  $height = $flashcard['height'];
+  $objemb_tag = '<object classid="clsid:d27cdb6e-ae6d-11cf-96b8-444553540000" codebase="http://fpdownload.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=7,0,0,0" width="'.$width.'" height="'.$height.'" id="flashcard" align="middle">';
+  $objemb_tag .= "<param name=\"allowScriptAccess\" value=\"sameDomain\" />\n";
+  $objemb_tag .= "<param name=\"movie\" value=\"{$swf_url}\" />\n";
+  $objemb_tag .= "<param name=\"quality\" value=\"high\" />\n";
+  $objemb_tag .= "<param name=\"FlashVars\" value=\"$flashvars\" />\n";
+  $objemb_tag .= "<param name=\"scale\" value=\"No Border\" />\n";
+  $objemb_tag .= "<embed src=\"{$swf_url}\" quality=\"high\" width=\"{$width}\" height=\"{$height}\" name=\"flashcard\" align=\"middle\" allowScriptAccess=\"sameDomain\" type=\"application/x-shockwave-flash\" pluginspage=\"http://www.macromedia.com/go/getflashplayer\" scale=\"No Border\" FlashVars=\"$flashvars\" />\n";
+  $objemb_tag .= "</object>";
+  return $objemb_tag;
+}
+
+function _flashcard_html_embed_defaultvals() {
+  $custom = array ('name_From' => '(Your Name)', 'name_To' => '(Your friend\'s name)', 'user_Message' => '(Your message goes here.)', 'holiday_Salutation' => '(Your greeting goes here.)');
+  return $custom;
+}
+
+/**
+ * Create the javascript used for the adding/rmoving of additional flashcard recipients 
+ * in the flashcard/send/customize screen.
+ * 
+ * @param $form_values (array) _POST['edit'] vals of previous form submissions (for filling in in cases of validation errors)
+ */
+function _flashcard_html_customize_form_js($form_values) {
+  global $_flashcard_customize_form_js;
+  $_flashcard_customize_form_js = true;
+  $recipient_name_help_text = _flashcard_variable_get('toname_help');
+  $recipient_email_help_text = _flashcard_variable_get('email_to_help');
+  
+  // TODO: use a funky hack like this to generate javascript html generation code according to theme
+  //$input_js = form_textfield('" + strEmailLabel + " " + (id+1) + "',),"edit['name_to_\"+ id +\"']\"","+ value +"
+  $html =<<<END
+<script type="text/javascript">
+
+	
+var arrInput = new Array(0);
+var arrNameInputValue = new Array(0);
+var arrEmailInputValue = new Array(0);
+var intRecipientCount = 0;
+
+function addInput() {
+  arrNameInputValue[intRecipientCount] = '';
+  arrEmailInputValue[intRecipientCount] = '';
+  intRecipientCount++;
+  display();
+}
+
+function display() {
+  document.getElementById('recipient_info').innerHTML="";
+  for (intI=0;intI<intRecipientCount;intI++) {
+	document.getElementById('recipient_info').innerHTML+=createFieldset(intI,arrNameInputValue[intI],arrEmailInputValue[intI]);
+  }
+  document.getElementById('recipient_count').value = intRecipientCount;
+}
+
+function saveNameValue(intId,strValue) {
+  arrNameInputValue[intId]=strValue;
+}  
+
+function saveEmailValue(intId,strValue) {
+  arrEmailInputValue[intId]=strValue;
+}  
+
+function createFieldset(id,name_value,email_value) {
+	return "<fieldset><legend>Friend #" +(intI + 1) + "</legend>" + createNameInput(id,name_value) + createEmailInput(id,email_value) + "</fieldset>";
+}
+
+function createNameInput(id,value) {
+  return "<dl><dt>Name<span class=\"marker\">*</span></dt><dd><div class=\"description\">{$recipient_name_help_text}</div><input type='text' maxlength='18' name=\"edit[toname_"+ id +"]\" class=\"form-text required\" onChange='javascript:saveNameValue("+ id +",this.value)' value='"+ value +"'/></dd></dl>";
+}
+
+function createEmailInput(id,value) {
+  return "<dl><dt>Email<span class=\"marker\">*</span></dt><dd><div class=\"description\">{$recipient_email_help_text}</div> <input type='text' name=\"edit[email_to_"+ id +"]\" class=\"form-text required\" onChange='javascript:saveEmailValue("+ id +",this.value)' value='"+ value +"' /></dd></dl>";
+}
+
+function deleteInput() {
+  if (intRecipientCount > 1) { 
+		 intRecipientCount--;
+	arrNameInputValue.length -= 1;
+	arrEmailInputValue.length -= 1;
+  }
+  display(); 
+}
+
+function flashcard_customize_form_init() {
+END;
+  $recipient_count = (int) $form_values['recipient_count'];
+  if ($recipient_count > 0) {
+    // write code for array
+    for ($i = 0; $i < $recipient_count; $i ++) {
+      $html .= 'arrNameInputValue.push("'.addslashes($form_values['toname_'.$i])."\");\n";
+      $html .= 'arrEmailInputValue.push("'.addslashes($form_values['email_to_'.$i])."\");\n";
+    }
+    $html .= "intRecipientCount={$recipient_count};\ndisplay();\n";
+  } else {
+    // add a blank recipient_count normally
+    $html .= "addInput();\n";
+  }
+
+  $html .=<<<END
+}
+// End -->
+</script>	
+END;
+  return $html;
+}
+/**
+ * Build a unique URL for each transmission
+ * 
+ * @param $transmission_id (int) ID of transmission link should bring up
+ */
+function _flashcard_html_transmission_url($transmission_id) {
+  $hash = _flashcard_url_hash_encode($transmission_id);
+  $url = url("flashcard/view/{$hash}", null, null, true);
+  
+  // hack to add id hashing without disrupting production
+  $thresh = variable_get("flashcard_security_threshold",false);
+  if (!$thresh){
+    variable_set("flashcard_security_threshold",$transmission_id-1);
+  }
+  
+  return $url;
+}
+
+/**
+ * Helper function to replace tags in dynamic text with user info
+ */
+function _flashcard_replace_tags($text, $form_values, $tags = array ()) {
+  if (count($tags) == 0) {
+    foreach ($form_values as $key => $nul)
+      $tags[$key] = $key;
+  }
+  // it would be nicer to have this be a preg, but i can't see how since preg_replace_callback doesn't take extra args
+  foreach ($tags as $tag => $key) {
+    $text = str_replace("%{$tag}%", $form_values[$key], $text);
+  }
+  return $text;
+}
+
+// END FLASHCARD PRESENTATION FUNCTIONS
+
+// BEGIN MISC. HELPER FUNCTIONS
+
+function _flashcard_form_variable_array_decode($form_values, $key_prefix, $count = null) {
+    //	echo "<pre>";
+    //	echo "decoding array $key_prefix\n";
+  $built_array = array ();
+  // TODO: fix variable length pseudo arrays, currently COUNT MUST BE SPECIFIED
+  if (is_null($count) || !(is_numeric($count))) {
+    $count = 0;
+    $regex = "/^{$key_prefix}_[0-9]+$/";
+    //		echo "$regex \n";
+    foreach ($form_values as $key => $val) {
+      if (preg_match($regex, $key, $match) > 0) {
+        $build_array[$match[0]] = $val;
+        $count ++;
+      }
+    }
+  } else {
+    for ($i = 0; $i < $count; $i ++) {
+      $key = "{$key_prefix}_{$i}";
+      if (isset ($form_values[$key]))
+        $built_array[$i] = $form_values[$key];
+    }
+  }
+  //	var_dump($built_array);
+  //	echo "</pre>";
+  return $built_array;
+}
+
+function _Flashcard_get_hash_array(){
+  static $hash_array;
+  if (!$hash_array){
+    $max = db_result(db_query("SELECT MAX(tid) FROM flashcard_transmissions"));
+    $secured = variable_get("flashcard_security_threshold",$max);
+    for ($i = 0; $i <= $secured; $i++){
+      $hash_array[$i] = $i;
+    }
+    for (true; $i <= $max; $i++){
+      $hash_array[$i] = md5($i);
+    }
+  }
+  return $hash_array;
+}
+
+function _flashcard_url_hash_encode($id) {
+  $out = md5($id);
+  return $out;
+}
+
+function _flashcard_url_hash_decode($hash) {
+  
+  $hashes = _flashcard_get_hash_array();
+  $out = array_pop(array_keys($hashes,$hash));
+  return $out;
+}
+
+function _flashcard_url_make_absolute($url) {
+  return (substr($url, 0, 5) == 'http:') ? $url : url($url, null, null, true);
+}
+
+function _flashcard_variable_get($name) {
+  $defaults = array ('send_choose_title' => t('Choose'), 'send_choose_text' => t('Choose a card to send.'), 'send_confirm_title' => t('Send this card?'), 'send_customize_title' => t('Customize'), 'send_customize_text' => t('Enter card details.'), 'send_submit_success_title' => t('Success!'), 'send_submit_success_text' => t('Your card(s) have been sent successfuly.'), 'view_title' => t('View'), 'view_footer_text' => t(''), 'email_subject' => t('%FROMNAME% has send you a special card from '.variable_get('site_name', 'a great website')), 'email_message' => t("Hi %TONAME%,\n\t%FROMNAME% has sent you a flashcard, to view it go to\n %URL%\n"), 'default_salutation' => t('Happy Holidays!'), 'fromname_help' => t('Your Name'), 'email_from_help' => t('Your Email'), 'toname_help' => t('Recipient Name'), 'email_to_help' => t('Recipient Email'), 'headline_help' => t('Greeting to be displayed in card'), 'userMessage_help' => t('Message to be displayed in card'),'addremove_help' => t('Use these links to send to more people.'), 'email_message_max_length' => 255, 'salutation_max_length' => 63);
+  return variable_get('flashcard_' . $name, $defaults[$name]);
+}
+
+// placeholder
+function flashcard_mailerapi(){
+  return false;
+}
+
+?>

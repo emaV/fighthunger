@@ -1,0 +1,71 @@
+-- phpMyAdmin SQL Dump
+-- version 2.6.2-Debian-3sarge1
+-- http://www.phpmyadmin.net
+-- 
+-- Host: localhost
+-- Generation Time: Apr 13, 2006 at 11:31 AM
+-- Server version: 4.0.24
+-- PHP Version: 4.3.10-16
+-- 
+-- Database: `fh_463_www`
+-- 
+
+-- --------------------------------------------------------
+
+-- 
+-- Table structure for table `wtw_bat_clicks`
+-- 
+
+CREATE TABLE `wtw_bat_clicks` (
+  `cid` int(10) unsigned NOT NULL auto_increment,
+  `bid` int(10) unsigned NOT NULL default '0',
+  `timestamp` int(10) NOT NULL default '0',
+  `validation_type` varchar(16) NOT NULL default '',
+  `data` text,
+  `IP` text,
+  PRIMARY KEY  (`cid`)
+) TYPE=MyISAM AUTO_INCREMENT=1;
+
+-- --------------------------------------------------------
+
+-- 
+-- Table structure for table `wtw_bat_node`
+-- 
+
+CREATE TABLE `wtw_bat_node` (
+  `nid` int(10) NOT NULL default '0',
+  `bid` int(10) unsigned NOT NULL auto_increment,
+  `description` text NOT NULL,
+  `thanks` text NOT NULL,
+  `email_text` text NOT NULL,
+  `click_value` double(10,2) unsigned NOT NULL default '0.00',
+  `validation_rule` enum('none','user','captcha','email') NOT NULL default 'none',
+  `validation_rule_msg` text NOT NULL,
+  `validation_timeout` int(10) NOT NULL default '0',
+  `validation_timeout_msg` text NOT NULL,
+  `validation_msg` text NOT NULL,
+  `validation_afterpath` varchar(64) NOT NULL default '',
+  `invite_pathafter` varchar(64) NOT NULL default '',
+  `invite_pagename` varchar(64) NOT NULL default '',
+  `invite_subject` varchar(128) NOT NULL default '',
+  `invite_text` text NOT NULL,
+  `invite_successmessage` text NOT NULL,
+  `invite_bottomtext` text NOT NULL,
+  `invite_message` text NOT NULL,
+  `plot_value` double(10,2) unsigned NOT NULL default '0.00',
+  `plot_queries` text NOT NULL,
+  `min_value` double(10,2) unsigned NOT NULL default '0.00',
+  `max_value` double(10,2) unsigned NOT NULL default '0.00',
+  `fluff` double(10,2) unsigned NOT NULL default '0.00',
+  `lower_pixel` smallint(3) unsigned NOT NULL default '0',
+  `upper_pixel` smallint(3) unsigned NOT NULL default '0',
+  `text_pixel` smallint(3) unsigned NOT NULL default '0',
+  `text_size` smallint(3) unsigned NOT NULL default '0',
+  `empty_png` mediumblob NOT NULL,
+  `full_png` mediumblob NOT NULL,
+  `ttf_font` mediumblob NOT NULL,
+  `block_html` text NOT NULL,
+  `bat_button` varchar(32) NOT NULL default '',
+  `last_update` int(10) unsigned NOT NULL default '0',
+  PRIMARY KEY  (`bid`)
+) TYPE=MyISAM AUTO_INCREMENT=1;

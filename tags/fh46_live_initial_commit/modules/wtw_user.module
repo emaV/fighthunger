@@ -1,0 +1,361 @@
+<?
+
+/**
+ * @file
+ * User registration and login API.
+ * 
+ * Depends on:
+ * - CiviCRM
+ * 
+ */
+ 
+/**
+ * Implementation of hook_help().
+ */
+function wtw_user_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('User registration and login API.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function wtw_user_menu($mc) {
+  if ($mc){
+    $out[] = array(
+      'path'        => 'wtw_user',
+      'callback'    => 'wtw_user_post',
+      'access'      => true,
+      'type'        => MENU_CALLBACK
+    );
+  }
+  return $out;
+}
+
+/**
+ * Menu callback. Redirects to wtw_user_post_login or wtw_user_post_contact
+ */
+function wtw_user_post($op) {
+  if (!isset($_POST['edit'])){
+    drupal_not_found();
+  } else {
+    switch ($op){
+      case 'login':
+        wtw_user_post_login();
+        break;
+      case 'contact':
+        wtw_user_post_contact();
+        break;
+    }
+  }
+}
+
+function wtw_user_post_login(){
+  $edit = $_POST['edit'];
+  $session = $_SESSION['wtw_user'];
+  
+  // is user logged in
+  global $user;
+  $user_from_db = user_load(array("mail"=>$edit['mail']));
+  // are we logged in
+  if ($user->uid > 0){
+    // we are logged in- go directly to callback
+    _wtw_user_callback($session['module'],$session['variables']);  
+  } elseif ($user_from_db->uid > 0){    // we are not logged in- does a user with this email exist already?
+    // yes- so use a helper function because the logic is about to get complicated
+    $out = _wtw_user_login_preexisting($edit,$user_from_db);
+  } else {
+    // validate user data
+    _wtw_user_validate($edit);
+    if (form_get_errors()){
+      // there are errors- so ask for corrections
+      $out = wtw_user_login_form_parse($edit);
+    } else {
+      // no errors, so create user and callback
+      _wtw_user_save($edit);
+      _wtw_user_callback($session['module'],$session['variables']);
+    }
+  }  
+  
+  if ($out){
+    print theme("page",$out);
+  }
+}
+
+/**
+ * helper function parses data out of a form post into login_form's input format
+ */ 
+function wtw_user_login_form_parse($edit) {
+  $session = $_SESSION['wtw_user'];
+  foreach ($session['fields'] as $name=>$vars){
+    $fields[$name] = $vars;
+    $fields[$name]['value'] = $edit[$name];
+  }
+  $fields['mail'] = $edit['mail'];
+  $fields['pass'] = $edit['pass'];
+  $fields['pass2'] = $edit['pass2'];
+  
+  return wtw_user_login_form($session['module'],$fields,$session['variables']);
+}
+
+/**
+ * called when a user enters a pre-existing email address
+ */
+function _wtw_user_login_preexisting($edit,$u) {
+  // check password
+  if (md5($edit['pass']) == $u->pass){
+    // password is accurate, log them in
+    global $user;
+    $user = $u;
+
+    // finish
+    drupal_set_message(t("You have succesfully logged in to your account."));
+    $out = false;
+    $session = $_SESSION['wtw_user'];
+    _wtw_user_callback($session['module'],$session['variables']);
+  } else {
+    // password check was unsuccesful
+    // ask for a password
+    $sitename = variable_get("site_name","Drupal");
+    drupal_set_message(t("You have entered an email address that already has a $sitename user account. Log in by entering your password into this form."));
+    $form .= form_textfield(t("Email"),"mail",$edit['mail'],40,64);
+    $form .= form_password(t("Password"),"pass","",40,64);
+    $form .= t("Forgot your password? ").l(t("Click here to have it mailed to you."),"user/password")."<br/>";
+    // TODO- add hidden variable fields here
+    $form .= form_submit("Submit");
+    $out = form($form);
+  }
+
+  return $out;
+}
+
+function wtw_user_login($module,$fields=NULL,$variables=NULL,$button="submit",$extra_form_elements=NULL,$return=false){
+  // is user logged in
+  global $user;
+  if ($user->uid > 1){
+    // user is logged in
+    if ($return){
+      // return extra form
+      $form = $extra_form_elements.form_submit(t($button));
+      $out = form($form,"POST","wtw_user/login");
+      return $out;
+    } else {
+      _wtw_user_callback($module,$variables);
+    }
+  } else {
+    $out = wtw_user_login_form($module,$fields,$variables,$button);
+    if ($return){
+      return $out;
+    } else {
+      drupal_set_title($title);
+      print theme("page",$out);
+    }
+  }
+}
+
+function wtw_user_login_form($module,$fields,$variables,$button="submit",$extra_form_elements=""){
+  // set session vals
+  _wtw_user_hiddenvals($module,$fields,$variables);
+  
+  $form = _wtw_user_form_js();
+  
+  // login form
+  // email
+  $lform .= form_textfield(t("EMail"),"mail",$fields['mail'],40,64,"",NULL,TRUE);
+  $lform .= form_password(t("Password"),"pass",$fields['pass'],40,64,"",NULL,TRUE);
+  $lform .= "<div id='pass2'>";
+  $lform .= form_password(t("Password (repeat)"),"pass2",$fields['pass2'],40,64,t("Enter your password a second time."),NULL,TRUE);
+  $lform .= "</div>";
+  $form .= form_group(t("Login / Register Information"),$lform);
+
+  // contact form
+  foreach ($fields as $name=>$vars){
+    $cform .= _wtw_user_formelement($name,$vars['value'],$vars['required']);
+  }  
+  $form .= theme("form_group",t("Your Contact Information"),$cform,array("id"=>"form_contact"));
+
+  $form .= $extra_form_elements;
+  
+  $form .= form_submit($button);
+
+  $out = form($form,"POST","wtw_user/login");
+  
+  return $out;
+}
+
+/**
+ * assign session vals
+ */ 
+function _wtw_user_hiddenvals($module,$fields,$variables) {
+  $session = $_SESSION['wtw_user'];
+
+  $session['module'] = $module;
+  $session['fields'] = $fields;
+  $session['variables'] = $variables;
+  
+  if (!isset($session['edit'])){
+    $session['edit'] = $_POST['edit'];  
+  }
+  
+  $_SESSION['wtw_user'] = $session;
+}
+
+function _wtw_user_formelement($field,$val="",$required=0){
+  switch ($field){
+    case "mail":
+    case "pass":
+    case "pass2":
+      break;
+    case "country":
+      $out .= form_select(t("Country"),"country",$val,_gathering_get_countries(),NULL,NULL,NULL,TRUE);
+      break;
+    default:
+      $out = form_textfield(_wtw_user_fieldname($field),$field,$val,40,128,NULL,NULL,$required);
+      break;
+  }
+
+  return $out;  
+}
+
+function _wtw_user_fieldname($in){
+  $out = t(ucwords(str_replace("_"," ",$in)));
+  return $out;
+}
+
+function _wtw_user_callback($module,$vars){
+  if ($_SESSION['wtw_user']['edit']){
+    $vars['edit'] = $_SESSION['wtw_user']['edit'];
+  } else {
+    $vars['edit'] = $_POST['edit'];
+  }
+  
+  $function = $module."_wtw_user_completed";
+  $function($vars);
+}
+
+function _wtw_user_form_js(){
+  $out  = "<p id='p_login'>";
+  $out .= t("Already have an account?")." ";
+  $out .= "<span class='link' onClick='signup_hide();'>".t("Click here to log in.")."</span>";
+  $out .= "</p>";
+
+  $out .= "<p id='p_create'>";
+  $out .= t("Don't have an account?")." ";
+  $out .= "<span class='link' onClick='signup_show();'>".t("Click here to create one.")."</span>";
+  $out .= "</p>";
+
+  $js ="<script type='text/javascript'>
+function signup_hide(){
+  document.getElementById('pass2').style.display = 'none';
+  document.getElementById('form_contact').style.display = 'none';
+
+  document.getElementById('p_login').style.display = 'none';
+  document.getElementById('p_create').style.display = 'block';
+}
+function signup_show(){
+  document.getElementById('pass2').style.display = 'block';
+  document.getElementById('form_contact').style.display = 'block';
+
+  document.getElementById('p_login').style.display = 'block';
+  document.getElementById('p_create').style.display = 'none';
+}
+</script>";
+  $styles = "<style>
+.link {
+  cursor: pointer;
+  text-decoration: underline;    
+}
+#p_create {
+  display: none;
+}
+</style>";
+  drupal_set_html_head($js);
+  drupal_set_html_head($styles);
+
+  return $out;
+}
+
+function _wtw_user_validate($data){
+  // check email
+  if ($error = user_validate_mail($data['mail'])){
+    form_set_error('mail',$error);
+  }
+
+  // check required fields
+  if (empty($data['pass'])){
+    form_set_error("pass",t("Please enter a password."));
+  }
+  $session = $_SESSION['wtw_user'];
+  foreach ($session['fields'] as $name=>$vars){
+    if ($vars['required']){
+      if (empty($data[$name])){
+        form_set_error($name,t("Please enter a")." "._wtw_user_fieldname($name));
+      }
+    }
+  }
+
+  // validate country field
+  if ($data['country'] == "--"){
+    form_set_error("country",t("Please select a Country."));
+  }
+  
+  // check password
+  if (($data['pass'] != $data['pass2']) && (isset($data['pass']) && !empty($data['pass'])) && (isset($data['pass2']) && !empty($data['pass2']))){
+    form_set_error("pass",t("Your passwords must match."));  
+  }
+}
+
+/**
+ * Utility function saves a user from submitted data.
+ */ 
+function _wtw_user_save($edit) {
+  $user_to_save = array(  'name'    => $edit['mail'], 
+                          'init'    => $edit['mail'], 
+                          'mail'    => $edit['mail'], 
+                          'roles'   => array(2),      // authenticated user
+                          'status'  => 1,
+                          'pass'    => $edit['pass']
+                          );
+  $new_user = user_save('', $user_to_save);
+  
+  // login user
+  global $user;
+  $user = $new_user;
+
+  // save CRM data
+  $c = _wtw_user_save_crm($edit);
+  
+  return array('user' => $user,
+               'crm'  => $c);
+}
+
+/**
+ * Utility function. Updates CRM records
+ */
+function _wtw_user_save_crm($edit) {
+  if (module_exist('civicrm')) {
+    // get contact object
+    civicrm_initialize(TRUE);
+    $param['email'] = $edit['mail'];
+    $c = crm_get_contact($param);
+
+    // update contact object
+    $crm_data = array('first_name'      => $edit['first_name'],
+                      'last_name'       => $edit['last_name'],
+                      'phone'           => $edit['phone'],
+                      'street_address'  => $edit['street_address'],
+                      'city'            => $edit['city'],
+                      'state_province'  => $edit['state_province'],
+                      'postal_code'     => $edit['postal_code'],
+                      'country'         => $edit['country']);
+    crm_update_contact($c,$crm_data);
+  } else {
+    $c = NULL;
+  }
+
+  return $c;
+}
+
+?>

@@ -1,0 +1,176 @@
+<?
+
+/**
+ * @file
+ * Walk tool: sign-up page.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function wtw_signup_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Provides walk sign-up page.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function wtw_signup_menu($mc) {
+  if ($mc){
+    $items[] = array(
+      'path'      => 'join',
+      'callback'  => 'wtw_signup_page',
+      'access'    => 'true',
+      'type'      => MENU_CALLBACK
+    );
+  } else {
+  
+  }
+  
+  return $items;
+}
+
+/**
+ * Menu callback.
+ */
+function wtw_signup_page($source="") {
+  if (empty($source)){
+    $edit = $_POST['edit'];
+    $source = $edit['source'];
+    if (empty($source)){
+      $source = "default";
+    }
+  }
+  
+  if (($source == "signup_page") || ($source == "header") || $source == ("flashcard")){
+    $function = "wtw_signup_submit_from_$source";
+    $function($edit);
+  } else {
+    // $source is either 'click' or 'default'
+    $title = variable_get("wtw_signup_title_$source","Sign Up");
+    $body = wtw_signup_body($source,$edit);
+    print theme("page",$body,$title);
+  }
+  
+}
+
+function wtw_signup_submit_from_header($edit) {
+  if ((!_wtw_signup_is_valid_email($edit['mail'])) || (empty($edit['mail']))){
+    $title = "Please enter a valid email address.";
+    $form .= form_textfield("Email Address","mail",$edit['mail'],30,50);
+    $form .= form_hidden("source","header");
+    $form .= form_submit("go");
+    $body = form($form,"POST","join");
+  }  else {
+    db_query("REPLACE INTO signup SET email='%s'",$edit['mail']);
+    $title = variable_get("wtw_signup_title_header","");
+    $body = check_output(variable_get("wtw_signup_body_header",""));
+    $body .= wtw_signup_form($edit);
+  }
+  
+  print theme("page",$body,$title);
+}
+
+function wtw_signup_submit_from_flashcard($edit) {
+  wtw_signup_submit($edit);
+}
+
+
+function wtw_signup_submit_from_signup_page($edit) {
+  wtw_signup_submit($edit);
+}
+
+function wtw_signup_submit($edit) {
+  if ((!_wtw_signup_is_valid_email($edit['mail'])) || (empty($edit['mail']))){
+    form_set_error("mail","Please enter a valid email address.");
+  }
+  
+  if (($edit['source'] == "signup_page") || ($edit['source'] == "flashcard")){
+    if (empty($edit['firstname'])){
+      form_set_error("firstname","Please enter a first name.");
+    }
+    if (empty($edit['lastname'])){
+      form_set_error("lastname","Please enter a last name.");
+    }
+    if (empty($edit['city'])){
+      form_set_error("city","Please enter a city.");
+    }
+    if (empty($edit['zip'])){
+      form_set_error("zip","Please enter a postal code.");
+    }
+    if ($edit['c'] == "--"){
+      form_set_error("c","Please enter a country.");      
+    }
+  }
+  
+  if (form_get_errors()){
+    $title = "";
+    $body = wtw_signup_form($edit);
+  } else {
+    wtw_add_click();
+    db_query("REPLACE INTO wtw_walk SET mail='%s',firstname='%s',lastname='%s',city='%s',zip='%s',country='%s',source='%s',created=unix_timestamp()",$edit['mail'],$edit['firstname'],$edit['lastname'],$edit['city'],$edit['zip'],$edit['c'],$edit['source']);
+    $title = variable_get("wtw_signup_title_thanks","Thank you");
+    $body = variable_get("wtw_signup_body_thanks","Your information has been recorded.");
+  }
+
+  print theme("page",$body,$title);
+}
+
+function wtw_signup_body($source, $data=array()) {
+  $body .= check_output(variable_get("wtw_signup_body_$source",""));
+  $body .= wtw_signup_form($data);
+  return $body;
+}
+
+function wtw_signup_form($data=array(), $source="signup_page") {
+  $form .= form_hidden("source",$source);
+  $form .= form_textfield("First Name","firstname",$data['firstname'],30,50);
+  $form .= form_textfield("Last Name","lastname",$data['lastname'],30,50);
+  $form .= form_textfield("Email Address","mail",$data['mail'],30,50);
+  $form .= form_textfield("City","city",$data['city'],30,50);
+  $form .= form_textfield("Postal Code","zip",$data['zip'],30,50);
+  $countries = echo_action_get_countries();
+  $form .= form_select(t("My Home Country"),"c",$data['c'],$countries);
+  $form .= form_submit("Join");
+  
+  $out = form($form,"POST","join");
+  
+  return $out;
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function wtw_signup_settings() {
+  $form = form_textfield("Headline","wtw_signup_title_default",variable_get("wtw_signup_title_default",""),30,50);
+  $form .= form_textarea("Body","wtw_signup_body_default",variable_get("wtw_signup_body_default",""),50,10);
+  $out .= form_group("Default",$form);
+  
+  $form = form_textfield("Headline","wtw_signup_title_header",variable_get("wtw_signup_title_header",""),30,50);
+  $form .= form_textarea("Body","wtw_signup_body_header",variable_get("wtw_signup_body_header",""),50,10);
+  $out .= form_group("Header signup",$form);
+  /*
+  $form = form_textfield("Headline","wtw_signup_title_click",variable_get("wtw_signup_title_click",""),30,50);
+  $form .= form_textarea("Body","wtw_signup_body_click",variable_get("wtw_signup_body_click",""),50,10);
+  $out .= form_group("On Click",$form);
+  */
+  $form = form_textfield("Headline","wtw_signup_title_thanks",variable_get("wtw_signup_title_thanks",""),30,50);
+  $form .= form_textarea("Body","wtw_signup_body_thanks",variable_get("wtw_signup_body_thanks",""),50,10);
+  $out .= form_group("On Succesful Signup",$form);
+  
+  return $out;
+}
+
+/**
+ * Utility: Check for valid e-mail address
+ */
+function _wtw_signup_is_valid_email($email) {
+ $pattern = '/^([-\w\d_\.\+\/]+)@([-\w\d\.]+)\.(\w{2,4})$/i';
+ return preg_match($pattern,$email);
+}
+
+
+?>

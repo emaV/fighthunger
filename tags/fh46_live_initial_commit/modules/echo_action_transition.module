@@ -1,0 +1,59 @@
+<?php
+
+/**
+ * @file
+ * Adds some information for gathering-1 node type.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function echo_action_transition_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Adds some information for gathering-1 node type.');
+  }
+}
+
+function echo_action_transition_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  if ($node->type == "gathering-1"){
+    switch ($op){
+      case 'subtabs':
+        $items[] = array(
+          'title'     => t("scrapbook"),
+          'content'   => echo_action_transition_content($node),
+          'access'    => true,
+          'weight'    => -15
+        );
+        return $items;
+        break;
+    }
+  }
+}
+
+function echo_action_transition_content($node) {
+  $atag = "a".$node->nid;
+  $ctag = "c".$node->country;
+
+  $loc = wtw_parse_location($node,true);
+  $cname = wtw_countryname($node->country);
+
+  if (db_result(db_query("SELECT count(*) FROM echo_action_node WHERE country='%s'",$node->country)) > 1 ){
+    $s .= "<p><i>".l("Click here to see other events in $cname.","country/".strtolower($node->country))."</i></p>";
+  }
+
+  $s .= wtw_over_gallery($atag,$i);
+  $s .= wtw_over_stories("node",$atag,"Here's what people at this walk had to say:",$node);
+  return $s;
+}
+
+function echo_action_transition_wtw05home(){
+  $out .= wtw_over_gallery("bestof");
+  
+  $caption = t("Here's what walkers across the world have to say.");
+  $out .= wtw_over_stories("home","bestof",$caption);
+  
+  return $out;
+}
+
+?>

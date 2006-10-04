@@ -1,0 +1,21 @@
+CREATE TABLE `flashcard_cards` (
+	`cid` int unsigned NOT NULL COMMENT "flashcard db id",
+	`name` varchar(255) NOT NULL COMMENT "name of flashcard",
+	`description` tinytext NOT NULL COMMENT "description text",
+	`swf_url` varchar(255) NOT NULL COMMENT "url of flash file",
+	`width` int not null default 600,
+	`height` int not null default 480,
+	`screenshot_url` varchar(255) COMMENT "url of screenshot image",
+	PRIMARY KEY (`cid`),
+	KEY `swf_id` (`cid`,`swf_url`(255))
+	);
+
+CREATE TABLE flashcard_transmissions (
+	`tid` int NOT NULL COMMENT "id of individual transmission",
+	`flashcard_id` int not null COMMENT "id of flashcard to be used in transmission",
+	`email_to` varchar(255) NOT NULL COMMENT "email address of recipient",
+	`email_from` varchar(255) NOT NULL COMMENT "email address of sender",
+	`variables` TEXT not null COMMENT "serialized array of variables to be passed to swf",
+	`views` INT NOT NULL DEFAULT 0 COMMENT "count of times flashcard has been viewed",
+	PRIMARY KEY (`tid`)
+	); 	

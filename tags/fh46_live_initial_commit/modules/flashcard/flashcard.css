@@ -1,0 +1,116 @@
+/* PAGE ONE: CHOOSE */
+
+#flashcard_choose_title {
+    margin-left: 130px;
+}
+
+#flashcard_choose_text {
+    width: 400px;
+    margin-left: 130px;
+}
+
+#flashcard_list {
+    margin-left: -50px;
+}
+
+#flashcard_list li {
+    position: relative;
+    list-style: none;
+    display: block;
+    float: left;
+    width: 330px;
+    text-align: center;
+}
+
+#flashcard_list li a {
+    text-decoration: none;
+    color: #0065b7;
+    font-size: 1.6em;
+    font-weight: bold;
+    line-height: 2em;
+}
+
+#flashcard_list li a:hover {
+    color: #ff7100;
+}
+
+#flashcard_list li a img {
+    border: 2px solid #0065b7;
+}  
+
+#flashcard_list li a .flashcard_text_link {
+}
+
+/* PAGE TWO: PREVIEW */
+
+#flashcard_preview {
+    text-align: center;
+}
+
+#flashcard_preview #flashcard_buttons {
+    margin: 5px auto 10px auto;
+    width: 500px;
+    height: 30px;
+}
+
+#flashcard_preview #flashcard_buttons #btn_more {
+    float: left;
+}
+
+#flashcard_preview #flashcard_buttons #btn_continue {
+    float: right;
+}
+
+#flashcard_preview object {
+    border: 2px solid #0065b7;
+}
+
+/* PAGE THREE: CUSTOMIZE */
+
+#flashcard_customize_form fieldset {
+    margin-bottom: 2em;
+}
+
+#flashcard_customize_form fieldset legend {
+    font-weight: bold;
+    font-size: 14px;
+    color: #ff7100;
+}
+
+#flashcard_customize_addremove_instructions {
+    float: left;
+    width: 260px;
+}
+
+#flashcard_customize_addremove_buttons {
+    text-align: right;
+    margin-bottom: 1em;
+}
+
+#flashcard_customize_addremove_buttons a {
+    text-decoration: none;
+    color: #0065b7;
+    font-size: 16px;
+}
+
+#flashcard_customize_addremove_buttons a img {
+    margin-left: .5em;
+}
+
+#flashcard_sidebar_img {
+    border: 2px solid #0065b7;
+}
+
+/* FLASH VIEW PAGE */
+
+.flashcard_swf {
+    text-align: center;
+}
+
+.flashcard_swf object {
+    border: 2px solid #0065b7;
+}
+
+.flashcard_view_footer_text {
+    margin: 20px 0 20px 0;
+}

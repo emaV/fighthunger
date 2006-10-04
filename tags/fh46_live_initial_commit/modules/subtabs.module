@@ -1,0 +1,150 @@
+<?php
+
+/**
+ * @file
+ * Utility functions enabling per-node javascript-based subnavigation tabs.
+ * 
+ * 
+ */
+
+function subtabs_help($sec){
+  if ($sec == "admin/modules#description"){
+    return "Utility functions enabling per-node javascript-based subnavigation tabs.";
+  }
+}
+
+function subtabs_onload(){
+  global $subtabs_active;
+  if ($subtabs_active){
+    return "openTab(0)";
+  }
+}
+
+function subtabs_nodeapi(&$node, $op, $teaser = NULL, $page = NULL){
+  if (($op == "view") && $page){
+    $subtabs = node_invoke_nodeapi($node, "subtabs");
+    _subtabs_remove_forbidden($subtabs);
+    if (!empty($subtabs)){
+      global $subtabs_active;
+      $subtabs_active = true;
+
+      // sort tabs
+      usort($subtabs,"_subtabs_sort");
+  
+//      $node->body .= theme("subtabs_nojs",$subtabs);
+      $node->body .= theme("subtabs_js",$subtabs);
+    }
+  }
+}
+
+function _subtabs_remove_forbidden(&$st){
+  foreach($st as $index=>$tab){
+    if ( !$tab['access'] || is_null($tab['content']) ) {
+      unset($st[$index]);
+    }
+  }
+}
+
+/**
+ * No-Javascript subtabs
+ * 
+ * @param $subtabs
+ *   is an array of subtab arrays
+ *   each subtab array has fields "title", "content", "weight"
+ */ 
+function theme_subtabs_nojs($subtabs) {
+  $active = $_GET['tab'];
+  if (is_null($active)){
+    $active = 0;
+  }
+  
+  $path = $_GET['q'];
+  
+  $out = "<div id='subtabs'><ul class='primary'>\n";
+  foreach ($subtabs as $id=>$tab){
+    $query = "tab=".$id;
+    
+    if ($id == $active){
+      $liclass = " class='active'";
+    } else {
+      unset($liclass);
+    }
+    
+    $out .= "<li".$liclass.">".l($tab['title'],$path,$atts,$query)."</li>";
+  }
+  $out .= "</ul></div>\n";
+
+  $out .= $subtabs[$active]["content"];
+  
+  return $out;
+}
+
+/**
+ * Javascript powered subtabs
+ * 
+ * @param $subtabs
+ *   is an array of subtab arrays
+ *   each subtab array has fields "title", "content", "weight"
+ */
+function theme_subtabs_js($subtabs) {  
+  // gather tab data
+  foreach($subtabs as $id=>$tab){
+    $tabString .= "<li onClick='openTab(".$id.");' id='subTab".$id."' class='subtab'><a>".$tab['title']."</a></li>\n";
+    $contentString .= "<div class='subTabContent' id='tabContent".$id."'>\n".$tab['content']."\n</div>\n";
+  }
+
+  // set javascript
+  $js = _theme_subtabs_js(count($subtabs));
+  drupal_set_html_head($js);
+  
+  // set styles
+  $styles = _theme_subtabs_styles();
+  drupal_set_html_head($styles);
+  
+  $tabString = "<ul class='primary'>".$tabString."</ul>";
+  $out = "<div id='subtabs'>\n" . $tabString . $contentString . "</div>\n";
+  return $out;
+}
+
+function _subtabs_sort($a,$b){
+  return $a['weight'] - $b['weight'];
+}
+
+function _theme_subtabs_styles(){
+  $out = "
+  <style>
+    .subtab a{
+      cursor: pointer;
+      text-decoration: underline;    
+    }
+    .subTabContent{
+      display: none;
+    }
+  </style>
+  ";
+  return $out;
+}
+
+function _theme_subtabs_js($count){
+  $out = "
+<script type='text/javascript'>
+
+var count = ".$count.";
+
+function openTab(contentID){
+    for(i=0; i < count; i++){
+        if (i == contentID){
+            document.getElementById('subTab'+i).className = 'active';
+            document.getElementById('tabContent'+i).style.display = 'block';        
+        } else {
+            document.getElementById('subTab'+i).className = 'subtab';
+            document.getElementById('tabContent'+i).style.display = 'none';        
+        }
+    }
+}  
+</script>
+  ";
+  return $out;
+}
+
+?>

@@ -1,0 +1,488 @@
+<?php
+
+/**
+ * @file
+ * Partner node type.
+ * 
+ * Referenced by:
+ * - wtw_bat.module
+ */
+ 
+/**
+ * Implementation of hook_help().
+ */
+function partners_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Partner node type.');
+  }
+}
+
+function partners_menu($mc){
+  if ($mc){
+    $out[] = array(
+      'type'      => MENU_CALLBACK,
+      'access'    => true,
+      'path'      => 'partners/assign',
+      'callback'  => 'partners_page'
+    );
+  }
+  return $out;
+}
+
+function partners_page($nid){
+  $node = node_load(array("nid"=>$nid));
+  $node->partners = $_POST['edit']['partners'];
+  partners_nodeapi_update($node);
+  drupal_goto("node/".$nid);
+}
+
+function partners_view(&$node, $teaser = FALSE, $page = FALSE){
+  $node->body = "<div class='partner_description'>".
+                "<img src='".$node->logolarge."' class='partnerimage' align='right'>".$node->body.
+                "</div>";
+  
+  $rs = db_query("SELECT n.nid FROM {partners_partners} pp LEFT JOIN {node} n ON pp.nid = n.nid WHERE pp.pid=%d",$node->nid);
+  while ($a = db_fetch_array($rs)){
+    $e = node_load(array("nid"=>$a['nid']));
+    $title = l($e->title,"node/".$e->nid);
+
+    if (!empty($e->country)){
+      if (!empty($e->city)){
+        $title .= ", ".$e->city;
+      }
+      $countries = _gathering_get_countries();
+      $title .= ", ".$countries[$e->country];
+    }
+
+    $events[] = $title;
+  }
+  switch (count($events)){
+    case 0:
+      $eventlist = "";
+      break;
+    case 1:
+      $e = array_pop($events);
+      $eventlist = "<h3>".$node->title."&nbsp;".t("is partnered with").":<br/>".$e."</h3>";
+      break;
+    default:
+      $eventlist = "<h3>".$node->title."&nbsp;".t("is partnered with these events").":</h3>";
+      $eventlist .= theme("item_list",$events);
+      break;
+  }
+  
+  $node->body .= "<div class='partner_events'>".$eventlist."</div>";
+}
+
+function partners_access($op,$node){
+  switch ($op){
+    case "create":
+    case "delete":
+    case "update":
+      return user_access("administer partners");
+      break;
+    case "view":
+      $out = true;
+      break;
+  }
+  return $out;
+}
+
+function partners_node_name($node){
+  return t("partner");
+}
+
+function partners_perm(){
+  return array("administer partners");
+//  return array("administer partners","manage partners");
+}
+
+function partners_delete(&$node){
+  db_query("DELETE FROM partners_user WHERE pid=%d",$node->nid);
+  db_query("DELETE FROM partners_partners WHERE pid=%d",$node->nid);
+  db_query("DELETE FROM partners_node WHERE nid=%d",$node->nid);
+}
+
+function partners_form(&$node,&$param){
+  $out .= form_textarea("Description","body",$node->body,10,5);
+  
+  // crmid
+  
+  // ptid
+  $options = array("NGO"=>t("NGO"),
+                   "PRIVATE"=>t("Private"),
+                   "INSTITUTION"=>t("Institution"),
+                   "UNAGENCY"=>t("UN Agency"),
+                   "OTHER"=>"Other");
+  $out .= form_select("Partner Type","ptid",$node->ptid,$options);
+  
+  // logos
+  $out .= form_file(t("Small Logo"),"logosmall",30,_partners_file_desc($node->logosmall));
+  $out .= form_file(t("Large Logo"),"logolarge",30,_partners_file_desc($node->logolarge));
+  if (isset($node->logosmall)){
+    $out .= form_hidden("logosmall_old",$node->logosmall);
+  }
+  if (isset($node->logolarge)){
+    $out .= form_hidden("logolarge_old",$node->logolarge);
+  }
+  
+  // dates
+  $out .= form_textfield(t("Start Date"),"startdate",_partners_date_display($node->startdate),64,20);
+  $out .= form_textfield(t("End Date"),"enddate",_partners_date_display($node->enddate),64,20);
+  
+  // active
+  if (!isset($node->active)){
+    $node->active = 1;
+  }
+  $options = array(0=>t("Inactive"),
+                   1=>t("Active"));
+  $out .= form_select(t("Active"),"active",$node->active,$options);
+  
+  return $out;
+}
+
+function partners_validate(&$node){
+  // upload files
+  $logolarge = file_check_upload('logolarge');
+  if ($logolarge){
+    $file = file_save_upload($logolarge, $logolarge->filename);  
+    $node->logolarge = $file->filepath;
+  }
+
+  $logosmall = file_check_upload('logosmall');
+  if ($logosmall){
+    $file = file_save_upload($logosmall, $logosmall->filename);  
+    $node->logosmall = $file->filepath;
+  }
+}
+
+function partners_insert($node){
+  // file management
+  if ($node->logolarge){
+    $lg = $node->logolarge;
+  } else {
+    $lg = $node->logolarge_old;
+  }
+  if ($node->logosmall){
+    $sm = $node->logosmall;
+  } else {
+    $sm = $node->logosmall_old;
+  }
+  
+  $fields = array("nid"         => $node->nid,
+                  "crmid"       => $node->crmid,
+                  "ptid"        => $node->ptid,
+                  "logolarge"   => $lg,
+                  "logosmall"   => $sm,
+                  "startdate"   => _partners_date_sql($node->startdate),
+                  "enddate"     => _partners_date_sql($node->enddate),
+                  "active"      => $node->active);
+  foreach($fields as $var=>$val){
+    $sql_vars[] = $var;
+    $sql_signs[] = "'%s'";
+    $args[] = $val;
+  }
+  
+  $q = "INSERT INTO {partners_node} (".implode(",",$sql_vars).") VALUES (".implode(",",$sql_signs).")";
+  
+  array_unshift($args,$q);
+  call_user_func_array("db_query",$args);
+}
+
+function partners_load($node){
+  $additions = db_fetch_object(db_query("SELECT * FROM partners_node WHERE nid=%d",$node->nid));
+  return $additions;
+}
+
+function partners_update($node){
+  db_query("DELETE FROM partners_node WHERE nid=%d",$node->nid);
+  partners_insert($node);
+  
+}
+
+function partners_block($op = 'list', $delta = 0, $edit = array()){
+  switch ($op){
+    case "list":
+      $out[0]['info'] = t('Partner information for current walk');
+      break;
+    case "view":
+      switch ($delta){
+        case 0:
+          return partners_block_content();
+          break;
+      }
+      break;
+  }
+  return $out;
+}
+
+function partners_block_content(){
+  global $partners;
+  if ($partners){
+    $out = "<center><br/>";
+    foreach($partners as $pid){
+      $node = node_load(array("nid"=>$pid));
+      $out .= "<a href='node/".$node->nid."'>\n";
+      $out .= "<img src='".$node->logosmall."'><br/>\n";
+      $out .= $node->title;
+      $out .= "</a><br/><br/>";
+    }
+    $out .= "</center>";  
+    
+    $block['subject'] = t("Our Partners:");
+    $block['content'] = $out;
+  }
+      
+  return $block;
+}
+
+
+/*
+  Set user-specific permissions
+       (We do not use Roles for this because it will not scale.)
+*/
+function partners_user($op, &$edit, &$user, $category=NULL){
+  switch($op){
+    case "form":
+      if ($category == "account" && user_access("administer partners")){
+//        if (user_access("manage partners",$user)){
+        if (!user_access("administer partners",$user)){
+          $options = _partners_get_active_partners();
+          
+          $rs = db_query("SELECT * FROM {partners_user} WHERE uid=%d",$user->uid);
+          while ($a = db_fetch_array($rs)){
+            $permitted[] = $a['pid'];
+          }
+          
+          $desc = t("Select the Partners this User will manage:");
+          $f['title'] = t("Partners");
+          $f['data'] = form_select(t("Partners"),"partners",$permitted,$options,$desc,0,TRUE);
+          $f['weight'] = 0;
+          $out[] = $f;
+        } 
+      }
+      break;
+    case "update":      
+      $user->partners = NULL;
+      $partners = $_POST['edit']['partners'];
+      db_query("DELETE FROM partners_user WHERE uid=%d",$user->uid);
+      foreach ($partners as $p){
+        db_query("INSERT INTO partners_user SET uid=%d,pid=%d",$user->uid,$p);
+      }
+      break;
+  }
+  return $out;
+}
+
+
+function partners_nodeapi(&$node, $op, $teaser = NULL, $page = NULL){
+  $varname = "partners_".$node->type;
+  switch($op){
+    case 'form param':
+      if (node_get_module_name($node) == "partners"){
+        $out['options'] = array('enctype' => 'multipart/form-data');
+      }
+      break;
+    case 'settings':
+      // which nodetypes have partners?
+      if ($node->type != "partners"){
+        $out = form_checkbox(t("Has Partners"),$varname,1,variable_get($varname,0));
+      }
+      break;
+    case 'form post':
+      $out = _partners_nodeapi_formcontent($node);
+      break;
+    case "delete":
+      if (variable_get($varname,false)){
+        db_query("DELETE FROM partners_partners WHERE nid=%d",$node->nid);
+      }
+      break;
+    case "insert":
+      if (variable_get($varname,false)){
+        partners_nodeapi_insert($node);
+      }
+      break;
+    case "update":
+      if (variable_get($varname,false)){
+        partners_nodeapi_update($node);
+      }
+      break;
+    case "load":
+      if (variable_get($varname,false)){
+        $out = partners_nodeapi_load($node);
+      }
+      break;
+    case "view":
+      if (variable_get($varname,false) && !empty($node->partners)){
+        if ($page){
+          global $partners;
+          $partners = $node->partners;
+        }
+      }
+      break;
+    case "subtabs":
+      if (node_get_module_name($node) == "gathering"){
+        $out = partners_nodeapi_subtabs($node);
+      }
+      break;
+  }
+  return $out;
+}
+
+// helper function for nodeapi
+function partners_nodeapi_load($node){
+  $rs = db_query("SELECT p.pid FROM {node} n, {partners_partners} p WHERE p.nid=%d AND p.pid = n.nid ORDER BY n.sticky DESC, n.title ASC",$node->nid);
+  while ($a = db_fetch_array($rs)){
+    $partners[] = $a['pid'];
+  }
+  $out['partners'] = $partners;
+  return $out;
+}
+
+
+// helper function for nodeapi
+function partners_nodeapi_insert($node){
+  $permitted = _partners_permitted($node);
+  foreach ($node->partners as $pid){
+    if (array_key_exists($pid,$permitted)){
+      db_query("INSERT INTO partners_partners SET nid=%d,pid=%d",$node->nid,$pid);
+    }
+  }
+}
+
+// helper function for nodeapi
+// this is a little tricky
+function partners_nodeapi_update($node){
+  // gather data
+  $permitted = _partners_permitted($node);
+  $partners = $node->partners;
+
+  // for each partner this user is permitted to modify
+  if (is_array($partners)){
+    foreach ($permitted as $pid=>$pname){
+      // check whether the partner has been enabled
+      if (in_array($pid,$partners)){
+        if (db_num_rows(db_query("SELECT * FROM {partners_partners} WHERE nid=%d AND pid=%d",$node->nid,$pid))==0)
+          db_query("INSERT INTO partners_partners SET nid=%d,pid=%d",$node->nid,$pid);
+      } else {
+        db_query("DELETE FROM partners_partners WHERE nid=%d AND pid=%d",$node->nid,$pid);
+      }
+    }
+  }
+}
+
+// gathering.node only:
+// allow event attendees to assign partners
+function partners_nodeapi_subtabs($node){
+  $role = _gathering_get_user_relationship($node);
+  if (($role == "volunteer") || ($role == "attendee")){
+    $partners = _partners_permitted($node);
+    if ($partners){      
+      $form = _partners_nodeapi_formcontent($node);
+      $form .= form_submit(t("Submit"));
+      $content = form($form,"POST","partners/assign/".$node->nid);
+      $out[] = array(
+        'title'     => t("partnerships"),
+        'content'   => $content,
+        'access'    => true, 
+        'weight'    => 10
+      );
+    }
+  }
+  
+  return $out;
+}
+
+
+function _partners_nodeapi_formcontent($node){
+  $options = _partners_permitted($node);
+  
+  if (empty($options)){
+    $out = "";
+  } else {
+    global $user;
+    $desc = t("Select the partner(s) to associate this event with.");  
+    $form = form_checkboxes(t("Partners"),"partners",$node->partners,$options,$desc,0,TRUE);
+    $out = form_group("Partners",$form);
+  }
+  
+  return $out;
+}
+
+// format SQL date into human-readable date
+function _partners_date_display($in){
+  if (empty($in)){
+    $out = "";
+  } else {
+    $out = date("M j, Y",strtotime($in));
+  }
+  return $out;
+}
+
+// format human-written date into SQL date
+function _partners_date_sql($in){
+  $out = date("YmdHis",strtotime($in));
+  return $out;
+}
+
+// utility function, queries database
+// does not actually load all the partner nodes, to save db query time
+function _partners_get_active_partners(){
+  $rs = db_query("SELECT * FROM {node} n, {partners_node} pn WHERE n.nid = pn.nid AND pn.active=1 ORDER BY n.title");
+  while ($a = db_fetch_array($rs)){
+    $out[$a['nid']] = $a['title'];
+  }
+  return $out;
+}
+
+// return an array of the partners a given user is permitted to manage for a given node 
+function _partners_permitted($node,$user = NULL){
+  // allow nodes and users to be passed as objects or ids
+  // if no user is specified, use the global user
+  if (is_numeric($node)){
+    $node = node_load(array("nid"=>$node));
+  }
+  if (is_null($user)){
+    global $user;
+  } elseif (is_numeric($user)){
+    $user = user_load(array("uid"=>$user));
+  }
+
+  $varname = "partners_".$node->type;
+  if ($node->type=="partners"){
+    // nobody can assign partners to a partner. that would be too weird.
+    $out = false;
+  } elseif (variable_get($varname,false)){
+    // this nodetype has Partners enabled
+    if (user_access("administer partners")){
+      // users with 'administer partners' can assign any partner
+      $out = _partners_get_active_partners();
+//    } elseif (user_access("manage partners")){
+    } else {
+      // users with 'manage partners' can only assign designated partners
+      $rs = db_query("SELECT * FROM {node} n, {partners_user} pu, {partners_node} pn WHERE n.nid = pu.pid AND pn.active=1 AND n.nid = pn.nid AND pu.uid = %d ORDER BY n.title",$user->uid);
+      // $out will be empty (false) if no Partners are returned 
+      while ($a = db_fetch_array($rs)){
+        $out[$a['nid']] = $a['title'];
+      }
+    }
+  } else {
+    // this nodetype does not have Partners enabled
+    $out = false;
+  }
+  
+  return $out;
+}
+
+function _partners_file_desc($filepath){
+  if (empty($filepath)){
+    $out = t("Upload a file here:");
+  } else {
+    $out = t("You have already uploaded a file for this:")." ".l($filepath,$filepath).".<br/>".t("To replace this file, select a new one here:");
+  }
+  return $out;
+}
+
+
+
+?>

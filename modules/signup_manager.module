@@ -1,0 +1,279 @@
+<?php
+
+/**
+ * @file
+ * Walk sign ups management.
+ * 
+ * Depends on:
+ * - CiviCRM
+ * 
+ * Note: All this walk sing-up modules, better integrated
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function signup_manager_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Walk sign ups management.');
+  }
+}
+
+function signup_manager_block($op = 'list', $delta = 0, $edit = array()){
+  if ($op=="list"){
+    $blocks[0]["info"] = "signup_manager signup";
+    return $blocks;
+  } elseif ($op == "view"){
+    switch ($delta){
+      case 0:
+        $block = signup_manager_block_signup();
+        break;
+    }
+    return $block;
+  }
+}
+
+// return a signup block
+function signup_manager_block_signup(){
+  $block['subject'] = "Stay Informed";
+  $block['content'] = theme("signup_manager_block");
+  return $block;
+}
+
+function theme_signup_manager_block(){
+  $out  = form_hidden("source","block");
+  $out .= form_textfield("email","email","",20,50);
+  $out .= form_textfield("zipcode","postal_code","",10,10);
+  $out .= form_submit("join");
+  $content = form($out,"POST","signupblock");
+  return $content;
+}
+
+function signup_manager_menu($mc){
+  if ($mc){
+    $items[] = array(
+      'path'      => 'join',
+      'callback'  => 'signup_manager_page',
+      'access'    => true,
+      'type'      => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'      => 'signupblock',
+      'callback'  => 'signup_manager_signupblock',
+      'access'    => true,
+      'type'      => MENU_CALLBACK
+    );
+  } else {
+  }
+  return $items;
+}
+
+function signup_manager_signupblock(){
+  // save contact
+  $edit = $_POST['edit'];
+  $group_id = variable_get("signup_manager_block_group",false);
+  signup_manager_create_contact($edit,$group_id);
+  
+  // set message
+  drupal_set_message(variable_get("signup_manager_block_thankyou","Thank you"));
+  
+  // redirect
+  drupal_goto("action");
+}
+
+function signup_manager_create_contact($edit,$group=false){
+  $contact_params['email'] = $edit['email'];
+
+  civicrm_initialize(true);
+  $c = crm_get_contact($contact_params);
+
+  // TODO: This if() statement is pretty ugly and should be improved,
+  // once CiviCRM's API documentation covers error-handling in a useful way
+  if(!strcasecmp(get_class($c),"crm_core_error")){
+    // contact does not exist, so add it
+    $contact_params['postal_code'] = $edit['postal_code'];
+    $contact_params['phone'] = $edit['phone'];
+    $contact_params['first_name'] = $edit['first_name'];
+    $contact_params['last_name'] = $edit['last_name'];
+    
+    $contact = crm_create_contact($contact_params);
+    // send confirmation email to this contact
+    _signup_manager_mail($edit['email']);
+  } else {
+    // this email already exists, so let's just add it to the splash group
+    $contact = $c;
+  }
+
+  // is there a group
+  if ($group){
+    // there is, so add our contact
+    $groups = crm_get_groups(array("id"=>$group));
+    $group = array_pop($groups);
+    $contacts = array($contact);    
+    crm_add_group_contacts($group,$contacts);
+  }
+  
+  return $contact;
+}
+
+function signup_manager_page(){
+  $edit = $_POST['edit'];
+  
+  if ($edit){
+    // validate
+    _signup_manager_page_form_validate($edit);
+    if (form_get_errors()){
+      // there were errors, so ask for corrections
+      drupal_set_title(t(variable_get("signup_manager_page_title","Volunteer")));
+      $out .= signup_manager_page_form($edit);
+    } else {
+      // no errors
+      // insert or update member and goto preprop'd ballot
+      $group_id = variable_get("signup_manager_page_group",false);
+      $c = signup_manager_create_contact($edit,$group_id);
+      if ($edit['activities']){
+        $acts = $edit['activities'];
+        $contacts[] = $c;
+        foreach($acts as $a){
+          $groups = crm_get_groups(array("id"=>$a));
+          $group = array_pop($groups);
+          crm_add_group_contacts($group,$contacts);
+        }      
+      }
+      drupal_set_title("Thank you!");
+      $out = t(variable_get("signup_manager_page_thankyou",""));
+    } 
+  } else {
+    // print blank form with default text
+    drupal_set_title(t(variable_get("signup_manager_page_title","Volunteer")));
+    $out  = check_output(t(variable_get("signup_manager_page_text","Volunteer for the campaign here.")));
+    $out .= signup_manager_page_form();
+  }
+  
+  print theme("page",$out);
+}
+
+function _signup_manager_page_form_validate($edit){
+  // check email
+  if ($error = user_validate_mail($data['email'])){
+    form_set_error('email',$error);
+  }
+
+  // build required fields
+  $required_fields[] = array(
+    'name' => "First Name",
+    'variable'     => "first_name"
+  );
+  $required_fields[] = array(
+    'name' => "Last Name",
+    'variable'     => "last_name"
+  );
+  $required_fields[] = array(
+    'name' => "Postal Code",
+    'variable'     => "postal_code"
+  );
+  $required_fields[] = array(
+    'name' => "Phone Number",
+    'variable'     => "phone"
+  );
+  foreach ($required_fields as $f){
+    $v = $f['variable'];
+    if (isset($edit[$v]) && (empty($edit[$v]))){
+      form_set_error($v,t("Please enter a ".$f['name']."."));
+    }
+  }
+
+  // validate country field
+  if ($edit['country'] == "--"){
+    form_set_error("country",t("Please select a Country."));
+  }
+  
+}
+
+function signup_manager_page_form($data=array()){
+  if (empty($data['email2']) && !empty($data['email'])){
+    $data['email2'] = $data['email'];
+  }
+
+  $form .= form_textfield(t("Email"),"email",$data['email'],30,30);
+//  $form .= form_textfield("Confirm E-Mail","email2",$data['email2'],30,30);
+  $form .= form_textfield(t("First Name"),"first_name",$data['first_name'],30,30);
+  $form .= form_textfield(t("Last Name"),"last_name",$data['last_name'],30,30);
+  $form .= form_textfield(t("Postal Code"),"postal_code",$data['postal_code'],30,30);
+  $form .= form_textfield(t("Phone Number"),"phone",$data["phone"],30,30);
+  if (module_exist("gathering")){
+    $countries = _gathering_get_countries();
+    $form .= form_select(t("my home country"),"country",$data['country'],$countries);
+  }
+  
+  
+  civicrm_initialize(true);
+
+  $activities = variable_get("signup_manager_activities",false);
+  if ($activities && ($activities[0] != -1)){
+    foreach($activities as $a){
+      $g = array_pop(crm_get_groups(array("id"=>$a)));
+      $options[$a] = $g->title;
+    }
+    $formgroup = check_output(variable_get("signup_manager_page_activities_intro","Please check the boxes corresponding to volunteer activities which interest you."));
+    $formgroup .= form_checkboxes("","activities",$data['activities'],$options);
+    $form .= form_group(variable_get("signup_manager_page_activities_title","Volunteer Activities"),$formgroup);
+  }
+  
+  $form .= form_submit("Sign Up");
+  
+  $out = form($form);
+  
+  return $out;
+}
+
+function signup_manager_settings(){
+  civicrm_initialize(true);
+
+  $groups = crm_get_groups();
+  $options[-1] = "(none)";
+  foreach ($groups as $group){
+    $options[$group->id] = $group->name;
+  }
+  $out .= form_select("Signup Block group","signup_manager_block_group",variable_get("signup_manager_block_group",0),$options,"Contacts added through the signup block will be added to this CiviCRM group.");  
+  $out .= form_select("Page group","signup_manager_page_group",variable_get("signup_manager_page_group",0),$options,"Contacts added through the /volunteer page will be added to this CiviCRM group.");  
+
+  $out .= form_textfield("Join Page Title","signup_manager_page_title",variable_get("signup_manager_page_title",""),60,64);
+  $out .= form_textarea("Join Page Text","signup_manager_page_text",variable_get("signup_manager_page_text","Volunteer for the campaign here."),40,8);
+
+  $out .= form_textfield("Join Page Groups Title","signup_manager_page_activities_title",variable_get("signup_manager_page_activities_title",""),60,64);  
+
+
+  $out .= form_textfield("Join Page Groups Intro","signup_manager_page_activities_intro",variable_get("signup_manager_page_activities_intro",""),60,64);  
+  $out .= form_select("Join Page Groups Activities","signup_manager_activities",variable_get("signup_manager_activities",0),$options,"Groups selected here will be listed as checkboxes available on the join page.",0,true);  
+
+  $out .= form_textarea("Post block-signup thankyou text","signup_manager_block_thankyou",variable_get("signup_manager_block_thankyou","Thank you for signing up to receive email updates from the campaign! You can make a difference by helping the campaign in one of several ways:"),40,8);
+  
+  $out .= form_textarea("Post page-signup thankyou text","signup_manager_page_thankyou",variable_get("signup_manager_page_thankyou","Your information has been recorded. We will be in touch!"),40,8);
+  
+  $mail = form_textfield("Subject","signup_manager_email_subject",variable_get("signup_manager_email_subject",""),50,50);
+  $mail .= form_textarea("Body","signup_manager_email_body",variable_get("signup_manager_email_body",""),40,8);
+  $out .= form_group("Confirmation Email",$mail);
+  
+  return $out;
+}
+
+function _signup_manager_mail($to){
+  
+  $subject = variable_get("signup_manager_email_subject",false);
+  $body = variable_get("signup_manager_email_body",false);
+  
+  if ($subject && $body && $to){
+    $from = variable_get('site_mail', ini_get('sendmail_from'));
+    $headers = "From: $from\nReply-to: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from";
+    $ok = user_mail($to, $subject, $body, $headers);
+    if ($ok){
+      watchdog("signup_manager","Sent confirmation email to $to");
+    } else {
+      watchdog("signup_manager","FAILED to send confirmation email to $to");    
+    }
+  }
+}
+
+?>

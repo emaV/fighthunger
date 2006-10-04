@@ -1,0 +1,555 @@
+<?
+
+function echoconfirm_init(){
+  if (isset($_SESSION['login'])){
+    $user_from_db = user_load(array("uid"=>$_SESSION['login']['uid']));
+    if ($user_from_db->pass == $_SESSION['login']['pass']){
+      global $user;
+      $user = $user_from_db;
+    }
+    unset($_SESSION['login']);
+  }
+}
+
+function echoconfirm_menu($mc){
+  if ($mc){
+  } else {
+    $items[] = array(
+      'path'      => 'confirm',
+      'callback'  => 'echoconfirm_page',
+      "access"    => true,
+      'type'      => MENU_CALLBACK
+    );
+    $items[] = array(
+      'path'      => 'login',
+      'callback'  => 'echoconfirm_login',
+      "access"    => true,
+      'type'      => MENU_CALLBACK
+    );
+  }
+  return $items;
+}
+
+function echoconfirm_user($op, &$edit, &$user, $category = NULL ){
+  switch ($op){
+    case 'insert':
+      db_query("INSERT INTO {echoconfirm_user} SET uid=%d",$user->uid);
+      break;
+    case 'load':
+      $user->confirm_status = db_result(db_query("SELECT status FROM {echoconfirm_user} WHERE uid=%d",$user->uid));
+      break;
+  }
+}
+/*
+function echoconfirm_cron(){
+  $q =  "SELECT * ".
+        "FROM {echoconfirm_requests} ecr, {echoconfirm_user} ecu ".
+        "WHERE ecr.uid = ecu.uid ".
+        "AND ecu.status = 'pending' ".
+        "ORDER BY ecr.sendtime ASC ".
+        "LIMIT 1";
+  $rs = db_fetch_array(db_query($q));
+  if ((isset($rs['sendtime'])) && ($rs['sendtime'] < time())){
+    $message = _echoconfirm_getmessage($rs['uid'],$rs['module'],$rs['flag'],$rs['nid']);
+    _echoconfirm_sendmail($rs['uid'],$message);
+  }
+}
+*/
+
+function echoconfirm_page($op,$uid=NULL,$hash=NULL){
+  switch ($op){
+    case 'send':
+      // send a new confirmation email
+      _echoconfirm_lost($uid,$hash);
+      break;
+    case 'password':
+      // set / reset password
+      _echoconfirm_setpass($uid,$hash);
+      break;
+    case 'c':
+      // confirm this user
+      _echoconfirm_confirm($uid,$hash);
+      break;
+    default:
+      drupal_not_found();
+  }
+}
+
+function echoconfirm_settings(){
+  $flags = _echoconfirm_get_all_flags();
+  
+  foreach($flags as $f){
+    $mname = $f['module'];
+    $fname = $f['flag'];
+    unset($rvars);
+    $rvars = _echoconfirm_get_replacevars($mname,array("%link"=>""));
+    
+    if ($rvars){
+      $d = "Use these variables: ".implode(", ",array_keys($rvars));
+    } else {
+      unset($d);
+    }
+    
+    $sv = $mname."_".$fname."_subject";
+    $bv = $mname."_".$fname."_body";
+    
+    $group = form_textfield(t("Subject"),$sv,variable_get($sv,""),50,80,$d);
+    $group .= form_textarea(t("Body"),$bv,variable_get($bv,""),40,10,$d);
+    $out .= form_group("$mname: $fname",$group);
+  }
+  
+  return $out;
+}
+
+function echoconfirm_process($edit,$module,$flag,$node=NULL){
+  global $user;
+  
+  // is this user logged in?
+  if ($user->uid != 0){
+    _echoconfirm_message("secured",$user->uid,$module,$flag);
+    return array("status"=>"secured","user"=>$user);
+  } else {    
+    // does a user with this email exist?
+    $user_from_db = user_load(array("mail"=>$edit['mail']));
+  
+    if (empty($user_from_db) || ($user_from_db->uid == 0)){
+      // this user does not exist. validate profile
+      $pro = _echoconfirm_profile_validate($edit);
+      if (!$pro){
+        return array("status"=>"error");
+      }
+      // try to create it but do not log in
+      $newuser = _echoconfirm_create($edit);
+      // were their errors
+      if ($newuser){
+        // send confirm email
+        $message = _echoconfirm_getmessage($newuser,$module,$flag,$node);
+        _echoconfirm_sendmail($newuser->uid,$message);
+        _echoconfirm_message("new",$newuser->uid,$module,$flag);
+        wtw_cookie_set("uid",$newuser->uid);
+        return array("status"=>"new","user"=>$newuser);
+      } else {
+        return array("status"=>"error");
+      }
+      
+    } else {
+      // this user exists. whats up?
+      wtw_cookie_set("uid",$user_from_db->uid);
+      
+      $ustatus = $user_from_db->confirm_status;
+      switch ($ustatus){
+        case "sent":
+        case "confirmed":
+          _echoconfirm_message($ustatus,$user_from_db->uid,$module,$flag);
+          return array("status"=>$ustatus,"user"=>$user_from_db);
+          break;
+        case "secured":
+          // was a password entered?
+          if (isset($edit['pass'])){
+            // they have submitted a password
+            // is it correct?
+            if (md5($edit['pass']) == $user_from_db->pass){
+              // it is correct
+              // so log them in and continue
+              _echoconfirm_update($user,$edit);
+//              $x = user_load(array("mail"=>$user->mail));
+//              $user = $x;
+              _echoconfirm_login($user_from_db->uid,$edit['pass']);
+                _echoconfirm_message("secured",$user_from_db->uid,$module,$flag);
+              return array("status"=>"secured","user"=>$user_from_db);
+              break;        
+            } else {
+              // it is incorrect
+              _echoconfirm_message("wrong_password",$user_from_db->uid,$module,$flag);
+              global $ask_for_password;
+              $ask_for_password = true;
+              return array("status"=>"wrong_password","user"=>$user_from_db);
+            }          
+          } else {
+            // request a password
+            global $ask_for_password;
+            $ask_for_password = true;
+            _echoconfirm_message("password",$user_from_db->uid,$module,$flag);
+            return array("status"=>"password","user"=>$user_from_db);
+          }
+          break;
+        case "":
+        default:
+          // there is probably no record in echo_confirm for this user, so create one
+          db_query("REPLACE INTO echoconfirm_user SET uid=%d,status='sent'",$user_from_db->uid);
+          $message = _echoconfirm_getmessage($newuser,$module,$flag,$node);
+          _echoconfirm_sendmail($newuser->uid,$message);
+          _echoconfirm_message($ustatus,$user_from_db->uid,$module,$flag);
+          return array("status"=>"new","user"=>$user_from_db);
+          break;
+      }
+    }
+  }
+}
+
+function echoconfirm_get_status($uid=NULL){
+  if (is_null($uid)){
+    global $user;
+    $uid = $user->uid;
+  }
+  
+  return db_result(db_query("SELECT status FROM {echoconfirm_user} WHERE uid=%d",$uid));
+}
+
+function echoconfirm_login(){
+  $edit = $_POST['edit'];
+
+  if($edit){
+    global $user;
+    $proc = echoconfirm_process($edit,"echoconfirm","login");
+    if ($proc['status'] == "secured"){
+      drupal_set_message("You have logged in.");
+      drupal_goto("mywalk");
+      return;
+    } else {
+      $edit['uid'] = db_result(db_query("SELECT uid FROM {users} WHERE mail='%s'",$edit['mail']));
+    }
+  }
+
+  $out = echoconfirm_login_form($edit);
+  print theme("page",$out,"Log In");
+}
+
+function echoconfirm_login_form($data){
+  $form .= form_textfield(t("Your E-mail Address"),"mail",$data['mail'],30,50);
+  $d = "Forgot your password? ".l("Click here to set a new one.","confirm/password/".$data['uid']);
+  $form .= form_password("Password","pass",$data['pass'],30,50,$d);
+  $form .= form_submit("Log In");
+  return form($form);
+}
+
+function echoconfirm_confirmapi($op,$flag,$msg=NULL,$uid=NULL,$nid=NULL){
+  switch($op){
+    case 'list':
+      return "login";
+      break;
+    case 'user_message':
+      return false;
+      break;
+    case 'replacevars':
+      return false;
+      break;
+  }
+}
+
+/*
+function _echoconfirm_request($module,$flag,$user,$nid=NULL){
+  $delay = _echoconfirm_invoke_api($module,"delay",$flag);
+  $sendtime = time() + $delay;
+  
+  // has this user already been sent a confirmation email?
+  $status = db_result(db_query("SELECT status FROM echoconfirm_user WHERE uid=%d",$user->uid));
+  if (($status == 'pending') || is_null($status)){
+    // they have not, so request one
+    db_query("INSERT INTO echoconfirm_requests SET uid=%d,sendtime=%d,module='%s',flag='%s',nid=%d",$user->uid,$sendtime,$module,$flag,$nid);
+    
+    // if there is no delay, then mark this user as sent immediately
+//    if ($delay == 0){
+//      db_query("REPLACE INTO echoconfirm_user SET uid=%d,status='sent'",$user->uid);
+//    }
+  }
+}
+*/
+
+function _echoconfirm_message($msg,$uid,$module=NULL,$flag=NULL){
+  // try to get a message via API
+  $module_message = _echoconfirm_invoke_api($module,"user_message",$flag,$msg,array('uid'=>$uid));
+  if ($module_message){
+    drupal_set_message($module_message);
+  } else {
+    switch($msg){
+      case 'new':
+        // this user is new
+        $out = "Before continuing, please confirm and secure your identity by following the link in your email.";
+        break;
+      case 'sent':
+        // this user has been sent a confirmation email but not followed it
+        $out = "Before continuing, please confirm and secure your identity by following the link in your email. If you have not received an email, ".l("click here to send another one.","confirm/send/".$uid);
+        break;
+      case 'confirmed':
+        // this user has confirmed, but is not yet secured
+        $out = "Before continuing, please confirm and secure your identity by following the link in your email. If you have not received an email, ".l("click here to send another one.","confirm/send/".$uid);
+        break;
+      case 'password':
+        // user must enter a password
+        $out = "Enter your password to log in. If you've forgotten your password, you can ".l("click here to reset it.","confirm/password/".$uid);
+        break;
+      case 'wrong_password':
+        $out = "The password you entered was incorrect-- please try again. If you've forgotten your password, you can ".l("click here to reset it.","confirm/password/".$uid);;
+        break;
+      case 'secured':
+        $out = "";
+        break;
+    }
+    if (str_word_count($out) > 0){
+      drupal_set_message($out);
+    }
+  }
+}
+
+function _echoconfirm_invoke_api($module,$a1,$a2=NULL,$a3=NULL,$a4=NULL,$a5=NULL){
+  $function = $module."_confirmapi";
+  if (function_exists($function)){
+    return $function($a1,$a2,$a3,$a4,$a5);
+  } else {
+    return false;
+  }
+}
+
+function _echoconfirm_create($edit){
+  // check for errors
+  // is it a valid email address
+  if ($error = user_validate_mail($edit['mail'])){
+    form_set_error('mail',$error);
+    return false;
+  } else {
+    watchdog('user', t('New user: %name %email.', array('%name' => '<em>'. $edit['name'] .'</em>', '%email' => '<em>&lt;'. $edit['mail'] .'&gt;</em>')));
+    
+    // build the user to save
+    $user_to_save = array(  'name'    => $edit['mail'], 
+                            'init'    => $edit['mail'], 
+                            'mail'    => $edit['mail'], 
+                            'roles'   => array(2),
+                            'status'  => 1,
+                            'pass'    => md5(user_pass())
+                            );
+    // profile vars
+    foreach ($edit as $var=>$val){
+      if (substr($var,0,7) == "profile"){
+        $user_to_save[$var] = $val;
+      }
+    }
+  
+    return user_save('', $user_to_save);
+  }
+}
+
+function _echoconfirm_getmessage($user,$module,$flag,$node=NULL){
+  $hash = md5($user->pass);
+  $link = url("confirm/c/".$user->uid."/".$hash, NULL, NULL, TRUE);
+
+  $extras = array(  "%link"       => $link,
+                    "%firstname"  => $user->profile_firstname);
+
+  // hack for F1
+  if (arg(0) == "F1"){
+    $message = f1_getconfirmemail($extras);
+  } else {
+    $sv = $module."_".$flag."_subject";
+    $bv = $module."_".$flag."_body";
+    
+    $message['subject'] = _echoconfirm_replace(variable_get($sv,false),$module,$extras,$flag,$user->uid,$node);
+    $message['body'] = _echoconfirm_replace(variable_get($bv,false),$module,$extras,$flag,$user->uid,$node);  
+  
+    if (!($message['subject'] && $message['body'])){
+      $message['subject'] = variable_get("site_name","hello");
+      $message['body'] = "Click here to confirm your account:\n$link";
+    }
+  }
+  
+  return $message;
+}
+
+function _echoconfirm_sendmail($uid,$message){
+  $user = user_load(array("uid"=>$uid));
+  $mail = $user->mail;
+
+  $fromname = quotemeta(variable_get("site_name",""));
+  $frommail = variable_get("site_mail",""); 
+  $headers = "From: $frommail\nReply-to: $frommail";
+  
+  $out = user_mail($mail,$message['subject'],$message['body'],$headers);
+
+  db_query("REPLACE INTO {echoconfirm_user} SET status='sent', uid=%d",$uid);
+  
+  return $out;
+}
+
+function _echoconfirm_confirm($uid,$hash){
+  if ($hash == md5(db_result(db_query("SELECT pass FROM {users} WHERE uid=%d",$uid)))){
+    db_query("REPLACE INTO {echoconfirm_user} SET status='confirmed', uid=%d",$uid);
+    // F1 hack
+    if (arg(4) == "F1"){
+      f1_confirmed();
+    } else {    
+      drupal_set_message("Your account has been confirmed. Now secure your account by creating a password.");
+      _echoconfirm_setpass($uid,$hash);
+    }
+  } else {
+    drupal_set_message("That didn't work.");
+    drupal_goto(variable_get("site_frontpage","node"));
+  }
+}
+
+function _echoconfirm_setpass($uid,$hash=NULL){
+  wtw_trans_set(5);
+
+  $edit = $_POST['edit'];
+  if (is_null($hash)){
+    $hash = $edit['hash'];
+  }
+  
+  $this_u = user_load(array("uid"=>$uid));
+  
+  // does this user have permission to change their password
+  // if user is secured, then they must be logged in to change password
+  // if user is confirmed, then they can change their password right away
+  // if they are neither (pending/sent) then they cannot change their password
+  if ($hash == md5($this_u->pass)){
+    // user is permissioned to change password
+    if (isset($edit)){
+      if ($edit['pass1'] != $edit['pass2']){
+        $error = "Error: The passwords you entered do not match.";
+      } elseif (empty($edit['pass1'])){
+        $error = "Error: You must fill in the fields.";
+      }
+      
+      if ($error){
+        $title = "Set A Password: ".$this_u->mail;
+        $out = $error;
+        $out .= _echoconfirm_setpass_form($uid,$this_u->mail);      
+      } else {
+        $newpass = md5($edit['pass1']);
+        db_query("UPDATE {users} SET pass='%s' WHERE uid=%d",$newpass,$uid);
+        db_query("REPLACE INTO {echoconfirm_user} SET status='secured', uid=%d",$uid);
+        
+        _echoconfirm_login($uid,$edit['pass1']);
+                        
+        drupal_set_message("Thank you for setting a password. Your account is confirmed! You can log-in or log-out of the site using the links at the top of the screen.");
+        drupal_goto("mywalk");
+      }
+    } else {
+      $title = "Set A Password: ".$this_u->mail;
+      $out = "Set your password here:";
+      $out .= _echoconfirm_setpass_form($uid,$this_u->mail,$hash);
+    }
+  } else {
+    // user is not permissioned to change password
+    $title = "Confirm your account: ".$this_u->mail;
+    $out = "<p>".l("Click here to send yourself a confirmation email.","confirm/send/".$uid)." Then follow the link in the email to set a password and secure your account.</p>";
+  } 
+  
+  print theme("page",$out,$title);
+}
+
+function _echoconfirm_setpass_form($uid,$email=NULL,$hash=NULL){
+  if (!is_null($email)){
+    $form .= form_item("Email",$email);
+  }
+  
+  $form .= form_hidden("hash",$hash);
+
+  $form .= form_password("Password","pass1",'',20,10);
+  $form .= form_password("Re-enter","pass2",'',20,10);
+  $form .= form_submit("Send");
+
+  return form($form,"POST","confirm/password/".$uid);
+}
+
+function _echoconfirm_profile_validate($edit){
+  $ok = true;
+
+  if (empty($edit['mail'])){
+    form_set_error('mail','You must enter an email address.');
+    $ok = false;
+  }
+  
+  foreach ($edit as $var=>$val){    
+    if (substr($var,0,7) == "profile"){
+      $rs = db_fetch_array(db_query("SELECT title,required FROM {profile_fields} WHERE name='%s'",$var));
+      if ($rs['required'] && empty($val)){
+        form_set_error($var,"You must enter your ".strtolower($rs['title']).".");
+        $ok = false;
+      }
+    }
+  } 
+  
+  return $ok;
+}
+
+function _echoconfirm_update(&$user, $edit){
+  foreach ($edit as $var=>$val){    
+    if (substr($var,0,7) == "profile"){
+      $user->$var = $val;
+    }
+  }
+  profile_save_profile($edit,$user,"personal information");
+}
+
+function _echoconfirm_get_all_flags(){
+  foreach (module_list() as $module) {
+    $result = module_invoke($module, "confirmapi", "list");
+    if (is_array($result)) {
+      foreach($result as $vr=>$vl){
+        $result[$vr] = array('module'=>$module,'flag'=>$vl);
+      }
+      $return = array_merge($return, $result);
+    }
+    else if (isset($result)) {
+      $return[] = array('module'=>$module,'flag'=>$result);
+    }
+  }
+  return $return;
+}
+
+function _echoconfirm_get_replacevars($module,$extras=array(),$flag=NULL,$uid=NULL,$node){
+  $list = _echoconfirm_invoke_api($module,"replacevars",$flag,NULL,$uid,$node);
+  if ($list){
+    $list = array_merge($list,$extras);
+  } else {
+    $list = $extras;
+  }
+  return $list;
+}
+
+function _echoconfirm_replace($text,$module,$extras=NULL,$flag,$uid,$node){
+  if (is_string($text)){
+    $rvars = _echoconfirm_get_replacevars($module,$extras,$flag,$uid,$node);  
+    $vars = array_keys($rvars);
+    $out = str_replace($vars,$rvars,$text);
+    return $out;
+  } else {
+    return false;
+  }
+}
+
+function _echoconfirm_lost($uid=NULL){
+  if (!$uid){
+    global $user;
+    if ($user->uid==0){    
+      $mail = $_POST['edit']['mail'];
+      $user = user_load(array("mail"=>$mail));
+    }
+    $uid = $user->uid;
+  }
+  
+  if (!$uid){
+    $out = "<p>Enter your email address to send yourself a confirmation email. Then follow the link in this email to reset your password.</p>";
+    $form .= form_textfield(t("Your E-mail Address"),"mail",$data['mail'],30,50);
+    $form .= form_submit(t("Send"));
+    
+    $out .= form($form);
+    
+    print theme("page",$out,"Confirm Your Account");
+  } else {
+    $message = _echoconfirm_getmessage(user_load(array("uid"=>$uid)),"","");
+    _echoconfirm_sendmail($uid,$message);
+    $out = "A new confirmation email has been sent to ".db_result(db_query("SELECT mail FROM {users} WHERE uid=%d",$uid)).". Use the link it contains to confirm and secure your account.";
+    print theme("page",$out,"Thanks!");
+  }
+}
+
+function _echoconfirm_login($uid,$pass){
+  $login = array(
+    'uid'   => $uid,
+    'pass'  => md5($pass)
+  );
+  $_SESSION['login'] = $login;
+}
+
+?>

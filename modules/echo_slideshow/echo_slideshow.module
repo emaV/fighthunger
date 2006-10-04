@@ -1,0 +1,283 @@
+<?php
+
+/**
+ * @file
+ * Displays flickr image.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function echo_slideshow_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Displays flickr image.');
+  }
+}
+
+function echo_slideshow_init ()
+{
+    global $flickr;
+    
+    include('FlickrLib.php');
+
+    $flickr = new FlickrLib('b9937eed5e47e753b717ddd7a2045bc7', '62728578@N00');
+}
+
+function echo_slideshow_cron ()
+{
+/*
+    global $flickr;
+    
+    @mkdir('/var/tmp/wtw_photos');
+    @mkdir('/var/tmp/wtw_photos/tn');
+    
+    $start_time = time();
+    
+    $tags = $flickr->getTagList();
+    
+    for ($i = 0; $i < count($tags); $i++)
+    {
+        $photos = $flickr->searchForTags($tags[$i], 'all', 300);
+
+        for ($j = 0; $j < count($photos); $j++)
+        {
+            $img  = 'http://photos' . $photos[$j]['server'];
+            $img .= '.flickr.com/';
+            $img .= $photos[$j]['id'];
+            $img .= '_';
+            $img .= $photos[$j]['secret'];
+            
+            if (file_exists('/var/tmp/wtw_photos/' . $photos[$j]['id']) == false)
+            {
+                $ch = curl_init();
+                    
+                curl_setopt($ch, CURLOPT_URL, $img . '.jpg');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1); 
+        
+                $result = curl_exec($ch);
+                
+                curl_close($ch);
+                
+                $fp = fopen('/var/tmp/wtw_photos/' . $photos[$j]['id'], 'w');
+                fwrite($fp, $result);
+                fclose($fp);
+            }
+            
+            if (file_exists('/var/tmp/wtw_photos/tn/' . $photos[$j]['id']) == false)
+            {
+                $ch = curl_init();
+                    
+                curl_setopt($ch, CURLOPT_URL, $img . '_s.jpg');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1); 
+        
+                $result = curl_exec($ch);
+                
+                curl_close($ch);
+                
+                $fp = fopen('/var/tmp/wtw_photos/tn/' . $photos[$j]['id'], 'w');
+                fwrite($fp, $result);
+                fclose($fp);
+            }
+
+            $query  = "REPLACE INTO wtw_gallery_tags ";
+            $query .= "VALUES ('" . $tags[$i] . "', " . $photos[$j]['id'] . ", ";
+            $query .= time() . ", '" . $photos[$j]['secret'] . "', '" . $photos[$j]['server'] . "')";
+            
+//            db_query($query);
+        }
+    }
+    
+    if (count($photos))
+    {
+        $query = "DELETE FROM wtw_gallery_tags WHERE timestamp < $start_time";
+        db_query($query);
+    }
+*/
+}
+
+function echo_slideshow_upload_form ($tags = 'uncategorized', $action = '')
+{
+    $out  = "<form method=\"POST\" action=\"$action\" enctype=\"multipart/form-data\">\n";
+    $out .= "<input type=\"hidden\" name=\"tags\" value=\"$tags\">\n";
+    $out .= "Upload a photo here:\n";
+    $out .= "<p><input type=\"file\" name=\"photo\"></p>\n";
+    $out .= "<p>Title: (optional, defaults to the photo filename)</p>\n";
+    $out .= "<p><input type=\"text\" name=\"title\"></p>\n";
+    $out .= "<p>Description: (optional, defaults to empty)</p>\n";
+    $out .= "<p><textarea name=\"description\" cols=\"50\" rows=\"6\"></textarea></p>\n";
+    $out .= "<p><input type=\"submit\" value=\"Upload Photo\"></p>\n";
+    $out .= "</form>\n";
+    
+    return($out);
+}
+
+function echo_slideshow_process_upload ($file_data = array(), $post_data = array())
+{
+    if (empty($file_data) || empty($post_data))
+        $out = "<p><strong>Unable to process photo upload!</strong></p>";
+    else
+    {
+        $email = "photos@fighthunger.org";
+        $pass  = "june12baby";
+        
+        $url = "http://www.flickr.com/tools/uploader_go.gne";
+        
+        $args = array("email"       => $email, 
+                      "password"    => $pass, 
+                      "photo"       => '@' . $file_data['tmp_name']['photo'], 
+                      "title"       => $post_data['title'] ? $post_data['title'] : $file_data['name']['name'], 
+                      "description" => $post_data['description'], 
+                      "tags"        => $post_data['tags']);
+        
+        $ch = curl_init();
+        
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $args);
+    
+        $result = curl_exec($ch);
+        
+        curl_close($ch);
+    
+        if (preg_match("/<status>ok<\/status>/", $result)){
+            $photoid = (preg_replace("/.*<photoid>(.*)<\/photoid>.*/s", "$1", $result));
+            $out = $photoid;
+        } else {
+            $er  = "<p>There was an error uploading your photo.  The system said: ";
+            $er .= (preg_replace("/.*<verbose>(.*)<\/verbose>.*/s", "<strong>$1</strong></p>", $result));
+            drupal_set_message($er);
+            $out = false;
+        }
+    }
+    
+    return($out);
+}
+
+function _echo_slideshow_list_photos ($tags = '')
+{
+    $photos = array();
+    
+    $query  = "SELECT DISTINCT photo_id 
+               FROM wtw_gallery_tags 
+               WHERE ";
+    
+    if (preg_match("/\s/", $tags))
+    {
+        $tag_array = preg_split("/\s+/", $tags);
+        $query .= "tag = " . $tag_array[0];
+        for ($i = 0; $i < count($tag_array); $i++)
+            $query .= " OR tag = '" . $tag_array[$i] . "'";
+    }
+    else
+        $query .= "tag = '$tags'";
+
+    $result = db_query($query);
+
+    while ($row = db_fetch_array($result))
+        $photos[] = $row['photo_id'];
+        
+    return($photos);
+}
+    
+function echo_slideshow_slideshow ($tags = '', $instructions = '', $flash = true)
+{
+    global $flickr;
+    
+    if (strlen($tags))
+    {
+        $photos = _echo_slideshow_list_photos($tags);
+        $count = count($photos);
+        
+        if ($count)
+        {
+            if ($flash)
+            {
+                $title = 'Walk the World Photo Gallery';
+                $desc  = 'A collection of ' . $count . ' photos from Walk the World.  Click here to begin the slideshow.';
+        
+                $out  = "\n<center>\n";
+                $out .= "<object classid=\"clsid:d27cdb6e-ae6d-11cf-96b8-444553540000\" ";
+                $out .= "codebase=\"http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=7,0,0,0\" ";
+                $out .= "width=\"420\" height=\"305\" id=\"slideshow\" align=\"middle\">\n";
+                $out .= "<param name=\"allowScriptAccess\" value=\"sameDomain\" />\n";
+                $out .= "<param name=\"movie\" value=\"modules/echo_slideshow/slideshow.swf\" />\n";
+                $out .= "<param name=\"quality\" value=\"high\" />\n";
+                $out .= "<param name=\"bgcolor\" value=\"#ffffff\" />\n";
+                $out .= "<param name=\"FlashVars\" value=\"xmlfile=modules/echo_slideshow/xml.php&tags=$tags";
+                
+                if ($count == 1)
+                    $out .= "&single=true";
+                
+                $out .= "\" />\n";
+                $out .= "<embed src=\"modules/echo_slideshow/slideshow.swf\" quality=\"high\" bgcolor=\"#ffffff\" ";
+                $out .= "width=\"420\" height=\"305\" name=\"slideshow\" align=\"middle\" allowScriptAccess=\"sameDomain\" ";
+                $out .= "type=\"application/x-shockwave-flash\" pluginspage=\"http://www.macromedia.com/go/getflashplayer\" ";
+                $out .= "FlashVars=\"xmlfile=modules/echo_slideshow/xml.php&tags=$tags";
+                
+                if ($count == 1)
+                    $out .= "&single=true";
+                
+                $out .= "\" />\n";
+                $out .= "</object>\n";
+                $out .= "<p><font size=\"-2\">If you'd like to see these photos without Flash, ";
+                $out .= l("click here",$_GET['q'],NULL,"noflash")."</font></p>";
+                $out .= "</center>\n";
+                $out .= "<p align=\"left\">";
+            }
+            else
+            {
+                $out  = "<h2>photos</h2>\n";
+                $out .= "<p><center>\n";
+                $out .= "<table id\"noflash_gallery\">\n";
+                
+                $bookmark = 0;
+                
+                for ($i = 0; $i < count($photos) / 5; $i++)
+                {
+                    $out .= "<tr>";
+                
+                    for ($j = 0; $j < 5; $j++)
+                    {
+                        if ($photos[$bookmark])
+                        {
+                            $base = 'http://www1.fighthunger.org/modules/echo_slideshow/photo.php/';
+                            
+                            $square = $base . 'tn/' . $photos[$bookmark] . '.jpg';
+                            $large  = $base . $photos[$bookmark] . '.jpg';
+                                      
+                            $out .= "<td><a href=\"$large\" border=\"0\" target=\"_blank\">";
+                            $out .= "<img src=\"$square\" width=\"75\" height=\"75\">";
+                            $out .= "</a></td>";
+                        }
+                        else
+                            $out .= "<td><br></td>";
+                        
+                        $bookmark++;
+                    }
+                    
+                    $out .= "</tr>";
+                }
+                
+                $out .= "</table>";
+                $out .= "</center></p>";
+            }
+        }
+        else
+            $out  = "<h2 align=\"left\">photos</h2><p align=\"left\"><em>There are no photos for this page.</em></p>";
+/*        
+        if (empty($instructions)){
+            $out .= "<p><em>You can share your photos by <a href='share'>uploading them to this website</a> or by emailing them to <a href=\"mailto:photos@fighthunger.org\">photos@fighthunger.org</a>.</em></p>";
+        } else {
+            $out .= $instructions;
+        }
+            */
+        return($out);
+    }
+    else
+        return("<p><strong>No photo tags specified; can't build slideshow!</strong></p>");
+}
+
+?>

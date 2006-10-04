@@ -1,0 +1,368 @@
+<?
+/*
+    blacklist - a handy module for blacklisting comments with certain terms
+    Copyright (C) 2005 EchoDitto, inc. (scott@echoditto.com)
+    
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+*/
+
+function blacklist_menu($mc){
+  if ($mc){
+    $out = array();
+  } else {
+
+  }
+     
+    $out[] = array(
+      'path'      => 'admin/blacklist',
+      'title'     =>  'blacklist tools',
+      'callback'  =>  'blacklist_tools',
+      'access'    =>  user_access('administer blacklist'),
+      'type'      =>  MENU_NORMAL_ITEM
+    );
+    
+  return $out;
+}
+
+function blacklist_cron() {
+
+	if (variable_get('blacklist_report', 0)=='yes'){
+		//check timecode
+		$lastreport = variable_get('blacklist_lastreport',0);
+		$delay = variable_get('blacklist_time',0);
+		if(time() > ($lastreport + $delay)) {
+			//create report first
+			$report = blacklist_report('view');
+			$plainreport = blacklist_report('report');
+			//invoke PHPMailer to send our mail nicely
+			if(strlen($report) > 0){
+				if(!class_exists('phpmailer'))
+					include_once('includes/phpmailer/class.phpmailer.php');
+				$mail = new phpmailer();
+				$mail->From = variable_get('blacklist_address',0);
+				$mail->FromName = 'Drupal Blacklist';
+				$mail->Subject = 'Blacklist Report for ' . variable_get('site_name',0);
+				$mail->AddAddress(variable_get('blacklist_address',0));
+				$mail->Body = $report;
+				$mail->AltBody = $plainreport;
+				$mail->Send();
+			}
+			variable_set('blacklist_lastreport',time());
+		}
+		
+
+	}
+
+}
+
+
+function blacklist_settings() {
+if (variable_get('blacklist_report', 0)=='yes'){
+	$ischecked = TRUE;
+}
+
+if (variable_get('blacklist_time', 0)==''){
+	variable_set('blacklist_time',  86400);
+}
+
+    if (variable_get('blacklist_terms', 0)==""){
+		variable_set('blacklist_terms','tramadol
+-online
+4u
+adipex
+advicer
+ambien
+baccarrat
+blackjack
+bllogspot
+booker
+byob
+car-rental-e-site
+car-rentals-e-site
+carisoprodol
+casino
+casinos
+chatroom
+cialis
+credit-report-4u
+cwas
+cyclen
+cyclobenzaprine
+dating-e-site
+day-trading
+debt-consolidation-consultant
+discreetordering
+duty-free
+dutyfree
+fioricet
+flowers-leading-site
+freenet-shopping
+freenet
+fuck
+gambling
+health-insurancedeals-4u
+holdem
+holdempoker
+holdemsoftware
+holdemtexasturbowilson
+hotel-dealse-site
+hotele-site
+hotelse-site
+incest
+insurance-quotesdeals-4u
+insurancedeals-4u
+jrcreations
+levitra
+loan
+macinstruct
+mortgage-4-u
+online-gambling
+onlinegambling-4u
+ottawavalleyag
+ownsthis
+palm-texas-holdem-game
+paxil
+penis
+phentermine
+poker
+poker-chip
+poze
+rental-car-e-site
+roulette 
+shemale
+slot-machine
+slot
+soma
+taboo
+texas-holdem
+thorcarlson
+top-site
+top-e-site
+tramadol
+trim-spa
+ultram
+vagina
+valeofglamorganconservatives
+viagra
+vioxx
+xanax
+zolus
+8gold
+gambling
+middlecay
+online poker
+http://www.teambeck.org/
+http://www.paramountseedfarms.net/
+http://www.reservedining.net/
+credit cards
+http://www.easy-application-credit-cards.com/
+http://credit-cards.cheat-elite.com/
+http://insurance-quotes.rulo.biz/
+http://insurance-quotes.rulo.biz/
+http://blyanah.za.pl/
+rape
+http://wsop.tecrep-inc.net/
+http://www.slots-w.us.com/
+http://www.slots-w.us.com/
+byob
+http://maniac2.w.interia.pl/
+bestiality
+animal sex
+dog sex
+http://www.tigerspice.com/
+texas holdem
+texas hold’em
+chubby mature
+mature models
+http://e3.com/
+http://7b.com/
+Jon Kolbe');
+	}
+	
+  $output .= form_checkbox(t("Send reports?"),"blacklist_report",'yes',$ischecked,'Send e-mail reports daily?');
+    
+  $output .= form_textfield(t("E-Mail address for reports"),"blacklist_address",variable_get('blacklist_address', ''),60,200);
+  $output .= form_textfield(t("Time Delay for reports, in Seconds"),"blacklist_time",variable_get('blacklist_time', ''),10,30);
+    
+  $output .= form_textarea(t('Terms'), 'blacklist_terms', variable_get('blacklist_terms', ''), 70, 5, t('Terms to blacklist. One line each.'),'', TRUE);
+  return $output;
+}
+
+function blacklist_perm() {
+  return array("administer blacklist", "bypass blacklist"); 
+}
+
+function blacklist_help($section = 'admin/help#blacklist') {
+  $output = "";
+
+  switch ($section) {
+    case 'admin/modules#description':
+      $output = t("A module to filter out comments with blacklisted terms.");
+      break;
+  }
+  return $output;
+}
+
+function blacklist_comment($action, $comment) {
+  global $base_url;
+  //allow admins to bypass the blacklist
+  if (user_access('bypass blacklist')) return;
+  
+  $comment = array2object($comment);
+  // also scan anonymous user info and subject
+  $comment->comment .= ' '. $comment->name .' '. $comment->mail .' '. $comment->homepage .' '. $comment->subject ;
+  
+  switch ($action) {
+    case 'insert':
+      if(blacklist_isbad($comment->comment))
+      	blacklist_unpublish($comment->cid,$comment->nid);
+      break;  
+  }
+}
+
+function blacklist_unpublish($cid,$nid){
+	db_query("UPDATE {comments} SET status='1' WHERE cid='%s'", $cid);
+	//db_query("UPDATE {node_comment_statistics} SET comment_count = comment_count-1 WHERE nid='%s'",$nid);
+	_comment_update_node_statistics($nid);
+}
+
+function blacklist_isbad($comment){
+	$blacklists = explode("\n",variable_get("blacklist_terms",""));
+	
+	foreach($blacklists as $term){
+		if(stristr($comment, substr($term,0,strlen($term)-1))){
+			//var_dump($term);			
+			return TRUE;
+		}		
+	}
+	return FALSE;
+}
+
+function blacklist_tools(){
+	$URL4 = URL("admin/blacklist/spamsearch_view");
+	$out .= "<p><a href=\"$URL4\">Search for pre-existing spam comments and view them.</a></p>";
+	
+	
+	$URL1 = URL("admin/blacklist/spamsearch_delete");
+	$out .= "<p><a href=\"$URL1\">Search for pre-existing spam comments and move them to queue.</a></p>";
+	
+	$URL3 = URL("admin/comment/list/approval");
+	$out .= "<p><a href=\"$URL3\">View approval queue.</a></p>";
+	
+	$URL2 = URL("admin/blacklist/deletequeue");
+	$out .= "<p><a href=\"$URL2\">Permanently delete entire approval queue</a> - <b>check queue first!</b></p>";
+	
+	if(arg(2)){
+		$out .= "<hr><p>Action: ";
+
+		if (arg(2)=="spamsearch_delete"){
+			$out .= "Spam Search and Delete</p>";
+			$out .= blacklist_spamsearch("delete");
+		}
+		
+		if (arg(2)=="spamsearch_view"){
+			$out .= "Spam Search and View</p>";
+			$out .= blacklist_spamsearch("view");
+		}
+		
+		if (arg(2)=="deletequeue"){
+			$out .= "Approval queue has been permanently deleted.</p>";
+			db_query("DELETE FROM comments WHERE status='1'");	
+		}
+	}
+	print theme("page",$out);	
+}
+
+function blacklist_spamsearch($action){
+	//query for all published comments
+	$results = db_query("SELECT cid, nid, subject, comment, name, mail, homepage FROM comments WHERE status='0'"); 	
+	
+	while ($comment=db_fetch_array($results, MYSQL_ASSOC)){
+		$combined = "";
+
+		$combined = $comment['subject'] . " " . $comment['comment'] . " " . $comment['name'] . " " . $comment['mail'] . " " . $comment['homepage'];
+		
+		
+		if (blacklist_isbad($combined)){
+			$combined = strip_tags($combined);
+			
+			$nid = $comment['nid'];
+			$cid = $comment['cid'];
+			$fields = $comment['subject'] . " / " . $comment['comment'] . " / " . $comment['name'] . " / " . $comment['mail'] . " / " . $comment['homepage'];
+		;
+			
+			if($action=="view"){
+				$out .= "<p><b>Comment #$cid in Node #$nid:</b> $fields</p>";
+			}
+			
+			if($action=="report"){
+				$out .= "Comment #$cid in Node #$nid: $fields\n\n";
+			}
+
+			
+			if($action=="delete"){
+				blacklist_unpublish($cid,$nid);
+				$out .= "<p><b>Comment #$cid in Node #$nid:</b> $combined has been unpublished</p>";
+			}
+		}
+	
+	
+	}
+	
+	return $out;
+	
+}
+
+function blacklist_report($action){
+	//query for all published comments
+	$results = db_query("SELECT cid, nid, subject, comment, name, mail, homepage FROM comments WHERE status='1'"); 	
+	
+	while ($comment=db_fetch_array($results, MYSQL_ASSOC)){
+		$combined = "";
+
+		$combined = $comment['subject'] . " " . $comment['comment'] . " " . $comment['name'] . " " . $comment['mail'] . " " . $comment['homepage'];
+		
+		
+		
+			$combined = strip_tags($combined);
+			
+			$nid = $comment['nid'];
+			$cid = $comment['cid'];
+			$fields = $comment['subject'] . " / " . $comment['comment'] . " / " . $comment['name'] . " / " . $comment['mail'] . " / " . $comment['homepage'];
+			$fields = strip_tags($fields);
+			
+			if($action=="view"){
+				$out .= "<p><b>Comment #$cid in Node #$nid:</b> $fields</p>";
+			}
+			
+			if($action=="report"){
+				$out .= "Comment #$cid in Node #$nid: $fields\n\n";
+			}
+
+			
+		
+		
+	
+	
+	}
+	
+	return $out;
+	
+}
+
+
+
+?>

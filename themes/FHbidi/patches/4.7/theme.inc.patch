@@ -1,0 +1,21 @@
+--- theme.inc.orig	2005-12-16 15:23:27.000000000 +0200
++++ theme.inc	2006-01-09 16:22:10.639887392 +0200
+@@ -32,7 +32,7 @@
+  *   The name of the currently selected theme.
+  */
+ function init_theme() {
+-  global $user, $custom_theme, $theme_engine, $theme_key;
++  global $user, $custom_theme, $theme_engine, $theme_key, $locale;
+ 
+   drupal_bootstrap(DRUPAL_BOOTSTRAP_DATABASE);
+   $themes = list_themes();
+@@ -61,7 +61,8 @@
+   else {
+     // File is a template/theme
+     // Load its CSS, if it exists
+-    if (file_exists($stylesheet = dirname($themes[$theme]->filename) .'/style.css')) {
++    $ltr = in_array($locale, array('ar', 'fa', 'he', 'ur')) ? '' : '-ltr';
++    if (file_exists($stylesheet = dirname($themes[$theme]->filename) .'/style' .$ltr .'.css')) {
+       theme_add_style($stylesheet);
+     }
+   }

@@ -1,0 +1,606 @@
+<?php
+
+/**
+ * @file
+ * Campaigns
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function campaign_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('????.');
+  }
+}
+
+function campaign_block($op="list",$delta=0){
+  if ($op=="list"){
+    $blocks[0]["info"] = "Taxonomy 'Section Links'";
+    return $blocks;
+  } else {
+    switch ($delta){
+      case 0:
+        global $show_section_links;
+        if ($show_section_links){
+          $block = campaign_block_section($show_section_links);
+        }
+        return $block;
+        break;
+    }
+  }
+}
+
+function campaign_init(){
+  if (isset($_GET['t'])){
+    global $show_section_links;
+    $show_section_links = $_GET['t'];
+  }
+}
+
+
+function campaign_menu($mc){
+  if ($mc){
+    $out = campaign_menu_generate();
+    $out[] = array(
+      'access' => user_access("administer page weights"),
+      'type' => MENU_CALLBACK,
+      'path' => 'weight',
+      'callback' => 'campaign_weight_change'
+    );  
+  } else {
+  }
+  return $out;
+}
+
+function campaign_menu_generate(){
+  $vocs = variable_get("campaign_vocabs",array());
+  foreach ($vocs as $vid){
+    $tree = taxonomy_get_tree($vid);
+    foreach ($tree as $term){
+      $tid = $term->tid;
+      $uri = variable_get("campaign_term_path_$tid","");
+      $menu = variable_get("campaign_term_menu_$tid",0);
+      if (!empty($uri)){
+        $out[] = array(
+            'path' => $uri,
+            'callback' => 'campaign_section',
+            'callback arguments' => $term->tid,
+            'type' => $menu ? MENU_NORMAL_ITEM : MENU_CALLBACK,
+            'title' => $term->name,
+            'access' => true
+          );
+      }
+    }
+  }
+  return $out;
+}
+
+function campaign_section($tid){
+
+/*
+  $x = menu_get_local_tasks();
+  var_dump($x);
+  $pid = menu_get_active_nontask_item();
+  var_dump($pid);
+*/  
+  
+  global $show_section_links;
+  $show_section_links = $tid;
+
+  switch(variable_get("campaign_term_display_$tid",0)){
+    case '0':
+      campaign_section_content_topnode($tid);
+      break;
+    case '1':
+      campaign_section_content_allnodes($tid);
+      break; 
+  }
+}
+
+function campaign_get_sorted_query($tid,$limit=NULL){
+  $tid = mysql_escape_string($tid);
+  $flag = variable_get("campaign_term_sort_$tid",0);
+  switch($flag){
+    case '0':
+      // sort by creation date
+      $q = "SELECT DISTINCT n.nid ".
+            "FROM node n, term_node tn ".
+            "WHERE n.nid = tn.nid ".
+            "AND tn.tid = $tid ".
+            "ORDER BY n.sticky DESC, n.created DESC";
+      break;
+    case '1':
+      // sort by weight
+      $q = "SELECT DISTINCT w.nid ".
+            "FROM weight w, term_node tn ".
+            "WHERE w.nid = tn.nid ".
+            "AND tn.tid = $tid ".
+            "AND w.tid = tn.tid ".
+            "ORDER BY w.weight ASC ";
+      break;
+    case '2':
+      // sort by release date
+      $year = arg(1);
+      $month = arg(2);
+      if (!empty($year) && !empty($month)){
+        $startdate = mktime(0,0,0,$month,1,$year); 
+        $enddate = mktime(0,0,0,$month+1,1,$year);        
+        $extra = "AND r.releasedate >= $startdate AND r.releasedate < $enddate ";
+      }
+      
+      $q = "SELECT n.nid ".
+            "FROM node n, term_node tn ".
+            "LEFT JOIN releasedate r ".
+            "ON n.nid = r.nid ".
+            "WHERE n.nid = tn.nid  ".
+            "AND tn.tid = $tid  ".$extra.
+            "ORDER BY n.sticky DESC, r.releasedate DESC";
+      break;
+    case '3':
+      // sort alphabetically by title
+      $q = "SELECT DISTINCT n.nid ".
+            "FROM node n, term_node tn ".
+            "WHERE n.nid = tn.nid ".
+            "AND tn.tid = $tid ".
+            "ORDER BY n.sticky DESC, n.title ASC";
+      break;
+  }
+  if (!is_null($limit)){
+    $q .= " LIMIT ".$limit;
+  }
+  return $q;
+}
+
+function campaign_section_content_allnodes($tid){
+  $q = campaign_get_sorted_query($tid);
+  
+//  campaign_set_breadcrumb($tid,"crumb");
+
+  $rs = pager_query($q);
+  unset($out);
+  while ($a = db_fetch_array($rs)){
+    $out .= node_view(node_load($a),1,0);
+  }
+  $out .= theme("pager");
+
+  $pagetitle = db_result(db_query("SELECT name FROM term_data WHERE tid=%d",$tid)) . _campaign_monthtitle();
+  print theme("page",$out,$pagetitle);
+}
+
+
+function campaign_section_content_topnode($tid){
+  $q = campaign_get_sorted_query($tid) . " LIMIT 1";
+  
+  $nid = db_result(db_query($q,$tid));
+
+  campaign_set_breadcrumb($tid,"node/".$nid);
+
+  $node = node_load(array("nid"=>$nid));
+  campaign_add_tabs($node);
+  
+  $out = node_view($node,0,1);
+  print theme("page",$out,$node->title);
+}
+
+function campaign_add_tabs(&$node){
+  if (user_access('administer nodes')){
+    $nid = $node->nid;
+    $active = array("class"=>"active");
+   
+    $t =  "<ul class=\"tabs primary\">\n";
+    $t .= "<li class=\"active\">".l("view","node/$nid/view",$active)."</li>\n";
+    $t .= "<li>".l("edit","node/$nid/edit")."</li>\n";
+    $t .= "</ul>";
+    
+    $node->tabs = $t;
+  }
+}
+
+function campaign_block_section($tid,$hidemonths=false){
+  $active = menu_get_active_breadcrumb();
+  
+  if (!(variable_get("campaign_term_block_$tid",false))){
+    return false;
+  }
+  
+  $limit = variable_get("campaign_term_limit_".$tid,NULL);
+  if (empty($limit)){
+    unset($limit);
+  }
+
+  // bell hack to show third column
+  // (we want to show the third column if this block is present)
+  global $thirdcol;  
+  $thirdcol = true;
+
+  $sort = variable_get("campaign_term_sort_$tid",0);
+  $showWeightControls = user_access("administer page weights") && ($sort == 1);
+
+  $a = db_fetch_array(db_query("SELECT name FROM term_data WHERE tid=%d",$tid));
+  $block['subject'] = $a['name'] . _campaign_monthtitle();
+  
+  $q = campaign_get_sorted_query($tid, $limit);
+  $rs = db_query($q);
+
+  $count = 0;
+  $maxcount = db_num_rows($rs);
+  while ($o = db_fetch_array($rs)){
+    unset($thisout);
+    $count++;
+    
+    $node = node_load(array("nid"=>$o['nid']));
+    
+    if (($sort == 2) && ($node->sticky == 0) && (!empty($node->releasedate))){
+      $thisout = format_date($node->releasedate,"custom","M d, y: ");
+    }
+    
+    
+    global $currentnid;
+    unset($atts);
+    if ($currentnid == $node->nid){
+      $atts['class'] = "active";
+    }
+
+    $query = "t=".$tid;
+    
+    $thisout .= l($node->title, "node/".$node->nid, $atts,$query);
+
+    if (!empty($node->subtitle)){
+      $thisout .= "- ".$node->subtitle;
+    }
+    
+    if ($showWeightControls){
+      $thisout .= " <small>";
+      if ($count > 1){
+        $thisout .= l("up","weight/up/" . $tid . "/" . $node->nid) . " ";
+      }
+      if ($count < $maxcount){
+        $thisout .= l("down","weight/down/" . $tid . "/" . $node->nid);
+      }
+      $thisout .= " (".db_result(db_query("SELECT weight FROM weight WHERE nid=%d AND tid=%d",$node->nid,$tid)).")";
+      $thisout .= "</small>";
+    }
+
+    $items[] = $thisout;
+  }
+
+  // add a 'more' link?
+  if (!is_null($limit) && count($items) == $limit){
+    $uri = variable_get("campaign_term_path_".$tid,"");
+    $att = array("class"=>"more");
+    $items[] = l("more",$uri,$att);
+  }
+
+  $block['content'] = theme("item_list",$items);
+
+  // add monthly archives?
+  if (variable_get("campaign_term_months_".$tid,false) && !($hidemonths)){
+    $block['content'] .= campaign_block_section_months($tid);
+  }
+
+  return $block;
+}
+
+function campaign_block_section_months($tid){
+  $path = variable_get("campaign_term_path_".$tid,"");
+  
+	$times = db_query("SELECT MONTHNAME(FROM_UNIXTIME(r.releasedate)) as monthname, MONTH(FROM_UNIXTIME(r.releasedate)) as month, YEAR(FROM_UNIXTIME(r.releasedate)) as year FROM {node} n, {term_node} tn, {releasedate} r WHERE r.nid = n.nid AND tn.nid = n.nid AND tn.tid = %d GROUP BY month,year ORDER BY created DESC",$tid);
+
+	while ($thistime = db_fetch_object($times)){
+		$fullname = $thistime->monthname . ", " . $thistime->year;
+		$links[] .= l($fullname, $path."/".$thistime->year."/".$thistime->month);
+	}
+
+  if (count($links > 1)){
+  	$output = "<h4>Archives by Month</h4>".theme("item_list",$links);
+  } else {
+    $output = false;
+  }
+  
+	return $output;  
+}
+
+function campaign_perm(){
+  return array("administer page weights");
+}
+
+function campaign_reweight(){
+  $vocs = variable_get("campaign_vocabs",array());
+
+  foreach ($vocs as $vid){
+    $tree = taxonomy_get_tree($vid);
+    foreach ($tree as $term){
+      $tid = $term->tid;
+      unset($pages,$weighted,$weightme);
+      $rs = db_query("SELECT DISTINCT tn.nid FROM term_node tn WHERE tn.tid=%d",$tid);
+      while($o = db_fetch_array($rs)){
+        $pages[] = $o['nid'];
+      }
+      $rs = db_query("SELECT nid FROM weight WHERE tid=%d",$tid);
+      while($o = db_fetch_array($rs)){
+        $weighted[] = $o['nid'];
+      }
+      if (empty($weighted)){
+        $weightme = $pages;
+      } elseif (!empty($pages)) {
+        $weightme = array_diff($pages,$weighted);
+      }
+      if (!empty($weightme)){
+        foreach($weightme as $nid){
+          campaign_weight_insert($nid,$tid);
+        }
+      }
+
+    }
+  }
+  
+}
+
+function campaign_nodeapi(&$node,$op,$teaser=NULL,$page=NULL){
+  switch ($op){
+    case 'settings':
+      $output[t('release date')] = form_checkbox(NULL, "releasedate_$node->type", 1, variable_get("releasedate_".$node->type, 0));
+      return $output;
+      break;
+    case "form pre":
+      if (variable_get("releasedate_".$node->type, 0)){
+        $out .= form_textfield(t('Release date'), 'releasedate_string', $node->releasedate_string, 20, 25, "Use this for any node with a release date separate from its creation date. Use the format 'Aug 05 1980'.");
+        return $out;
+      }  
+      break;
+    case "load":
+      if (variable_get("releasedate_".$node->type, 0)){
+        $releasedate = db_result(db_query("SELECT releasedate FROM releasedate WHERE nid=%d",$node->nid));
+        if (!empty($releasedate)){
+          $return['releasedate'] = $releasedate;
+          $return['releasedate_string'] = format_date($releasedate, 'custom', 'M d Y');
+        }
+        return $return;
+      }
+      break;
+    case "validate":
+      if (variable_get("releasedate_".$node->type, 0)){
+        if (!empty($node->releasedate_string)){
+          $time = strtotime($node->releasedate_string);
+          $node->releasedate = $time;
+        }
+      }
+      break;
+    case "insert":
+      if ($node->type == "page"){
+//        campaign_reweight();
+      }
+      if (variable_get("releasedate_".$node->type, 0)){
+        if (!empty($node->releasedate)){
+          db_query("INSERT INTO releasedate SET nid=%d,releasedate=%d",$node->nid,$node->releasedate);
+        }
+      }
+      break;
+    case "update":
+      if (variable_get("releasedate_".$node->type, 0)){
+        db_query("DELETE FROM releasedate WHERE nid=%d",$node->nid);
+        if (!empty($node->releasedate)){
+          db_query("INSERT INTO releasedate SET nid=%d,releasedate=%d",$node->nid,$node->releasedate);
+        }
+      }
+      break;
+    case "delete":
+      db_query("DELETE FROM releasedate WHERE nid=%d",$node->nid);
+//      db_query("DELETE FROM weight WHERE nid=%d",$node->nid);
+      break;
+    case "view":
+      if ($page){
+        $vocs = variable_get("campaign_vocabs",array());
+        $sql_vocs = "(td.vid='" . implode("' OR td.vid='",$vocs) . "')";
+      
+        // we're picking the term for which the box will be displayed here.
+        // this is done at random here. this has a couple flaws. this code could probably be tidied.
+        $rs = db_fetch_array(db_query("SELECT tn.tid FROM term_node tn, term_data td WHERE td.tid = tn.tid AND tn.nid = %d AND ".$sql_vocs." LIMIT 1",$node->nid));
+        
+        global $show_section_links;
+        if (!empty($rs) && empty($show_section_links)){
+          $show_section_links = $rs['tid'];
+        }
+        
+        campaign_set_breadcrumb($show_section_links,"node/".$node->nid);
+        
+        global $currentnid;
+        $currentnid = $node->nid;
+      break;
+    }
+  }
+}
+
+function campaign_set_breadcrumb($tid,$path){
+  $name = variable_get("campaign_term_path_$tid",false);
+  
+  if (!$name){ return; }
+  
+  $loc[] = array(
+    'path' => $name
+  );
+
+  $loc[] = array(
+    'path' => $path
+  );
+  
+  menu_set_location($loc);
+}
+
+function campaign_weight_change($op="",$tid="",$nid=""){
+  campaign_reweight();
+
+  if (empty($op) || empty($nid) || empty($tid)){ 
+    print "reweighted.";
+    return;
+  }
+  
+  $q = "SELECT n1.nid,w.weight,n2.title,n2.type,td.tid ".
+        "FROM node n1, node n2, weight w, term_data td, term_node tn1, term_node tn2 ".
+        "WHERE n2.nid = %d ".
+        "AND tn2.nid = n2.nid ".
+        "AND tn2.tid = td.tid ".
+        "AND td.tid = %d ".
+        "AND tn1.tid = td.tid ".
+        "AND tn1.nid = n1.nid ".
+        "AND n1.nid = w.nid ".
+        "ORDER BY w.weight ASC ";
+  $rs = db_query($q,$nid,$tid);
+  while ($o = db_fetch_array($rs)){
+    $w[] = $o;
+    if ($o['nid'] == $nid){
+      $oldindex = sizeof($w) - 1;
+    }
+  }
+  
+  switch ($op){
+    case 'up':
+      $newindex = $oldindex - 1;
+      break;
+    case 'down':
+      $newindex = $oldindex + 1;
+      break;
+  }
+  
+  $q = "UPDATE weight SET weight=%d WHERE nid = %d AND tid=%d";
+  db_query($q, $w[$newindex]['weight'], $nid, $tid);
+  db_query($q, $w[$oldindex]['weight'], $w[$newindex]['nid'], $tid);
+  
+  /* debugging code
+  var_dump($w);  
+  $dbg = $op."! ".$oldindex.":".$w[$newindex]['weight'] . ":".$nid." >".
+    $newindex.":".$w[$oldindex]['weight'].":".$w[$newindex]['nid'];    
+  drupal_set_message($dbg);
+  */
+  
+  drupal_set_message("Moved node <b>".$w[0]['title']."</b> ".$op);
+  
+  campaign_section($tid);
+}
+
+function campaign_weight_insert($nid,$tid){
+  $q = "SELECT n.nid,w.weight,tn1.tid ".
+        "FROM node n, weight w, term_data td, term_node tn1, term_node tn2 ".
+        "WHERE tn2.nid = %d ".
+        "AND tn2.tid = td.tid ".
+        "AND td.tid = %d ".
+        "AND tn1.tid = td.tid ".
+        "AND tn1.nid = n.nid ".
+        "AND n.nid = w.nid ".
+        "ORDER BY w.weight DESC ".
+        "LIMIT 1";
+  $rs = db_fetch_array(db_query($q,$nid,$tid));
+  if ($rs){
+    $newweight = $rs['weight'] + 1;
+  } else {
+    $newweight = 0;
+  }
+  db_query("INSERT INTO weight SET nid=%d,tid=%d,weight=%d",$nid,$tid,$newweight);
+}
+
+
+function phptemplate_pullquote($pq,$align="right"){
+  $dir = path_to_theme();
+  $out = '
+<h5 class="pullquote '.$align.'">
+	'.$pq.'
+</h5><!-- close pullquote h5 -->
+  ';
+  return $out;
+}
+
+function campaign_settings(){
+  campaign_reweight();
+  cache_clear_all('menu:', TRUE);
+  
+  $rs = db_query("SELECT vid,name FROM vocabulary ORDER BY vid ASC");
+  while ($o = db_fetch_array($rs)){
+    $all_vocs[$o['vid']] = $o['name'];
+  }
+  
+  $vocs = variable_get("campaign_vocabs",array());
+  $out = form_select("Campaign Vocabularies","campaign_vocabs",$vocs,$all_vocs,null,null,true);
+
+  if (!empty($vocs)){
+    $header = array(
+       "",
+       "Display",
+       "Sort",
+       "Path",
+       "Menu",
+       "Block",
+       "Limit",
+       "Months"
+    );    
+    
+    $display_options = array(0 => "Single", 1 => "List");
+    $sort_options = array(0 => "Created", 1 => "Weight", 2 => "Released", 3 => "Alphabetical");
+    foreach ($vocs as $vid){
+      $tree = taxonomy_get_tree($vid);
+      $vocname = $all_vocs[$vid];
+
+      $headercell['data'] = "<u>".$vocname."</u>";
+      $headercell['colspan'] = 5;
+      $rows[][] = $headercell;
+      
+      foreach($tree as $term){
+        unset ($row);
+        $row[] = $term->name;
+        
+        $tid = $term->tid;
+
+        $varname = "campaign_term_display_$tid";
+        $row[] = form_select("",$varname,variable_get($varname,0),$display_options);
+
+        $varname = "campaign_term_sort_$tid";
+        $row[] = form_select("",$varname,variable_get($varname,0),$sort_options);
+
+        $varname = "campaign_term_path_$tid";
+        $row[] = form_textfield("",$varname,variable_get($varname,""),10,30);
+
+        $varname = "campaign_term_menu_$tid";
+        $row[] = form_checkbox("",$varname,1,variable_get($varname,0));
+        
+        $varname = "campaign_term_block_$tid";
+        $row[] = form_checkbox("",$varname,1,variable_get($varname,0));
+        
+        $varname = "campaign_term_limit_$tid";
+        $row[] = form_textfield("",$varname,variable_get($varname,""),5,2);
+                
+        $varname = "campaign_term_months_$tid";
+        $row[] = form_checkbox("",$varname,1,variable_get($varname,0));
+                
+        $rows[] = $row;
+      }
+    }
+    
+    $hints = array(
+      "<b>Display:</b> What nodes should display on this term's page?",
+      "<b>Sort:</b> How should these nodes be sorted? (\"Released\" requires releasedate.module.)",
+      "<b>Path:</b> URI for this term's page.",
+      "<b>Menu:</b> Create a menu.module item for this term.",
+      "<b>Block:</b> Display a table-of-contents block for this term's nodes?",
+      "<b>Limit:</b> How many nodes should this term's block list?",
+      "<b>Months:</b> Include archives-by-month for this term? (Requires \"Sort\" to be set to \"Released\".)"
+    );
+    
+    $out .= theme("item_list",$hints);
+    $out .= theme("table",$header,$rows);
+  }  
+  
+  return $out;
+}
+
+function _campaign_monthtitle(){
+  $year = arg(1);
+  $month = arg(2);
+  if (empty($month) || empty($year)){
+    return "";
+  } else {
+    return date(" - F, Y",mktime(0,0,0,$month,0,$year));
+  }
+}
+
+?>

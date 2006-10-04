@@ -1,0 +1,1040 @@
+<?php
+
+/**
+ * @file
+ * Some data management for users and echo actions.
+ * 
+ * Notes:
+ * - Hardcoded theme references
+ * - Check cron function
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function wtwadmin_help($section = 'admin/help#wtwinvite') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t("Some data management for users and echo actions.");
+  }
+}
+
+function wtwadmin_footer(){
+  if (isset($_GET['ref'])){
+    phptemplate_templates("themes/walktheme");
+    print "refreshed walktheme";
+  }
+  if (isset($_GET['profile'])){
+    wtwadmin_parse_profiles();
+  }
+}
+
+function wtwadmin_parse_profiles(){
+  $rs = db_query("SELECT * FROM profile_fields");
+  while($f = db_fetch_array($rs)){
+    $fields[$f['name']] = $f['fid'];
+  }
+
+  db_query("DELETE FROM profile_values");
+  $rs = db_query("SELECT uid,data FROM users");
+  while ($d = db_fetch_array($rs)){
+    unset($data);
+    $data = unserialize($d['data']);
+    if ($data){
+      foreach ($data as $var=>$val){
+        if (substr($var,0,8)=="profile_"){
+          db_query("INSERT INTO profile_values SET fid=%d,uid=%d,value='%s'",$fields[$var],$d['uid'],$val);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implementation of hook_cron().
+ * 
+ * Makes some data-management changes so that we can find events and users better
+ */
+function wtwadmin_cron() {
+  // parse echo_action cheatfield
+  db_query('UPDATE echo_action_node SET fhtid=NULL');
+  db_query('UPDATE echo_action_node ean, term_node tn SET ean.fhtid = tn.tid WHERE ean.nid = tn.nid');
+  db_query('UPDATE echo_action_node SET fhtid=0 WHERE fhtid IS NULL');
+  
+  // unserialize profile data
+//  wtwadmin_parse_profiles();
+}
+
+function wtwadmin_perm(){
+  return array("access wtw reports");
+}
+
+function wtwadmin_menu($mc){
+  if ($mc){
+    $items[] = array(
+      'path'      => 'admin/reports',
+      'title'     => 'reports',
+      'callback'  => 'wtwadmin_page',
+      'access'    => user_access("access wtw reports")
+    );
+/*
+    $items[] = array(
+      'path'      => 'wtwadmin/graph',
+      'callback'  => 'wtwadmin_graph',
+      'access'    => true,
+      'type'      => MENU_CALLBACK
+    );*/
+  } else {
+    if ((arg(0) == "admin") && (arg(1) == "reports") && arg(3) != "blogcomments"){
+      // this suffix mojo makes the tabs display nicer
+      if (arg(3)) {$suffix = "/".arg(3);}
+      if (arg(4)) {$suffix .= "/".arg(4);}
+      $items[] = array(
+        'path'                => 'admin/reports/master'.$suffix,
+        'callback'            => 'wtwadmin_page',
+        'title'               => "Master",
+        'access'              => user_access("access wtw reports"),
+        'weight'              => -10,
+        'type'                => MENU_LOCAL_TASK,
+        'callback arguments'  => array('master',arg(3))
+      );
+      $items[] = array(
+        'path'                => 'admin/reports/grassroots'.$suffix,
+        'callback'            => 'wtwadmin_page',
+        'title'               => "Grassroots",
+        'access'              => user_access("access wtw reports"),
+        'type'                => MENU_LOCAL_TASK,
+        'callback arguments'  => array('grassroots',arg(3))
+      );
+      $items[] = array(
+        'path'                => 'admin/reports/tnt'.$suffix,
+        'callback'            => 'wtwadmin_page',
+        'title'               => "TNT",
+        'access'              => user_access("access wtw reports"),
+        'type'                => MENU_LOCAL_TASK,
+        'callback arguments'  => array('tnt',arg(3))
+      );
+      $items[] = array(
+        'path'                => 'admin/reports/wfp'.$suffix,
+        'callback'            => 'wtwadmin_page',
+        'title'               => "WFP",
+        'access'              => user_access("access wtw reports"),
+        'type'                => MENU_LOCAL_TASK,
+        'callback arguments'  => array('wfp',arg(3))
+      );
+      $items[] = array(
+        'path'                => 'admin/reports/joint'.$suffix,
+        'callback'            => 'wtwadmin_page',
+        'title'               => "Joint",
+        'access'              => user_access("access wtw reports"),
+        'type'                => MENU_LOCAL_TASK,
+        'callback arguments'  => array('joint',arg(3))
+      );
+    }
+  }
+  return $items;
+}
+
+function wtwadmin_page($filter=NULL,$page="",$arg=NULL){
+  switch($filter){
+    case 'grassroots':
+    case 'tnt':
+    case 'wfp':
+    case 'joint':
+      $title = $filter." events";
+      break;
+    case 'master':
+      $title = "master list";
+      break;
+    default:
+      drupal_goto("admin/reports/master");
+      break;
+  }
+  switch($page){
+    case 'newest':
+      $title .= " - recently created";
+      $out = wtwadmin_newest();
+      break;
+    case 'signups':
+      $title .= " - number of signups";
+      $out = wtwadmin_attended();
+      break;
+    case 'countries':
+      $title .= " - statistics by country";
+      $out = wtwadmin_countries();
+      break;
+    case 'signupcomments':
+      $title .= " - signup comments";
+      $out = wtwadmin_comments_signup();
+      break;
+    case 'blogcomments':
+      $title = "blog comments";
+      $out = wtwadmin_comments_blog();  
+      break;
+    case 'email':
+      $title = "contact coordinators";
+      $out = wtwadmin_email();
+      break;
+    case 'search':
+      $out = wtwadmin_search($arg);
+      $title = drupal_get_title();
+      break;
+    default: 
+      $out .= "<h4>Search for Events / Users</h4>";
+      $out .= wtwadmin_search_form();
+    
+      $out .= "<h4>Email Coordinators</h4>";
+      $out .= l("Click here","admin/reports/".arg(2)."/email");
+      
+      $out .= "<h4>Newest Events</h4>";
+      $out .= wtwadmin_newest(10);
+    
+    /*      
+      $out .= "<h4>Top Countries by Events</h4>";
+      $out .= wtwadmin_countries(10);      
+*/    
+
+      $out .= "<h4>Most Attended Events</h4>";
+      $out .= wtwadmin_attended(10);
+
+      $out .= "<h4>Events with Unconfirmed Coordinators</h4>";
+      $out .= wtwadmin_unconfirmed();
+      
+      $out .= "<h4>Most Recent Signup</h4>";
+      $out .= wtwadmin_comments_signup(1);
+      
+      $out .= "<h4>Most Recent Blog-comment</h4>";
+      $out .= wtwadmin_comments_blog(1);
+
+      break;
+  }
+  
+  if (isset($_GET['from'])){
+    $page = ($_GET['from'] / 20) + 1;
+    $title .= " - page $page";
+  }
+
+  if (!isset($_GET['export'])){
+    print theme("page",$out,$title);
+  }
+}
+
+function wtwadmin_email(){
+  $where = wtwadmin_getwhere();
+  $q =  "SELECT u.mail ".
+        "FROM users u, node n, echo_action_node ean ".
+        "WHERE u.uid = n.uid ".
+        "AND n.nid = ean.nid ".$where;
+  $rs = db_query($q);
+  
+  while ($u = db_fetch_array($rs)){
+    $mail_array[] = $u['mail'];
+  }
+  
+  $mails = implode(", ",$mail_array);
+  
+  switch (strtolower(arg(2))){
+    case 'master':
+      $match = "";
+      break;
+    case 'wfp':
+    case 'tnt': 
+      $match = strtoupper(arg(2))." ";
+      break;
+    default:
+      $match = strtolower(arg(2))." ";
+  }
+  
+  $out = "Copy/paste this into your email program to contact coordinators for all ".$match."events.";
+  $out .= form_textarea("Coordinators","",$mails,40,20);
+  
+  $out .= "You can view or export more thorough coordinator data in the ".l("event reports page","admin/reports/".arg(2)."/newest").".";
+  
+  return $out;
+}
+
+function wtwadmin_search($type=NULL){
+  $edit = $_POST['edit'];
+  
+  if (is_null($type)){
+    if (empty($edit['type'])){
+      $out = wtwadmin_search_form();
+    } else {
+      $out = wtwadmin_search_results($edit['type']);
+    }
+  } else {
+    $out = wtwadmin_search_results($type);
+  }
+
+  return $out;
+}
+
+function wtwadmin_search_form($data=NULL){
+
+  $form .= form_textfield(t("Keywords"),'keywords',$data['keywords'],50,100,"Separate keywords with spaces.");
+  
+  $opts = array(
+    'Events'    => 'events',
+    'Users'     => 'users'
+  );
+  $form .= form_select("type","type",$data['type'],$opts);
+  
+  $form .= form_submit('Search');
+  
+  $out  = form($form,"POST","admin/reports/".arg(2)."/search");
+  return $out;
+}
+
+function wtwadmin_search_results($type){  
+  $edit = $_POST['edit'];
+  
+  $out = wtwadmin_search_form($edit);
+  
+  if (!empty($edit['keywords'])){
+    $keys = explode(" ",$edit['keywords']);
+    $function = "wtwadmin_search_results_$type";
+    $out .= $function($keys);
+  }
+  
+  return $out;
+}
+
+function wtwadmin_search_results_events($keys){
+  drupal_set_title("event search results");
+  $q =  "SELECT * ".
+        "FROM echo_action_node ean, node n, countries c, users u ".
+        "WHERE ean.nid = n.nid ".
+        "AND n.uid = u.uid ".
+        "AND ean.country = c.ccid ";
+  $vars = array('ean.address1', 'ean.address2', 'ean.city', 'ean.state', 'ean.country', 'ean.description', 'ean.directions', 'ean.route', 'ean.sponsors', 'c.name', 'u.mail', 'u.data');
+  foreach ($keys as $k){
+    $k_esc = mysql_escape_string($k);
+    unset($likes);
+    foreach ($vars as $v){
+      $likes[] = "$v LIKE '%$k_esc%'";
+    }
+    $wheres[] = "(".implode(" OR ",$likes).")";
+  }
+  $q .= " AND ".implode(" AND ",$wheres);
+  $q .= " ORDER BY n.created DESC";
+
+  $rs = db_query($q);
+  
+  $out = wtwadmin_eventlist($rs);
+  return $out;
+}
+
+function wtwadmin_search_results_users($keys){
+  drupal_set_title("user search results");
+  $q =  "SELECT u.* ".
+        "FROM users u, countries c ".
+        "WHERE ";
+  $vars = array('u.mail', 'u.data');
+  foreach ($keys as $k){
+    $k_esc = mysql_escape_string($k);
+    unset($likes);
+    foreach ($vars as $v){
+      $likes[] = "$v LIKE '%$k_esc%'";
+    }
+    $likes[] = "(c.name LIKE '%$k_esc%' AND u.data LIKE CONCAT('%s:2:\"',c.ccid,'\"%'))";
+    $wheres[] = "(".implode(" OR ",$likes).")";
+  }
+  $q .= implode(" AND ",$wheres);
+  $q .= " GROUP BY u.uid ORDER BY u.uid DESC";
+
+  $rs = db_query($q);
+  
+  $out = wtwadmin_userlist($rs);
+  return $out;
+}
+
+function wtwadmin_userlist($rs){
+  $header = array('id','last','first','mail');
+  $i = 0;
+  while ($u = db_fetch_array($rs)){
+    unset($row);
+    $p = unserialize($u['data']);
+    
+    $row1['data'][0]['data'] = l($u['uid'],"user/".$u['uid']);
+    $row1['data'][1]['data'] = $p['profile_lastname'];
+    $row1['data'][2]['data'] = $p['profile_firstname'];
+    $row1['data'][3]['data'] = $u['mail'];
+//    $row1['data'][4]['data'] = wtw_countryname($p['profile_country']);
+//    $row1['class'] = ($i % 2) ? "light" : "dark";
+    $rows[] = $row1;
+    
+    unset($row2);
+    $row2['data'][0]['data'] = wtwadmin_user_role($u['uid']);
+    $row2['data'][0]['colspan'] = "4";
+//    $row2['class'] = ($i % 2) ? "light" : "dark";
+    $rows[] = $row2;
+    
+    $i++;
+  }
+  
+  $out = theme("table",$header,$rows);
+  return $out;
+}
+
+function wtwadmin_user_role($uid){
+  $sig = echo_action_get_current_signup($uid);
+  if ($sig){
+    $out .= $sig['role'].":<br/> ";
+    foreach ($sig['actions'] as $a){
+      $as[] = l(wtw_parse_location(array2object($a),true),"node/".$a['nid']);
+    }
+    $out .= implode("<br/>",$as);
+  } else {
+    $out = "No actions.";
+  }
+  
+  return $out;
+}
+
+/*
+function wtwadmin_search_profile_sql($keys){
+  $rs = db_query("SELECT * FROM profile_fields");
+  $i = 0;
+  while ($f = db_fetch_array($rs)){
+    $i++;
+    $f = $f['fid'];
+    $from_a[] = "profile_values pv$i JOIN profile_fields pf$i ON pv$i.fid=pf$i.fid AND pf$i.fid=$f AND pf$i.uid = u.uid";
+    $fids_a[] = "pv$f.value";
+  }
+  
+  $out['from'] = implode(", ",$from_a);
+  $out['in'] = implode(", ",$fids_a);
+  
+  return $out;
+}
+*/
+
+function wtwadmin_comments_blog($limit=NULL){
+  $where = wtwadmin_getwhere();
+
+  // get signup comments
+  $q = "SELECT u.*,c.*,n.title FROM comments c, users u, node n WHERE n.nid = c.nid AND u.uid = c.uid ORDER BY timestamp DESC";
+  if (is_null($limit)){
+    $rs = pager_query($q,20);
+  } else {
+    $q .= " LIMIT $limit";
+    $rs = db_query($q);
+  }
+  while ($s = db_fetch_object($rs)){
+    $out .= wtwadmin_blogcomment_format($s);
+  }
+  
+  if (is_null($limit)){
+    $out .= theme("pager",NULL,20);
+  } else {
+    $out .= l("view all blog comments","admin/reports/".arg(2)."/blogcomments");
+  }
+  
+  return $out;
+}
+
+function wtwadmin_blogcomment_format($s){
+  if (empty($s->mail)){
+    $us = "(anonymous)";
+  } else {
+    $us = l($s->mail,"user/".$s->uid);  
+  }
+
+  $com .= "<strong>posted:</strong> ".date("j F, g:i A",strtotime($s->timestamp))."<br/>";
+  $com .= "<strong>user:</strong> ".$us."<br/>";
+  $com .= "<strong>blogpost:</strong> ".l($s->title,"node/".$s->nid) ."<br/>";
+  $com .= "<strong>comment:</strong> ".$s->comment;
+  $com .= "<hr>";
+  return $com;
+}
+
+function wtwadmin_comments_signup($limit=NULL){
+  $where = wtwadmin_getwhere();
+
+  // get signup comments
+  $q = "SELECT * FROM echo_action_signup eas, echo_action_node ean, users u WHERE eas.comment != '' AND ean.nid = eas.aid AND u.uid = eas.uid ".$where."ORDER BY timestamp DESC";
+  if (is_null($limit)){
+    $rs = pager_query($q,20);
+  } else {
+    $q .= " LIMIT $limit";
+    $rs = db_query($q);
+  }
+  while ($s = db_fetch_object($rs)){
+    $out .= wtwadmin_signupcomment_format($s);
+  }
+  
+  if (is_null($limit)){
+    $out .= theme("pager",NULL,20);
+  } else {
+    $out .= l("view all signup comments","admin/reports/".arg(2)."/signupcomments");
+  }
+  
+  return $out;
+}
+
+function wtwadmin_signupcomment_format($s){
+  $com .= "<strong>posted:</strong> ".date("j F, g:i A",strtotime($s->timestamp))."<br/>";
+  $com .= "<strong>user:</strong> ".l($s->mail,"user/".$s->uid)."<br/>";
+  $com .= "<strong>event:</strong> ".l(wtw_parse_location($s,true),"node/".$s->nid) ."<br/>";
+  $com .= "<strong>comment:</strong> ".$s->comment;
+  $com .= "<hr>";
+  return $com;
+}
+
+function wtwadmin_countries($limit = NULL){
+  $sort = arg(4);
+  if (empty($sort) && is_null($limit)){
+    drupal_goto("admin/reports/".arg(2)."/countries/events");
+  }
+  
+  if (isset($_GET['graph'])){
+    $src = "wtwadmin/graph/".$_GET['graph'];
+    $out .= "<img src='$src'>";
+  }
+
+  $fields = array(
+                    'name' => "Country Name",
+                    'virtual' => "Virtual Walkers",
+                    'coords' => "Coordinator Count",
+                    'signs' => "Online walk signups",
+                    'pad' => "\"Padding\": Coordinator estimate + signup guests",
+                    'expect' => 'Expected walkers: Signups + padding',
+                    'people' => 'Total people: virtuals + coordinators + signups + padding, deduped',
+                    'events' => 'Event count'
+                    );
+
+  
+  if (is_null($limit)){
+    $here = arg(0)."/".arg(1)."/".arg(2)."/".arg(3);
+    foreach ($fields as $n=>$d){
+      $field_ul[] = "<strong>$n:</strong> $d";
+      $headers[] = l($n,$here."/$n");
+    }
+    $out = theme("item_list",$field_ul);
+  } else {
+    foreach ($fields as $n=>$d){
+      $field_ul[] = "<strong>$n:</strong> $d";
+      $headers[] = $n;
+    }  
+  }
+
+  // get an array of current countries
+  $cs = wtwadmin_countries_list();
+
+  // get virtual walk count
+  $rs = db_query("SELECT country,count(id) as count FROM wtw_walk GROUP BY country");
+  while ($c = db_fetch_array($rs)){
+    $vw[$c['country']] = $c['count'];
+  }
+  
+  // parse data for each country
+  foreach ($cs as $c){
+    $data[$c]['name'] = wtw_countryname($c);
+    $data[$c]['virtual'] = $vw[$c]; 
+    if (empty($data[$c]['virtual'])){ $data[$c]['virtual'] = "0"; }
+    
+    $moredata = wtwadmin_countries_countrydata($c);
+    $data[$c] = array_merge($data[$c],$moredata);
+  }
+  
+  uasort($data,"wtwadmin_countries_sort");
+  if (!is_null($limit)){
+    $data = array_slice($data,0,$limit);
+  }
+  
+//  $graphs = wtwadmin_countries_graphrow($fields);
+//  array_unshift($data,$graphs);
+  $totals = wtwadmin_countries_totals($data);
+  array_unshift($data,$totals);
+  
+  $out .= theme("table",$headers,$data);
+
+  if (!is_null($limit)){
+    $out .= l("more stats per country","admin/reports/".arg(2)."/countries");
+  }
+  
+  return $out;
+}
+
+function wtwadmin_countries_graphrow($fields){
+  foreach ($fields as $f=>$d){
+    $out[$f] = "<img src='misc/graph.png'>";
+  }
+  $out['name'] = "";
+  $out['virtual'] = "";
+  
+  return $out;
+}
+
+function wtwadmin_countries_totals($data){
+  $where = wtwadmin_getwhere();
+
+  $out['name'] = "<strong>TOTALS</strong> (deduped)";
+  
+  // total virtual walkers
+  $out['virtual'] = db_result(db_query("SELECT count(id) FROM wtw_walk"));
+  
+  // total coordinators
+  $q =  "SELECT count(n.uid) FROM node n, users u, echo_action_node ean ".
+        "WHERE n.uid = u.uid AND ean.nid = n.nid ".$where;
+  $out['coords'] = db_result(db_query($q));
+  
+  // total signups
+  $q =  "SELECT count(eas.sid) as count,sum(eas.guests) as guests ".
+        "FROM echo_action_signup eas, echo_action_node ean ".
+        "WHERE eas.aid = ean.nid ".$where;
+  $signup_data = db_fetch_array(db_query($q));
+  $out['signs'] = $signup_data['count'];
+  
+  // total pad
+  // get coord pad from db then add to signup guests
+  $q =  "SELECT sum(ean.signup_pad) FROM echo_action_node ean WHERE 1=1 ".$where;
+  $out['pad'] = db_result(db_query($q)) + $signup_data['guests'];
+  
+  $out['expected'] = $out['coords'] + $out['signs'] + $out['pad'];
+  
+  // get emails for virts, coords, signs. then dedup, add padding, return
+  $q =  "SELECT mail FROM wtw_walk";
+  $rs = db_query($q);
+  while ($r = db_fetch_array($rs)){
+    $virts[] = $r['mail'];
+  }
+  
+  $q =  "SELECT n.nid, u.mail FROM users u, node n, echo_action_node ean ".
+        "WHERE u.uid = n.uid AND ean.nid = n.nid ".$where;
+  $rs = db_query($q);
+  while ($r = db_fetch_array($rs)){
+    $coords[] = $r['mail'];
+  }
+  
+  $q =  "SELECT u.mail FROM echo_action_signup eas, users u, echo_action_node ean ".
+        "WHERE ean.nid = eas.aid AND u.uid = eas.uid ".$where;
+  $rs = db_query($q);
+  while ($v = db_fetch_array($rs)){
+    $signs[] = $v['mail'];
+  }
+
+  $peoples = wtwadmin_array_combine($coords,$virts,$signs);
+  $out['people'] = count($peoples) + $out['pad'];
+  
+  // get total events
+  $q = "SELECT count(ean.nid) FROM echo_action_node ean WHERE 1=1 ".$where;
+  $out['events'] = db_result(db_query($q));
+  
+  return $out;
+}
+
+// helper function for uasort() as called by wtwadmin_countries()
+function wtwadmin_countries_sort($a,$b){
+  static $crit; //criteria
+  if (empty($crit)){
+    $crit = arg(4);
+    if (empty($crit)){
+      $crit = "events";
+    }
+  }
+  
+  if ($crit == "name"){
+    $out = orderiAlpha($a[$crit],$b[$crit]);
+  } else {
+    $out = $b[$crit] - $a[$crit];
+  }
+  
+  return $out;
+}
+
+function wtwadmin_countries_countrydata($c){
+  $where = wtwadmin_getwhere();
+  // fetch coord data from sql
+  $q =  "SELECT n.nid, u.mail FROM users u, node n, echo_action_node ean ".
+        "WHERE u.uid = n.uid AND ean.nid = n.nid ".$where.
+        "AND ean.country = '%s' ";
+  $rs = db_query($q,$c);
+  while ($r = db_fetch_array($rs)){
+    $coords_sql[] = $r;
+  }
+  
+  // parse and count coordinators
+  unset($coords);
+  if (empty($coords_sql)){
+    $coords = array();
+  } else {
+    foreach ($coords_sql as $r){
+      $coords[] = $r['mail'];
+    }
+  }
+  $out['coords'] = count($coords);
+  
+  // fetch attendee data from sql
+  // nodes with signups
+  $q =  "SELECT ean.nid, count(eas.sid) AS signs, ".
+        "(sum(eas.guests) + ean.signup_pad) as pad ".
+        "FROM echo_action_node ean, echo_action_signup eas ".
+        "WHERE ean.country = '%s' AND eas.aid = ean.nid ".$where.
+        "GROUP BY ean.nid";
+  $rs = db_query($q,$c);
+  while ($n = db_fetch_array($rs)){
+    $nodes[] = $n;
+  }
+  // nodes without signups
+  $q =  "SELECT ean.nid, 0 AS signs, ".
+        "ean.signup_pad AS pad ".
+        "FROM echo_action_node ean ".
+        "WHERE ean.country='%s' ".$where;
+  $rs = db_query($q,$c);
+  while ($n = db_fetch_array($rs)){
+    $nodes[] = $n;
+  }
+      
+  // count signups
+  // count padding
+  if (empty($nodes)){
+    $out['signs'] = 0;
+    $out['pad'] = 0;
+  } else {
+    foreach($nodes as $s){
+      $out['signs'] += $s['signs'];
+      $out['pad'] += $s['pad'];
+    }
+  }
+  
+  // add expected
+  $out['expect'] = $out['coords'] + $out['signs'] + $out['pad'];
+  
+  // count total
+  // $coords is coordiantors
+  // fetch $virts and $signs
+  $rs = db_query("SELECT id,mail FROM wtw_walk WHERE country='%s'",$c);
+  while ($v = db_fetch_array($rs)){
+    $virts[] = $v['mail'];
+  }
+  $q =  "SELECT u.mail FROM echo_action_signup eas, users u, echo_action_node ean ".
+        "WHERE ean.nid = eas.aid AND u.uid = eas.uid AND ean.country='%s' ".$where;
+  $rs = db_query($q,$c);
+  while ($v = db_fetch_array($rs)){
+    $signs[] = $v['mail'];
+  }
+  
+  // de-dup and sum
+  $peoples = wtwadmin_array_combine($coords,$virts,$signs);
+  
+/*  for debugging
+  if ($c == "SW"){
+    echo "coords:";
+    var_dump($coords);
+    echo "virts:";
+    var_dump($virts);
+    echo "signs:";
+    var_dump($signs);
+    echo "peoples: ";
+    var_dump($peoples);
+  }
+  */
+  
+  $out['people'] = count($peoples) + $out['pad'];
+
+  $q = "SELECT count(ean.nid) FROM echo_action_node ean WHERE ean.country='%s' ".$where;
+  $out['events'] = db_result(db_query($q,$c));
+  
+  return $out;
+}
+
+function wtwadmin_array_combine($a1, $a2, $a3){
+  $x = wtwadmin_array_combine_two($a1,$a2);
+  $out = wtwadmin_array_combine_two($x,$a3);
+  return $out;
+}
+
+function wtwadmin_array_combine_two($a1, $a2){
+  if (empty($a1)){
+    $out = $a2;
+  } elseif (empty($a2)){
+    $out = $a1;
+  } else {
+    foreach ($a1 as $v){
+      if (!in_array($v,$a2)){
+        $a2[] = $v;
+      }
+    }
+    $out = $a2;
+  }
+  return $out;
+}
+
+
+// lists all currently active countries 
+function wtwadmin_countries_list(){
+  // countries from virtual walk
+  $rs = db_query("SELECT country FROM wtw_walk GROUP BY country ORDER BY country");
+  while ($c = db_fetch_array($rs)){
+    $out[] = $c['country'];
+  }
+  
+  // countries from events
+  $rs = db_query("SELECT country FROM echo_action_node GROUP BY country ORDER BY country");
+  while ($c = db_fetch_array($rs)){
+    if (!in_array($c['country'],$out)){
+      $out[] = $c['country'];
+    }
+  }
+  
+  return $out;
+}
+
+function wtwadmin_getwhere(){
+  $filter = arg(2);
+  if ($filter == "master"){
+    $out = "";
+  } else {
+    $out = "AND ean.fhtid = ".wtwadmin_gettid($filter)." ";
+  }
+  return $out;
+}
+
+function wtwadmin_gettid($term){
+  switch ($term){
+    case 'tnt':
+      $out = 1;
+      break;
+    case 'wfp':
+      $out = 2;
+      break;
+    case 'joint':
+      $out = 3;
+      break;
+    case 'grassroots':
+      $out = 0;
+      break;
+  }
+  return $out;
+}
+
+function wtwadmin_unconfirmed(){
+  $where = wtwadmin_getwhere();
+  $q =  "SELECT n.nid ".
+        "FROM node n, echoconfirm_user ecu, echo_action_node ean ".
+        "WHERE ecu.uid = n.uid ".
+        "AND n.nid = ean.nid ".
+        "AND (ecu.status ='sent' OR ecu.status=NULL) ".
+        "AND n.type LIKE 'echo_action%' ".$where;
+  $rs = db_query($q);
+  $out .= wtwadmin_eventlist($rs,true);
+  return $out;
+}
+
+function wtwadmin_attended($limit=NULL){
+  $where = wtwadmin_getwhere();
+  $q =  "SELECT n.nid, count(eas.uid) as signups ".
+        "FROM node n, echo_action_signup eas, echo_action_node ean ".
+        "WHERE n.type LIKE 'echo_action%' ".
+        "AND n.nid = ean.nid ".
+        "AND n.nid = eas.aid ".$where.
+        "GROUP BY n.nid ".
+        "ORDER BY signups DESC";
+  if (!is_null($limit)){
+    $q .= " LIMIT ".$limit;
+  }
+  
+  $rs = db_query($q);
+  $out .= wtwadmin_eventlist($rs);
+
+  if (!is_null($limit)){
+    $out .= l("see complete list","admin/reports/".arg(2)."/signups");
+  } else {
+    $out .= l("export to excel","admin/reports/".arg(2)."/signups&export");  
+  }
+
+  return $out;
+}
+
+
+function wtwadmin_newest($limit=NULL){
+  $where = wtwadmin_getwhere();
+  $q =  "SELECT n.nid FROM node n, echo_action_node ean ".
+        "WHERE n.type LIKE 'echo_action%' ".
+        "AND n.nid = ean.nid ".$where.
+        "ORDER BY n.created DESC";
+  if (!is_null($limit)){
+    $q .= " LIMIT ".$limit;
+  }
+  
+  $rs = db_query($q);
+  $out .= wtwadmin_eventlist($rs);
+  
+  if (!is_null($limit)){
+    $out .= l("see complete list","admin/reports/".arg(2)."/newest");
+  } else {
+    $out .= l("export to excel","admin/reports/".arg(2)."/newest&export");
+  }
+  
+  return $out;
+}
+
+function wtwadmin_eventlist($rs,$filter=false){
+  // sponsor filter
+  if ($filter){
+    switch(arg(2)){
+      case 'grassroots':
+        $match = "None";
+        break;
+      default:
+        $match = arg(2);
+    }
+  } else {
+    $match = "master";
+  }
+
+  $header = array(
+    'Location',
+    'Coordinator',
+    'Sponsor',
+    'Walkers',
+    'Created (PST)',
+    'ID'
+  );
+  while ($n = db_fetch_array($rs)){
+    // load node
+    $node = node_load(array("nid"=>$n['nid']));
+
+    // sponsor filter
+    $tax = taxonomy_node_get_terms_by_vocabulary($node->nid,1);
+    if (empty($tax)){
+      $sponsname = "None";
+    } else {
+      $taxo = array_pop($tax);
+      $sponsname = substr($taxo->name,0,strpos($taxo->name." "," "));
+    }
+        
+    if ((strtolower($match) == strtolower($sponsname)) || (strtolower($match) == "master")){
+      // build row
+      unset($row);
+  
+      $row[] = l(wtw_parse_location($node,true),"node/".$node->nid);
+  
+//      $row[] = l(substr($node->profile_firstname,0,1).". ".$node->profile_lastname, "user/".$node->uid);
+      $row[] = $node->name;
+  
+      $row[] = $sponsname;
+      
+      $row[] = echo_action_signupcount($node->nid);
+      
+      $row[] = date("j F G:i",$node->created);
+      
+      $row[] = $node->nid;
+      
+      $rows[] = $row;
+    }
+  }
+  
+  if (isset($_GET['export'])){
+    $out .= wtwadmin_export($header,$rows);
+  } else {
+    $out .= theme("table",$header,$rows);
+  }
+  
+  return $out;
+}
+
+function wtwadmin_export($header,$rows){
+  // strip html from cells
+  foreach ($rows as $rkey=>$row){
+    foreach ($row as $ckey=>$val){
+      $rows[$rkey][$ckey] = strip_tags($val);
+    }
+  }
+
+  // export to excel file
+  header('Content-type: application/vnd.ms-excel');
+  header('Content-Disposition: attachment; filename="event_data.xls"');
+  print theme("table",$header,$rows);
+  exit;
+}
+
+
+function wtwadmin_graph(){
+  include_once "misc/jpgraph/src/jpgraph.php";
+  include_once "misc/jpgraph/src/jpgraph_log.php";
+  include_once "misc/jpgraph/src/jpgraph_bar.php";
+
+  $datay=array(4,13,30,28,12,45,30,12,55,3,0.5);
+  $datax=array("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov");
+  
+  // Create the graph. 
+  $graph = new Graph(400,220,'auto');
+  //$graph->img->SetMargin(50,30,50,50);
+  $graph->SetScale("textlog");
+  //$graph->SetShadow();
+  
+  // Setup titles for graph and axis
+  $graph->title->Set("Bar with logarithmic Y-scale");
+  $graph->title->SetFont(FF_VERDANA,FS_NORMAL,18);
+  
+  $graph->xaxis->SetTitle("2002");
+  $graph->xaxis->title->SetFont(FF_ARIAL,FS_NORMAL,16);
+  
+  $graph->yaxis->title->SetFont(FF_ARIAL,FS_NORMAL,16);
+  $graph->yaxis->SetTitle("Y-title",'center');
+  $graph->yaxis->SetTitleMargin(30);
+  
+  // Setup month on X-scale
+  //$graph->xaxis->SetTickLabels($datax);
+  
+  // Create a bar pot
+  $bplot = new BarPlot($datay);
+  $bplot->SetFillColor("orange");
+  
+  //You can also set a manual base of the bars
+  //$bplot->SetYBase(0.001);
+  
+  /*
+  $bplot->SetShadow();
+  $bplot->value->Show();
+  $bplot->value->SetFont(FF_ARIAL,FS_BOLD);
+  $bplot->value->SetAngle(45);
+  $bplot->value->SetColor("black","darkred");
+  */
+  
+  $graph->Add($bplot);
+  
+  $graph->Stroke();
+}
+
+
+// helper function fro wtwadmin_countries_sort
+// from http://php.net/strcmp
+// Returns 1 if $str1 comes before $str2 alphabetically
+// Returns -1 if $str1 comes after $str2 alphabetically
+// Returns 0 if $str1 and $str2 are the same
+function orderAlpha ( $str1, $str2 ) {
+  $limit = NULL;
+
+	if ( strlen( $str1 ) > strlen( $str2 ) ) {
+		$limit	= strlen( $str2 );
+	} else {
+		$limit = strlen( $str1 );
+	}
+
+	for ( $i = 0;$i < $limit;$i++ ) {
+		if ( substr( $str1, $i, 1 ) > substr( $str2, $i, 1 ) ) {
+				return 1;
+		} else if ( substr( $str1, $i, 1 ) < substr( $str2, $i, 1 ) ) {
+				return -1;
+		}
+	}
+
+	if ( strlen( $str1 ) > strlen( $str2 ) ) {
+		return 1;
+	} else if ( strlen( $str1 ) < strlen( $str2 ) ) {
+		return -1;
+	}
+
+	return 0;
+}
+
+// Case insensitive version of orderAlpha
+function orderiAlpha ( $str1, $str2 ) {
+	return orderAlpha( strtolower( $str1 ), strtolower( $str2 ) );
+}
+
+
+?>

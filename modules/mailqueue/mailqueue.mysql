@@ -1,0 +1,17 @@
+-- 
+-- Table structure for table `mailqueue_queue`
+-- 
+
+CREATE TABLE `mailqueue_queue` (
+  `qid` int(10) NOT NULL default '0',
+  `sender` varchar(255) NOT NULL default '',
+  `recipient` varchar(255) NOT NULL default '',
+  `subject` varchar(255) NOT NULL default '',
+  `textbody` text NOT NULL,
+  `htmlbody` text NOT NULL,
+  `created` int(11) NOT NULL default '0',
+  `sent` int(11) default NULL,
+  `opened` int(11) default NULL,
+  PRIMARY KEY  (`qid`),
+  KEY `qid` (`qid`)
+) TYPE=MyISAM;

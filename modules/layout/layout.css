@@ -1,0 +1,170 @@
+.layout-outer
+{
+	margin: 0px;
+	margin-bottom: 10px;
+	clear : both;
+}
+
+.layout-outer .tab-header
+{
+	margin: 0px;
+
+	padding: 0px;
+
+	line-height: normal;
+
+	padding-left: 5px;
+}
+
+.layout-outer .tab-left
+{
+	border-left: solid 1px grey;
+
+	border-top: solid 1px grey;
+
+	height: 18px;
+
+	width: 9px;
+	margin: 0px;
+
+	padding: 0px;
+}
+
+.layout-outer .tab-center
+{
+	font-family: Arial, Helvetica, sans-serif;
+
+	font-size: 10pt;
+
+	font-weight: bold;
+
+	border-top: solid 1px grey;
+
+	height: 18px;
+
+	padding-left: 5px;
+
+	text-align: center;
+
+	vertical-align: middle;
+}
+
+.layout-outer .tab-right
+{
+	border-top: solid 1px grey;
+
+	border-right: solid 1px grey;
+
+	height: 18px;
+
+	width: 9px;
+}
+
+.layout-outer .block {
+  border-bottom: 0px none grey;
+ }
+ 
+.layout-section-content
+{
+<!--	width: 100%; -->
+<!--  width: 500px; -->
+  width: 90%;
+	border: 0px solid grey;
+
+	margin: 0px;
+	padding: 3px;
+}
+
+.layout-block
+{
+	vertical-align: top;
+}
+
+.block-set
+{
+	width: 100%;
+}
+
+.list-item
+{
+	margin-bottom: 4px;
+}
+
+.has-content
+{
+	border-bottom: 1px solid grey;
+}
+
+.layout-block .block
+{
+	display: inline;
+}
+
+.layout-block .block .content
+{
+	display: inline;
+}
+
+.section-header
+{
+	border-bottom: 2px solid grey;
+}
+
+.section-trailer
+{
+	border-top: 2px solid grey;
+}
+
+.layout-node
+{
+	border-bottom: 1px solid grey;
+	padding-left: 5px;
+}
+
+.even
+{
+	
+}
+
+.odd
+{
+	
+}
+
+.no-content
+{
+	border-bottom: 0px none grey;
+}
+
+.last-item
+{
+	border-bottom: 0px none #000000;
+}
+
+.layout-section-table
+{
+	margin-left: 30px;
+	background-color: white;
+}
+
+.layout-content-table
+{
+	float: right;
+	background-color: #ffffff;
+}
+
+.layout-section-edit
+{
+	float: right;
+}
+
+.layout-part-edit
+{
+	float: right;
+}
+
+.layout-content-edit
+{
+	float: left;
+	padding-right: 3px;
+}

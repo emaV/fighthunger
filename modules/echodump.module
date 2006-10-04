@@ -1,0 +1,377 @@
+<?php
+/*
+    EchoDump - a handy utility module for running queries and downloading data
+    Copyright (C) 2005 EchoDitto, inc. (justin@echoditto.com)
+    
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+*/
+function echodump_menu($may_cache){
+  
+    $out[] = array(
+      'access' => user_access("view echodump"),
+      'type' => MENU_NORMAL_ITEM,
+      'path' => 'admin/echodump',
+      'callback' => 'echodump_page',
+      'title' => "echodump viewer"
+    );
+    
+    $out[] = array(
+      'path'      => 'admin/settings/echodump',
+      'title'     =>  'echodump',
+      'callback'  =>  'echodump_admin',
+      'access'    =>  user_access('administer echodump'),
+      'type'      =>  MENU_NORMAL_ITEM
+    );
+    
+    $out[] = array(
+      'access' => user_access("view echodump"),
+      'type' => MENU_CALLBACK,
+      'path' => 'admin/echodump/view',
+      'callback' => 'echodump_view'
+    );
+
+    $out[] = array(
+      'access' => user_access("view echodump"),
+      'type' => MENU_CALLBACK,
+      'path' => 'admin/echodump/excel',
+      'callback' => 'echodump_excel'
+    );
+    
+    return $out;
+}
+ 
+function echodump_help($section = 'admin/help#echodump') {
+  $output = "";
+
+  switch ($section) {
+    case 'admin/modules#description':
+      $output = t("A handy utility module for running queries and downloading data");
+      break;
+  }
+  return $output;
+}
+
+function echodump_perm() {
+  return array("administer echodump","view echodump"); 
+}
+
+
+function echodump_admin($op=NULL,$id=NULL) {
+    
+  global $base_url;
+	
+   // only administrators can access this module
+  if (!user_access("administer echodump")) {
+      return message_access();
+  }
+  	$edit = $_POST['edit'];
+	$dumps = variable_get("echodump_dumps","");
+	//var_dump($dumps);
+	
+	if($op == "delete") {
+		$dumps = echodump_array_key_drop($dumps,$id);
+		variable_set("echodump_dumps",$dumps);
+		drupal_set_message("Deleted statement #$id");
+		drupal_goto("admin/settings/echodump");	
+	}
+	
+   if (!empty($edit)){
+    foreach($edit as $var=>$ar){
+      if (($var == "new")){
+        if (!empty($ar['description'])){
+          $count = variable_get("echodump_count",0) + 1;
+          variable_set("echodump_count",$count);
+          $dumps[$count] = $ar;
+        }
+      } else {
+      	//var_dump($ar);
+        $dumps[$var] = $ar;
+      }
+    }
+    
+    ksort($dumps);
+    variable_set("echodump_dumps",$dumps);
+    drupal_set_message("Your settings have been saved.");
+  }
+  
+    if (!empty($dumps)){
+    foreach($dumps as $key=>$dump){
+      unset($set);
+      $set .= form_textfield(t("Description"),"$key][description]",$dumps[$key]['description'],60,100);
+      $set .= form_textarea(t("Statement"),"$key][statement]",$dumps[$key]['statement'],64,5);
+      $set .= l("remove this dump",url("admin/settings/echodump/delete/$key"));
+      $out .= form_group("Dump #$key",$set);
+    }
+  }
+
+  unset($set);
+  $set .= form_textfield(t("Description"),"new][description]","",40,50,"Description of the SQL Query");
+//  $set .= form_textfield(t("FeedBurner-hosted URL"),"new][remote]","",60,100,"e.g. \"<strong>http://feeds.feedburner.com/foo/bar</strong>\"");
+  $out .= form_group("Add a new dump",$set);
+
+  $out .= form_submit("Save");
+  
+  $form = form($out,"POST","admin/settings/echodump");
+	//$output .= $form;
+  
+  print theme("page",$form);
+	
+  /*$output.=form_textarea("SQL Query 1", 'echodump_query1', variable_get('echodump_query1', ''), 64, 5);
+  $output.=form_textfield("Description 1","echodump_desc1",variable_get("echodump_desc1",""), 64, 128);  
+   */
+
+  
+//return $output;
+}
+
+function echodump_page(){
+
+	if (user_access("view echodump")){
+		$out.="<ul>";
+		$dumps = variable_get("echodump_dumps","");
+		
+		foreach($dumps as $var=>$ar){
+			$url = URL("admin/echodump/view/$var");
+			$out .= "<li><a href=\"$url\">$ar[description]</a></li>";	
+		}
+
+		$out.="</ul>";
+		print theme("page",$out);
+	}
+	
+	
+	
+}
+
+function echodump_view(){			
+	$dumps = variable_get("echodump_dumps","");	
+	$query = $dumps[arg(3)][statement];
+
+	
+	drupal_set_title("EchoDump Results");
+	
+	if($dumps[arg(3)][statement]) 	
+		$output.="<b>".$dumps[arg(3)][description]."</b>";
+	
+	$output.="<div id='message'>$query <br>(Limited to 500 results)</div>";	
+	
+	$results=db_query($query);
+	$result_size = mysql_num_rows($results);
+	$output.="<p>Total results: $result_size</p>";
+	
+	if ($results) {
+		$output.="<p><a href='admin/echodump/excel/".arg(3)."'>Download to Excel (All results, unsorted)</a></p>";
+
+	$output .= "<p>Click link to sort by column, ascending (a) or descending (d)</p>";	
+	
+	$output.="<table id='report' border='1'><tr>";
+	
+	
+	
+	
+	for ($counter = 0; $counter < mysql_num_fields($results); $counter++) {
+		$name = mysql_field_name($results, $counter);
+		$dumpnum = arg(3);
+		$sort_url_a = url("admin/echodump/view/$dumpnum/$counter/asc");
+		$sort_url_d = url("admin/echodump/view/$dumpnum/$counter/desc");
+		$output .= "<td><b>$name (<a href=\"$sort_url_a\">a</a>/<a href=\"$sort_url_d\">d</a>)</b></td>";
+		$count++;
+	}
+	
+	$output .= "</tr>";
+
+	//put data in array
+	$xcount = 0;
+	$result_array = array();
+	
+	
+	
+	while ($address=db_fetch_array($results)){
+		
+		foreach($address as $field){
+			//var_dump($address);
+			$result_array[$xcount] = $address;
+			
+			
+		}	
+		
+	$xcount++;
+	}
+	
+	//result created, now sort
+	
+	
+	
+	if(arg(5)){
+		$arg5 = arg(5);
+		
+		if($arg5=="asc")
+			$direction=SORT_ASC;
+		elseif($arg5=="desc")
+			$direction=SORT_DESC;
+		else 
+			$direction=SORT_ASC;
+			
+	}else{
+		$direction = SORT_ASC;	
+	}
+	//$direction = SORT_DESC;
+	//var_dump($arg5);
+	//var_dump($direction);
+	if((arg(4))!=NULL){
+		$name = mysql_field_name($results, arg(4));
+		foreach($result_array as $res)
+    	   $sorted_results[] = $res[$name];
+
+		 array_multisort($sorted_results, $direction, $result_array);
+		 
+	}
+	
+	
+	$xcount = 0;
+	foreach($result_array as $row){
+	$output .= "<tr>";
+		foreach($row as $item){
+			$output .= "<td>$item</td>";
+		}	
+	$output .= "</tr>";
+	$xcount++;
+	if($xcount>500)
+		break;
+	}
+	//var_dump($result_array);
+	$output.="</table>";
+	
+
+
+	}
+	
+	print theme("page",$output);
+}
+
+function echodump_excel(){
+	
+	$dumps = variable_get("echodump_dumps","");	
+	$query = $dumps[arg(3)][statement];
+	
+  		header('Content-type: application/vnd.ms-excel');
+  		header('Content-Disposition: attachment; filename="echodump_'.arg(3).'_results.xls"');
+        	$results=db_query($query);
+        	$output="";
+		if ($results) {
+			
+			
+	
+	
+	
+	
+	for ($counter = 0; $counter < mysql_num_fields($results); $counter++) {
+		
+		$output .= mysql_field_name($results, $count) . "\t";
+		$count++;
+	}
+	
+	$output .= "\n";
+	
+	while ($address=db_fetch_array($results)){
+		
+		foreach($address as $field){
+			$output.="$field\t";
+		}	
+		$output.="\n";
+	}
+	
+	
+         /*       	while ($address=db_fetch_array($results)){
+                		foreach($address as $field){
+                        		$output.="$field\t";
+                		}
+				$output.="\n";*/
+                	}
+		print $output;
+		
+  		exit;
+
+}
+
+// helper function-- drops the value with a given key from the given array
+function echodump_array_key_drop($array,$key){
+  foreach ($array as $var=>$val){
+    if ($var != $key){
+      $out[$var] = $val;
+    }
+  }
+  
+  return $out;
+}
+
+/*// where $data is a multidimensional array of arrays uasort($data,"wtwadmin_countries_sort");
+
+// helper function for uasort()
+function super_sort($a,$b){
+   static $crit; //criteria
+   if (empty($crit)){
+     $crit = arg(4);
+     if (empty($crit)){
+       echo "sorting error";
+       //exit;
+     }
+   }
+
+   if (is_string($crit)){
+     $out = orderiAlpha($a[$crit],$b[$crit]);
+   } else {
+     $out = $b[$crit] - $a[$crit];
+   }
+   
+   return $out;
+}
+
+// Case insensitive version of orderAlpha
+function orderiAlpha ( $str1, $str2 ) {
+	return orderAlpha( strtolower( $str1 ), strtolower( $str2 ) );
+}
+
+function orderAlpha ( $str1, $str2 ) {
+  $limit = NULL;
+
+	if ( strlen( $str1 ) > strlen( $str2 ) ) {
+		$limit	= strlen( $str2 );
+	} else {
+		$limit = strlen( $str1 );
+	}
+
+	for ( $i = 0;$i < $limit;$i++ ) {
+		if ( substr( $str1, $i, 1 ) > substr( $str2, $i, 1 ) ) {
+				return 1;
+		} else if ( substr( $str1, $i, 1 ) < substr( $str2, $i, 1 ) ) {
+				return -1;
+		}
+	}
+
+	if ( strlen( $str1 ) > strlen( $str2 ) ) {
+		return 1;
+	} else if ( strlen( $str1 ) < strlen( $str2 ) ) {
+		return -1;
+	}
+
+	return 0;
+}
+*/
+
+
+
+?>

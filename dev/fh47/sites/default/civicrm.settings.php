@@ -204,7 +204,7 @@ define( 'CIVICRM_IMAGE_UPLOADURL' , 'http://dev47.fighthunger.org/files/crm_file
 // specify minor revision (second dot) - 4.1.2 is NOT a valid value for this setting. 
 define( 'CIVICRM_MYSQL_VERSION', 4.0 );
 //define( 'CIVICRM_DSN'          , 'mysql://DBUSER:PASSWORD@HOSTNAME/DATABASE?new_link=true' );
-define( 'CIVICRM_DSN'          , 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/dev47_crm?new_link=true' );
+define( 'CIVICRM_DSN'          , 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm?new_link=true' );
 define( 'CIVICRM_MYSQL_PATH', '/usr/bin/' );
 
 /**

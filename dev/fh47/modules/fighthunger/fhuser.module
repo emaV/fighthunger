@@ -1,0 +1,444 @@
+<?php
+// $Id: fhuser.module,v 1.168 2005-04-26 15:55:01 jose Exp $
+
+/**
+ * @file
+ * Fighthunger site specific user management and API
+ * 
+ * Dependencies:
+ *  
+ * Developed by Jose A. Reyero,  http://www.reyero.net
+ * for FightHunger.org
+ * 
+ */
+
+
+/**
+ * Implementation of hook_help().
+ */
+function fhuser_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> User management and user API.');
+  }
+}
+
+/**
+ * User data, login or registration subform
+ * 
+ * This generates a subform to be included in a bigger form
+ */
+ 
+function fhuser_subform() {
+  global $user;
+  // Check for login or password request
+  fhuser_check_post();
+  
+  if ($user->uid) {
+    // User is logged in
+    $form = array('#type' => 'fieldset', '#title' => t('Contact information'));
+    $form = array_merge($form, fhuser_display_subform());
+  } else {
+    $form['#description'] = t('You need to login or %register_link before.', array('%register_link' => fhuser_get_link(t('register'), 'register')));
+    $current = fhuser_get_option('login');
+    $options = array(
+      'login' => t('Login'),
+      'register' => t('Register'),
+      'password' => t('Request new password')
+    );
+    $form['tabs'] = array('#value' =>  theme('option_tabs', $options, $current));
+    switch($current) {
+      case 'register':
+        $subform = fhuser_register_subform();
+        break;
+      case 'login':
+        $subform = fhuser_login_subform();
+        break;
+      case 'password':
+        $subform['subform'] = array('#value' => fhuser_password_form());
+        break;
+    }
+    $form = array_merge($form, $subform);
+  }
+  return $form;
+}
+
+/**
+ * Tries user login with post data
+ * 
+ * @return
+ *   TRUE if data has been submitted
+ */
+function fhuser_check_post(){
+  if(isset($_POST['edit'])) {
+    switch(fhuser_get_option('login')) {
+      case 'login':
+        user_login_validate('fhuser_form', $_POST['edit']);
+        if(!form_get_errors()){
+          user_login_submit('fhuser_form', $_POST['edit']);
+        }
+        return TRUE;
+      /*
+      case 'password':
+        $GLOBALS['form_values'] = $_POST['edit'];
+        user_pass_validate();
+        if(!form_get_errors()) {
+          user_pass_submit('fhuser_form', $_POST['edit']);
+        }
+        return TRUE;
+      */
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Subform: display user data 
+ */
+function fhuser_display_subform(){
+  global $user;
+    $form['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
+    // If the user has no country, shows a drop down else the country
+    $countrylist =  _donation_country_list();
+    if(!$user->country) {
+      $form['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => $countrylist);
+    } else {
+      $form['country'] = array('#type' => 'value', '#value' => $user->country);
+      $form['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => $countrylist[$user->country]);
+    }
+  return $form;
+}
+/**
+ * Creates a user login subform
+ */
+function fhuser_login_subform() {
+  $form = array('#type' => 'fieldset', '#title' => t('Login'));
+  $form['name'] = array('#type' => 'textfield',
+    '#title' => t('Username'),
+    '#size' => 30,
+    '#maxlength' => 60,
+    '#required' => TRUE,
+    '#attributes' => array('tabindex' => '1'),
+  );
+  if (variable_get('drupal_authentication_service', FALSE) && count(user_auth_help_links()) > 0) {
+    $form['name']['#description'] = t('Enter your %s username, or an ID from one of our affiliates: %a.', array('%s' => variable_get('site_name', 'local'), '%a' => implode(', ', user_auth_help_links())));
+  }
+  else {
+    $form['name']['#description'] = t('Enter your %s username.', array('%s' => variable_get('site_name', 'local')));
+  }
+  $form['pass'] = array('#type' => 'password',
+    '#title' => t('Password'),
+    '#description' => t('Enter the password that accompanies your username.'),
+    '#required' => TRUE,
+    '#attributes' => array('tabindex' => '2'),
+  );
+  // $form['#validate'] = array('fhuser_login_form_validate' => array());
+  // $form['submit'] = array('#type' => 'submit', '#value' => t('Log in'), '#weight' => 2, '#attributes' => array('tabindex' => '3'));
+  return $form;
+}
+
+/**
+ * Creates a user register subform
+ */
+function fhuser_register_subform() {
+  $form = array('#type' => 'fieldset', '#title' => t('Register'));
+  $form['name'] = array('#type' => 'textfield',
+    '#title' => t('Username'),
+    '#size' => 30,
+    '#maxlength' => 60,
+    '#description' => t('Your full name or your preferred username; only letters, numbers and spaces are allowed.'),
+    '#required' => TRUE);
+  $form['mail'] = array('#type' => 'textfield',
+    '#title' => t('E-mail address'),
+    '#size' => 30,
+    '#maxlength' => 64,
+    '#description' => t('A password and instructions will be sent to this e-mail address, so make sure it is accurate.'),
+    '#required' => TRUE,
+  );
+  $extra = _user_forms($null, $null, $null, 'register');
+
+  // Only display form_group around default fields if there are other groups.
+  if ($extra) {
+    $form['account'] = array('#type' => 'fieldset', '#title' => t('Account information'));
+    $form['account']['name'] = $form['name'];
+    $form['account']['mail'] = $form['mail'];
+    $form['account']['pass'] = $form['pass'];
+    $form['account']['notify'] = $form['notify'];
+    unset($form['name'], $form['mail'], $form['pass'], $form['notify']);
+    $form = array_merge($form, $extra);
+  }
+  // Add validation and submit functions
+  // $form['#validate'] = array('fhuser_register_subform_validate' => array());
+  return $form;  
+}
+
+/**
+ * Produces customized password form
+ */
+function fhuser_password_form(){
+  global $fhuser_enable;
+  $fhuser_enable = TRUE;
+  $output = user_pass();
+  $fhuser_enable = FALSE;
+  return $output;
+}
+
+/**
+ * Produces customized register form
+ */
+function fhuser_register_form(){
+  global $fhuser_enable;
+  $fhuser_enable = TRUE;
+  $output = user_register();
+  $fhuser_enable = TRUE;
+  return $output;
+}
+
+/**
+ * Produces customized login form
+ */
+function fhuser_login_form(){
+  global $fhuser_enable;
+  $fhuser_enable = TRUE;
+  $output = user_login();
+  $fhuser_enable = TRUE;
+  return $output;
+}
+
+function fhuser_subform_validate($form_id, $form_values) {
+  switch($form_values['fhuser_form_id']) {
+    case 'user_login':
+      user_login_validate($form_id, $form_values);
+      break;
+    case 'user_register':
+      user_register_validate($form_id, $form_values);
+      break;
+    case 'user_pass':
+      // user_pass_validate uses global form_values
+      user_pass_validate();
+      break;
+  } 
+}
+
+/**
+ * Manages submitted data in subform
+ */
+function fhuser_subform_submit($form_id, $form_values) {
+  global $fhuser_enable;
+  switch($form_values['fhuser_form_id']) {
+    case 'user_register':
+      $fhuser_enable = TRUE;
+      user_register_submit($form_id, $form_values);
+      $fhuser_enable = FALSE;
+      // Set just registered user
+      $account = fhuser_get_user();
+      $GLOBALS['form_values']['uid'] = $account->uid;
+      break;
+    case 'user_pass':
+      
+  } 
+}
+/**
+ * User data, login or registration form
+ * 
+ * Creates a full form to be included in a page
+ */
+function fhuser_form() {
+  global $user;
+  // Check for post login
+  if ($user->uid) {
+    // User is logged in
+    $form = array('#type' => 'fieldset', '#title' => t('Contact information'));
+    $form = array_merge($form, fhuser_display_form());
+    $output = form_render($form);
+  } else {
+    $output = '<h2>'.t('You need to login or %register_link before.')."</h2>\n";
+    $subforms['login'] = array('title' => t('Login'), 'content' => user_login());
+    $subforms['register'] = array('title' => t('Register'), 'content' => user_register());
+    $subforms['password'] = array('title' => t('Request new password'), 'content' => user_pass());
+    $output .= theme('form_tabs', $subforms);
+  }
+  return $output;
+}
+
+/**
+ * Gets current option
+ */
+function fhuser_get_option($default = '') {
+  return isset($_GET['option']) ? $_GET['option'] : $default;
+}
+/**
+ * Gets link for option
+ */
+function fhuser_get_link($name, $option, $path = NULL, $props = array()) {
+  $path = $path ? $path : $_GET['q'];
+  return l($name, $path, $props, 'option='.$option);
+}
+/**
+ * Adds a user form
+ */
+function fhuser_subpage() {
+  global $fhuser_enable;
+  $fhuser_enable = TRUE;
+  $output = '';
+  $option = isset($_GET['option']) ? $_GET['option'] : 'login';
+  $links = array(
+      'login' => t('Login'),
+      'register' => t('Register'),
+      'password' => t('Request new password')
+  );
+  $output .= theme('option_tabs', $links, $option);
+  switch($option) {
+    case 'register':
+      $output .= user_register();
+      break;
+    case 'password':
+      $output .= user_pass();
+      break;
+    case 'login':
+    default:
+      $output .= user_login();
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function fhuser_form_alter($form_id, &$form) {
+  global $fhuser_enable;
+  if($fhuser_enable) {
+    // Rewrite user forms to be handled by this module
+    switch($form_id) {
+      case 'user_login':
+      case 'user_register':
+        unset($form['submit']);
+      case 'user_pass':
+        // The user pass form keeps its own submit button
+        $form['#submit'] = array('fhuser_form_submit' => array());
+        // Add its own form_id to work also with subforms
+        $form['fhuser_form_id'] = array('#type' => 'value', '#value' => $form_id);
+    }
+  }
+  if(isset($form['fhuser'])) {
+    fhuser_subform_alter($form_id, &$form);
+  }
+}
+
+/**
+ * Rewrites form with user data
+ */
+function fhuser_subform_alter($form_id, &$form, $base = 'fhuser') {
+  global $user;
+  // Check for login or password request
+  fhuser_check_post();
+  
+  if ($user->uid) {
+    // User is logged in
+    // $form = array('#type' => 'fieldset', '#title' => t('Contact information'));
+    $form[$base] = array_merge($form[$base], fhuser_display_subform());
+    $form[$base]['uid'] = array('#type' => 'value', '#value' => $user->uid);
+    $form[$base]['fhuser_form_id'] = array('#type' => 'value', '#value' => 'user_display');
+  } else {
+    $form[$base]['#description'] = t('You need to %login_link or %register_link before.', array('%login_link' => fhuser_get_link(t('login'), 'login'), '%register_link' => fhuser_get_link(t('register'), 'register')));
+    $current = fhuser_get_option('login');
+    $options = array(
+      'login' => t('Login'),
+      'register' => t('Register'),
+      'password' => t('Request new password')
+    );
+    $form[$base]['tabs'] = array('#value' =>  theme('option_tabs', $options, $current));
+    switch($current) {
+      case 'register':
+        //$subform = fhuser_register_subform();
+        $subform['subform'] = array('#value' => fhuser_register_form());
+        $form[$base]['fhuser_form_id'] = array('#type' => 'value', '#value' => 'user_register');
+        break;
+      case 'login':
+        $subform = fhuser_login_subform();
+        $form[$base]['fhuser_form_id'] = array('#type' => 'value', '#value' => 'user_login');
+        break;
+      case 'password':
+        $subform['subform'] = array('#value' => fhuser_password_form());
+        $form[$base]['fhuser_form_id'] = array('#type' => 'value', '#value' => 'user_password');
+        break;
+    }
+    $form[$base] = array_merge($form[$base], $subform);
+  }
+  // Add validate and submit functions
+  $form['#validate'] = array('fhuser_subform_validate' => array()) + $form['#validate'];
+  $form['#submit'] = array('fhuser_subform_submit' => array()) + $form['#submit'];
+}
+
+/**
+ * Manages user form submissions to redirect to the right page
+ */
+function fhuser_form_submit($form_id, $form_values) {
+  switch($form_id) {
+	case 'user_login':
+      user_login_submit($form_id, $form_values);
+	  break;
+	case 'user_register':
+      // Log in after registration
+      user_register_submit($form_id, $form_values);
+	  break;
+	case 'user_pass':
+      user_pass_submit($form_id, $form_values);
+	  break;
+    
+  }
+  // Redirect to original page
+  return $_GET['q']; 
+}
+
+/**
+ * Keep record of last registered user
+ * 
+ * This is kind of temporary login
+ */
+function fhuser_user($op, &$edit, &$account, $category = NULL) {
+  global $fhuser_enable, $fhuser_user;
+  if($fhuser_enable && $op == 'insert') {
+    $fhuser_user = $account;
+  }
+}
+
+/**
+ * Returns temporary user for specific actions
+ */
+function fhuser_get_user(){
+  global $user, $fhuser_user;
+  if(isset($fhuser_user)) {
+    return $fhuser_user;
+  } else {
+    return $user;
+  }
+}
+
+/**
+ * Validate login data and do login if successful
+ */
+function fhuser_login_form_validate($form){
+  $form_values = array('name' => $form['name']['#value'], 'pass' => $form['pass']['#value']);
+  user_login_validate('fhuser_form', $form_values);
+  //var_dump($form);
+  if(!form_get_errors()){
+    drupal_set_message("Login no errors");
+    user_login_submit('fhuser_form', $form_values);
+    drupal_goto($_GET['q']);
+  }
+}
+
+/**
+ * Returns tabs for different options
+ */
+function theme_option_tabs($options, $active = ''){
+  $output = "<ul class=\"tabs primary\">\n";
+  foreach($options as $option => $name) {
+    $output .= ($option == $active ? '<li class="active">': '<li>').l($name, $_GET['q'], $option == $active ? array('active' => TRUE) : array(), "option=$option") .'</li>';
+  }
+  $output .= "</ul>\n";
+  return $output;
+}
+?>

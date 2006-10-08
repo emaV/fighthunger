@@ -203,9 +203,9 @@ function donation_form_alter($form_id, &$form) {
 	      foreach($settings as $type) {
           $allowed_types[$type] = $alltypes[$type];
 	      }
-        $form['donation'] = array('#type' => 'fieldset', '#tree' => TRUE, '#title' => t('Donations'));
+        $form['donation'] = array('#type' => 'fieldset', '#tree' => TRUE, '#title' => t('Donations'), '#collapsible' => TRUE);
         $form['donation']['type'] = array('#type' => 'radios', '#default_value' => $node->donation->type, '#options' => $allowed_types);
-	      $form['donation']['amount'] = array('#type' => 'textfield', '#title' => t('Amount'), '#default_value' => $node->donation->amount, '#size' => 10);
+	      $form['donation']['amount'] = array('#type' => 'textfield', '#title' => t('Amount'), '#default_value' => $node->donation->amount, '#size' => 10, '#maxlength' => 10);
 	      $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency'), '#default_value' => $node->donation->currency, '#options' => _donation_currencies());
 	    }
     }
@@ -249,29 +249,21 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
  * Menu callback: Main donation page
  */
 function donation_page($nid = 'plain') {
-  $edit = isset($_POST['edit']) ? $_POST['edit'] : NULL;
+  global $user;
   
-  // watchdog("donation $nid", "EDIT: " . print_r($edit, true));
   // Get donation info and double check everything
   if($donation = donation_prepare($nid)) {
     drupal_set_title(check_plain($donation->title));
+    /*
+    if($user->uid) {
+      $output = donation_form($donation);
+    } else {
+      $output = theme('donation_presentation', $donation);
+      $output .= module_invoke('fh_user', 'subpage');
+    }
+    */
     $output = donation_form($donation);
     return "<div class='donation'>$output</div>";
-	  // Old Page workflow
-	  /*
-	  if($edit){
-	    // Donation has been submitted
-	    if(donation_validate($donation, $edit)) {
-	      $output = donation_checkout($donation); // This should not return
-	    } else {
-	      $output = donation_form($donation, $edit);
-	    }
-	  } else {
-	    $output = donation_form($donation);
-	  }
-	  */
-	  //print theme('page', "<div class='donation'>$output</div>");
-       
   } else {
     return drupal_access_denied();    
   }
@@ -552,24 +544,21 @@ function donation_load($params = NULL) {
  * @return
  *   HTML form to edit donations
  */
-function donation_form($donation, $edit = array()) {
+function donation_form($donation) {
   $output = '';
   // Presentation
   $form['data'] = array('#type' => 'value', '#value' => $donation);
   $form['presentation'] = array('#value' => theme('donation_presentation', $donation));
 
+  // User data or login/register form
+	//$form['user'] = module_invoke('fhuser', 'subform');
+	// Add a fieldset to be filled by fhuser
+  $form['fhuser'] = array('#type' => 'fieldset', '#title' => t('Contact information'));
   // Partners
-  // $form_par = ($donation->partners) ? form_group(t('Partners'), theme('item_list', $donation->partners)) : '';
 	if($donation->partners) {
     $form['partners'] = array('#title' => t('Partners'), '#value' => theme('item_list', $donation->partners));
   }
-  // Donation subform
-  /*
-  $form_don = ($edit['donation_source']) ? form_hidden('donation_source', $edit['donation_source']) : form_hidden('donation_source', 'plain_page');
-  if(isset($donation->affiliation) && count($donation->affiliation)) {
-    $form_don .= form_select(t('Affiliation'), 'partnerid', $edit['partnerid'], $donation->affiliation);
-  }
-  */
+  // Donation source
   $form['donation_source'] = array('#type' => 'value', '#value' => ($edit['donation_source'] ? $edit['donation_source'] : 'plain_page'));
   if(isset($donation->affiliation) && count($donation->affiliation)) {
     $form['partnerid'] = array('#type' => 'select', '#title' => t('Affiliation'), '#options' => $donation->affiliation);
@@ -582,71 +571,23 @@ function donation_form($donation, $edit = array()) {
   } else {
     $form['donation']['amount'] = array('#type' => 'textfield', '#title' => t('Amount'), '#size' => 10);
     $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency'), '#options' => _donation_currencies(array('' => '--')));
-    /*
-    if (!isset($edit['amount']) && ($donation->amount > 0))
-      $edit['amount'] = $donation->amount; 
-	  $form_don .= form_textfield(t('Amount'), 'amount', $edit['amount'], 10, 10);
-    if (!isset($edit['currency']) && ($donation->currency <> ''))
-      $edit['currency'] = $donation->currency; 
-	  $form_don .= form_select(t('Currency'), 'currency', $edit['currency'], _donation_currencies(array('' => '--')));
-  	*/
   }
-  //$form_don = form_group(t('Donation'), $form_don);
-  //$form_x = $form_par . $form_don; 
   
-  // is a user logged in?
-
-  global $user;
-  if ($user->uid) {
-    $form['user'] = array('#type' => 'fieldset', '#title' => t('Contact Information'));
-    // user is logged in
-    $form['user']['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
-    // If the user has no country, shows a drop down else the country
-    $countrylist =  _donation_country_list();
-    if(!$user->country) {
-      $form['user']['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => $countrylist);
-    } else {
-      $form['user']['country'] = array('#type' => 'value', '#value' => $user->country);
-      $form['user']['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => $countrylist[$user->country]);
-    }
-    $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
-    // $form_user = form_group(t('Contact Information'), $form_user);
-    // Add button and complete form
-    //$form =  $form_user . $form_x;
-    //$form .= theme('donation_btn_donate');
-    
-    //$out .= form($form, 'post', "donation/$donation->nid");
-  } else {
-    /*
-    $out = wtw_user_login_form(
-      'donation',  // module
-      array(
-        'first_name'      => array('required'=>1),
-        'last_name'       => array('required'=>1),
-        'country'           => array('required'=>1)
-      ),            // fields
-      array(
-        'op'          => 'donate',
-        'nid'         => $donation->nid
-      ),            // variables
-      t("Donate"), // button
-      $form_x        // extra form
-    );
-    */
-  }
+  $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
 
   $output .= drupal_get_form('donation_form', $form);
   return $output;  
 }
 
+/**
+ * Validate donation form
+ */
 function donation_form_validate($form_id, $form_values){
   global $user;
   $donation = $form_values['data'];
-  // Check for user logged in
-  if(!$user->uid) {
-    form_set_error('login', t('This is not a valid user'));
-  }
-  
+  // Validate user subform
+  // module_invoke('fhuser', 'subform_validate', $form_id, $form_values);
+
   if(!$form_values['country'] || $form_values['country'] == '--') {
     form_set_error('country', t('You must select a country'));
   }
@@ -661,13 +602,19 @@ function donation_form_validate($form_id, $form_values){
   if($form_values['partnerid'] && !array_key_exists($form_values['partnerid'], $donation->affiliation)) {
     form_set_error('partnerid', t('This is not a valid partner'));
   }
-
 }
 
+/**
+ * Process donation form submission
+ */
 function donation_form_submit($form_id, $form_values){
-  global $user;
+  // Get user from fhuser. May be just registered, not logged in
+  //module_invoke('fhuser', 'subform_submit');
+  //$user = module_invoke('fhuser', 'get_user');
+  // Build donation object
   $donation = $form_values['data'];
-  $donation->uid = $user->uid;
+  // uid, country should be set by fhuser module  
+  $donation->uid = $form_values['uid'];
   $donation->country = $form_values['country'];
   if(!$donation->fixed) {
     $donation->amount = $form_values['amount'];

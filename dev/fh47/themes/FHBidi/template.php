@@ -1,4 +1,20 @@
 <?
+
+function phptemplate_stylesheet_import($stylesheet, $media = 'all') {
+  $rtl = in_array(locale_initialize(), array('ar', 'fa', 'he', 'ur'));
+  if (!$rtl) {
+    return theme_stylesheet_import($stylesheet, $media);
+  }
+  if ($stylesheet == base_path() . 'misc/drupal.css') {
+    $stylesheet = 'misc/drupal-rtl.css';
+  }
+  if ($stylesheet == base_path() . path_to_theme() . '/style.css') {
+    $stylesheet = base_path() . path_to_theme() . '/style-rtl.css';
+  }
+  return theme_stylesheet_import($stylesheet, $media);
+}
+
+
 /*
 function phptemplate_form_element($title, $value, $description = NULL, $id = NULL, $required = FALSE, $error = FALSE){
   if ((arg(0) == "F1") || (arg(1) == "F1")){

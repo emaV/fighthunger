@@ -1,5 +1,5 @@
 <?
-
+/*
 function phptemplate_form_element($title, $value, $description = NULL, $id = NULL, $required = FALSE, $error = FALSE){
   if ((arg(0) == "F1") || (arg(1) == "F1")){
     $output = f1_form_element($title,$value,$description,$id,$required,$error);
@@ -37,7 +37,7 @@ function phptemplate_form_element($title, $value, $description = NULL, $id = NUL
   
   return $output;
 }
-
+*/
 function phptemplate_gathering_btn_create($uri) {
   $out  = "<a href='".$uri."'>\n";
   $out .= "<img src='".path_to_theme()."/images/event_create.png' width='79' height='80' class='event_create'/>";
@@ -85,6 +85,7 @@ function phptemplate_donation_btn_donate() {
   return form_submit(t("Donate"));
 }
 
+/* Needs updating for 4.7
 function phptemplate_donation_presentation($donation) {
   switch($donation->type) {
     case 'plain':
@@ -107,6 +108,6 @@ function phptemplate_donation_presentation($donation) {
   }
   return  $out;
 }
-
+*/
 
 ?>

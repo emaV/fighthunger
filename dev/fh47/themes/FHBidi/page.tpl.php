@@ -1,5 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
+
 <head>
   <title><?php print $head_title ?></title>
   <meta http-equiv="Content-Style-Type" content="text/css" />
@@ -19,7 +20,7 @@
   <?php print $styles ?>
 </head>
 
-<body <?php print theme("onload_attribute"); ?>>
+<body>
 
 <!-- page start -->
 <div id="page">
@@ -31,7 +32,8 @@
   <?php if ($search_box): ?>
 	<form action="<?php print $search_url ?>" method="post">
 		<div id="search">
-			<input class="form-text" type="text" size="15" value="" name="edit[keys]" /><input class="form-submit" type="submit" value="<?php print $search_button_text ?>" />
+			<input class="form-text" type="text" size="15" value="" name="edit[keys]" />
+			<input class="form-submit" type="submit" value="<?php print $search_button_text ?>" />
 		</div>
 	</form>
   <?php endif; ?>
@@ -42,7 +44,7 @@
     <a href="<?php print url() ?>" title="Index Page"><img src="<?php print($logo) ?>" alt="Fight Hunger Walk the World" /></a>
 <?php endif; ?>
     </td>
-    <td><img src="themes/FHbidi/images/fhbannermonuments.gif" /></td>
+    <td><img src="<?php print base_path().path_to_theme() ?>/images/fhbannermonuments.gif" /></td>
     <td width='100'>&nbsp;</td>
     <td align="center">
       <span id="site-mission">
@@ -154,12 +156,9 @@ Walk with us!<br />
 <!-- Validate <a href="http://validator.w3.org/check/referer">XHTML</a> or <a href="http://jigsaw.w3.org/css-validator/check/referer">CSS</a>. -->
 </div>
 <!-- footer end -->
-
-<?php print $closure;?>
-
 </div>
 <!-- page start -->
-
+<?php print $closure;?>
   </body>
 </html>
 

@@ -110,4 +110,21 @@ function phptemplate_donation_presentation($donation) {
 }
 */
 
+function phptemplate_settings() {
+    $settings = variable_get('theme_FHBidi_settings', array());
+    $form['banner'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Banner image settings'),
+      '#description' => t('Following banner will be displayed.'),
+      '#attributes' => array('class' => 'theme-settings-bottom'),
+    );
+    $form['banner']['banner_path'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Path to custom banner'),
+      '#default_value' => $settings['banner_path'],
+      '#description' => t('The path to the file you would like to use as your banner file.')
+    );
+    return $form;
+}
+
 ?>

@@ -219,7 +219,6 @@ function fhuser_subform_user_register() {
   // Add validation and submit functions
   // $form['#validate'] = array('fhuser_register_subform_validate' => array());
   fhuser_subform_complete('user_register', $form);
-  var_dump($form);
   return $form;  
 }
 

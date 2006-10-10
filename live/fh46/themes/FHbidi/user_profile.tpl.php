@@ -23,7 +23,7 @@
     print "<p style='vertical-align : middle'><img src='themes/FHbidi/images/flickricon.jpg' style='vertical-align:middle'> " . l("My Flickr photos",$user->profile_flickr) . "</p>"; 
   }
   if($user->profile_blog) {
-    print "<p style='vertical-align : middle'><img src='themes/FHbidi/images/feed-icon.png' style='vertical-align:middle'> " . l("My blog",$user->profile_blog) . "</p>"; 
+    print "<p style='vertical-align : middle'><img src='themes/FHbidi/images/feed-icon.png' style='vertical-align:middle'> " . l("My blog / web site",$user->profile_blog) . "</p>"; 
   }
   if($user->profile_delicious) {
     print "<p style='vertical-align : middle'><img src='themes/FHbidi/images/delicious.gif' style='vertical-align:middle'> " . l("My delicious tags",$user->profile_delicious) . "</p>"; 
@@ -46,10 +46,13 @@
 <?php 
 if($fields['donation_obj']) {
   print "  <h3 class='profile'>Donate to Help Child Hunger with me!</h3>";
-  //print donation_form($fields['donation_obj'], array('donation_source' => $user->uid)); 
+//print donation_form($fields['donation_obj'], array('donation_source' => $user->uid));
+    if  ($fields['donation_obj']->type == plain) {
+      $fields['donation_obj']->presentation = "Help me on my campaign to feed hungry children! All my donations are used by WFP School Feeding Projects.";
+    }
     $form_don  = theme('donation_presentation', $fields['donation_obj']);
     $form_don .= theme('donation_btn_donate');
-  //  $form_don .= form_hidden('amount', 10);
+//  $form_don .= form_hidden('amount', 10);
     $form_don  = form($form_don, 'post', 'donation/' . $fields['donation_obj']->nid);
     print $form_don;
   print "  <h3 class='profile'>My donation to date</h3>"; 
@@ -73,16 +76,13 @@ Walk with us!</p>
 //  print '<hr /><h3>$fields["donation_obj"]</h3><pre>' . print_r($fields['donation_obj'], true) . "</pre>";
 //  print '<hr /><h3>$user->donation</h3><pre>' . print_r($user->donation, true) . "</pre>";
 //  print "<hr />";
-//   print _donation_list($user->donation);
-
-
+//  print _donation_list($user->donation);
 //  print "<hr />";
 //  foreach($fields as $key => $value) {
 //  foreach($user as $key => $value) {
 //    print "<h3>$key</h3>";
 //    print "<p>" . htmlentities(print_r($value,true)) . "</p>";
 //  }  
-
 //  print "<hr /><pre>" . print_r($fields, true) . "</pre>";
 ?>
 

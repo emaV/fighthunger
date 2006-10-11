@@ -73,17 +73,20 @@
     </ul>
   <?php endif; ?>
 	<?php if (count($primary_links)) : ?>
+    <?php
+    // Add log in / log out links
+    global $user;
+    if ($user->uid) {
+      $primary_links[] = l(t('my area'), 'user');
+      $primary_links[] = l(t('log out'), 'logout');
+    } else {
+      $primary_links[] = l(t('log in'), 'login');
+    }
+    ?>
     <ul id="primary">
     <?php foreach ($primary_links as $link): ?>
       <li><?php print $link?></li>
     <?php endforeach; ?>
-    <?php global $user; ?>
-    <?php if ($user->uid > 0) : ?>
-      <li><a href='user'><b>My Area</b></a></li>
-      <li><a href='logout'>log out</a></li>
-    <?php else: ?>
-      <li><a href='login'>log in</a></li>
-    <?php endif; ?>
     </ul>
   <?php endif; ?>
 </div>
@@ -98,9 +101,11 @@
   if (($node->type) == 'gathering-2') {
     $template_content = "page-gathering.tpl.php";
   }
+  /*
   if ( arg(0)=='user') {
     $template_content = "page-user.tpl.php";
   }
+  */
   print "\t<!-- template: " . $template_content . " -->\n\n";
   
   include $template_content;

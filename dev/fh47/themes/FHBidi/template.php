@@ -76,14 +76,13 @@ function phptemplate_gathering_node($node, $fields=NULL) {
   $fields = db_fetch_array(db_query($sql, $node['camid']));
   return _phptemplate_callback("gathering_node",array('node' => $node, 'fields' => $fields));
 }
-
+/*
 function phptemplate_user_profile($user, $fields) {
-  $countries = _gathering_get_countries();
-  $user->longcountry = $countries[$user->country];
+  $user->longcountry = fh_get_country_name($user->country);
   $fields['donation_obj'] = donation_prepare($user->donation);
   return _phptemplate_callback("user_profile",array('user' => $user, 'fields' => $fields));
 }
-
+*/
 function phptemplate_gathering_btn_walk() {
   $ats['src'] = path_to_theme()."/images/btn_walk.png";
   return form_button(t("Walk"),NULL,"image",$ats);
@@ -98,7 +97,7 @@ function phptemplate_donation_btn_donate() {
 // <input class="form-submit" name="op" value="Donate" type="submit">
 // <div class="donation_link">
 // <a href="donation/986">Donate to this event</a></div>
-  return form_submit(t("Donate"));
+//  return form_submit(t("Donate"));
 }
 
 /* Needs updating for 4.7

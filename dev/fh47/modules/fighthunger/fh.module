@@ -1,0 +1,72 @@
+<?php
+// $Id: fh.module $
+
+/**
+ * @file
+ * Fighthunger common API
+ * 
+ * This module provides a basic API for all other fighthunger modules and thems
+ *  
+ * Developed by Jose A. Reyero,  http://www.reyero.net
+ * for FightHunger.org
+ * 
+ */
+
+
+/**
+ * Implementation of hook_help().
+ */
+function fh_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Fighthunger site common API. Required by all FH modules.');
+  }
+}
+
+/**
+ * Get country list
+ * 
+ * @return
+ *   Array of countries indexed by two-letter ISO code
+ */
+function fh_get_country_list() {
+  static $countries;
+  if (empty($countries)){
+    $rs = db_query("SELECT * FROM {countries} ORDER BY name ASC");
+    while ($c = db_fetch_array($rs)){
+      $countries[$c['ccid']] = ucwords(strtolower($c['name']));
+    }
+    $s = array("--"=>"(choose your home country)");
+    $countries = array_merge($s, $countries);
+  }
+  return $countries;  
+}
+
+/**
+ * Get country name from two-letter ISO code
+ * 
+ * @param
+ *   $code, two-letter ISO code
+ * @return
+ *   Country name or 'Unknown' if not in the list
+ */
+function fh_get_country_name($code) {
+  $countries = fh_get_country_list();
+  return array_key_exists($code, $countries) ? $countries[$code] : 'Unknown';
+}
+
+/**
+ * Get partner list for a node, used for donations
+ * 
+ * @param
+ *   $nid, node id
+ * @return
+ *   List of partner names indexed by nid
+ */
+function fh_node_get_partners($nid) {
+  $result = db_query("SELECT n.nid, n.title FROM {node} n INNER JOIN {partners_partners} p ON n.nid = p.pid INNER JOIN {partners_node} pn ON pn.nid = n.nid WHERE p.nid=%d  AND pn.active ", $nid);
+  while($partner = db_fetch_object($result)) {
+    $list[$partner->nid] = $partner->title;
+  }
+  return isset($list) ? $list : NULL;
+}

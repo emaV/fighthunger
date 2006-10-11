@@ -223,17 +223,25 @@ function donation_perm() {
  */
 function donation_settings() {
   $form['donation_presentation'] = array('#type' => 'textarea', '#title' => t('Presentation'), '#default_value' => variable_get('donation_presentation', ''), '#rows' => 10, '#description' => t('Presentation text for plain donations. This may contain HTML markup.'));
+  $form['donation_user_message'] = array('#type' => 'textfield', '#title' => t('User message'), '#default_value' => variable_get('donation_user_message', t('Make a donation')), '#description' => t('Donation message for user profile page.'));
   return $form;
 }
 
 /**
  * Implementation of hook_user()
+ * 
+ * Allows user to select a campaign/event to donate.
  */
 function donation_user($type, &$edit, &$user, $category = NULL) {
   switch($type) {
     case 'view':
-      if ($user->donation) {
-        $items[] = array('title' => t('Make a donation'), 'value' =>  l(_donation_list($user->donation), "donation/$user->donation"));
+      if ($user->donation && $donation = donation_prepare($user->donation) ) {
+        $items[] = array(
+        	'title' => variable_get('donation_user_message', t('Make a donation')), 
+        	'value' =>  donation_user_form($donation));
+        $items[] = array(
+        	'title' => t('My donation to date'),
+          'value' => donation_list($donation->nid, array('donation_source' => $user->uid))); 
         return array(t('Donation') => $items);
       }
       break;
@@ -242,9 +250,22 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
         $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Donations link') );
         $form['fundraising']['donation'] = array('#type' => 'select', '#title' => t('Campaign or event'), '#default_value' => $user->donation, '#options' => _donation_list(), '#description' => t('Link for donations from your user page.'));
         return $form;
-      } 
+      }
+      break;
   }
 }
+
+/**
+ * Small form to be presented on user profile page
+ */
+function donation_user_form($donation) {
+  $form['presentation'] = array('#value' => theme('donation_presentation', $donation));
+  $form['amount'] = array('#type' => 'hidden', '#value' => 10);
+  $form['#action'] = url('donation/'.$donation->nid);
+  $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
+  return drupal_get_form('donation_user_form', $form);
+}
+
 /**
  * Menu callback: Main donation page
  */
@@ -308,12 +329,12 @@ function donation_prepare($nid) {
       break;
     case 'fee':
       $donation->title = t('Event fee for %name', array('%name' => $node->title));
-      $donation->partners = _donation_get_partners($node->nid);
+      $donation->partners = fh_node_get_partners($node->nid);
       $donation->fixed = TRUE; // For fixed amount and currency
       break;
     case 'event':
       $donation->title = t('Donate for %name', array('%name' => $node->title));
-      $donation->partners = _donation_get_partners($node->nid);
+      $donation->partners = fh_node_get_partners($node->nid);
       $donation->affiliation = $donation->partners;
       break;
     case 'campaign':
@@ -628,88 +649,10 @@ function donation_form_submit($form_id, $form_values){
 }
 
 /**
- * TO-DO: Validation
- */
-function donation_validate(&$donation, $edit = array()) {
-  global $user;
-  // Check for user logged in
-  if($user->uid) {
-    $donation->uid = $user->uid;
-    $donation->country = $user->country ? $user->country : $edit['country'];
-  } else {
-    form_set_error('login', t('This is not a valid user'));
-  }
-  if(!$donation->country || $donation->country == '--') {
-    form_set_error('country', t('You must select a country'));
-  }
-
-  if(!$donation->fixed) {
-    $donation->amount = $edit['amount'];
-    $donation->currency = $edit['currency'];
-  }
-
-  // Check amount and currency
-  if(!$donation->amount || !is_numeric($donation->amount) || !($donation->amount > 0) || $donation->amount > DONATION_AMOUNT_MAX) {
-    form_set_error('amount', t('Amount must be a number'));
-  }
-  if(!$donation->currency || !_donation_currency_name($donation->currency)) {
-    form_set_error('currency', t('This is not a valid currency'));
-  }
-  // Check affiliation
-  if($edit['partnerid'] && array_key_exists($edit['partnerid'], $donation->affiliation)) {
-    $donation->partnerid = $edit['partnerid'];
-  }
-  // Add some data
-  if($edit['donation_source']) $donation->data = array('donation_source' => $edit['donation_source']);
-  // Final check and return
-  if(form_get_errors()) {
-    return FALSE;
-  } else {
-    $donation->validated = TRUE;
-    return TRUE;
-  }
-}
-// API callback for wtw_user.module
-function donation_wtw_user_completed($vars) {
-  donation_page($vars['nid']);
-}
-
-/**
- * Get country list
- * 
- * Note: removing dependency on gathering module
- * 
- * @return
- *   Array of countries indexed by two-letter ISO code
- */
-function _donation_country_list() {
-  static $countries;
-  if (empty($countries)){
-    $rs = db_query("SELECT * FROM {countries} ORDER BY name ASC");
-    while ($c = db_fetch_array($rs)){
-      $countries[$c['ccid']] = ucwords(strtolower($c['name']));
-    }
-    $s = array("--"=>"(choose your home country)");
-    $countries = array_merge($s, $countries);
-  }
-  return $countries;  
-}
-/**
- * Get partner list for a node with donation 
- */
-function _donation_get_partners($nid) {
-  $result = db_query("SELECT n.nid, n.title FROM {node} n INNER JOIN {partners_partners} p ON n.nid = p.pid INNER JOIN {partners_node} pn ON pn.nid = n.nid WHERE p.nid=%d  AND pn.active ", $nid);
-  while($partner = db_fetch_object($result)) {
-    $list[$partner->nid] = $partner->title;
-  }
-  return isset($list) ? $list : NULL;
-}
-
-/**
  * List of events and campaigns for user page
  */
 function _donation_list($key = NULL) {
-  $list = array(0 => t('None'));
+  $list[0] = t('None');
   $list['plain'] = t('Plain donation');
   $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");
   while($campaign = db_fetch_object($result)) {
@@ -757,9 +700,6 @@ function _donation_currency_name($code) {
 /**
  * Themeable functions.
  */
-function theme_donation_btn_donate() {
-  return form_submit(t("Donate"));
-}
 function theme_donation_presentation($donation) {
   return "<div class='info'>$donation->presentation</div>";
 }

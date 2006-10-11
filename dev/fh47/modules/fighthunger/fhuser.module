@@ -6,6 +6,7 @@
  * Fighthunger site specific user management and API
  * 
  * Dependencies:
+ *  - fh.module
  *  
  * Developed by Jose A. Reyero,  http://www.reyero.net
  * for FightHunger.org
@@ -46,7 +47,7 @@ function fhuser_subform_alter($form_id, &$form, $base = 'fhuser') {
   if ($user->uid) {
     // User is logged in
     // $form = array('#type' => 'fieldset', '#title' => t('Contact information'));
-    $form[$base] = array_merge($form[$base], fhuser_subform_display());
+    $form[$base] = array_merge($form[$base], fhuser_subform_user_display());
     $form[$base]['uid'] = array('#type' => 'value', '#value' => $user->uid);
     $form[$base]['fhuser_form_id'] = array('#type' => 'value', '#value' => 'user_display');
   } else {
@@ -120,16 +121,15 @@ function fhuser_check_post(){
 /**
  * Subform: display user data 
  */
-function fhuser_subform_display(){
+function fhuser_subform_user_display(){
   global $user;
     $form['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
     // If the user has no country, shows a drop down else the country
-    $countrylist =  _donation_country_list();
     if(!$user->country) {
-      $form['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => $countrylist);
+      $form['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => fh_get_country_list());
     } else {
       $form['country'] = array('#type' => 'value', '#value' => $user->country);
-      $form['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => $countrylist[$user->country]);
+      $form['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => fh_get_country_name($user->country));
     }
   return $form;
 }

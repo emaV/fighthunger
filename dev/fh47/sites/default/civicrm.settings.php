@@ -122,7 +122,7 @@ define( 'CIVICRM_UF_USERSTABLENAME', 'users' );
  */
 global $civicrm_root;
 $civicrm_root = '/var/www/vhosts_balanced/dev47.fighthunger.org/modules/civicrm/';
-define( 'CIVICRM_TEMPLATE_COMPILEDIR', '/var/www/vhosts_balanced/dev47.fighthunger.org/files/crm_files/tempaltes_c/' );
+define( 'CIVICRM_TEMPLATE_COMPILEDIR', '/var/www/vhosts_balanced/dev47.fighthunger.org/files/crm_files/templates_c/' );
 define( 'CIVICRM_UPLOADDIR'          , '/var/www/vhosts_balanced/dev47.fighthunger.org/files/crm_files/upload/');
 define( 'CIVICRM_IMAGE_UPLOADDIR'    , '/var/www/vhosts_balanced/dev47.fighthunger.org/files/crm_files/persist/');
 define( 'CIVICRM_CUSTOM_FILE_UPLOADDIR'    , '/var/www/vhosts_balanced/dev47.fighthunger.org/files/crm_files/custom_files/' );

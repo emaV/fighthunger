@@ -151,3 +151,21 @@ ini_set('url_rewriter.tags',        '');
 #   'anonymous' => 'Visitor'
 # );
 
+/**
+ * i18n specific configuration
+ * 
+ * Translattable variables
+ */
+
+$conf['i18n_variables'] = array(
+  'site_name',
+  'site_slogan',
+  'site_mission',
+	'site_footer',
+	'anonymous',
+  // Menu system: primary, secondary links
+  'menu_primary_menu',
+  'menu_secondary_menu',
+  // Other modules
+  'donation_presentation',  
+);

@@ -143,4 +143,14 @@ function phptemplate_settings() {
     return $form;
 }
 
+/**
+ * Produces a language link without icon
+ */
+function phptemplate_i18n_link($text, $target, $lang, $separator='&nbsp;'){
+  $output = '<span class="i18n-link">';
+  $attributes = ($lang == i18n_get_lang()) ? array('class' => 'active') : NULL;
+  $output .= l($text, $target, $attributes, NULL, NULL, FALSE, TRUE);
+  $output .= '</span>';
+  return $output;
+}
 ?>

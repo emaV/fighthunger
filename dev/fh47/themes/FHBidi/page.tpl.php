@@ -38,65 +38,26 @@
 	</form>
   <?php endif; ?>
 
-<table border="0">
-  <tr><td>
-<?php if ($logo) : ?>
-    <a href="<?php print url() ?>" title="Index Page"><img src="<?php print($logo) ?>" alt="Fight Hunger Walk the World" /></a>
-<?php endif; ?>
+<table border="0" width='100%'>
+  <tr>
+    <td width='180'>
+<a href="<?php print url() ?>" title="Index Page"><img src="<?php print($logo) ?>" alt="logo" title="Index Page" /></a>
     </td>
-    <td><img src="<?php print base_path().path_to_theme() ?>/images/fhbannermonuments.gif" /></td>
-    <td width='100'>&nbsp;</td>
-    <td align="center">
-      <span id="site-mission">
-<?php
-/**
-* This php snippet displays (x) days left to a specific event
-* Change the values for keyMonth, keyDay and keyYear to suit
-* Tested and works with drupal 4.6 and 4.5
-*/
-/*
-$keyMonth = 5;
-$keyDay = 21;
-$keyYear = 2006; 
-$month = date(F);
-$mon = date(n);
-$day = date(j);
-$year = date(Y);
-$hours_left = (mktime(0,0,0,$keyMonth,$keyDay,$keyYear) - time())/3600;
-$daysLeft = ceil($hours_left/24);
-$z = (string)$daysLeft;
-if ($daysLeft > 0) {
-  print "<b>Counting down to<br />21 May 2006<br />";
-  print "<font color=#ff6600>";
-  print $z;
-  print "</font><br /> days left!</b>";
-} else {
-  print "<font color=#ff6600>";
-  print "<b>21 May 2006<br />The World<br />is<br />Walking!</b>";
-  print "</font>";
-}
-print "<br />";
-*/
-?>
-<font color=#ff6600><b>
-Save the date<br />
-13 May 2007<br />
-Walk with us!<br />
-</b></font>
-      </span> 
+    <td>
+<img src="<?php print base_path() . theme_get_setting('banner_path') ?>" alt="banner" title="banner" />
+    </td>
+    <td align="center" cellpadding='5'>
+<span id="site-mission"><?php print variable_get('site_mission', '') ?></span>
     </td>
   </tr>
-  <tr><td>&nbsp;</td><td colspan=3>
-<?php if ($site_slogan) : ?>
-    <span id="site-slogan">
-     <?php print($site_slogan) ?></span>
-<?php endif;?>
-  </td></tr>
+  <tr>
+    <td>&nbsp;</td>
+    <td colspan=3>
+<span id="site-slogan"><?php print($site_slogan) ?></span>
+    </td>
+  </tr>
 </table>
 
-<?php if ($site_name) : ?>
-<h1 id="site-name"><a href="<?php print url() ?>" title="Index Page"><?php print($site_name) ?></a></h1>
-<?php endif;?>
 <br class="clear" />
 
 </div>

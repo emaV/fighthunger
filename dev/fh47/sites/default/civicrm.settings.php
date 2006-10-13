@@ -244,8 +244,8 @@ define( 'CIVICRM_SMTP_PASSWORD', ''    );
  * can check it in the civicrm_country table and/or the xml/templates/civicrm_country.tpl
  * file. ALL countries are included in country drop-down fields if this setting is empty.
  */
-define( 'CIVICRM_COUNTRY_LIMIT' , 'US' );
-
+//define( 'CIVICRM_COUNTRY_LIMIT' , 'US' );
+define( 'CIVICRM_COUNTRY_LIMIT' , '' );
 /**
  * Province Availability:
  *
@@ -258,8 +258,8 @@ define( 'CIVICRM_COUNTRY_LIMIT' , 'US' );
  * can check it in the civicrm_country table or the file xml/templates/civicrm_country.tpl
  * file. The default limits the state/province list to the United States.
  */
-define( 'CIVICRM_PROVINCE_LIMIT' , 'US' );
-
+//define( 'CIVICRM_PROVINCE_LIMIT' , 'US' );
+define( 'CIVICRM_PROVINCE_LIMIT' , '' );
 
 /**
  * Default Contact Country

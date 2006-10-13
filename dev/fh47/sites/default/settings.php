@@ -88,7 +88,7 @@
 $db_url = array(
   'default' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_www',
   'gis'     => 'mysql://gis:NzH82tu5@ewhserver358/gis',
-  'crm'     => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm');
+  'civicrm'     => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm');
 $db_prefix = '';
 
 /**
@@ -167,5 +167,6 @@ $conf['i18n_variables'] = array(
   'menu_primary_menu',
   'menu_secondary_menu',
   // Other modules
-  'donation_presentation',  
+  'donation_presentation',
+  'donation_user_message',
 );

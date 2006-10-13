@@ -1,0 +1,414 @@
+<?php
+// $Id: i18ntrans.module,v 1.1.2.1 2006/05/17 10:49:11 jareyero Exp $
+
+/**
+ * @i18trans.module
+ * This drupal module provides support for translate translatable
+ * - variables as defined in $i18n_variables.
+ * - string (as in admin/locale/string) 
+ * - nodes (as in /node/$nid/translation) 
+ * REQUIRE i18n.module
+ * 
+ * GPL as usual emanuele_quinto@yahoo.it    
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function i18ntrans_help($section = 'admin/help#i18ntrans' ) {
+  switch ($section) {
+    case 'admin/help#i18ntrans' :
+      $output = t('<p>This module provides support for translatable variables. Maybe.</p>');
+      break;
+    case 'admin/modules#description' :
+      $output = t('Supports translatable variables, strings and nodes. <b>Requires i18n and locale module</b>' );
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+ // todo: set the permission
+function i18ntrans_perm() {
+  return array('i18n vars');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function i18ntrans_access($op, $node) {
+  global $user;
+/*
+  if ($op == 'update') {
+    return user_access('i18n vars');
+  }
+*/
+  return true;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function i18ntrans_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'admin/i18ntrans', 
+      'title' => t('translation'),
+      'callback' => '_i18ntrans_page_variable',
+      'type' => MENU_NORMAL_ITEM,
+      'access' => true);
+    $items[] = array('path' => 'admin/i18ntrans/variable', 
+      'title' => t('variables') . ' (i18n)',
+      'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
+    $items[] = array('path' => 'admin/i18ntrans/string', 
+      'title' => t('strings') . ' (l10n)',
+      'callback' => '_i18ntrans_page_string',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 2,
+      'access' => true);
+    $items[] = array('path' => 'admin/i18ntrans/nodes', 
+      'title' => t('nodes') . ' (i18n)',
+      'callback' => '_i18ntrans_page_nodes',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 3,
+      'access' => true);
+  }
+  return $items;
+}
+
+/***
+ * Generate HTML from a variable 
+ ***/ 
+function _i18ntrans_html($var, $parent="", $indent=1) { 
+  $output =  "\n<div class=\"array_tree\" id=\"array_tree_$indent\">\n";
+  switch (gettype($var)) { 
+    case "array":
+      foreach($var as $key => $val) { 
+        $output .= "<b>".htmlspecialchars($key)."</b>";
+        $output .= "<div class=\"array_tree_element\" id=\"array_tree_element_$indent\" style=\"margin-left: 10px\">";
+        $output .= _i18ntrans_html($val, "$parent,$key", $indent++);
+        $output .= "</div>";
+      }
+      break;
+    case "integer":
+    case "double":
+    case "boolean":
+    case "string":
+      $output .= "<code>" . htmlspecialchars($var) . "</code><br />";
+      break;
+    default:
+      $output .= "<b>($parent)</b> => ".gettype($var)."<br />";
+      break; 
+  }
+  $output .= "</div>\n";
+  return $output; 
+}
+
+
+/***
+ * Generate a form from a variable (like print_r)
+ * see http://wwww.php.net/manual/en/function.print-r.php#58811 
+ * @$i18n_var array specifies the variable to generate form for.
+ * @return a form corresponding to var.
+ ***/ 
+function _i18ntrans_form_var($i18n_var) { 
+
+  switch (gettype($i18n_var['untrans'])) { 
+    case "array":
+      $form = array(
+        '#value' => 'N/A'
+      );
+      break;
+    case "integer":
+    case "double":
+    case "boolean":
+      $form = array(
+        '#type' => 'textfield',
+        '#title' => t('translation'),
+        '#default_value' => $i18n_var['trans'],
+        '#required' =>FALSE,
+      );
+      break;
+    case "string":
+      $nrow = floor(strlen($i18n_var['untrans']) / 50);
+      if ($nrow>0) {
+        $form = array(
+          '#type' => 'textarea',
+          '#title' => t('translation'),
+          '#default_value' => $i18n_var['trans'],
+          '#rows' => floor($nrow*1.25),
+          '#required' => FALSE
+        );
+      } else {
+        $form = array(
+          '#type' => 'textfield',
+          '#title' => t('translation'),
+          '#default_value' => $i18n_var['trans'],
+          '#required' => FALSE
+        );
+      }
+      break;
+  }
+  return $form; 
+}
+
+
+/***
+ * Process variable form (i18ntrans_page_form).
+ ***/
+function i18ntrans_page_submit($form_id, $form_values) {
+  global $i18n_conf;
+  global $conf;
+
+  switch($form_values['type']) {
+    case 'variable' :
+      foreach ($form_values[i18n] as $key => $value) {
+        if($value['value']) {
+          variable_set($key, $value['value']);
+          $var_trans[$key] = $value['value'];
+        }
+      }
+      drupal_set_message(t('The configuration options have been saved.'));
+      break;
+  }
+}
+
+/***
+ * Call back to generate the variable page.
+ ***/
+function _i18ntrans_page_variable() {
+  global $conf;
+  $lang = _i18n_get_lang();
+
+// load i18n variables
+  $i18n_variables = $conf['i18n_variables'];
+  
+// load from cache untranslated i18n variables
+  if ($cached = cache_get('variables')) {
+    $cached_vars = unserialize($cached->data);
+  }
+  foreach ($i18n_variables as $variable) {
+    $i18n_vars[$variable]['untrans'] = $cached_vars[$variable];
+  }
+  
+// load from table translated i18n variables
+  $i18n_translation = array();
+  $result = db_query("SELECT * FROM {i18n_variable} WHERE language='%s'", $lang);
+  while ($variable = db_fetch_object($result)) {
+    $i18n_vars[$variable->name]['trans'] = unserialize($variable->value);
+  }
+  
+// created form
+  $form['i18n'] = array(
+    '#type' => 'fieldset',
+    '#tree' => TRUE
+  );
+  foreach ($i18n_variables as $variable) {
+    $form['i18n']["$variable"] = array(
+      '#type' => 'fieldset',
+      '#title' => "$variable",
+      '#collapsible' => TRUE,
+      '#collapsed' => false,
+      '#weight' => -2,
+      '#tree' => TRUE
+    );
+    $form['i18n']["$variable"]['original'] = array(
+      '#type' => 'item',
+      '#title' => t('Original text'),
+      '#value' => _i18ntrans_html($i18n_vars[$variable]['untrans'], $variable),
+      '#weight' => -9
+    );
+    $form['i18n']["$variable"]['value'] = _i18ntrans_form_var($i18n_vars[$variable]);
+  }
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+    '#weight' => 9
+  );
+  $form['lang'] = array(
+    '#type' => 'value',
+    '#value' => _i18n_get_lang(),
+    '#weight' => 8
+  );
+  $form['type'] = array(
+    '#type' => 'value',
+    '#value' => 'variable',
+    '#weight' => 8
+  );
+  $content .= drupal_get_form('i18ntrans_page', $form);
+
+  drupal_set_title(t('translate') . ' - ' . t('variables'));
+  print theme('page', $content);
+}
+
+/**
+ * Process string editing form submissions.
+ * Saves all translations of strings submitted from 
+ * form i18ntrans_page_string_form
+ */
+function i18ntrans_page_string_submit($form_id, $form_values) {
+  $trans = $form_values['l10n'];
+  $lang = $form_values['lang'];
+  
+  foreach($trans as $lid => $arrval) {
+    if ($arrval['value']) {
+      $value = filter_xss_admin($arrval['value']);
+      $keyval[$lid] = $value;
+      $trans = db_fetch_object(db_query("SELECT translation FROM {locales_target} WHERE lid = %d AND locale = '%s'", $lid, $lang));
+      if (isset($trans->translation)) {
+        db_query("UPDATE {locales_target} SET translation = '%s' WHERE lid = %d AND locale = '%s'", $value, $lid, $lang);
+      } else {
+        db_query("INSERT INTO {locales_target} (lid, translation, locale) VALUES (%d, '%s', '%s')", $lid, $value, $lang);
+      }
+    }
+  }
+
+  // Refresh the locale cache.
+  locale_refresh_cache();
+  // Rebuild the menu, strings may have changed.
+  menu_rebuild();
+  
+  drupal_set_message(t('The strings have been saved.'));
+}
+
+/***
+ * Call back to generate
+ * user interface for string editing.
+ */
+function _i18ntrans_page_string() {
+
+// generate SQL to retrive ONLY untranslated string
+  $join = "SELECT s.source, s.location, s.lid, t.translation, t.locale FROM {locales_source} s INNER JOIN {locales_target} t ON s.lid = t.lid ";
+  $where = "WHERE (t.translation = '') AND (t.locale = '%s')";
+  $orderby = "ORDER BY s.source";
+  $sql = "$join $where $orderby";
+  $arguments[] = _i18n_get_lang();
+  $string4page = 50;
+  $result = pager_query($sql, $string4page, 0, NULL, $arguments);
+
+// form generation
+  $form = array('#tree' => TRUE);
+  $form['l10n'] = array(
+    '#type' => 'fieldset'
+  );
+
+// iterate on paged result
+  while ($locale = db_fetch_object($result)) {
+    $lid = $locale->lid;
+    $source = $locale->source;
+    $translation = $locale->translation;
+    $title = "$lid  - " . check_plain(truncate_utf8($source, 50, FALSE, TRUE)); 
+    $form['l10n']["$lid"] = array(
+      '#type' => 'fieldset',
+      '#title' => "$title",
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+      '#weight' => 0
+    );
+    $form['l10n']["$lid"]['original'] = array(
+      '#type' => 'item',
+      '#title' => t('Original text'),
+      '#value' => check_plain($source),
+      '#weight' => 0
+    );
+    $form['l10n']["$lid"]['value'] = array(
+      '#type' => 'textarea',
+      '#title' => t('translation'),
+      '#default_value' => $translation,
+      '#rows' => 0,
+      '#required' => FALSE
+    );
+  }
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+    '#weight' => 9
+  );
+  $form['lang'] = array(
+    '#type' => 'value',
+    '#value' => _i18n_get_lang(),
+    '#weight' => 7
+  );
+  $form['type'] = array(
+    '#type' => 'value',
+    '#value' => 'string',
+    '#weight' => 7
+  );
+
+// add pager
+  if ($pager = theme('pager', NULL, $string4page, 0, $request)) {
+    $form['l10n']['pager'] = array(
+      '#value' => $pager,
+      '#weight' => 9
+    );
+  }
+
+  drupal_set_title(t('translate') . ' - ' . t('strings'));
+  $output = drupal_get_form('i18ntrans_page_string', $form);
+  print theme('page', $output);
+}
+
+/***
+ * Call back to generate
+ * user interface for node translation.
+ * 
+ * similar to function
+ *    translation_node_overview($node)
+ * from translation.module  
+ */
+function _i18ntrans_page_nodes() {
+
+  $node_list = explode("\n", variable_get('translation_node_queue',''));
+  $lang = _i18n_get_lang();
+  $lang_def = variable_get('translation_default_language','en');
+ 
+  $header = array(t('Node'), t('Title'), t('Options'));
+  $rows = array();
+  foreach($node_list as $nid) {
+    $nid = trim($nid);
+    $node = node_load($nid);
+    $trans_original =  l($node->title, "$lang_def/node/$nid");
+    $options = array();
+    if(isset($node->translation[$lang])){
+      $trnode = $node->translation[$lang];
+      $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
+    } else {
+      $trans_options = l(t('create translation'), "node/add/$node->type/translation/$node->nid/$lang");
+      $trans_options .= ' | ' . l(t('select node'), "node/$node->nid/translation/select/$lang");
+    }
+    $rows[] = array( $nid, $trans_original, $trans_options);
+  } 
+  $output .= theme('table', $header, $rows);
+
+  drupal_set_title(t('translate') . ' - ' .  t('nodes'));
+  print theme('page', $output);
+} 
+
+/**
+ * Implementation of hook_settings().
+ */
+function i18ntrans_settings() {
+  $form['translation_node_queue'] = array(
+    '#type' => 'textarea',
+    '#title' => t('translation queue'),
+    '#default_value' => variable_get('translation_node_queue',''),
+    '#rows' => 5,
+    '#cols' => 10,
+    '#description' => t('List of node to be translated in ALL languages')
+  );
+  $form['translation_default_language'] = array(
+	  '#type' => 'select',
+	  '#title' => t('default language'),
+	  '#default_value' => variable_get('translation_default_language','en'),
+	  '#options' => array_merge(array('' => ''), i18n_supported_languages()),
+	  '#description' => t('Langugage to be used as default in theme variable translation')
+  );
+
+  return $form;
+}
+?>
+

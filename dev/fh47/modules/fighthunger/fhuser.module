@@ -25,15 +25,97 @@ function fhuser_help($section) {
 }
 
 /**
+ * Implementation of hook_settings().
+ */
+function fhuser_settings() {
+  $form['fhuser_location_sync'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Synchronize location data with CiviCRM Profile'),
+    '#default_value' => variable_get('fhuser_location_sync', 0)
+  );
+  $form['fhuser_sync_profile'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Synchronize user profile data with CiviCRM Profile'),
+    '#default_value' => variable_get('fhuser_sync_profile', 0)
+  );  
+
+  // User account categories to synchronize
+  $categories = _user_categories(NULL);
+  foreach($categories as $category) {
+    $options[$category['name']] = $category['title'];
+  }
+  $form['fhuser_crm_profile'] = array(
+    '#type' => 'select',
+    '#title' => t('CiviCRM Profile to synchronize'),
+    '#options' => $options,
+    '#default_value' => variable_get('fhuser_crm_profile', 'Contact Information')
+  );
+  $form['fhuser_profile_profile'] = array(
+    '#type' => 'select',
+    '#title' => t('Profile module Category to synchronize'),
+    '#options' => $options,
+    '#default_value' => variable_get('fhuser_profile_profile', 'Contact Information')
+  );      
+  return $form;
+}
+/**
  * Implementation of hook_form_alter().
  */
 function fhuser_form_alter($form_id, &$form) {
+  // drupal_set_message("DEBUG:fh_user_form_alter, form_id=$form_id");
   // If there's a field named 'fhuser' add the subform there
   if(isset($form['fhuser'])) {
     fhuser_subform_alter($form_id, $form);
   }
+  /*
+  if($form_id == 'user_login') {
+    $form['name']['#title'] = t('E-mail');
+  }
+  */
+  if($form_id == 'user_edit' && $category = $form['_category']['#value']) {
+    fhuser_form_user_alter($form_id, $form, $category);
+  }
 }
 
+/**
+ * Rewrite some fields from user form
+ */
+function fhuser_form_user_alter($form_id, &$form, $category) {
+  // Country field
+  if(isset($form[$category]['country'])){
+    $form[$category]['country']['#type'] = 'select';
+    $form[$category]['country']['#options'] = fh_get_country_list();
+  }
+};
+/**
+ * User contact subform
+ */
+/*
+function fhuser_subform_user_contact($edit) {
+  $subform = array('#type' => 'fieldset', '#title' => t('Contact information'));
+	$subform['first_name'] = array('#type' => 'textfield',
+	  '#title' => t('First name'),
+	  '#default_value' => $edit['first_name'],
+	  '#maxlength' => 60,
+	  '#description' => t('Your full name or your preferred username: only letters, numbers and spaces are allowed.'),
+	  '#required' => TRUE,
+	);
+	$subform['last_name'] = array('#type' => 'textfield',
+	  '#title' => t('Last name'),
+	  '#default_value' => $edit['last_name'],
+	  '#maxlength' => 60,
+	  '#description' => t('Your full name or your preferred username: only letters, numbers and spaces are allowed.'),
+	  '#required' => TRUE
+	);
+	$subform['country'] = array('#type' => 'select',
+	  '#title' => t('Home country'),
+	  '#default_value' => $edit['country'],
+	  '#options' => fh_get_country_list(),
+	  '#required' => TRUE
+	);
+  return $subform; 
+}
+*/
 /**
  * Rewrites form with user data
  * 
@@ -289,14 +371,95 @@ function fhuser_get_link($name, $option, $path = NULL, $props = array()) {
 }
 
 /**
- * Keep record of last registered user
+ * Implementation of hook_user
  * 
- * This is kind of temporary login
+ * Keeps track of user when registering. This is kind of temporary login
  */
 function fhuser_user($op, &$edit, &$account, $category = NULL) {
   global $fhuser_enable, $fhuser_user;
-  if($fhuser_enable && $op == 'insert') {
-    $fhuser_user = $account;
+  //drupal_set_message("DEBUG:fhuser_user, op=$op, category=$category");
+  
+  if ($op == 'update' && $category == variable_get('fhuser_crm_profile', 'Contact Information')) {
+    // Update user's contact data
+    fhuser_update_related($account);
+  }
+  switch($op) {
+    case 'register':
+      //$form['contact'] = fhuser_subform_user_contact($edit);
+      //return $form;
+      break;
+    case 'insert':
+      if($category == 'account') {
+        $account->country = $edit['country'];
+        $account->first_name = $edit['first_name'];
+        $account->last_name = $edit['last_name'];
+        fhuser_update_crm_contact($account);
+      }
+      if($fhuser_enable) {
+        $fhuser_user = $account;
+      }
+      break;
+    case 'update':
+      if ($category == variable_get('fhuser_crm_profile', 'Contact Information')) {
+    		// Update user's contact data
+        fhuser_update_related($account);
+      } elseif($category == 'account' && variable_get('fhuser_location_sync', 0) && isset($edit['location'])) {
+        fhuser_update_crm_location($account, $edit['location']);
+      }
+      break;
+    case 'load':
+      // Change account name 
+      // $account->name = $account->first_name . ' ' . $account->last_name;
+      break;
+  }  
+}
+
+/**
+ * Synchronize Drupal data with CiviCRM data
+ */
+function fhuser_update_related(&$account) {
+  if (module_exist('civicrm')) {
+    civicrm_initialize(TRUE);
+    $contact = crm_get_contact(array('email' => $account->mail));
+    $account->first_name = $contact->first_name;
+    $account->last_name = $contact->last_name;
+    $account->country = $contact->country;
+    // Update location module with CiviCRM data
+    if (module_exist('location') && variable_get('fhuser_location_sync', 0)) {
+      global $conf;
+      $oldsetting = $conf['location_user'];
+      $conf['location_user'] = LOCATION_USER_CIVICRM_ONLY;
+      $edit = (array)($contact->location[1]->address);
+      location_user('update', $edit, $account, 'account');
+      $conf['location_user'] = $oldsetting;
+    }
+  }  
+}
+/**
+ * Save contact fields in crm profile
+ */
+function fhuser_update_crm_contact($account) {
+  if (module_exist('civicrm')) {
+    $data = array(
+      'first_name' => $account->first_name,
+      'last_name' => $account->last_name,
+      'country' => fh_crm_country_iso2id($account->country)
+    );
+    fh_crm_update_contact($account, $data);
+  }
+}
+/**
+ * Update crm profile with data from location module
+ */
+function fhuser_update_crm_location($account, $location) {
+  if(module_exist('civicrm') && module_exist('location') && variable_get('location_user', '') == LOCATION_USER_COLLECT) {
+    $data['street_address'] = $location['street'];
+    $data['supplemental_address_1'] = $location['additional'];
+    $data['city'] = $location['city'];
+    $data['postal_code'] = $location['postal_code'];
+    $data['state_province_id'] = fh_crm_state_abbr2id($location['province']);
+    $data['country_id'] = fh_crm_country_iso2id($location['country']);
+    fh_crm_update_contact($account, $data);
   }
 }
 

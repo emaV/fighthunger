@@ -24,23 +24,16 @@ function fh_help($section) {
 }
 
 /**
- * Get country list
+ * Get country list, indexed by ISO code
+ * 
+ * Gets the list of enabled contries from location.module
  * 
  * @return
  *   Array of countries indexed by two-letter ISO code
  */
 function fh_get_country_list() {
-  static $countries;
-  if (empty($countries)){
-    $rs = db_query("SELECT * FROM {countries} ORDER BY name ASC");
-    while ($c = db_fetch_array($rs)){
-      $countries[$c['ccid']] = ucwords(strtolower($c['name']));
-    }
-    $s = array("--"=>"(choose your home country)");
-    $countries = array_merge($s, $countries);
-  }
-  return $countries;  
-}
+  return array('' => '--') + module_invoke('location', 'configured_countries');
+} 
 
 /**
  * Get country name from two-letter ISO code
@@ -69,4 +62,64 @@ function fh_node_get_partners($nid) {
     $list[$partner->nid] = $partner->title;
   }
   return isset($list) ? $list : NULL;
+}
+
+/**
+ * @group civiCRM related functions
+ */
+
+/**
+ * Update CiviCRM contact related with Drupal user account
+ * 
+ * @param $account
+ *   Drupal user account
+ * @param $data
+ *   Array of field => values to update
+ */
+function fh_crm_update_contact($account, $data) {
+  civicrm_initialize(TRUE);
+  $contact = crm_get_contact(array('email' => $account->mail));
+  crm_update_contact($contact, $data);
+}
+/**
+ * Get CiviCRM id for a country
+ * 
+ * @param $code
+ *   ISO code for a country
+ * @return
+ *   CiviCRM ID for the country
+ */
+function fh_crm_country_iso2id($code) {
+  db_set_active('civicrm');
+  $id = db_result(db_query("SELECT id  FROM civicrm_country WHERE iso_code = '%s'", strtoupper($code)));
+  db_set_active();
+  return $id;
+}
+/**
+ * Get ISO code for a country
+ * 
+ * @param $code
+ *   CiviCRM ID for a country
+ * @return
+ *   ISO code for a country   
+ */
+function fh_crm_country_id2iso($code) {
+  db_set_active('civicrm');
+  $iso = db_result(db_query('SELECT iso_code FROM civicrm_country WHERE id = %d', $code));
+  db_set_active();  
+  return strtolower($iso);
+}
+/**
+ * Get CiviCRM id for a province/state
+ * 
+ * @param $code
+ *   CiviCRM ID for a country
+ * @return
+ *   ISO code for a country   
+ */
+function fh_crm_state_abbr2id($code) {
+  db_set_active('civicrm');
+  $result = db_result(db_query("SELECT id FROM civicrm_state_province WHERE abbreviation ='%s'", strtolower($code)));
+  db_set_active();  
+  return strtolower($result);
 }

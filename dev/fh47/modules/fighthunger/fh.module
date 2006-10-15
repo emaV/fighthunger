@@ -69,6 +69,13 @@ function fh_node_get_partners($nid) {
  */
 
 /**
+ * Get CiviCRM contact related to Drupal account
+ */
+function fh_crm_get_contact($account) {
+  civicrm_initialize(TRUE);
+  return crm_get_contact(array('email' => $account->mail));
+}
+/**
  * Update CiviCRM contact related with Drupal user account
  * 
  * @param $account

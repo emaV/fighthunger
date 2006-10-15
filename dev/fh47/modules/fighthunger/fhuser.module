@@ -7,12 +7,14 @@
  * 
  * Dependencies:
  *  - fh.module
+ *  - location.module
+ *  - profile.module
+ *  - civicrm
  *  
  * Developed by Jose A. Reyero,  http://www.reyero.net
  * for FightHunger.org
  * 
  */
-
 
 /**
  * Implementation of hook_help().
@@ -74,6 +76,8 @@ function fhuser_form_alter($form_id, &$form) {
   */
   if($form_id == 'user_edit' && $category = $form['_category']['#value']) {
     fhuser_form_user_alter($form_id, $form, $category);
+  } elseif($form_id == 'user_register') {
+    fhuser_form_user_alter($form_id, $form, NULL);
   }
 }
 
@@ -81,41 +85,28 @@ function fhuser_form_alter($form_id, &$form) {
  * Rewrite some fields from user form
  */
 function fhuser_form_user_alter($form_id, &$form, $category) {
-  // Country field
-  if(isset($form[$category]['country'])){
-    $form[$category]['country']['#type'] = 'select';
-    $form[$category]['country']['#options'] = fh_get_country_list();
+  if($category) {
+    $categories = array($category);
+  } else {
+    // No category is passed, get all the form's fieldsets, first level
+    $categories = array();
+    $children = element_children($form);
+    foreach($children as $key) {
+      if($form[$key]['#type'] == 'fieldset') {
+        $categories[] = $key;
+      }
+    }
+  }
+  // Rewrite specific fields
+  foreach($categories as $category) {
+	  // Country field
+	  if(isset($form[$category]['country'])){
+	    $form[$category]['country']['#type'] = 'select';
+	    $form[$category]['country']['#options'] = fh_get_country_list();
+	  }
   }
 };
-/**
- * User contact subform
- */
-/*
-function fhuser_subform_user_contact($edit) {
-  $subform = array('#type' => 'fieldset', '#title' => t('Contact information'));
-	$subform['first_name'] = array('#type' => 'textfield',
-	  '#title' => t('First name'),
-	  '#default_value' => $edit['first_name'],
-	  '#maxlength' => 60,
-	  '#description' => t('Your full name or your preferred username: only letters, numbers and spaces are allowed.'),
-	  '#required' => TRUE,
-	);
-	$subform['last_name'] = array('#type' => 'textfield',
-	  '#title' => t('Last name'),
-	  '#default_value' => $edit['last_name'],
-	  '#maxlength' => 60,
-	  '#description' => t('Your full name or your preferred username: only letters, numbers and spaces are allowed.'),
-	  '#required' => TRUE
-	);
-	$subform['country'] = array('#type' => 'select',
-	  '#title' => t('Home country'),
-	  '#default_value' => $edit['country'],
-	  '#options' => fh_get_country_list(),
-	  '#required' => TRUE
-	);
-  return $subform; 
-}
-*/
+
 /**
  * Rewrites form with user data
  * 
@@ -159,6 +150,8 @@ function fhuser_subform_alter($form_id, &$form, $base = 'fhuser') {
         break;
     }
     $form[$base] = array_merge($form[$base], $subform);
+    // Add some form parameters for processing
+    $form['fhuser_form_base'] = array('#type' => 'hidden', '#value' => $base);
     $form['fhuser_form_id'] = array('#type' => 'hidden', '#value' => $current);
     //$form[$base]['subform'] = array('#value' => $subform);
   }
@@ -205,14 +198,14 @@ function fhuser_check_post(){
  */
 function fhuser_subform_user_display(){
   global $user;
-    $form['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
-    // If the user has no country, shows a drop down else the country
-    if(!$user->country) {
-      $form['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => fh_get_country_list());
-    } else {
-      $form['country'] = array('#type' => 'value', '#value' => $user->country);
-      $form['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => fh_get_country_name($user->country));
-    }
+	$form['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
+	// If the user has no country, shows a drop down else the country
+	if($user->country) {
+	  $form['country'] = array('#type' => 'value', '#value' => $user->country);
+	  $form['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => fh_get_country_name($user->country));
+	} else {
+	  $form['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => fh_get_country_list());
+	}
   return $form;
 }
 
@@ -286,8 +279,12 @@ function fhuser_subform_user_register() {
     '#description' => t('A password and instructions will be sent to this e-mail address, so make sure it is accurate.'),
     '#required' => TRUE,
   );
+  // Temporarily switch path to get the right fields
+  $q = $_GET['q'];
+  $_GET['q'] = 'user/register';
   $extra = _user_forms($null, $null, $null, 'register');
-
+  $_GET['q'] = $q;
+  
   // Only display form_group around default fields if there are other groups.
   if ($extra) {
     $form['account'] = array('#type' => 'fieldset', '#title' => t('Account information'));
@@ -301,7 +298,21 @@ function fhuser_subform_user_register() {
   // Add validation and submit functions
   // $form['#validate'] = array('fhuser_register_subform_validate' => array());
   fhuser_subform_complete('user_register', $form);
+  // keep track of the fields to use for registering
+  $form['_user_fields'] = array('#type' => 'value', '#value' => _fhuser_form_get_fields($form));
   return $form;  
+}
+// Gets all fields of the form
+function _fhuser_form_get_fields(&$form) {
+  $result = array();
+  foreach(element_children($form) as $field) {
+    if($form[$field]['#type'] == 'fieldset' && !$form[$field]['#tree']) {
+      $result = array_merge($result,_fhuser_form_get_fields($form[$field]));
+    } else {
+      $result[] = $field;
+    }
+  }
+  return $result;
 }
 
 /**
@@ -320,7 +331,7 @@ function fhuser_subform_validate($form_id, $form_values) {
   //drupal_set_message("fhuser_subform_validate, form_id=$form_id, fhuser_form_id=".$form_values['fhuser_form_id']);
   switch($form_values['fhuser_form_id']) {
     case 'login':
-      //user_login_validate($form_id, $form_values);
+      user_login_validate($form_id, $form_values);
       break;
     case 'register':
       user_register_validate($form_id, $form_values);
@@ -341,7 +352,11 @@ function fhuser_subform_submit($form_id, $form_values) {
   switch($form_values['fhuser_form_id']) {
     case 'register':
       $fhuser_enable = TRUE;
-      user_register_submit($form_id, $form_values);
+      // Only register fields should be passed so others are not saved along with the user
+      foreach($form_values['_user_fields'] as $key) {
+        $user_fields[$key] = $form_values[$key];
+      }      
+      user_register_submit($form_id, $user_fields);
       $fhuser_enable = FALSE;
       // Set just registered user
       $account = fhuser_get_user();
@@ -351,7 +366,7 @@ function fhuser_subform_submit($form_id, $form_values) {
       user_pass_submit($form_id, $form_values);
       break;
     case 'login':
-      
+      break;
   } 
 }
 
@@ -376,35 +391,24 @@ function fhuser_get_link($name, $option, $path = NULL, $props = array()) {
  * Keeps track of user when registering. This is kind of temporary login
  */
 function fhuser_user($op, &$edit, &$account, $category = NULL) {
-  global $fhuser_enable, $fhuser_user;
+  global $fhuser_user;
   //drupal_set_message("DEBUG:fhuser_user, op=$op, category=$category");
   
-  if ($op == 'update' && $category == variable_get('fhuser_crm_profile', 'Contact Information')) {
-    // Update user's contact data
-    fhuser_update_related($account);
-  }
   switch($op) {
-    case 'register':
-      //$form['contact'] = fhuser_subform_user_contact($edit);
-      //return $form;
-      break;
     case 'insert':
-      if($category == 'account') {
-        $account->country = $edit['country'];
-        $account->first_name = $edit['first_name'];
-        $account->last_name = $edit['last_name'];
-        fhuser_update_crm_contact($account);
-      }
-      if($fhuser_enable) {
-        $fhuser_user = $account;
-      }
+      // Save last registered user in a global variable
+      $fhuser_user = $account;
+      // Update crm related fields 
+      fhuser_update_crm_contact($account, $edit);
       break;
     case 'update':
-      if ($category == variable_get('fhuser_crm_profile', 'Contact Information')) {
+      if ($category == variable_get('fhuser_crm_profile', 'none')) {
     		// Update user's contact data
-        fhuser_update_related($account);
+        fhuser_update_related($account, $edit);
       } elseif($category == 'account' && variable_get('fhuser_location_sync', 0) && isset($edit['location'])) {
         fhuser_update_crm_location($account, $edit['location']);
+      } elseif($category == variable_get('fhuser_profile_profile', 'none')) {
+        fhuser_update_related($account, $edit);
       }
       break;
     case 'load':
@@ -417,33 +421,66 @@ function fhuser_user($op, &$edit, &$account, $category = NULL) {
 /**
  * Synchronize Drupal data with CiviCRM data
  */
-function fhuser_update_related(&$account) {
+function fhuser_update_related(&$account, &$edit) {
+  //drupal_set_message("DEBUG:fhuser_update_related");
   if (module_exist('civicrm')) {
-    civicrm_initialize(TRUE);
-    $contact = crm_get_contact(array('email' => $account->mail));
-    $account->first_name = $contact->first_name;
-    $account->last_name = $contact->last_name;
-    $account->country = $contact->country;
+    $contact = fh_crm_get_contact($account);
+    //var_dump($contact);
     // Update location module with CiviCRM data
     if (module_exist('location') && variable_get('fhuser_location_sync', 0)) {
       global $conf;
       $oldsetting = $conf['location_user'];
       $conf['location_user'] = LOCATION_USER_CIVICRM_ONLY;
-      $edit = (array)($contact->location[1]->address);
-      location_user('update', $edit, $account, 'account');
+      $data = (array)($contact->location[1]->address);
+      location_user('update', $data, $account, 'account');
       $conf['location_user'] = $oldsetting;
+    }
+    // Update profile fields
+    if (module_exist('profile') && variable_get('fhuser_sync_profile', 0)) {
+      $data['first_name'] = $contact->contact_type_object->first_name;
+      $data['last_name'] = $contact->contact_type_object->last_name;
+      $data['country'] = fh_crm_country_id2iso($contact->location[1]->address->country_id);
+      fhuser_update_profile($account, $data, $edit); 
     }
   }  
 }
 /**
- * Save contact fields in crm profile
+ * Update specific profile fields
  */
-function fhuser_update_crm_contact($account) {
+function fhuser_update_profile(&$account, $data, &$edit) {
+  //drupal_set_message("DEBUG:fhuser_update_profile");
+
+  $fieldnames = array_keys($data);
+  foreach($fieldnames as $key => $name) {
+    $fieldnames[$key] = db_escape_string($name);
+  }
+  $result = db_query("SELECT fid, name, type FROM {profile_fields} WHERE name IN ('".implode("','", $fieldnames)."')");
+  while ($field = db_fetch_object($result)) {
+    $name = $field->name;
+    if (_profile_field_serialize($field->type)) {
+       $edit[$name] = serialize($edit[$name]);
+    }
+    db_query("DELETE FROM {profile_values} WHERE fid = %d AND uid = %d", $field->fid, $account->uid);
+    db_query("INSERT INTO {profile_values} (fid, uid, value) VALUES (%d, %d, '%s')", $field->fid, $account->uid, $data[$name]);
+    // Update account field
+    // $account->{$name} = $data[$name];
+    // Mark field as handled (prevents saving to user->data).
+    $edit[$name] = NULL;
+    drupal_set_message("DEBUG:fhuser_update_profile: field=$name, value=".$data[$name]);    
+  }
+}
+/**
+ * Save contact fields in crm profile
+ * 
+ * When creating a new user all data is not yet in account
+ */
+function fhuser_update_crm_contact($account, $edit = array()) {
+  $values = array_merge((array)$account, $edit);
   if (module_exist('civicrm')) {
     $data = array(
-      'first_name' => $account->first_name,
-      'last_name' => $account->last_name,
-      'country' => fh_crm_country_iso2id($account->country)
+      'first_name' => $values['first_name'],
+      'last_name' => $values['last_name'],
+      'country_id' => fh_crm_country_iso2id($values['country'])
     );
     fh_crm_update_contact($account, $data);
   }

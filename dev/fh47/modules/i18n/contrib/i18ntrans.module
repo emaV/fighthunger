@@ -373,12 +373,16 @@ function _i18ntrans_page_nodes() {
     $node = node_load($nid);
     $trans_original =  l($node->title, "$lang_def/node/$nid");
     $options = array();
-    if(isset($node->translation[$lang])){
-      $trnode = $node->translation[$lang];
-      $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
+    if(!($lang==$lang_def)) {
+      if(isset($node->translation[$lang])){
+        $trnode = $node->translation[$lang];
+        $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
+      } else {
+        $trans_options = l(t('create translation'), "node/add/$node->type/translation/$node->nid/$lang");
+        $trans_options .= ' | ' . l(t('select node'), "node/$node->nid/translation/select/$lang");
+      }
     } else {
-      $trans_options = l(t('create translation'), "node/add/$node->type/translation/$node->nid/$lang");
-      $trans_options .= ' | ' . l(t('select node'), "node/$node->nid/translation/select/$lang");
+      $trans_options = "N/A";
     }
     $rows[] = array( $nid, $trans_original, $trans_options);
   } 

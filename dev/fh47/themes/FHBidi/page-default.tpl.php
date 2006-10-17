@@ -23,10 +23,6 @@
 			<?php print $tabs ?>
 <?php endif; ?>
 				
-<?php if ($mission != ""): ?>
-			<div id="mission"><?php print $mission ?></div>
-<?php endif; ?>
-				
 <?php if ($help != ""): ?>
 			<p id="help"><?php print $help ?></p>
 <?php endif; ?>

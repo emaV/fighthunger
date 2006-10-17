@@ -363,28 +363,49 @@ function _i18ntrans_page_string() {
 function _i18ntrans_page_nodes() {
 
   $node_list = explode("\n", variable_get('translation_node_queue',''));
-  $lang = _i18n_get_lang();
+  $lang_curr = _i18n_get_lang();
   $lang_def = variable_get('translation_default_language','en');
  
-  $header = array(t('Node'), t('Title'), t('Options'));
+  if(!($lang_curr==$lang_def)) {
+    $header = array(t('Node'), t('Title'), t('Options'));
+  } else {
+    $header = array(t('Node'), t('Title'));
+    foreach(i18n_supported_languages() as $lang => $name) {
+      if($lang<>$lang_def) $header[]= $name;
+    }    
+  }
   $rows = array();
   foreach($node_list as $nid) {
     $nid = trim($nid);
     $node = node_load($nid);
     $trans_original =  l($node->title, "$lang_def/node/$nid");
     $options = array();
-    if(!($lang==$lang_def)) {
-      if(isset($node->translation[$lang])){
-        $trnode = $node->translation[$lang];
+    if(!($lang_curr==$lang_def)) {
+      if(isset($node->translation[$lang_curr])){
+        $trnode = $node->translation[$lang_curr];
         $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
       } else {
-        $trans_options = l(t('create translation'), "node/add/$node->type/translation/$node->nid/$lang");
-        $trans_options .= ' | ' . l(t('select node'), "node/$node->nid/translation/select/$lang");
+        $trans_options = l(t('create translation'), "node/add/$node->type/translation/$node->nid/$lang_curr");
+        $trans_options .= ' | ' . l(t('select node'), "node/$node->nid/translation/select/$lang_curr");
       }
+      $row = array( $nid, $trans_original, $trans_options);
     } else {
-      $trans_options = "N/A";
+      $row = array( $nid, $trans_original);
+      foreach(i18n_supported_languages() as $lang => $name) {
+        if($lang<>$lang_def) {
+          if(isset($node->translation[$lang])){
+            $trnode = $node->translation[$lang];
+            $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
+          } else {
+            $trans_options = l(t('create'), "node/add/$node->type/translation/$node->nid/$lang");
+            $trans_options .= ' | ' . l(t('select'), "node/$node->nid/translation/select/$lang");
+          }
+          $row[] = $trans_options;
+        }
+      }
     }
-    $rows[] = array( $nid, $trans_original, $trans_options);
+    $rows[] = $row;
+
   } 
   $output .= theme('table', $header, $rows);
 

@@ -161,11 +161,11 @@ $conf['i18n_variables'] = array(
   'site_name',
   'site_slogan',
   'site_mission',
-	'site_footer',
-	'anonymous',
+  'site_footer',
+  'anonymous',
   // Menu system: primary, secondary links
-  'menu_primary_menu',
-  'menu_secondary_menu',
+//  'menu_primary_menu',
+//  'menu_secondary_menu',
   // Other modules
   'donation_presentation',
   'donation_user_message',

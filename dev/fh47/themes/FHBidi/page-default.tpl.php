@@ -19,7 +19,7 @@
 		     <?php endif; ?>   
 <?php endif; ?>
 
-<? if (($tabs != "") && (user_access("view tabs") || (arg(0) == "faq"))): ?>
+<? if (($tabs != "")  || (arg(0) == "faq")): ?>
 			<?php print $tabs ?>
 <?php endif; ?>
 				

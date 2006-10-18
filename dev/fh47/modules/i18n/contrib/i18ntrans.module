@@ -23,6 +23,9 @@ function i18ntrans_help($section = 'admin/help#i18ntrans' ) {
     case 'admin/modules#description' :
       $output = t('Supports translatable variables, strings and nodes. <b>Requires i18n and locale module</b>' );
       break;
+    case 'admin/i18ntrans/string':
+      if( _i18n_get_lang() == variable_get('translation_default_language','en') )
+        return t("<p>It is often convenient to get the strings from your setup on the <a href=\"%export\">export page</a>, and use a desktop Gettext translation editor to edit the translations.  On this page you can search in the translated and untranslated strings, and the default English texts provided by Drupal.</p>", array("%export" => url("admin/locale/language/export")));
   }
   return $output;
 }
@@ -279,76 +282,82 @@ function i18ntrans_page_string_submit($form_id, $form_values) {
  * user interface for string editing.
  */
 function _i18ntrans_page_string() {
+  $lang_curr = _i18n_get_lang();
+  $lang_def = variable_get('translation_default_language','en');
 
-// generate SQL to retrive ONLY untranslated string
-  $join = "SELECT s.source, s.location, s.lid, t.translation, t.locale FROM {locales_source} s INNER JOIN {locales_target} t ON s.lid = t.lid ";
-  $where = "WHERE (t.translation = '') AND (t.locale = '%s')";
-  $orderby = "ORDER BY s.source";
-  $sql = "$join $where $orderby";
-  $arguments[] = _i18n_get_lang();
-  $string4page = 50;
-  $result = pager_query($sql, $string4page, 0, NULL, $arguments);
-
-// form generation
-  $form = array('#tree' => TRUE);
-  $form['l10n'] = array(
-    '#type' => 'fieldset'
-  );
-
-// iterate on paged result
-  while ($locale = db_fetch_object($result)) {
-    $lid = $locale->lid;
-    $source = $locale->source;
-    $translation = $locale->translation;
-    $title = "$lid  - " . check_plain(truncate_utf8($source, 50, FALSE, TRUE)); 
-    $form['l10n']["$lid"] = array(
-      '#type' => 'fieldset',
-      '#title' => "$title",
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-      '#weight' => 0
+  if(!($lang_curr==$lang_def)) {
+    // generate SQL to retrive ONLY untranslated string
+    $join = "SELECT s.source, s.location, s.lid, t.translation, t.locale FROM {locales_source} s INNER JOIN {locales_target} t ON s.lid = t.lid ";
+    $where = "WHERE (t.translation = '') AND (t.locale = '%s')";
+    $orderby = "ORDER BY s.source";
+    $sql = "$join $where $orderby";
+    $arguments[] = _i18n_get_lang();
+    $string4page = 50;
+    $result = pager_query($sql, $string4page, 0, NULL, $arguments);
+  
+  // form generation
+    $form = array('#tree' => TRUE);
+    $form['l10n'] = array(
+      '#type' => 'fieldset'
     );
-    $form['l10n']["$lid"]['original'] = array(
-      '#type' => 'item',
-      '#title' => t('Original text'),
-      '#value' => check_plain($source),
-      '#weight' => 0
-    );
-    $form['l10n']["$lid"]['value'] = array(
-      '#type' => 'textarea',
-      '#title' => t('translation'),
-      '#default_value' => $translation,
-      '#rows' => 0,
-      '#required' => FALSE
-    );
-  }
-
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Submit'),
-    '#weight' => 9
-  );
-  $form['lang'] = array(
-    '#type' => 'value',
-    '#value' => _i18n_get_lang(),
-    '#weight' => 7
-  );
-  $form['type'] = array(
-    '#type' => 'value',
-    '#value' => 'string',
-    '#weight' => 7
-  );
-
-// add pager
-  if ($pager = theme('pager', NULL, $string4page, 0, $request)) {
-    $form['l10n']['pager'] = array(
-      '#value' => $pager,
+  
+  // iterate on paged result
+    while ($locale = db_fetch_object($result)) {
+      $lid = $locale->lid;
+      $source = $locale->source;
+      $translation = $locale->translation;
+      $title = "$lid  - " . check_plain(truncate_utf8($source, 50, FALSE, TRUE)); 
+      $form['l10n']["$lid"] = array(
+        '#type' => 'fieldset',
+        '#title' => "$title",
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+        '#weight' => 0
+      );
+      $form['l10n']["$lid"]['original'] = array(
+        '#type' => 'item',
+        '#title' => t('Original text'),
+        '#value' => check_plain($source),
+        '#weight' => 0
+      );
+      $form['l10n']["$lid"]['value'] = array(
+        '#type' => 'textarea',
+        '#title' => t('translation'),
+        '#default_value' => $translation,
+        '#rows' => 0,
+        '#required' => FALSE
+      );
+    }
+  
+    $form['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Submit'),
       '#weight' => 9
     );
+    $form['lang'] = array(
+      '#type' => 'value',
+      '#value' => _i18n_get_lang(),
+      '#weight' => 7
+    );
+    $form['type'] = array(
+      '#type' => 'value',
+      '#value' => 'string',
+      '#weight' => 7
+    );
+  
+  // add pager
+    if ($pager = theme('pager', NULL, $string4page, 0, $request)) {
+      $form['l10n']['pager'] = array(
+        '#value' => $pager,
+        '#weight' => 9
+      );
+    }
+    $output = drupal_get_form('i18ntrans_page_string', $form);
+  } else {
+    $output = locale_string_search();
   }
 
   drupal_set_title(t('translate') . ' - ' . t('strings'));
-  $output = drupal_get_form('i18ntrans_page_string', $form);
   print theme('page', $output);
 }
 

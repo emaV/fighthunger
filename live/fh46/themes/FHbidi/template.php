@@ -108,5 +108,19 @@ function phptemplate_donation_presentation($donation) {
   return  $out;
 }
 
+function phptemplate_aggregator_block_item($item, $feed = 0) {
+  global $user;
+
+  if ($user->uid && module_exist('blog') && user_access('edit own blog')) {
+    if ($image = theme('image', 'misc/blog.png', t('blog it'), t('blog it'))) {
+      $output .= '<div class="icon">'. l($image, 'node/add/blog', array('title' => t('Comment on this news item in your personal blog.'), 'class' => 'blog-it'), "iid=$item->iid", NULL, FALSE, TRUE) .'</div>';
+    }
+  }
+
+  // Display the external link to the item. ADD redirection to a new window
+  $output .= "<a href='". check_url($item->link) . "' target='_blank'>". check_plain($item->title) ."</a>\n";
+
+  return $output;
+}
 
 ?>

@@ -109,6 +109,7 @@ a:active { color: #ff6600; }
 
 .profile_content .profile_motivation {
 //  background: #FFD7BF;
+  line-height: 1.2; // explorer bug
   background: #EFEFEF;
   color: #000000;
 //  clear: both;

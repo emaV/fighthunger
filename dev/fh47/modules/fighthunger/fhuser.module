@@ -187,15 +187,19 @@ function fhuser_user_edit_submit($form_id, $form_values) {
  */
 function theme_user_edit($form){
 	$output = '';
-  // Render fieldsets in order
-  foreach(element_children($form) as $field) {
-  	if($form[$field]['#type'] == 'fieldset') {
-  		$output .= '<div><h2>'.$form[$field]['#title'].'</h2>';
-      unset($form[$field]['#title']);
-      unset($form[$field]['#type']);
-      $output .= form_render($form[$field]);
-      $output .= "</div>\n";
-  	}
+  // Render categories in order
+  $categories = $form['_categories']['#value'];
+  foreach($categories as $category) {
+  	$name = $category['name'];
+    $title = $category['title'];
+		$output .= "<div>";
+    $output .= "<h2>$title</h2>\n";
+    // I unset these two values so they're not rendered again
+    unset($form[$name]['#title']);
+    unset($form[$name]['#type']);
+    // We render the form elements for the category here
+    $output .= form_render($form[$name]);
+    $output .= "</div>\n";
   }
   // Renders remaining elements
   $output .= form_render($form);

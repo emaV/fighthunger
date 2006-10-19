@@ -23,7 +23,7 @@ function i18ntrans_help($section = 'admin/help#i18ntrans' ) {
     case 'admin/modules#description' :
       $output = t('Supports translatable variables, strings and nodes. <b>Requires i18n and locale module</b>' );
       break;
-    case 'admin/i18ntrans/string':
+    case 'admin/i18ntrans/strings':
       if( _i18n_get_lang() == variable_get('translation_default_language','en') )
         return t("<p>It is often convenient to get the strings from your setup on the <a href=\"%export\">export page</a>, and use a desktop Gettext translation editor to edit the translations.  On this page you can search in the translated and untranslated strings, and the default English texts provided by Drupal.</p>", array("%export" => url("admin/locale/language/export")));
   }
@@ -60,23 +60,29 @@ function i18ntrans_menu($may_cache) {
   if ($may_cache) {
     $items[] = array('path' => 'admin/i18ntrans', 
       'title' => t('translation'),
-      'callback' => '_i18ntrans_page_variable',
+      'callback' => 'i18ntrans_page_variables',
       'type' => MENU_NORMAL_ITEM,
       'access' => true);
-    $items[] = array('path' => 'admin/i18ntrans/variable', 
+    $items[] = array('path' => 'admin/i18ntrans/variables', 
       'title' => t('variables') . ' (i18n)',
       'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
-    $items[] = array('path' => 'admin/i18ntrans/string', 
+    $items[] = array('path' => 'admin/i18ntrans/strings', 
       'title' => t('strings') . ' (l10n)',
-      'callback' => '_i18ntrans_page_string',
+      'callback' => 'i18ntrans_page_strings',
       'type' => MENU_LOCAL_TASK,
       'weight' => 2,
       'access' => true);
     $items[] = array('path' => 'admin/i18ntrans/nodes', 
       'title' => t('nodes') . ' (i18n)',
-      'callback' => '_i18ntrans_page_nodes',
+      'callback' => 'i18ntrans_page_nodes',
       'type' => MENU_LOCAL_TASK,
       'weight' => 3,
+      'access' => true);
+    $items[] = array('path' => 'admin/i18ntrans/profile', 
+      'title' => t('profile') . ' (i18n)',
+      'callback' => 'i18ntrans_page_profile',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 4,
       'access' => true);
   }
   return $items;
@@ -182,7 +188,7 @@ function i18ntrans_page_submit($form_id, $form_values) {
 /***
  * Call back to generate the variable page.
  ***/
-function _i18ntrans_page_variable() {
+function i18ntrans_page_variables() {
   global $conf;
   $lang = _i18n_get_lang();
 
@@ -281,7 +287,7 @@ function i18ntrans_page_string_submit($form_id, $form_values) {
  * Call back to generate
  * user interface for string editing.
  */
-function _i18ntrans_page_string() {
+function i18ntrans_page_strings() {
   $lang_curr = _i18n_get_lang();
   $lang_def = variable_get('translation_default_language','en');
 
@@ -369,7 +375,7 @@ function _i18ntrans_page_string() {
  *    translation_node_overview($node)
  * from translation.module  
  */
-function _i18ntrans_page_nodes() {
+function i18ntrans_page_nodes() {
 
   $node_list = explode("\n", variable_get('translation_node_queue',''));
   $lang_curr = _i18n_get_lang();
@@ -421,6 +427,38 @@ function _i18ntrans_page_nodes() {
   drupal_set_title(t('translate') . ' - ' .  t('nodes'));
   print theme('page', $output);
 } 
+
+/**
+ * Alter form for i18nprofile  
+ */ 
+function i18ntrans_form_alter($form_id, &$form) {
+  global $base_url;
+
+  if( ($form_id == 'i18nprofile_field_form') || 
+      ($form_id == 'i18nprofile_category_form') ) {
+     
+    // store in an hidden field referring page
+    $ref_current = substr($_SERVER['HTTP_REFERER'], strlen($base_url)+1);
+    if(empty($_POST)) {
+      $form['i18ntrans_return'] = array('#type' => 'hidden', '#value' => $ref_current);
+    } else {
+      $form['i18ntrans_return'] = array('#type' => 'hidden', '#value' => $_POST['edit']['i18ntrans_return']);
+    }
+    $form['#submit'] = (array)$form['#submit'] + array('i18ntrans_profile_submit' => array());
+  }
+}
+/**
+ *  custom profile field submit function (redirect to referrer page)
+ */ 
+function i18ntrans_profile_submit($form_id, $form_values) {
+  if(isset($form_values['i18ntrans_return'])) return $form_values['i18ntrans_return'];
+}
+
+
+function i18ntrans_page_profile() {
+  $lang_curr = _i18n_get_lang();
+  return i18nprofile_translation_overview($lang_curr);
+}
 
 /**
  * Implementation of hook_settings().

@@ -195,11 +195,17 @@ function i18nprofile_category_form_submit($form_id, $form_values) {
 /**
  * Overview profile translations
  */
-function i18nprofile_translation_overview(){
+function i18nprofile_translation_overview($lang_curr='en') {
   $path = 'admin/settings/profile/translation';
   // Get languages and remove english from the list
   $languages = i18n_supported_languages();
-  unset($languages['en']);
+  if($lang_curr=='en') {
+    unset($languages['en']);
+  } else {
+     foreach($languages as $key => $name) {
+       if($key<>$lang_curr) unset($languages[$key]);
+     }
+  }
   
   // Categories
   $output .= '<h2>'.t('Categories')."</h2>\n";

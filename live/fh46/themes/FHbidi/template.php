@@ -118,7 +118,7 @@ function phptemplate_aggregator_block_item($item, $feed = 0) {
   }
 
   // Display the external link to the item. ADD redirection to a new window
-  $output .= "<a href='". check_url($item->link) . "' target='_blank'>". check_plain($item->title) ."</a>\n";
+  $output .= "<a href='". check_url($item->link) . "' target='nwin'>". check_plain($item->title) ."</a>\n";
 
   return $output;
 }

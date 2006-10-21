@@ -1,5 +1,5 @@
 <?php
-// $Id: i18n.inc,v 1.23.2.1 2006/08/05 15:19:41 jareyero Exp $
+// $Id: i18n.inc,v 1.23.2.2 2006/10/21 14:59:22 jareyero Exp $
 
 /**
  * Internationalization (i18n) module
@@ -125,10 +125,10 @@ function i18n_form_alter($form_id, &$form) {
       break;
       
     case 'taxonomy_form_term': // Taxonomy term
-      if(isset($form['vid']) && is_numeric($form['vid'])) {
-        $vocabulary = taxonomy_get_vocabulary($form['vid']);
+      if(isset($form['tid']) && is_numeric($form['tid']['#value'])) {
+        $term = taxonomy_get_term($form['tid']['#value']);
       } 
-	  $form['language'] = _i18n_language_select(isset($vocabulary) ? $vocabulary->language : i18n_get_lang());
+	    $form['language'] = _i18n_language_select(isset($term) ? $term->language : i18n_get_lang());
       break;
       
     default:

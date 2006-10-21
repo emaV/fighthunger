@@ -1,5 +1,5 @@
 <?php
-// $Id: translation.module,v 1.8.2.1 2006/08/05 15:19:41 jareyero Exp $
+// $Id: translation.module,v 1.8.2.2 2006/10/21 14:59:22 jareyero Exp $
 
 /**
  * Internationalization (i18n) package.
@@ -211,9 +211,13 @@ function translation_node_page() {
   $edit = $_POST['edit'];
   $nid = arg(1);
   $node = node_load($nid);
+  // If node has no language, just warning message. Function returns here
+  if(!$node->language) {
+  	form_set_error('language', t("You need to set a language before creating a translation."));
+    drupal_goto("node/$nid/edit");
+  }
   drupal_set_title($node->title);
   $output = '';
-
   switch($op){
     case 'select':
       $output .= translation_node_overview($node);
@@ -230,7 +234,7 @@ function translation_node_page() {
     default:
       $output .= translation_node_overview($node);
   }
-  print theme('page', $output);  
+  return $output;  
 }
 
 function translation_node_overview($node) {

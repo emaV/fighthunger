@@ -84,6 +84,12 @@ function i18ntrans_menu($may_cache) {
       'type' => MENU_LOCAL_TASK,
       'weight' => 4,
       'access' => true);
+    $items[] = array('path' => 'admin/i18ntrans/menu', 
+      'title' => t('menu') . ' (l10n)',
+      'callback' => 'i18ntrans_page_menu',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 5,
+      'access' => true);
   }
   return $items;
 }
@@ -429,13 +435,14 @@ function i18ntrans_page_nodes() {
 } 
 
 /**
- * Alter form for i18nprofile  
+ * Alter form for i18nprofile  && locale
  */ 
 function i18ntrans_form_alter($form_id, &$form) {
   global $base_url;
 
   if( ($form_id == 'i18nprofile_field_form') || 
-      ($form_id == 'i18nprofile_category_form') ) {
+      ($form_id == 'i18nprofile_category_form') ||
+      ($form_id == '_locale_string_edit') ) {
      
     // store in an hidden field referring page
     $ref_current = substr($_SERVER['HTTP_REFERER'], strlen($base_url)+1);
@@ -444,34 +451,156 @@ function i18ntrans_form_alter($form_id, &$form) {
     } else {
       $form['i18ntrans_return'] = array('#type' => 'hidden', '#value' => $_POST['edit']['i18ntrans_return']);
     }
-    $form['#submit'] = (array)$form['#submit'] + array('i18ntrans_profile_submit' => array());
+    $form['#submit'] = (array)$form['#submit'] + array('i18ntrans_formaltered_submit' => array());
   }
 }
 /**
  *  custom profile field submit function (redirect to referrer page)
  */ 
-function i18ntrans_profile_submit($form_id, $form_values) {
+function i18ntrans_formaltered_submit($form_id, $form_values) {
   if(isset($form_values['i18ntrans_return'])) return $form_values['i18ntrans_return'];
 }
 
-
+/***
+ * Call back to generate
+ * user interface for field profile translation.
+ * use i18nprofile module
+ * alterning its form and submit queue   
+ */
 function i18ntrans_page_profile() {
   $lang_curr = _i18n_get_lang();
   return i18nprofile_translation_overview($lang_curr);
+}
+
+
+
+function i18ntrans_menu_overview_tree_rows($pid = 0, $depth = 0, $lang_curr='en') {
+  $parent_item = menu_get_item($pid);
+  $rows = array();
+
+  // Get languages and remove english from the list
+  $languages = i18n_supported_languages();
+  if($lang_curr=='en') {
+    unset($languages['en']);
+  } else {
+    foreach($languages as $key => $name) {
+      if($key<>$lang_curr) unset($languages[$key]);
+    }
+  }
+  foreach($languages as $key => $name) 
+    $languages[$key] = $key;
+  
+  if (isset($parent_item) && isset($parent_item['children'])) {
+    usort($parent_item['children'], '_menu_sort');
+    foreach ($parent_item['children'] as $mid) {
+      $item = menu_get_item($mid);
+      // Populate the title field AND use locale() on value
+//      locale($item['title']);
+      $title = check_plain(t($item['title'])); 
+      // adding indent
+      if ($depth > 0) {
+        $title = '-&nbsp;'. $title;
+        for ($i = 1; $i < $depth; $i++) {
+          $title = '&nbsp;&nbsp;'. $title;
+        }
+      }
+     
+      // get lid from locales_source
+      $lid = '';
+      if($lang_curr=='en') {
+        $sql = "SELECT s.lid FROM {locales_source} s WHERE s.source='%s'";
+        $result = db_query($sql, $item['title']);
+      } else {
+        $sql = "SELECT s.lid FROM {locales_source} s INNER JOIN {locales_target} t ON s.lid = t.lid WHERE t.translation='%s'";
+        $result = db_query($sql, $item['title']);
+        if (db_num_rows($result)==0) {
+          $sql = "SELECT s.lid FROM {locales_source} s WHERE s.source='%s'";
+          $result = db_query($sql, $item['title']);
+        }
+      }
+      $lid = db_result($result);
+      $operation = l(t('edit'), "admin/locale/string/edit/$lid");
+      
+      // get locales
+      $sql = "SELECT locale, translation FROM  {locales_target} WHERE lid=%d";
+      $result = db_query($sql, $lid);
+      $locales = $languages;
+      while ($array = db_fetch_array($result)) {
+        $locale = $array['locale'];
+        if (isset($languages[$locale]) && ($array['translation']<>''))
+          $locales[$locale] = "<em class='locale-untranslated'>$locale</em>";
+      }
+
+      // Call out translated items.
+      $trans_test = true;
+      foreach($languages as $key => $name) 
+        $trans_test &= ($languages[$key] == $locales[$key]);
+      $class = ($trans_test) ? 'menu-disabled' : 'menu-enabled';
+
+      // Shows only enabled items
+      if ($item['type'] & (MENU_VISIBLE_IN_TREE | MENU_VISIBLE_IF_HAS_CHILDREN)) {
+        $rows[] = array(array('data' => $title, 'class' => $class),
+                        array('data' => implode(" | ", $locales), 'class' => $class),
+                        array('data' => "$operation", 'class' => $class));
+        $rows = array_merge($rows, i18ntrans_menu_overview_tree_rows($mid, $depth + 1, $lang_curr));
+      } else {
+        // Skip items that are hidden and locked; admins will never care about them.
+        $rows = array_merge($rows, i18ntrans_menu_overview_tree_rows($mid, $depth, $lang_curr));
+      }
+    }
+  }
+  return $rows;
+}
+
+function i18ntrans_menu_overview($lang_curr) {
+  $menu_queue = variable_get('translation_menu_queue',array());
+  $menu_list = menu_get_menu();
+
+  $header = array(t('Menu item'),  t('Locales'),  t('Operations'));
+
+// created form
+  $form['menu'] = array(
+    '#type' => 'fieldset',
+    '#tree' => TRUE
+  );
+  foreach ($menu_queue as $mid) {
+    $table = theme('table', $header, i18ntrans_menu_overview_tree_rows($mid, 0, $lang_curr));
+    
+    $form['menu']["$mid"] = array(
+      '#type' => 'fieldset',
+      '#title' => $menu_list['items'][$mid]['title'],
+      '#collapsible' => TRUE,
+      '#collapsed' => false,
+      '#weight' => -2,
+      '#tree' => TRUE
+    );
+    $form['menu']["$mid"]['table'] = array(
+      '#value' => $table
+    );
+  }
+  $output = drupal_get_form('i18ntrans_page_menu', $form);
+  return $output;
+}
+
+
+/***
+ * Call back to generate
+ * user interface for menu translation.
+ */   
+function i18ntrans_page_menu() {
+  
+  $lang_curr = _i18n_get_lang();
+  $output = i18ntrans_menu_overview($lang_curr);
+
+  drupal_set_title(t('translate') . ' - ' . t('menus'));
+  return $output;
+
 }
 
 /**
  * Implementation of hook_settings().
  */
 function i18ntrans_settings() {
-  $form['translation_node_queue'] = array(
-    '#type' => 'textarea',
-    '#title' => t('translation queue'),
-    '#default_value' => variable_get('translation_node_queue',''),
-    '#rows' => 5,
-    '#cols' => 10,
-    '#description' => t('List of node to be translated in ALL languages')
-  );
   $form['translation_default_language'] = array(
 	  '#type' => 'select',
 	  '#title' => t('default language'),
@@ -479,7 +608,23 @@ function i18ntrans_settings() {
 	  '#options' => array_merge(array('' => ''), i18n_supported_languages()),
 	  '#description' => t('Langugage to be used as default in theme variable translation')
   );
+  $form['translation_node_queue'] = array(
+    '#type' => 'textarea',
+    '#title' => t('node queue'),
+    '#default_value' => variable_get('translation_node_queue',''),
+    '#rows' => 5,
+    '#cols' => 10,
+    '#description' => t('List of node to be translated in ALL languages')
+  );
 
+  $menus = menu_get_root_menus();
+  $form['translation_menu_queue']= array(
+    '#type' => 'checkboxes',
+    '#title' => t('menu queue'),
+    '#default_value' => variable_get('translation_menu_queue',array()),
+    '#options' => $menus, 
+    '#description' => t('Menus to be translated in ALL languages')
+  );
   return $form;
 }
 ?>

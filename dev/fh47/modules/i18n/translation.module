@@ -138,10 +138,10 @@ function translation_form_alter($form_id, &$form) {
     if ($node->nid && $node->translation) {
       $translations = $node->translation;
     }
-    elseif (arg(3) == 'translation' && user_access('translate nodes')) {
+    elseif (isset($_GET['translation']) && user_access('translate nodes')) {
       // We are translating a node: node/add/type/translation/nid/lang
-      $translation_nid = arg(4);
-      $language = arg(5);
+      $translation_nid = $_GET['translation'];
+      $language = $_GET['language'];
       // Load the node to be translated and populate fields
       $trans = node_load($translation_nid);
       $form['i18n']['translation_nid'] = array('#type' => 'hidden', '#value' => $translation_nid);
@@ -167,6 +167,27 @@ function translation_form_alter($form_id, &$form) {
         '#value' => theme('translation_node_list', $translations, FALSE)
       );
     }
+    // Clone files for original node ?
+    if(is_array($trans->files) && count($trans->files)) {
+      $form['i18n']['translation_files'] = array(
+        '#type' => 'fieldset', 
+        '#title' => t('Files from translated content'), 
+        '#tree' => TRUE,
+        '#prefix' => '<div class="attachments">',
+        '#suffix' => '</div>',
+        '#theme' => 'upload_form_current',
+        '#description' => t('You can remove the files for this translation or keep the original files and translate the description.')
+        );
+    	foreach($trans->files as $key => $file) {
+        $description = file_create_url((strpos($file->fid, 'upload') === false ? $file->filepath : file_create_filename($file->filename, file_create_path())));
+        $description = "<small>". check_plain($description) ."</small>";
+        $form['i18n']['translation_files'][$key]['description'] = array('#type' => 'textfield', '#default_value' => (strlen($file->description)) ? $file->description : $file->filename, '#maxlength' => 256, '#description' => $description );
+        $form['i18n']['translation_files'][$key]['size'] = array('#type' => 'markup', '#value' => format_size($file->filesize));
+        $form['i18n']['translation_files'][$key]['remove'] = array('#type' => 'checkbox', '#default_value' => 0);
+        $form['i18n']['translation_files'][$key]['list'] = array('#type' => 'checkbox',  '#default_value' => $file->list);
+        $form['i18n']['translation_files'][$key]['fid'] = array('#type' => 'value',  '#value' => $file->fid);
+    	}
+    }
   }    
 }
 
@@ -176,7 +197,8 @@ function translation_node_populate_fields($source, &$form, &$node, $level = 0){
 	  if($key == 'nid' || $key == 'vid' || $key == 'i18n'){
       continue;
     } elseif(isset($source->$key) && !isset($node->$key)) {
-      if($level == 0 && $key == 'parent' && is_numeric($source->parent)) { // Translate book outline
+      if($level == 0 && $key == 'parent' && is_numeric($source->parent)) {
+        // Translate book outline
         $lang = $form['i18n']['language']['#default_value'];
       	$trans = translation_node_get_translations(array('nid' => $source->parent));
         if(isset($trans[$lang])) {
@@ -190,11 +212,6 @@ function translation_node_populate_fields($source, &$form, &$node, $level = 0){
 	    translation_node_populate_fields($source, $form[$key], $node, $level +1);
 	  }
 	}
-  if($level = 0) {
-    if($source->type == 'book' && $source->parent){
-      
-    }
-  }
   // For debugging
   // if($fields) drupal_set_message("Populated fields ($level): ". implode(', ', $fields));
 }
@@ -241,18 +258,20 @@ function translation_node_overview($node) {
 	  $languages = i18n_supported_languages();
 	  unset($languages[$node->language]);
 	  $output = t('<h2>Current translations</h2>');
-	  $header = array(t('Language'), t('Title'), t('Options'));
+	  $header = array(t('Language'), t('Title'), t('Status'), t('Options'));
 	  foreach($languages as $lang => $langname){
 	    $options = array();
 	    if(isset($node->translation[$lang])){
 	      $trnode = $node->translation[$lang];
 	      $title = l($trnode->title, 'node/'.$trnode->nid);
+        $status = $trnode->status ? t('Published') : t('Not published');
 	    } else {
 	      $title = t('Not translated');
-	      $options[] = l(t('create translation'), "node/add/$node->type/translation/$node->nid/$lang");
-	    }
+	      $options[] = l(t('create translation'), "node/add/$node->type", array(), "translation=$node->nid&language=$lang");
+	      $status = '--';
+      }
 	    $options[] = l(t('select node'), "node/$node->nid/translation/select/$lang");
-	    $rows[] = array($langname, $title, implode(" | ", $options));
+	    $rows[] = array($langname, $title, $status, implode(" | ", $options));
 	  }
 	  $output .= theme('table', $header, $rows);
     if($node->trid){
@@ -321,10 +340,21 @@ function translation_nodeapi(&$node, $op, $arg = 0) {
         $node->translation = translation_node_get_translations(array('nid' =>$node->nid), FALSE);
         break;
       case 'insert':
-        if($node->translation_nid && !$node->trid){
-          // Update both nodes
-          $node->trid = db_next_id('{i18n_node}_trid');
-          db_query("UPDATE {i18n_node} SET trid = %d WHERE nid=%d OR nid=%d", $node->trid, $node->nid, $node->translation_nid);
+        if($node->translation_nid) {
+        	// If not existing translation set, update both nodes. Otherwise trid is saved by i18n module
+        	if(!$node->trid){
+            $node->trid = db_next_id('{i18n_node}_trid');
+            db_query("UPDATE {i18n_node} SET trid = %d WHERE nid=%d OR nid=%d", $node->trid, $node->nid, $node->translation_nid);
+          }
+          // Clone files for node attachments
+          if(isset($node->translation_files)) {
+           	foreach($node->translation_files as $fid => $file) {
+          		if(!$file['remove']) {
+                // We are using revisions to have a file linked to different nodes, different descriptions
+                db_query("INSERT INTO {file_revisions} (fid, vid, list, description) VALUES (%d, %d, %d, '%s')", $file['fid'], $node->vid, $file['list'], $file['description']);
+          		}
+          	}
+          }
         }
         break;
     }
@@ -356,9 +386,12 @@ function translation_link($type, $node = NULL, $teaser = FALSE) {
   $links = array();
   if ($type == 'node' && variable_get('i18n_translation_node_links', 0) > ($teaser ? 1 : 0) && $node->translation) {
     foreach ($node->translation as $lang => $trnode) {
+      // Add node link if published
+      if($trnode->status) {
         $baselang = variable_get('i18n_translation_links', 0) ? i18n_get_lang() : $lang;
         $links[]= theme('translation_node_link', $trnode , $lang, $baselang);
-     }
+      }
+    }
   }
   return $links;
 }
@@ -387,10 +420,11 @@ function translation_vocabulary_get_terms($vid, $lang, $status = 'all') {
 
 /**
 	*	Get translations
-	* @param $params = array of parameters
-	* @param $getall = TRUE to get the also node itself
+	* @param $params
+  *   array of parameters
+	* @param $getall
+  *   TRUE to get the also node itself
 	*/
-
 function translation_node_get_translations($params, $getall = TRUE) {
   foreach($params as $field => $value) {
     $conds[] = "b.$field = '%s'";
@@ -569,7 +603,8 @@ function translation_term_get_translations($params, $getall = TRUE) {
   if(!$getall){ // If not all, a parameter must be tid
     $conds[] = "t.tid != %d";
     $values[] = $params['tid'];
-  }  
+  }
+  $conds[] = "t.trid != 0";
   $sql = 'SELECT t.* FROM {term_data} t INNER JOIN {term_data} i ON t.trid = i.trid WHERE '. implode(' AND ', $conds);;
   $result = db_query($sql, $values);
   $items = array();

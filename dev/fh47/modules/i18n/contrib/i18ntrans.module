@@ -66,6 +66,12 @@ function i18ntrans_menu($may_cache) {
     $items[] = array('path' => 'admin/i18ntrans/variables', 
       'title' => t('variables') . ' (i18n)',
       'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
+    $items[] = array('path' => 'admin/i18ntrans/settings', 
+      'title' => t('settings') . ' (i18n)',
+      'callback' => 'i18ntrans_page_settings',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 2,
+      'access' => true);      
     $items[] = array('path' => 'admin/i18ntrans/strings', 
       'title' => t('strings') . ' (l10n)',
       'callback' => 'i18ntrans_page_strings',
@@ -625,7 +631,105 @@ function i18ntrans_settings() {
     '#options' => $menus, 
     '#description' => t('Menus to be translated in ALL languages')
   );
+  $form['translation_settings_functions'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Settings functions'),
+    '#default_value' => variable_get('translation_settings_functions', ''),
+    '#rows' => 5,
+    '#cols' => 10,
+    '#description' => t('List of functions to extract translatable settings, one function per line. Leave empty for all settings functions'),
+    '#suffix' => '<p><small>'.t('Existing settings functions are:').'<pre>'. implode("\n", _i18ntrans_settings_functions(FALSE)).'</pre></small></p>'
+    );
   return $form;
 }
-?>
 
+/**
+ * Menu callback: variable translations
+ */
+function i18ntrans_page_settings() {
+  $variables = variable_get('i18n_variables', array());
+  //var_dump($variables);
+	// Build settings form
+  //$form = module_invoke_all('settings');
+
+  $form = array();
+  foreach(_i18ntrans_settings_functions() as $function) {
+  	if(function_exists($function) && $result = $function()) {
+  		$form += i18ntrans_form_extract($result, $variables);
+  	}
+  }
+  //$form = i18ntrans_form_extract($form, $variables);
+  // Build settings form
+  $form['buttons']['submit'] = array('#type' => 'submit', '#value' => t('Save configuration') );
+  $form['buttons']['reset'] = array('#type' => 'submit', '#value' => t('Reset to defaults') );
+  
+  return drupal_get_form('i18ntrans_settings_form', $form);
+  //var_dump($form);
+}
+
+/**
+ * Process translated settings
+ * 
+ * Settings are only saved to conf array, so they're saved by i18n later
+ */
+function i18ntrans_settings_form_submit($form_id, $values) {
+  global $conf;
+  $op = isset($_POST['op']) ? $_POST['op'] : '';
+
+  // Exclude unnecessary elements.
+  unset($values['submit'], $values['reset'], $values['form_id']);
+
+  foreach ($values as $key => $value) {
+    if ($op == t('Reset to defaults')) {
+      unset($conf[$key]);
+    }
+    else {
+      if (is_array($value) && isset($values['array_filter'])) {
+        $value = array_keys(array_filter($value));
+      }
+      $conf[$key] = $value;
+    }
+  }
+  if ($op == t('Reset to defaults')) {
+    drupal_set_message(t('The configuration options have been reset to their default values.'));
+  }
+  else {
+    drupal_set_message(t('The configuration options have been saved.'));
+  }
+  menu_rebuild();	
+}
+/**
+ * Extracts fields of a form array
+ */
+function i18ntrans_form_extract($form, $variables) {
+  $result = array();
+  foreach(element_children($form) as $field) {
+    if ($form[$field]['#type'] == 'fieldset') {
+    	if($subform = i18ntrans_form_extract($form[$field], $variables)) {
+        $result = array_merge($result, $subform );
+      }
+    } elseif (in_array($field, $variables, TRUE)) {
+      $result[$field] = $form[$field];
+      //print "match:$field<br/>";
+      //var_dump($form[$field]);
+    }
+  }
+  return $result;
+}
+
+/**
+ * Returns settings functions to process
+ */ 
+function _i18ntrans_settings_functions($all = FALSE) {
+  if(!$all && $functions = variable_get('translation_settings_functions', '')) {
+  	$functions = explode("\n", $functions);
+    $functions = array_map("trim", $functions);
+  } else {
+	  $functions = array('system_view_general');
+    foreach (module_implements('settings') as $module) {
+     $functions[] = $module .'_settings';
+    }
+  }
+  return $functions;
+}
+?>

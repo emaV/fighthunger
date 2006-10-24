@@ -663,7 +663,7 @@ function i18ntrans_page_settings() {
   $form['buttons']['submit'] = array('#type' => 'submit', '#value' => t('Save configuration') );
   $form['buttons']['reset'] = array('#type' => 'submit', '#value' => t('Reset to defaults') );
   
-  return drupal_get_form('i18ntrans_settings_form', $form);
+  return drupal_get_form('i18ntrans_variables_form', $form);
   //var_dump($form);
 }
 
@@ -672,7 +672,7 @@ function i18ntrans_page_settings() {
  * 
  * Settings are only saved to conf array, so they're saved by i18n later
  */
-function i18ntrans_settings_form_submit($form_id, $values) {
+function i18ntrans_variables_form_submit($form_id, $values) {
   global $conf;
   $op = isset($_POST['op']) ? $_POST['op'] : '';
 

@@ -185,12 +185,12 @@ function i18n_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
   if (variable_get("i18n_node_$node->type", 0)) {
 	  switch ($op) {
       case 'load':
-        return db_fetch_array(db_query("SELECT trid, language FROM {i18n_node} WHERE nid=%d", $node->nid));
+        return db_fetch_array(db_query("SELECT trid, language, status AS i18n_status FROM {i18n_node} WHERE nid=%d", $node->nid));
       case 'insert':
       case 'update':
         db_query("DELETE FROM {i18n_node} WHERE nid=%d",$node->nid);
         if($node->language){
-          db_query("INSERT INTO {i18n_node} (nid, trid, language) VALUES(%d, '%d', '%s')", $node->nid, $node->trid, $node->language);
+          db_query("INSERT INTO {i18n_node} (nid, trid, language, status) VALUES(%d, '%d', '%s', '%d')", $node->nid, $node->trid, $node->language, $node->i18n_status);
         }
         break;
       case 'delete': 

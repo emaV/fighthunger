@@ -15,7 +15,8 @@ define('TRANSLATION_STATUS_NONE', 0);
 define('TRANSLATION_STATUS_SOURCE', 1);
 define('TRANSLATION_STATUS_WORKING', 2);
 define('TRANSLATION_STATUS_TRANSLATED', 3);
-define('TRANSLATION_STATUS_UPDATED', 3);
+define('TRANSLATION_STATUS_UPDATED', 4);
+
 /**
  * Implementation of hook_help().
  */
@@ -52,7 +53,7 @@ function translation_menu($may_cache) {
         'path' => 'admin/node/translation',
         'title' => t('translation'),
         'callback' => 'translation_node_admin',
-        'access' => user_access('administer nodes'),
+        'access' => user_access('translate nodes'),
         'type' => MENU_LOCAL_TASK);
   }
   else {
@@ -76,8 +77,8 @@ function translation_menu($may_cache) {
         'type' => MENU_LOCAL_TASK);
       
     }
-    // Change rewrite conditions when translating nodenode/add/type/translation/22/es
-    if( arg(0) == 'node' && arg(1) == 'add' && arg(3) == 'translation' && ($lang = arg(5)) && array_key_exists($lang, i18n_supported_languages()) ) {
+    // Change rewrite conditions when translating node
+    if( arg(0) == 'node' && arg(1) == 'add' && isset($_GET['translation'])  && isset($_GET['language']) && ($lang = $_GET['language']) && array_key_exists($lang, i18n_supported_languages()) ) {
       i18n_selection_mode('translation', db_escape_string($lang));
     }
   }
@@ -120,7 +121,7 @@ function translation_settings(){
   return $form;  
 }
 /**
- * Translation block
+ * Implementation of hook_blok().
  * 
  * This is a simple language switcher which knows nothing about translations
  */
@@ -137,7 +138,7 @@ function translation_block($op = 'list', $delta = 0) {
 }
 
 /**
- * Implementation of hook_form_alter
+ * Implementation of hook_form_alter().
  */
 function translation_form_alter($form_id, &$form) {
   // Node edit form
@@ -215,6 +216,42 @@ function translation_form_alter($form_id, &$form) {
   }    
 }
 
+/**
+ * Implementation of hook_nodeapi().
+ * 
+ * Delete case is now handled in i18n_nodeapi
+ */
+function translation_nodeapi(&$node, $op, $arg = 0) {
+  if (variable_get("i18n_node_$node->type", 0)) {
+    switch ($op) {
+      case 'load':
+        $node->translation = translation_node_get_translations(array('nid' =>$node->nid), FALSE);
+        break;
+      case 'insert':
+        if($node->translation_nid) {
+            // If not existing translation set, update both nodes. Otherwise trid is saved by i18n module
+            if(!$node->trid){
+            $node->trid = db_next_id('{i18n_node}_trid');
+            db_query("UPDATE {i18n_node} SET trid = %d WHERE nid=%d OR nid=%d", $node->trid, $node->nid, $node->translation_nid);
+          }
+          // Clone files for node attachments
+          if(isset($node->translation_files)) {
+            foreach($node->translation_files as $fid => $file) {
+                if(!$file['remove']) {
+                // We are using revisions to have a file linked to different nodes, different descriptions
+                db_query("INSERT INTO {file_revisions} (fid, vid, list, description) VALUES (%d, %d, %d, '%s')", $file['fid'], $node->vid, $file['list'], $file['description']);
+                }
+            }
+          }
+        }
+        break;
+    }
+  }
+}
+
+/**
+ * Fills up some fields from source node
+ */
 function translation_node_populate_fields($source, &$form, &$node, $level = 0){
   $fields = array();
 	foreach(element_children($form) as $key) {
@@ -239,6 +276,7 @@ function translation_node_populate_fields($source, &$form, &$node, $level = 0){
   // For debugging
   // if($fields) drupal_set_message("Populated fields ($level): ". implode(', ', $fields));
 }
+
 /**
  * Multilingual Nodes support
  */
@@ -287,7 +325,10 @@ function translation_node_admin() {
 	$output .=  translation_node_admin_form($defaults);
   return $output;
 } 
-  
+
+/**
+ * Administrative form for node translations
+ */
 function translation_node_admin_form($defaults = array()) {
 	$output = '';
   // Filters
@@ -342,10 +383,15 @@ function translation_node_admin_form($defaults = array()) {
     $form['status'][$node->nid] =  array('#value' =>  ($node->status ? t('published') : t('not published')));
     if ($node->translation_nid) {
       $form['translation_status'][$node->nid] = array('#value' => $translation_status[$node->translation_status]);
-      $form['operations'][$node->nid] = array('#value' => l(t('edit'), 'node/'. $node->translation_nid .'/edit', array(), $destination));
+      $form['operations'][$node->nid] = array('#value' => l(t('edit translation'), 'node/'. $node->translation_nid .'/edit', array(), $destination));
     } else {
     	$form['translation_status'][$node->nid] = array('#value' => '--');
-      $form['operations'][$node->nid] = array('#value' => l(t('create translation'), 'node/add/'.$node->type, array(), ($node->language == $language) ? "translation=$node->nid" : "translation=$node->nid&language=$language"));   
+      if($language == $node->language) {
+      	$form['operations'][$node->nid] = array('#value' => '--');
+      } else {
+        $form['operations'][$node->nid] = array('#value' => l(t('create translation'), 'node/add/'.$node->type, array(), "translation=$node->nid&language=$language").
+        ' | '.l(t('select node'), "node/$node->nid/translation/select/$language", array(), $destination));   
+      }
     }
   }
   /*
@@ -392,7 +438,7 @@ function translation_build_filter_query() {
 }
 
 /**
- * Return form for node administration filters.
+ * Returns form for translation administration filters.
  */
 function translation_filter_form($defaults = array()) {
   $session = &$_SESSION['translation_filter'];
@@ -405,6 +451,7 @@ function translation_filter_form($defaults = array()) {
   );
   $languages = i18n_supported_languages();
   // Translation and language conditions
+
   $form['filters']['source_language'] = array('#type' => 'select', '#title' => t('source language'),
     '#options' => array('' => '') + $languages, '#default_value' => $session['source_language']);
   $form['filters']['source_status'] = array('#type' => 'select', '#title' => t('source status'),
@@ -413,18 +460,27 @@ function translation_filter_form($defaults = array()) {
     '#options' => array('' => '') + $languages, '#default_value' => $session['translation_language']);      
   $form['filters']['translation_status'] = array('#type' => 'select', '#title' => t('translation status'),
     '#options' => array('' => '') + _translation_status(), '#default_value' => $session['translation_status']);
-
   $form['filters']['buttons']['submit'] = array('#type' => 'submit', '#value' =>  t('Filter'));
   if (count($session)) {
     $form['filters']['buttons']['reset'] = array('#type' => 'submit', '#value' => t('Reset'));
   }
-
   return drupal_get_form('translation_filter_form', $form);
 }
 
+function theme_translation_filter_form($form) {
+	$form['filters']['source_language']['#prefix'] = '<table><tr><td>';
+  $form['filters']['source_status']['#suffix'] = '</td><td>';
+  $form['filters']['buttons']['#prefix'] = '</td><td>';
+  $form['filters']['buttons']['#suffix'] = '</td></tr></table>';
+  return form_render($form);
+}
+/**
+ * Builds translation admin filters
+ */
 function translation_filter_form_submit($form_id, $form_values) {
   $op = $_POST['op'];
   $session = &$_SESSION['translation_filter'];
+  
   switch ($op) {
     case t('Filter'):
       $session = array();
@@ -501,6 +557,9 @@ function translation_node_overview($node) {
   return $output;
 }
 
+/**
+ * Form to select a translation from existing nodes
+ */
 function translation_node_form($node, $lang){
 	$form['node'] = array('#type' => 'value', '#value' =>$node);
   $form['language'] = array('#type' => 'hidden', '#value' => $lang);
@@ -525,11 +584,12 @@ function translation_node_form($node, $lang){
     return drupal_get_form('translation_node_form', $form);
   } else {
     return t("<p>No nodes available in %language</p>",  array('%language' => $languages[$lang]) );
-  }
-  
-  
+  }  
 }
 
+/**
+ * Process translation node form
+ */
 function translation_node_form_submit($form_id, $form_values){
   $op = $_POST['op'];
   $source_nid = $form_values['source_nid'];
@@ -546,39 +606,6 @@ function translation_node_form_submit($form_id, $form_values){
     drupal_set_message(t('The translation has been saved'));
   
   } 
-}
-
-/**
- * Hook nodeapi
- * 
- * Delete case is now handled in i18n_nodeapi
- */
-function translation_nodeapi(&$node, $op, $arg = 0) {
-  if (variable_get("i18n_node_$node->type", 0)) {
-    switch ($op) {
-      case 'load':
-        $node->translation = translation_node_get_translations(array('nid' =>$node->nid), FALSE);
-        break;
-      case 'insert':
-        if($node->translation_nid) {
-        	// If not existing translation set, update both nodes. Otherwise trid is saved by i18n module
-        	if(!$node->trid){
-            $node->trid = db_next_id('{i18n_node}_trid');
-            db_query("UPDATE {i18n_node} SET trid = %d WHERE nid=%d OR nid=%d", $node->trid, $node->nid, $node->translation_nid);
-          }
-          // Clone files for node attachments
-          if(isset($node->translation_files)) {
-           	foreach($node->translation_files as $fid => $file) {
-          		if(!$file['remove']) {
-                // We are using revisions to have a file linked to different nodes, different descriptions
-                db_query("INSERT INTO {file_revisions} (fid, vid, list, description) VALUES (%d, %d, %d, '%s')", $file['fid'], $node->vid, $file['list'], $file['description']);
-          		}
-          	}
-          }
-        }
-        break;
-    }
-  }
 }
 
 /**
@@ -640,6 +667,7 @@ function translation_vocabulary_get_terms($vid, $lang, $status = 'all') {
 
 /**
 	*	Get translations
+  *
 	* @param $params
   *   array of parameters
 	* @param $getall
@@ -668,9 +696,13 @@ function translation_node_get_translations($params, $getall = TRUE) {
   return $items;
 }
 
+/**
+ * Returns node type for nid
+ */
 function translation_get_node_type($nid) {
   return db_result(db_query('SELECT type FROM {node} WHERE nid=%d', $nid));
 }
+
 /**
  * Multilingual Taxonomy
  *
@@ -713,7 +745,6 @@ function translation_taxonomy_admin() {
 /**
  * Generate a tabular listing of translations for vocabularies.
  */
-
 function translation_taxonomy_overview($vid) {
   $vocabulary = taxonomy_get_vocabulary($vid);
   drupal_set_title(check_plain($vocabulary->name));
@@ -749,6 +780,9 @@ function translation_taxonomy_overview($vid) {
   return $output;
 }
 
+/**
+ * Produces a vocabulary translation form
+ */
 function translation_taxonomy_form($vid, $trid = NULL, $edit = array()) {
   $languages = i18n_supported_languages();
   if ($trid == 'new') {
@@ -779,6 +813,9 @@ function translation_taxonomy_form($vid, $trid = NULL, $edit = array()) {
   return drupal_get_form('translation_taxonomy', $form);
 }
 
+/**
+ * Process vocabulary translation form
+ */
 function translation_taxonomy_submit($form_id, $form_values) {
   $trid = $form_values['trid'];
   $languages = i18n_supported_languages();
@@ -814,7 +851,12 @@ function translation_array2list($data, $keyfield, $namefield = 'name') {
   return $list;
 }
 
-// returns array lang > term
+/**
+ * Get term translations
+ * 
+ * @return
+ *   An array of the from lang => Term
+ */ 
 function translation_term_get_translations($params, $getall = TRUE) {
   foreach($params as $field => $value) {
     $conds[] = "i.$field = '%s'";
@@ -834,6 +876,9 @@ function translation_term_get_translations($params, $getall = TRUE) {
   return $items;  
 }
 
+/**
+ * Produces url of translated page
+ */
 function translation_url($url, $lang) {
   global $i18n_langpath;
   // If !url get from original request
@@ -889,6 +934,7 @@ function translation_taxonomy_tids($str_tids, $lang) {
   }
   return implode($separator, $translated_tids);
 }
+
 /**
  * function translation_get_links
  * 
@@ -915,8 +961,9 @@ function _translation_status(){
     TRANSLATION_STATUS_TRANSLATED => t('Translated content'),
     TRANSLATION_STATUS_UPDATED => t('Source updated (to update translation)'));
 }
+
 /**
- * Themeable functions
+ * Theme a link to node translation
  */
 function theme_translation_node_link($node, $lang, $baselang = NULL, $title = FALSE){
   $baselang = $baselang ? $baselang : $lang;
@@ -929,10 +976,16 @@ function theme_translation_node_link($node, $lang, $baselang = NULL, $title = FA
   return theme('i18n_link', $name, i18n_path('node/'.$node->nid, $baselang), $lang);
 }
 
+/**
+ * Theme a link for a translation
+ */
 function theme_translation_link($text, $target, $lang, $separator='&nbsp;') {
   return theme('i18n_link', $text, $target, $lang, $separator);
 }
 
+/**
+ * Theme list of node translations
+ */
 function theme_translation_node_list($list){
   $header = array(t('Language'), t('Title'));
   $languages = i18n_supported_languages();

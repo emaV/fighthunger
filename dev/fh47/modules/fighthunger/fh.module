@@ -130,3 +130,14 @@ function fh_crm_state_abbr2id($code) {
   db_set_active();  
   return strtolower($result);
 }
+
+/**
+ * Convert CiviCRM contact into array of data
+ */
+function fh_crm_contact2array($contact) {
+  // Contact object 2 array
+	$contactdata = (array)($contact->contact_type_object);
+  // Address 2 array
+  $addressdata = (array)($contact->location[1]->address);
+  return array_merge($contactdata, $addressdata);
+}

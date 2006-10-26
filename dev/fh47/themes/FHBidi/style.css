@@ -56,7 +56,8 @@ a:active { color: #ff6600; }
   border: solid 1px #ddd;
 }
 
-.profile_content {
+div.profile_content {
+  margin: 15px;
   clear: both;
 }
 .profile_content .profile_left {
@@ -388,7 +389,7 @@ td.sidebar {
 }
 #top-nav ul {
   margin: 0;
-  padding: 4px 50px;
+  padding: 4px 0px 4px 100px;
 }
 #primary {
   font-size: 1em;

@@ -41,7 +41,7 @@
 <table border="0" width='100%'>
   <tr>
     <td width='180'>
-<a href="<?php print url() ?>" title="Index Page"><img src="<?php print($logo) ?>" alt="logo" title="Index Page" /></a>
+<a href="<?php print url($language) ?>" title="Index Page"><img src="<?php print($logo) ?>" alt="logo" title="Index Page" /></a>
     </td>
     <td>
 <img src="<?php print base_path() . theme_get_setting('banner_path') ?>" alt="banner" title="banner" />

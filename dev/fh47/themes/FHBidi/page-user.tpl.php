@@ -1,61 +1,28 @@
-<div id="content">
+<!-- user page start -->
+<div class="profile_content">
+	
+<h2 class="content-title"><?php print $title?></h2>
 
-<!-- main-content start -->
-<table id="content">
-	<tr>
-		<td class="main-content" id="content-<?php print $layout ?>">
-
-<h2 class="content-title">My personal space</h2>
-
-<!-- tabs start -->
-<?php
-// Better to change theme_menu_item_link !
-function MY_menu_secondary_local_tasks() {
-  $menu = menu_get_menu(); 
-  
-  $local_tasks = menu_get_local_tasks();
-  $pid = menu_get_active_nontask_item();
-  $output = '';
-
-  if (count($local_tasks[$pid]['children'])) {
-    foreach ($local_tasks[$pid]['children'] as $mid) {
-      if (menu_in_active_trail($mid) && count($local_tasks[$mid]['children']) > 1) {
-        foreach ($local_tasks[$mid]['children'] as $cid) {
-          $link = explode('/', $menu['items'][$cid]['path']);
-          $tab = $link[count($link)-1];
-          switch ($tab) {
-            case 'account':
-            case 'Contact Information':
-            $output .= theme('menu_local_task', $cid, menu_in_active_trail($cid), FALSE);
-          }
-        }
-      }
-    }
-  }
-  return $output;
-}
-
-if ($tabs != "") {
-
-  print "<ul class=\"tabs primary\">\n". menu_primary_local_tasks() ."</ul>\n";
-//  $mytabs = MY_menu_secondary_local_tasks();
-//  print "<ul class=\"tabs secondary\">\n$mytabs</ul>\n";
-
-//  print $tabs;
-}
-?>
-<!-- tabs end -->
-
+<ul class='tabs primary'>
+  <?php print menu_primary_local_tasks() ?>
+</ul>
+				
 <?php if ($messages != ""): ?>
 			<div id="message"><?php print $messages ?></div>
 <?php endif; ?>
 				
 <!-- content start -->
+<?php print($content) ?>
+				
 <?php
+//print "<pre>tabs:" . check_plain(print_r($tabs, true)) . "</pre>";
+
+//  print $content; 
+
 //global $_menu;
 //print "<pre>_menu:" . print_r($_menu, true) . "</pre>";
 
-if (arg(2) == 'edit') {
+//if (arg(2) == 'edit') {
 /*
   if (arg(3) == 'Contact Information') {
     print $content; 
@@ -63,7 +30,7 @@ if (arg(2) == 'edit') {
     include('user_edit.tpl.php');
   }
 */
-  include('user_edit.tpl.php');
+//  include('user_edit.tpl.php');
 //  print $content;
 /*
   global $user;
@@ -166,16 +133,16 @@ if (arg(2) == 'edit') {
   $output = form($output, 'post', 0, array('enctype' => 'multipart/form-data'));
 */
 
-
+/*
 } else {
   print $content; 
 }
+*/
 ?>
+
 <!-- content end -->
 
-		</td>
-	</tr>
-</table>
-<!-- main-content end -->
-
 </div>
+<!-- user page end -->
+
+

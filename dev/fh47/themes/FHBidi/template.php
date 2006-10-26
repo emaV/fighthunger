@@ -76,13 +76,40 @@ function phptemplate_gathering_node($node, $fields=NULL) {
   $fields = db_fetch_array(db_query($sql, $node['camid']));
   return _phptemplate_callback("gathering_node",array('node' => $node, 'fields' => $fields));
 }
-/*
+
+
 function phptemplate_user_profile($user, $fields) {
-  $user->longcountry = fh_get_country_name($user->country);
-  $fields['donation_obj'] = donation_prepare($user->donation);
+  $user->longcountry = fh_get_country_name($user->profile_country);
+//  $user->longcountry = $user->profile_country;
+//  $fields['donation_obj'] = donation_prepare($user->donation);
   return _phptemplate_callback("user_profile",array('user' => $user, 'fields' => $fields));
 }
+
+/*
+function phptemplate_user_edit($form) {
+//  $user->longcountry = fh_get_country_name($user->country);
+//  $user->longcountry = $user->profile_country;
+//  $fields['donation_obj'] = donation_prepare($user->donation);
+
+  return _phptemplate_callback('user_edit',array('form' => $form));
+}
+
+function phptemplate_user_register($form) {
+//  $user->longcountry = fh_get_country_name($user->country);
+//  $user->longcountry = $user->profile_country;
+//  $fields['donation_obj'] = donation_prepare($user->donation);
+  $form_tmp = $form['account']; unset ($form['account']);
+  $form['account']['account'] = $form_tmp;
+  $form_tmp = $form['team_up']; unset ($form['team_up']);
+  $form['team_up']['team_up'] = $form_tmp;
+  $form_tmp = $form['Personal Information']; unset ($form['Personal Information']);
+  $form['Personal Information']['Personal Information'] = $form_tmp;
+  unset($form['civicrm-profile-register']);
+  return _phptemplate_callback('user_edit',array('form' => $form));
+// return "paperina" . form_render($form);
+}
 */
+
 function phptemplate_gathering_btn_walk() {
   $ats['src'] = path_to_theme()."/images/btn_walk.png";
   return form_button(t("Walk"),NULL,"image",$ats);
@@ -138,6 +165,29 @@ function phptemplate_settings() {
       '#title' => t('Path to custom banner'),
       '#default_value' => $settings['banner_path'],
       '#description' => t('The path to the file you would like to use as your banner file.')
+    );
+    $form['profile'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('User profile settings'),
+      '#attributes' => array('class' => 'theme-settings-bottom'),
+    );
+    $form['profile']['FH_profile_account'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Account Information'),
+      '#default_value' => $settings['FH_profile_account'],
+      '#description' => t('Account Information help text')
+    );
+    $form['profile']['FH_profile_personal'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Personal Information'),
+      '#default_value' => $settings['FH_profile_personal'],
+      '#description' => t('Personal Information help text')
+    );
+    $form['profile']['FH_profile_team_up'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Team Up'),
+      '#default_value' => $settings['FH_profile_team_up'],
+      '#description' => t('Team Up help text')
     );
     return $form;
 }

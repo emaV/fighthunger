@@ -101,11 +101,9 @@
   if (($node->type) == 'gathering-2') {
     $template_content = "page-gathering.tpl.php";
   }
-  /*
   if ( arg(0)=='user') {
     $template_content = "page-user.tpl.php";
   }
-  */
   print "\t<!-- template: " . $template_content . " -->\n\n";
   
   include $template_content;

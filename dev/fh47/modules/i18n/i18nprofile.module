@@ -94,6 +94,7 @@ function i18nprofile_view_profile($user) {
       $item = array('title' => $title,
         'value' => $value,
         'class' => $field->name,
+        'weight' => $field->weight,
       );
       if($category = $translation[check_plain($field->category)]) {
         $fields[$category][] = $item;

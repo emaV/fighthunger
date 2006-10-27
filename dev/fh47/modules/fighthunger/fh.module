@@ -5,11 +5,11 @@
  * @file
  * Fighthunger common API
  * 
- * This module provides a basic API for all other fighthunger modules and thems
+ * This module provides a basic API for all other fighthunger modules and thems.
  *  
  * Developed by Jose A. Reyero,  http://www.reyero.net
  * for FightHunger.org
- * 
+ * Some CiviCRM integration code from civinode module, by Rob Thorne
  */
 
 
@@ -69,10 +69,40 @@ function fh_node_get_partners($nid) {
  */
 
 /**
+ * CiviCRM initialization
+ * 
+ * @return
+ *   TRUE if CiviCRM initialized
+ */
+function fh_crm_init(){
+  if (function_exists('civicrm_initialize')) {
+    civicrm_initialize(TRUE);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Get profile groups
+ */
+function fh_crm_get_profiles(){
+  if (!fh_crm_init()) {
+  	return array();
+  } else {
+    $profiles = crm_uf_get_profile_groups();
+    $result = array();
+    foreach($profiles as $name) {
+    	$result[check_plain($name)] = $name;
+    }
+    return $result;
+  }
+}
+
+/**
  * Get CiviCRM contact related to Drupal account
  */
 function fh_crm_get_contact($account) {
-  civicrm_initialize(TRUE);
+  if (!fh_crm_init()) return FALSE;
   return crm_get_contact(array('email' => $account->mail));
 }
 /**
@@ -84,7 +114,7 @@ function fh_crm_get_contact($account) {
  *   Array of field => values to update
  */
 function fh_crm_update_contact($account, $data) {
-  civicrm_initialize(TRUE);
+  if (!fh_crm_init()) return FALSE;
   $contact = crm_get_contact(array('email' => $account->mail));
   crm_update_contact($contact, $data);
 }
@@ -97,6 +127,7 @@ function fh_crm_update_contact($account, $data) {
  *   CiviCRM ID for the country
  */
 function fh_crm_country_iso2id($code) {
+  if (!fh_crm_init()) return FALSE;
   db_set_active('civicrm');
   $id = db_result(db_query("SELECT id  FROM civicrm_country WHERE iso_code = '%s'", strtoupper($code)));
   db_set_active();
@@ -111,6 +142,7 @@ function fh_crm_country_iso2id($code) {
  *   ISO code for a country   
  */
 function fh_crm_country_id2iso($code) {
+	if (!fh_crm_init()) return FALSE;
   db_set_active('civicrm');
   $iso = db_result(db_query('SELECT iso_code FROM civicrm_country WHERE id = %d', $code));
   db_set_active();  
@@ -125,6 +157,7 @@ function fh_crm_country_id2iso($code) {
  *   ISO code for a country   
  */
 function fh_crm_state_abbr2id($code) {
+  if (!fh_crm_init()) return FALSE;
   db_set_active('civicrm');
   $result = db_result(db_query("SELECT id FROM civicrm_state_province WHERE abbreviation ='%s'", strtolower($code)));
   db_set_active();  

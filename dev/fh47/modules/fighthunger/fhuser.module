@@ -41,28 +41,31 @@ function fhuser_settings() {
     '#default_value' => variable_get('fhuser_sync_profile', 0)
   );  
 
-  // User account categories to synchronize
-  $categories = _user_categories(NULL);
+  // User account categories and civicrm profiles to synchronize
+  $categories = module_invoke('profile', 'categories');
+  $userprofiles = array('' => '');
   foreach($categories as $category) {
-    $options[$category['name']] = $category['title'];
+    $userprofiles[$category['name']] = $category['title'];
   }
-  /*
+  $crmprofiles =  array('' => '--') + fh_crm_get_profiles();
+
   $form['fhuser_crm_profile'] = array(
     '#type' => 'select',
     '#title' => t('CiviCRM Profile to synchronize'),
-    '#options' => $options,
+    '#options' => $crmprofiles,
     '#default_value' => variable_get('fhuser_crm_profile', 'Contact Information')
   );
-  */
+  /*
   $form['fhuser_crm_profile'] = array(
     '#type' => 'textfield',
     '#title' => t('CiviCRM Profile to synchronize'),
     '#default_value' => variable_get('fhuser_crm_profile', 'Contact Information')
-  );  
+  );
+  */
   $form['fhuser_profile_profile'] = array(
     '#type' => 'select',
     '#title' => t('Profile module Category to synchronize'),
-    '#options' => $options,
+    '#options' => $userprofiles,
     '#default_value' => variable_get('fhuser_profile_profile', 'Contact Information')
   );      
   return $form;
@@ -116,6 +119,8 @@ function fhuser_menu($may_cache) {
 
 /**
  * Menu callback: Replacement for user_view
+ * 
+ * Excludes profile and civicrm fields
  */
 function fhuser_user_view($uid = 0) {
   global $user;
@@ -124,26 +129,81 @@ function fhuser_user_view($uid = 0) {
   if ($account === FALSE || ($account->access == 0 && !user_access('administer users'))) {
     return drupal_not_found();
   }
+  // Fetch category names, leave only translated ones
+  $categories = fhuser_user_categories($account);
+  foreach ($categories as $category) {
+    $categorytranslation[$category['title']] = $category['name'];
+  }
+  
   // Retrieve and merge all profile fields:
   $fields = array();
   foreach (module_list() as $module) {
     // Do not fetch profile module fields as they will be better provided by i18nprofile
-    if ($module != 'profile' && $data = module_invoke($module, 'user', 'view', '', $account)) {
+    if ($module != 'profile' && $module != 'civicrm' && $data = module_invoke($module, 'user', 'view', '', $account)) {
+      $modulename = $module == 'i18nprofile' ? 'profile' : $module;
       //drupal_set_message("DEBUG:fhuser_user_view, module=$module, data=".print_r($data, TRUE));
       foreach ($data as $category => $items) {
+        $index = isset($categorytranslation[$category]) ?  $categorytranslation[$category] : $category;
+        $fields[$index]['#title'] = $category;
+        $fields[$index]['#type'] = 'fieldset';
         foreach ($items as $item) {
-          // Rewrite Country code with country name
-          if ($item['class'] == 'country') {
-          	$item['value'] = fh_get_country_name($item['value']);
+          $class = $item['class'];
+          $item['class'] = "$modulename-$class";
+          $formfield = array(
+            '#type' => 'item', 
+            '#title' => $item['title'], 
+            '#value' => $item['value'],
+            '#attributes' => array('class' => $item['class'])
+          );
+          if (isset($fields[$index][$class])) {
+          	$fields[$index][$class][] = $formfield;
+          } else {
+          	$fields[$index][$class] = $formfield;
           }
-          $item['class'] = "$module-". $item['class'];
-          $fields[$category][] = $item;
         }
       }
     }
   }
+
   drupal_set_title(check_plain($account->name));
-  return theme('user_profile', $account, $fields);
+  return theme('fhuser_profile', $account, $fields, $categories);
+}
+
+/**
+ * Theme a user page
+ * 
+ * @ingroup themeable
+ */
+function theme_fhuser_profile($account, $fields) {
+  $output = '<div class="profile">';
+  $output .= theme('user_picture', $account);
+  $output .= form_render($fields);
+  /*
+  foreach ($fields as $category => $items) {
+    if(isset($items['#title'])) {
+    	$title = $items['#title'];
+      unset($items['#title']);
+    } else {
+    	$title = $category;
+    }
+    if (strlen($title) > 0) {
+      $output .= '<h2 class="title">'. $title .'</h2>';
+    }
+    foreach($items as $field) {
+        $output .= '<dl>';
+        foreach ($items as $item) {
+          if (isset($item['title'])) {
+            $output .= '<dt class="'. $item['class'] .'">'. $item['title'] .'</dt>';
+          }
+          $output .= '<dd class="'. $item['class'] .'">'. $item['value'] .'</dd>';
+        }
+        $output .= '</dl>';
+    }
+  }
+  */
+  $output .= '</div>';
+
+  return $output;
 }
 /**
  * Build big user edit form, grouping all categories
@@ -158,15 +218,19 @@ function fhuser_user_edit(){
   }
   $edit = $_POST['op'] ? $_POST['edit'] : (array)$account;
   
-  // Fetch categories
-  $categories = _user_categories($account);
+  // Fetch categories and build form
+  $form = array();
+
+  // Get rid of duplicated (translated) categories
+  $categories = fhuser_user_categories($account);
+  
   foreach ($categories as  $category) {
   	$fieldset = _user_forms($edit, $account, $category['name']);
     
     // Go for form_alter for each subform
     $fieldset['_category'] = array('#type' => 'value', '#value' => $category['name']);
     fhuser_subform_complete('user_edit', $fieldset);
-    unset($fieldset['category']);
+    unset($fieldset['_category']);
         
     if($category['name'] == 'account') {
         $form[$category['name']] = array_merge(array('#type' => 'fieldset', '#title' => $category['title']), $fieldset);
@@ -224,6 +288,7 @@ function fhuser_user_edit_submit($form_id, $form_values) {
  */
 function theme_fhuser_user_edit($form){
 	$output = '';
+  /*
   // Render categories in order
   $categories = $form['_categories']['#value'];
   foreach($categories as $category) {
@@ -238,6 +303,7 @@ function theme_fhuser_user_edit($form){
     $output .= form_render($form[$name]);
     $output .= "</div>\n";
   }
+  */
   // Renders remaining elements
   $output .= form_render($form);
   return $output;
@@ -261,6 +327,12 @@ function fhuser_form_alter($form_id, &$form) {
   if ($form_id == 'user_edit' && ($category = $form['_category']['#value'])) {
     fhuser_form_user_alter($form_id, $form, $category);
   } elseif($form_id == 'user_register') {
+    // Rewrite profile known categories
+    foreach(fhuser_user_categories() as $category) {
+    	if (isset($form[$category['name']])) {
+    		$form[$category['name']]['#title'] = $category['title'];
+    	}
+    }
     fhuser_form_user_alter($form_id, $form, NULL);
     //$form['#validate'] = array('fhuser_user_register_validate' => array());
     //$form['#submit'] = array('fhuser_user_register_submit' => array());
@@ -353,15 +425,13 @@ function fhuser_subform_alter($form_id, &$form, $base = 'fhuser') {
     $form[$base]['tabs'] = array('#value' =>  theme('option_tabs', $options, $current));
     switch($current) {
       case 'register':
-        //$subform = fhuser_register_subform();
         $subform = fhuser_subform_user_register();
         break;
       case 'login':
-        //$subform = fhuser_login_form();
+
         $subform = fhuser_subform_user_login();
         break;
       case 'password':
-        //$subform = fhuser_password_form();
         $subform = fhuser_subform_user_password();
         // Special case, removes other validations and submit hooks
         $form['#validate'] = array();
@@ -419,11 +489,12 @@ function fhuser_subform_user_display(){
   global $user;
 	$form['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
 	// If the user has no country, shows a drop down else the country
-	if($user->country) {
-	  $form['country'] = array('#type' => 'value', '#value' => $user->country);
-	  $form['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => fh_get_country_name($user->country));
+  $country = isset($user->location) && isset($user->location['country']) ? $user->location['country'] : NULL;
+	if($country) {
+	  $form['country'] = array('#type' => 'value', '#value' => $country);
+	  $form['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => fh_get_country_name($country));
 	} else {
-	  $form['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => fh_get_country_list());
+	  $form['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => fh_get_country_list(), '#required' => TRUE);
 	}
   return $form;
 }
@@ -477,7 +548,7 @@ function fhuser_subform_user_password() {
     '#value' => t('E-mail new password'),
     '#weight' => 2,
   );
-  fhuser_subform_complete('user_pass', $form);  
+  // fhuser_subform_complete('user_pass', $form);  
   return $form;
 }
 /**
@@ -485,7 +556,7 @@ function fhuser_subform_user_password() {
  */
 function fhuser_subform_user_register() {
   $form = array('#type' => 'fieldset', '#title' => t('Register'));
-  $form['account'] = array('#type' => 'fieldset', '#title' => t('Register information'));
+  //$form['account'] = array('#type' => 'fieldset', '#title' => t('Register information'));
   /*
   $form['account']['name'] = array('#type' => 'textfield',
     '#title' => t('Username'),
@@ -501,30 +572,30 @@ function fhuser_subform_user_register() {
     '#description' => t('A password and instructions will be sent to this e-mail address, so make sure it is accurate.'),
     '#required' => TRUE,
   );
-  
   // Temporarily switch path to get the right fields
   $q = $_GET['q'];
   $_GET['q'] = 'user/register';
   $extra = _user_forms($null, $null, $null, 'register');
   $_GET['q'] = $q;
   
-  // Merge all collected required fields
+  // Merge all collected required fields. Flatten fieldsets but keep categories for rewriting
   foreach($extra as $category => $fieldset) {
-  	foreach($fieldset as $name => $field) {
-  		if($field['#required']) {
-  			$form['account'][$name] = $field;
+  	foreach(element_children($fieldset) as $name) {
+  		if ($fieldset[$name]['#required']) {
+  			$form[$category][$name] = $fieldset[$name];
   		}
   	}
   }
-  
-  // Add validation and submit functions
-  // $form['#validate'] = array('fhuser_register_subform_validate' => array());
-  
-  // Get profile mandatory fields
-  
+
+  $form['country'] = array('#type' => 'select',
+    '#title' => t("Country"),
+    '#options' => fh_get_country_list(), 
+    '#required' => TRUE);  
+
   // This have to run for the profile fields to be translated
   fhuser_subform_complete('user_register', $form);
   
+
   // keep track of the fields to use for registering
   $form['_user_fields'] = array('#type' => 'value', '#value' => _fhuser_form_get_fields($form));
   return $form;  
@@ -563,9 +634,9 @@ function fhuser_subform_validate($form_id, $form_values) {
       break;
     case 'register':
       // Make temporary name to replace with email later
-      if(isset($form_values['name'])) {
-        $form_values['name'] = "fhuser_name_".time();
-      }
+      if($form_values['first_name'] && $form_values['last_name']) {
+      	$form_values['name'] = fhuser_get_user_name($form_values);
+      } 
       user_register_validate($form_id, $form_values);
       break;
     case 'password':
@@ -588,8 +659,8 @@ function fhuser_subform_submit($form_id, $form_values) {
       foreach($form_values['_user_fields'] as $key) {
         $user_fields[$key] = $form_values[$key];
       }
-      // Add user name = email, quick registration
-      $user_fields['name'] = $user_fields['mail'];    
+      // Add user name = first name + last name, quick registration
+      $user_fields['name'] = fhuser_get_user_name($form_values);    
       user_register_submit($form_id, $user_fields);
       $fhuser_enable = FALSE;
       // Set just registered user
@@ -604,6 +675,12 @@ function fhuser_subform_submit($form_id, $form_values) {
   } 
 }
 
+/**
+ * Builds user name from user data
+ */
+function fhuser_get_user_name($values) {
+	return trim(trim($values['first_name']).' '. trim($values['last_name']));
+}
 /**
  * Gets current option
  */
@@ -626,10 +703,13 @@ function fhuser_get_link($name, $option, $path = NULL, $props = array()) {
  */
 function fhuser_user($op, &$edit, &$account, $category = NULL) {
   global $fhuser_user;
-  //drupal_set_message("DEBUG:fhuser_user, op=$op, category=$category");
+  drupal_set_message("DEBUG:fhuser_user, op=$op, category=$category");
   
   switch($op) {
     case 'insert':
+      // Manage country field
+    	fhuser_save_location($op, $edit, $account);
+        
       // Save last registered user in a global variable
       $fhuser_user = $account;
       // Update crm related fields 
@@ -640,18 +720,51 @@ function fhuser_user($op, &$edit, &$account, $category = NULL) {
     		// Update user's contact data
         fhuser_update_from_crm($account, $edit);
       } elseif($category == 'account' && variable_get('fhuser_location_sync', 0) && isset($edit['location'])) {
-        fhuser_update_crm_location($account, $edit['location']);
+        fhuser_update_crm_from_location($account, $edit['location']);
       } elseif($category == variable_get('fhuser_profile_profile', 'none')) {
         fhuser_update_crm_contact($account, $edit);
       }
       break;
     case 'load':
-      // Change account name 
-      // $account->name = $account->first_name . ' ' . $account->last_name;
+      // Set user country from location
+      if (isset($account->location) && isset($account->location->country)) {
+      	$account->country = $account->location['country'];
+      }
+      break;
+    case 'categories':
+      //return fhuser_user_categories();
       break;
   }  
 }
 
+/**
+ * Save country field into location data
+ */
+function fhuser_save_location($op, &$edit, &$account) {
+  if(isset($edit['country']) && $edit['country']) {
+	   $location['country'] =$edit['country'];
+     _location_save($location, $account, 'user');
+     $edit['country'] = NULL;
+  }
+}
+/**
+ * Retrieves user categories removing translated and civicrm ones
+ */
+function fhuser_user_categories($account) {
+  $categories = array();
+
+  foreach(_user_categories($account) as $category) {
+    // Translated profile categories will have same name but lower weight..
+    if (!isset($categories[$category['name']])) {
+    	$categories[$category['name']] = $category;
+    }
+  }
+  
+  if($crmprofile =  variable_get('fhuser_crm_profile', '')) {
+  	unset($categories[$crmprofile]);
+  }
+  return $categories;
+}
 /**
  * Synchronize: Update Drupal data with CiviCRM data
  */
@@ -723,14 +836,9 @@ function fhuser_update_crm_contact($account, $edit = array()) {
 /**
  * Update crm profile with data from location module
  */
-function fhuser_update_crm_location($account, $location) {
+function fhuser_update_crm_from_location($account, $location) {
   if(module_exist('civicrm') && module_exist('location') && variable_get('location_user', '') == LOCATION_USER_COLLECT) {
-    $data['street_address'] = $location['street'];
-    $data['supplemental_address_1'] = $location['additional'];
-    $data['city'] = $location['city'];
-    $data['postal_code'] = $location['postal_code'];
-    $data['state_province_id'] = fh_crm_state_abbr2id($location['province']);
-    $data['country_id'] = fh_crm_country_iso2id($location['country']);
+    $data = fhuser_mapping($location, _location2civicrm());
     fh_crm_update_contact($account, $data);
   }
 }
@@ -790,10 +898,10 @@ function fhuser_mapping($data, $fieldmap) {
  * destination field => source field
  */
 function _profile2civicrm() {
-  static $fields = array(
+  $fields = array(
     'first_name' => 'first_name',
     'last_name' => 'last_name',
-    'country_id' => array('field' => 'country', 'function' => 'fh_crm_country_iso2id'),
+    // 'country_id' => array('field' => 'country', 'function' => 'fh_crm_country_iso2id'),
   );
   return variable_get('profile2civicrm', $fields);
 }
@@ -801,11 +909,25 @@ function _profile2civicrm() {
  * Field mappings from civicrm to profile. It can ve overriden by a variable.
  */
 function _civicrm2profile() {
-  static $fields = array(
+  $fields = array(
     'first_name' => 'first_name',
     'last_name' => 'last_name',
-    'country' => array('field' => 'country_id', 'function' => 'fh_crm_country_id2iso')
+    // 'country' => array('field' => 'country_id', 'function' => 'fh_crm_country_id2iso')
   );
   return variable_get('civicrm2profile', $fields);
+}
+/**
+ * Field mapping from location to civicrm
+ */
+function _location2civicrm() {
+  $fields = array(
+    'street_address' => 'street',
+    'supplemental_address_1' => 'additional',
+    'city' => 'city',
+    'postal_code' => 'postal_code',
+    //'state_province_id' => array('field' => 'province', 'function' => 'fh_crm_state_abbr2id'), 
+    'country_id' => array('field' => 'country', 'function' => 'fh_crm_country_iso2id'),
+  );
+  return variable_get('location2civicrm', $fields);
 }
 ?>

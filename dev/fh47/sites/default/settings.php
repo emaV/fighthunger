@@ -168,5 +168,6 @@ $conf['i18n_variables'] = array(
 //  'menu_secondary_menu',
   // Other modules
   'donation_presentation',
+  'donation_presentation_teaser',
   'donation_user_message',
 );

@@ -223,6 +223,7 @@ function donation_perm() {
  */
 function donation_settings() {
   $form['donation_presentation'] = array('#type' => 'textarea', '#title' => t('Presentation'), '#default_value' => variable_get('donation_presentation', ''), '#rows' => 10, '#description' => t('Presentation text for plain donations. This may contain HTML markup.'));
+  $form['donation_presentation_teaser'] = array('#type' => 'textarea', '#title' => t('Short resentation'), '#default_value' => variable_get('donation_presentation_teaser', ''), '#rows' => 10, '#description' => t('Short presentation text for user forms. This may contain HTML markup.'));
   $form['donation_user_message'] = array('#type' => 'textfield', '#title' => t('User message'), '#default_value' => variable_get('donation_user_message', t('Make a donation')), '#description' => t('Donation message for user profile page.'));
   return $form;
 }
@@ -261,7 +262,7 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
  * Small form to be presented on user profile page
  */
 function donation_user_form($donation) {
-  $form['presentation'] = array('#value' => theme('donation_presentation', $donation));
+  $form['presentation'] = array('#value' => theme('donation_presentation', $donation, TRUE));
   $form['amount'] = array('#type' => 'hidden', '#value' => 10);
   $form['#action'] = url('donation/'.$donation->nid);
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
@@ -277,14 +278,6 @@ function donation_page($nid = 'plain') {
   // Get donation info and double check everything
   if($donation = donation_prepare($nid)) {
     drupal_set_title(check_plain($donation->title));
-    /*
-    if($user->uid) {
-      $output = donation_form($donation);
-    } else {
-      $output = theme('donation_presentation', $donation);
-      $output .= module_invoke('fh_user', 'subpage');
-    }
-    */
     $output = donation_form($donation);
     return "<div class='donation'>$output</div>";
   } else {
@@ -325,7 +318,7 @@ function donation_prepare($nid) {
   // Complete donation information
   switch($donation->type) {
     case 'plain':
-      $donation->presentation = variable_get('donation_presentation', '');
+      //$donation->presentation = variable_get('donation_presentation', '');
       $donation->partners = NULL;    
       $donation->title = t('Donate to %name', array('%name' => variable_get('site_name', 'Drupal')));
       break;
@@ -700,10 +693,19 @@ function _donation_currency_name($code) {
 }
 
 /**
- * Themeable functions.
+ * Theme donation presentation.
+ * 
+ * @param
+ *   $short to produce a short one when possible
  */
-function theme_donation_presentation($donation) {
-  return "<div class='info'>$donation->presentation</div>";
+function theme_donation_presentation($donation, $teaser = FALSE) {
+	$output = '<div class="info">';
+  if(isset($donation->presentation) || $donation->presentation != '') {
+    $output .= $donation->presentation;
+  } else {
+    $output .= $teaser ? variable_get('donation_presentation_teaser', '') : variable_get('donation_presentation', '');
+  }
+  return $output;
 }
 /**
  * Theming donation link for hook_nodeapi()

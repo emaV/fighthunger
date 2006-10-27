@@ -127,5 +127,5 @@ ini_set('session.use_trans_sid',    0);
 //  'theme_default' => 'pushbutton',
 //  'anonymous' => 'Visitor'
 //);
-$conf["smtp_library"] = "includes/class.smtp.inc";
+$conf["smtp_library"] = "includes/smtp.inc";
 ?>

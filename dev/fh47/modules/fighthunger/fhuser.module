@@ -147,18 +147,19 @@ function fhuser_user_view($uid = 0) {
         $fields[$index]['#title'] = $category;
         $fields[$index]['#type'] = 'fieldset';
         foreach ($items as $item) {
-          $class = $item['class'];
+          $class = ($item['class']) ? $item['class'] : $modulename;
           $item['class'] = "$modulename-$class";
           $formfield = array(
-            '#type' => 'item', 
-            '#title' => $item['title'], 
-            '#value' => $item['value'],
+            '#type'   => 'item', 
+            '#title'  => $item['title'], 
+            '#value'  => $item['value'],
+            '#weight' => $item['weight'],
             '#attributes' => array('class' => $item['class'])
           );
           if (isset($fields[$index][$class])) {
-          	$fields[$index][$class][] = $formfield;
+            $fields[$index][$class][] = $formfield;
           } else {
-          	$fields[$index][$class] = $formfield;
+            $fields[$index][$class] = $formfield;
           }
         }
       }
@@ -175,7 +176,31 @@ function fhuser_user_view($uid = 0) {
  * @ingroup themeable
  */
 function theme_fhuser_profile($account, $fields) {
-  $output = '<div class="profile">';
+  
+  // Merge Team Up with Personal Information
+  foreach($fields['Team Up'] as $key => $val) {
+    if (is_array($val)) {
+      $fields['Personal Information'][$key] = $val;
+      unset($fields['Team Up'][$key]);
+    }
+  }
+
+  // Merge Team Up with Personal Information
+  if ($fields['Donation']) {
+    $fields['Team Up']['donation'] = $fields['Donation']['donation']; 
+    unset($fields['Donation']);
+  } else {
+    $formfield = array(
+      '#type' => 'item', 
+      '#title' => '', 
+      '#value' => variable_get('site_mission', ''),
+      '#weight' => -9,
+    );
+    $fields['Team Up'][''] = $formfield; 
+  }
+  unset($fields['History']);
+
+  $output  = '<div class="profile">';
   $output .= theme('user_picture', $account);
   $output .= form_render($fields);
   /*

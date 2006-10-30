@@ -203,29 +203,6 @@ function theme_fhuser_profile($account, $fields) {
   $output  = '<div class="profile">';
   $output .= theme('user_picture', $account);
   $output .= form_render($fields);
-  /*
-  foreach ($fields as $category => $items) {
-    if(isset($items['#title'])) {
-    	$title = $items['#title'];
-      unset($items['#title']);
-    } else {
-    	$title = $category;
-    }
-    if (strlen($title) > 0) {
-      $output .= '<h2 class="title">'. $title .'</h2>';
-    }
-    foreach($items as $field) {
-        $output .= '<dl>';
-        foreach ($items as $item) {
-          if (isset($item['title'])) {
-            $output .= '<dt class="'. $item['class'] .'">'. $item['title'] .'</dt>';
-          }
-          $output .= '<dd class="'. $item['class'] .'">'. $item['value'] .'</dd>';
-        }
-        $output .= '</dl>';
-    }
-  }
-  */
   $output .= '</div>';
 
   return $output;
@@ -313,23 +290,7 @@ function fhuser_user_edit_submit($form_id, $form_values) {
  */
 function theme_fhuser_user_edit($form){
 	$output = '';
-  /*
-  // Render categories in order
-  $categories = $form['_categories']['#value'];
-  foreach($categories as $category) {
-  	$name = $category['name'];
-    $title = $category['title'];
-		$output .= "<div>";
-    $output .= "<h2>$title</h2>\n";
-    // I unset these two values so they're not rendered again
-    unset($form[$name]['#title']);
-    unset($form[$name]['#type']);
-    // We render the form elements for the category here
-    $output .= form_render($form[$name]);
-    $output .= "</div>\n";
-  }
-  */
-  // Renders remaining elements
+  // Renders elements
   $output .= form_render($form);
   return $output;
 }
@@ -353,11 +314,13 @@ function fhuser_form_alter($form_id, &$form) {
     fhuser_form_user_alter($form_id, $form, $category);
   } elseif($form_id == 'user_register') {
     // Rewrite profile known categories
+    /*
     foreach(fhuser_user_categories() as $category) {
     	if (isset($form[$category['name']])) {
     		$form[$category['name']]['#title'] = $category['title'];
     	}
     }
+    */
     fhuser_form_user_alter($form_id, $form, NULL);
     //$form['#validate'] = array('fhuser_user_register_validate' => array());
     //$form['#submit'] = array('fhuser_user_register_submit' => array());
@@ -409,12 +372,6 @@ function fhuser_form_user_alter($form_id, &$form, $category) {
   }
   // Rewrite specific fields
   foreach($categories as $category) {
-    // Get rid of name field
-    /*
-    if($form_id == 'user_register' && isset($form[$category]['name'])) {
-    	unset($form[$category]['name']);
-    }
-    */
 	  // Rewrite country field
 	  if(isset($form[$category]['country'])){
 	    $form[$category]['country']['#type'] = 'select';
@@ -578,6 +535,7 @@ function fhuser_subform_user_password() {
 }
 /**
  * Creates a user register subform
+ * TODO: Create names
  */
 function fhuser_subform_user_register() {
   $form = array('#type' => 'fieldset', '#title' => t('Register'));
@@ -651,6 +609,11 @@ function fhuser_subform_complete($form_id, &$form) {
   unset($form['#id']);
 }
 
+/**
+ * Validate user register subform
+ * 
+ * Build user names, not asked to the user
+ */
 function fhuser_subform_validate($form_id, $form_values) {
   //drupal_set_message("fhuser_subform_validate, form_id=$form_id, fhuser_form_id=".$form_values['fhuser_form_id']);
   switch($form_values['fhuser_form_id']) {
@@ -658,9 +621,11 @@ function fhuser_subform_validate($form_id, $form_values) {
       user_login_validate($form_id, $form_values);
       break;
     case 'register':
-      // Make temporary name to replace with email later
-      if($form_values['first_name'] && $form_values['last_name']) {
-      	$form_values['name'] = fhuser_get_user_name($form_values);
+      // Build user name
+      if ($name = fhuser_get_user_name($form_values)) {
+        drupal_set_message("DEBUG: got user name = $name");
+        $form_values['name'] = $name;
+        $GLOBALS['form_values']['name'] = $name;
       } 
       user_register_validate($form_id, $form_values);
       break;
@@ -684,8 +649,9 @@ function fhuser_subform_submit($form_id, $form_values) {
       foreach($form_values['_user_fields'] as $key) {
         $user_fields[$key] = $form_values[$key];
       }
-      // Add user name = first name + last name, quick registration
-      $user_fields['name'] = fhuser_get_user_name($form_values);    
+      // Add user name which should have been filled during the validation
+      $user_fields['name'] = $form_values['name'];
+      
       user_register_submit($form_id, $user_fields);
       $fhuser_enable = FALSE;
       // Set just registered user
@@ -702,9 +668,29 @@ function fhuser_subform_submit($form_id, $form_values) {
 
 /**
  * Builds user name from user data
+ * 
+ * Checks for duplicates, adds a number if so and retries
+ * Note: it may happend that name + number is too long (56chars), but that will produce a validation error later
  */
 function fhuser_get_user_name($values) {
-	return trim(trim($values['first_name']).' '. trim($values['last_name']));
+  if(!$values['first_name'] || !$values['last_name']) {
+  	return FALSE;
+  }
+  
+  $name = trim($values['first_name']).' '. trim($values['last_name']);
+
+  if(user_validate_name($name)) {
+  	return FALSE; // No name is returned, failed validation, possibly wrong characters
+  }
+  
+  // Check duplicates in advance so we can fix it now
+  for($i=0; $i < 100 ; $i++) {
+  	$tempname = $i ? $name.' '.$i : $name;
+    if (!db_num_rows(db_query_range("SELECT uid FROM {users} WHERE LOWER(name) = LOWER('%s')", 0, 1, $tempname))) {
+      return $tempname;
+    }
+  }
+  return FALSE;
 }
 /**
  * Gets current option

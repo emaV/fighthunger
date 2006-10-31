@@ -177,16 +177,16 @@ function phptemplate_settings() {
       '#default_value' => $settings['FH_profile_account'],
       '#description' => t('Account Information help text')
     );
-    $form['profile']['FH_profile_personal'] = array(
+    $form['profile']['FH_profile_PersonalInformation'] = array(
       '#type' => 'textarea',
       '#title' => t('Personal Information'),
-      '#default_value' => $settings['FH_profile_personal'],
+      '#default_value' => $settings['FH_profile_PersonalInformation'],
       '#description' => t('Personal Information help text')
     );
-    $form['profile']['FH_profile_team_up'] = array(
+    $form['profile']['FH_profile_TeamUp'] = array(
       '#type' => 'textarea',
       '#title' => t('Team Up'),
-      '#default_value' => $settings['FH_profile_team_up'],
+      '#default_value' => $settings['FH_profile_TeamUp'],
       '#description' => t('Team Up help text')
     );
     return $form;
@@ -200,6 +200,33 @@ function phptemplate_i18n_link($text, $target, $lang, $separator='&nbsp;'){
   $attributes = ($lang == i18n_get_lang()) ? array('class' => 'active') : NULL;
   $output .= l($text, $target, $attributes, NULL, NULL, FALSE, TRUE);
   $output .= '</span>';
+  return $output;
+}
+
+/**
+ * Produces themed link (with icon) for profile flickr field
+ */
+function phptemplate_profile_flickr($account) {
+  $output  = "<img src='" . path_to_theme() . "/images/flickricon.jpg' class='profile_icon'>";
+  $output .= "<a href='$account->profile_flickr'>" . t('My Flickr photos') . "</a>";
+  return $output;
+}
+
+/**
+ * Produces themed link (with icon) for profile blog field
+ */
+function phptemplate_profile_blog($account) {
+  $output  = "<img src='" . path_to_theme() . "/images/feed-icon.png' class='profile_icon'>";
+  $output .= "<a href='$account->profile_blog'>" . t('My blog/web site') . "</a>";
+  return $output;
+}
+
+/**
+ * Produces themed link (with icon) for profile delicious field
+ */
+function phptemplate_profile_delicious($account) {
+  $output  = "<img src='" . path_to_theme() . "/images/delicious.gif' class='profile_icon'>";
+  $output .= "<a href='$account->profile_delicious'>" . t('My delicious tags') . "</a>";
   return $output;
 }
 ?>

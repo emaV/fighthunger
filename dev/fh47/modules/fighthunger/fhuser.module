@@ -189,6 +189,11 @@ function theme_profile_set($element) {
 } 
 
 function theme_profile_item($element) {
+  if ( isset($element['#attributes']['class']) ){
+    $element['#attributes']['id'] = $element['#attributes']['class'];
+    $element['#attributes']['class'] = 'profile_item';  
+  }
+
   $out = '<div' . drupal_attributes($element['#attributes']) . ">\n";
   if ($element['#title']) {
     $out .= '<h3>'. t($element['#title']) . "</h3>\n";
@@ -272,6 +277,8 @@ function theme_fhuser_profile($account, $fields) {
   }
   $fields['Personal Information']['profile_username'] = array(
             '#type'   => 'item', 
+            '#attributes'   => array('class' => 'profile_username'),
+            '#theme'  => 'profile_item', 
             '#value'  => t('My name is') . " $user_name",
             '#weight' => -10
           );
@@ -317,7 +324,7 @@ function theme_fhuser_profile($account, $fields) {
   // Change item to profile_item (ONLY for 'Personal Information')
   foreach($fields['Personal Information'] as $key_item => $value_item) {
     if( $key_item{0} <> '#' ) {
-      $fields[$key_set][$key_item]['#theme'] = 'profile_item';
+      $fields['Personal Information'][$key_item]['#theme'] = 'profile_item';
     }
   }
 

@@ -268,10 +268,10 @@ function theme_fhuser_profile($account, $fields) {
   }
 
   // Set user name
-  if( ($fields['Personal Information']['profile_firstname']['#value']<>'') || 
-      ($fields['Personal Information']['profile_lastname']['#value']<>'') ) {
-    $user_name = trim($fields['Personal Information']['profile_firstname']['#value'] . 
-      ' ' . $fields['Personal Information']['profile_lastname']['#value']); 
+  if( ($fields['Personal Information']['first_name']['#value']<>'') || 
+      ($fields['Personal Information']['last_name']['#value']<>'') ) {
+    $user_name = trim($fields['Personal Information']['first_name']['#value'] . 
+      ' ' . $fields['Personal Information']['last_name']['#value']); 
   } else {
     $user_name = $account->name;
   }
@@ -282,8 +282,8 @@ function theme_fhuser_profile($account, $fields) {
             '#value'  => t('My name is') . " $user_name",
             '#weight' => -10
           );
-  unset($fields['Personal Information']['profile_firstname']);
-  unset($fields['Personal Information']['profile_lastname']);
+  unset($fields['Personal Information']['first_name']);
+  unset($fields['Personal Information']['last_name']);
  
   // Set country 
   if($fields['Personal Information']['profile_country']['#value']<>'') {

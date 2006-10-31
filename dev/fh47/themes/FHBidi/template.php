@@ -315,8 +315,8 @@ function phptemplate_fhuser_profile($fields) {
  */
 function phptemplate_fhuser_user_edit($form) {
 
-//  $output  .= _print_cat($form);
-//  $output  .= _print_cat($form['account']);
+//  $output  .= _print_cat($form['_categories']['#value']);
+  $output  .= _print_cat($form);
 //  $output  .= _print_cat($form['account']['theme_select']);
 //  $output .= _print_cat($form['Team Up']);
 //  $output .= _print_cat($form['Personal Information']);
@@ -354,15 +354,13 @@ function phptemplate_fhuser_user_edit($form) {
                        '#weight' => 99);
   $settings = variable_get('theme_FHBidi_settings', array());
   $out_header = "<dl>\n";
-  foreach( $form as $key_set => $cat) {
-    if( ($cat['#type'] == fieldset) ) {
-      $id = str_replace(' ', '', $key_set);
-      $form[$key_set]['button'] = $item_button;
-      $form[$key_set]['#attributes'] = array('class' => 'profile_set', 'id' => "$id" );
-      $form[$key_set]['#type'] = 'profile_set';
-      $out_header .= "<dt><a href='#$id'>" . $cat['#title'] . "</a></dt>\n";
-      $out_header .= "<dd>" . $settings["FH_profile_$id"] . "</dd>\n";     
-    }
+  foreach($form['_categories']['#value'] as $key_set => $cat) {
+    $id = str_replace(' ', '', $key_set);
+    $form[$key_set]['button'] = $item_button;
+    $form[$key_set]['#attributes'] = array('class' => 'profile_set', 'id' => "$id" );
+    $form[$key_set]['#type'] = 'profile_set';
+    $out_header .= "<dt><a href='#$id'>" . $cat['#title'] . "</a></dt>\n";
+    $out_header .= "<dd>" . $settings["FH_profile_$id"] . "</dd>\n";     
   }
   $out_header .= "</dl>\n";
 

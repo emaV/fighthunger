@@ -242,10 +242,11 @@ function phptemplate_fhuser_profile($fields) {
   if($fields['Personal Information']['country']['#value']<>'') {
     $fields['Personal Information']['country']['#title'] = '';
     $fields['Personal Information']['country']['#value'] = t("I live in") . ' '.
-      fh_get_country_name($fields['Personal Information']['country']['#value']); 
+      $fields['Personal Information']['country']['#value']; 
   } else {
     unset($fields['Personal Information']['country']);
   }
+  unset($fields['Location']);
   
   // Set profile_presentation field
   $pres_val = $fields['Personal Information']['profile_presentation']['#value'];
@@ -267,13 +268,12 @@ function phptemplate_fhuser_profile($fields) {
   $fields['Personal Information']['profile_delicious']['#value'] = 
     theme('profile_delicious', $account);
     
-  // Change fieldset to profile_set
-  foreach($fields as $key_set => $value_set) {
-    if( $key_set{0} <> '#' ) {
+  // Change fieldset to profile_set  
+  foreach($fields['_categories']['#value'] as $key_set => $cat) {
       $fields[$key_set]['#attributes'] = array('class' => 'profile_set', 'id' => str_replace(' ', '', $key_set) );
       $fields[$key_set]['#type'] = 'profile_set';
-    }
   }
+
   // Change item to profile_item (ONLY for 'Personal Information')
   foreach($fields['Personal Information'] as $key_item => $value_item) {
     if( $key_item{0} <> '#' ) {
@@ -288,6 +288,9 @@ function phptemplate_fhuser_profile($fields) {
 
 //$output .= _print_cat($fields['Team Up']);
 //$output .= _print_cat($fields['Personal Information']);
+//$output .= _print_cat($fields['_categories']['#value']);
+//$output .= _print_cat($fields);
+
   $output = "<div class='profile'>\n\n";
   $output .= "<div class='profile_left'>\n";
   $output .= form_render($fields['Personal Information']);

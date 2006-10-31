@@ -316,7 +316,7 @@ function phptemplate_fhuser_profile($fields) {
 function phptemplate_fhuser_user_edit($form) {
 
 //  $output  .= _print_cat($form['_categories']['#value']);
-  $output  .= _print_cat($form);
+//  $output  .= _print_cat($form);
 //  $output  .= _print_cat($form['account']['theme_select']);
 //  $output .= _print_cat($form['Team Up']);
 //  $output .= _print_cat($form['Personal Information']);

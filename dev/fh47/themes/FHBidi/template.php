@@ -207,7 +207,7 @@ function phptemplate_i18n_link($text, $target, $lang, $separator='&nbsp;'){
  * Produces themed link (with icon) for profile flickr field
  */
 function phptemplate_profile_flickr($account) {
-  $output  = "<img src='" . path_to_theme() . "/images/flickricon.jpg' class='profile_icon'>";
+  $output  = "<img src='/" . path_to_theme() . "/images/flickricon.jpg' class='profile_icon'>";
   $output .= "<a href='$account->profile_flickr'>" . t('My Flickr photos') . "</a>";
   return $output;
 }
@@ -216,7 +216,7 @@ function phptemplate_profile_flickr($account) {
  * Produces themed link (with icon) for profile blog field
  */
 function phptemplate_profile_blog($account) {
-  $output  = "<img src='" . path_to_theme() . "/images/feed-icon.png' class='profile_icon'>";
+  $output  = "<img src='/" . path_to_theme() . "/images/feed-icon.png' class='profile_icon'>";
   $output .= "<a href='$account->profile_blog'>" . t('My blog/web site') . "</a>";
   return $output;
 }
@@ -225,7 +225,7 @@ function phptemplate_profile_blog($account) {
  * Produces themed link (with icon) for profile delicious field
  */
 function phptemplate_profile_delicious($account) {
-  $output  = "<img src='" . path_to_theme() . "/images/delicious.gif' class='profile_icon'>";
+  $output  = "<img src='/" . path_to_theme() . "/images/delicious.gif' class='profile_icon'>";
   $output .= "<a href='$account->profile_delicious'>" . t('My delicious tags') . "</a>";
   return $output;
 }

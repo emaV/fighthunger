@@ -246,11 +246,11 @@ function fhuser_user_edit(){
   // Get rid of duplicated (translated) categories
   $categories = fhuser_user_categories($account);
   //print "<h2>DEBUG: Categories:</h2>";
-  var_dump($categories);;
+  //var_dump($categories);;
   foreach ($categories as  $category) {
   	$fieldset = _user_forms($edit, $account, $category['name']);
    //print "<h2>DEBUG: Fieldset for category:".$category['name']."</h2>";   
-    var_dump($fieldset);
+    //var_dump($fieldset);
     // Go for form_alter for each subform
     $fieldset['_category'] = array('#type' => 'value', '#value' => $category['name']);
     fhuser_subform_complete('user_edit', $fieldset);

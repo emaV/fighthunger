@@ -170,11 +170,14 @@ function fhuser_user_view($uid = 0) {
   $fields['_categories'] = array('#type' => 'value', '#value' => $categories);  
   
   // Re-arrange some fields
+  $c_team_up = 'Team Up';
+  $c_personal = 'Personal Information';
+  
   // Merge Team Up with Personal Information
-  if(is_array($fields['Team Up']) && is_array($fields['Personal Information'])) {
-    foreach($fields['Team Up'] as $key => $val) {
+  if(is_array($fields[$c_team_up]) && is_array($fields[$c_personal])) {
+    foreach($fields[$c_team_up] as $key => $val) {
       if (is_array($val)) {
-        $fields['Personal Information'][$key] = $val;
+        $fields[$c_personal][$key] = $val;
         unset($fields['Team Up'][$key]);
       }
     }
@@ -185,7 +188,7 @@ function fhuser_user_view($uid = 0) {
 
   // Merge Team Up with Personal Information
   if ($fields[t('Donation')]) {
-    $fields['Team Up']['donation'] = $fields[t('Donation')]['donation']; 
+    $fields[$c_team_up]['donation'] = $fields[t('Donation')]['donation']; 
     unset($fields[t('Donation')]);
   } else {
     $formfield = array(
@@ -194,10 +197,16 @@ function fhuser_user_view($uid = 0) {
       '#value' => variable_get('site_mission', ''),
       '#weight' => -9,
     );
-    $fields['Team Up'][''] = $formfield; 
-  }  
-  drupal_set_title(check_plain($account->name));
+    $fields[$c_team_up][''] = $formfield; 
+  }
   
+  // Add country to Personal information - from location
+
+  $country = $account->location['country'];
+  $fields[$c_personal]['country'] = array('#type' => 'item', '#title' => t('Country'), '#value' => fh_get_country_name($country));
+  
+  // OK, ready for rendering
+  drupal_set_title(check_plain($account->name));
   return drupal_get_form('fhuser_profile', $fields);
 }
 

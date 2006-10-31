@@ -176,19 +176,19 @@ function fhuser_user_view($uid = 0) {
  * @ingroup themeable
  */
 function theme_fhuser_profile($account, $fields) {
-  
   // Merge Team Up with Personal Information
-  foreach($fields['Team Up'] as $key => $val) {
-    if (is_array($val)) {
-      $fields['Personal Information'][$key] = $val;
-      unset($fields['Team Up'][$key]);
+  if(is_array($fields['Team Up']) && is_array($fields['Personal Information'])) {
+    foreach($fields['Team Up'] as $key => $val) {
+      if (is_array($val)) {
+        $fields['Personal Information'][$key] = $val;
+        unset($fields['Team Up'][$key]);
+      }
     }
   }
-
   // Merge Team Up with Personal Information
-  if ($fields['Donation']) {
-    $fields['Team Up']['donation'] = $fields['Donation']['donation']; 
-    unset($fields['Donation']);
+  if ($fields[t('Donation')]) {
+    $fields['Team Up']['donation'] = $fields[t('Donation')]['donation']; 
+    unset($fields[t('Donation')]);
   } else {
     $formfield = array(
       '#type' => 'item', 
@@ -198,7 +198,7 @@ function theme_fhuser_profile($account, $fields) {
     );
     $fields['Team Up'][''] = $formfield; 
   }
-  unset($fields['History']);
+  unset($fields[t('History')]);
 
   $output  = '<div class="profile">';
   $output .= theme('user_picture', $account);
@@ -714,7 +714,7 @@ function fhuser_get_link($name, $option, $path = NULL, $props = array()) {
  */
 function fhuser_user($op, &$edit, &$account, $category = NULL) {
   global $fhuser_user;
-  drupal_set_message("DEBUG:fhuser_user, op=$op, category=$category");
+  //drupal_set_message("DEBUG:fhuser_user, op=$op, category=$category");
   
   switch($op) {
     case 'insert':
@@ -827,7 +827,7 @@ function fhuser_update_profile(&$account, $data, &$edit) {
     // $account->{$name} = $data[$name];
     // Mark field as handled (prevents saving to user->data).
     $edit[$name] = NULL;
-    drupal_set_message("DEBUG:fhuser_update_profile: field=$name, value=".$data[$name]);    
+    //drupal_set_message("DEBUG:fhuser_update_profile: field=$name, value=".$data[$name]);    
   }
 }
 /**
@@ -893,10 +893,10 @@ function fhuser_mapping($data, $fieldmap) {
       $function = NULL;
   	}
     if(isset($data[$name])) {
-    	drupal_set_message("DEBUG:fhuser_mapping, field = $name");
+    	//drupal_set_message("DEBUG:fhuser_mapping, field = $name");
       $result[$destination] = ($function && function_exists($function)) ? $function($data[$name]) : $data[$name];
     } else {
-    	drupal_set_message("DEBUG:fhuser_mapping, field = $name NO MAPPING");
+    	//drupal_set_message("DEBUG:fhuser_mapping, field = $name NO MAPPING");
     }
   }
   drupal_set_message("DEBUG:fhuser_mapping, result=". print_r($result, TRUE));  

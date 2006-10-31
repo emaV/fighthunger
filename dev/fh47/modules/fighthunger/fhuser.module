@@ -83,11 +83,13 @@ function fhuser_menu($may_cache) {
 
   if($may_cache) {
   	// Your personal page
+    /*
     if ($user->uid) {
       $items[] = array('path' => 'fhuser/'. $user->uid, 'title' => t('my account'),
         'callback' => 'fhuser_user_view', 'callback arguments' => array(arg(1)), 'access' => TRUE,
         'type' => MENU_DYNAMIC_ITEM);
     }
+    */
   } else {
     // Re-define all user menu items
     if (arg(0) == 'user' && is_numeric(arg(1)) && arg(1) > 0) {
@@ -201,10 +203,9 @@ function fhuser_user_view($uid = 0) {
   }
   
   // Add country to Personal information - from location
-
-  $country = $account->location['country'];
-  $fields[$c_personal]['country'] = array('#type' => 'item', '#title' => t('Country'), '#value' => fh_get_country_name($country));
-  
+  if(isset($account->location['country']) && $country = $account->location['country']) {
+    $fields[$c_personal]['country'] = array('#type' => 'item', '#title' => t('Country'), '#value' => fh_get_country_name($country));
+  }
   // OK, ready for rendering
   drupal_set_title(check_plain($account->name));
   return drupal_get_form('fhuser_profile', $fields);
@@ -244,10 +245,12 @@ function fhuser_user_edit(){
 
   // Get rid of duplicated (translated) categories
   $categories = fhuser_user_categories($account);
-  
+  print "<h2>DEBUG: Categories:</h2>";
+  var_dump($categories);;
   foreach ($categories as  $category) {
   	$fieldset = _user_forms($edit, $account, $category['name']);
-    
+   print "<h2>DEBUG: Fieldset for category:".$category['name']."</h2>";   
+    var_dump($fieldset);
     // Go for form_alter for each subform
     $fieldset['_category'] = array('#type' => 'value', '#value' => $category['name']);
     fhuser_subform_complete('user_edit', $fieldset);

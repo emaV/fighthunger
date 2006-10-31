@@ -286,12 +286,12 @@ function theme_fhuser_profile($account, $fields) {
   unset($fields['Personal Information']['last_name']);
  
   // Set country 
-  if($fields['Personal Information']['profile_country']['#value']<>'') {
-    $fields['Personal Information']['profile_country']['#title'] = '';
-    $fields['Personal Information']['profile_country']['#value'] = t("I live in") . ' '.
-      fh_get_country_name($fields['Personal Information']['profile_country']['#value']); 
+  if($fields['Personal Information']['country']['#value']<>'') {
+    $fields['Personal Information']['country']['#title'] = '';
+    $fields['Personal Information']['country']['#value'] = t("I live in") . ' '.
+      fh_get_country_name($fields['Personal Information']['country']['#value']); 
   } else {
-    unset($fields['Personal Information']['profile_country']);
+    unset($fields['Personal Information']['country']);
   }
   
   // Set profile_presentation field

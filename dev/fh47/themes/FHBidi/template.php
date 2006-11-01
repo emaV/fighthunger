@@ -240,24 +240,32 @@ function phptemplate_fhuser_profile($fields) {
   unset($fields['Location']);
   
   // Set profile_presentation field
-  $pres_val = $fields['Personal Information']['profile_presentation']['#value'];
-  $fields['Personal Information']['profile_presentation']['#title'] = t("Why I'm supporting Fight Hunger?");
-  $fields['Personal Information']['profile_presentation']['#attributes'] = array('class' => 'profile_motivation');
+  if( $pres_val = $fields['Personal Information']['profile_presentation']['#value'] ) {
+    $pres_val = $fields['Personal Information']['profile_presentation']['#value'];
+    $fields['Personal Information']['profile_presentation']['#title'] = t("Why I'm supporting Fight Hunger?");
+    $fields['Personal Information']['profile_presentation']['#attributes'] = array('class' => 'profile_motivation');
+  }
 
   // Set flickr
-  $fields['Personal Information']['profile_flickr']['#title'] = '';
-  $fields['Personal Information']['profile_flickr']['#value'] = 
-    theme('profile_flickr', $account);
+  if($fields['Personal Information']['profile_flickr']['#value']) {
+    $fields['Personal Information']['profile_flickr']['#title'] = '';
+    $fields['Personal Information']['profile_flickr']['#value'] = 
+      theme('profile_flickr', $account);
+  }
   
   // Set blog
-  $fields['Personal Information']['profile_blog']['#title'] = '';
-  $fields['Personal Information']['profile_blog']['#value'] = 
-    theme('profile_blog', $account);
+  if($fields['Personal Information']['profile_blog']['#value']) {
+    $fields['Personal Information']['profile_blog']['#title'] = '';
+    $fields['Personal Information']['profile_blog']['#value'] = 
+      theme('profile_blog', $account);
+  }
   
   // Set profile_delicious
-  $fields['Personal Information']['profile_delicious']['#title'] = '';
-  $fields['Personal Information']['profile_delicious']['#value'] = 
-    theme('profile_delicious', $account);
+  if($fields['Personal Information']['profile_delicious']['#value']) {
+    $fields['Personal Information']['profile_delicious']['#title'] = '';
+    $fields['Personal Information']['profile_delicious']['#value'] = 
+      theme('profile_delicious', $account);
+  }
     
   // Change fieldset to profile_set  
   foreach($fields['_categories']['#value'] as $key_set => $cat) {

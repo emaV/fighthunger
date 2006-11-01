@@ -418,6 +418,8 @@ function phptemplate_profile_item($element) {
   if ( isset($element['#attributes']['class']) ){
     $element['#attributes']['id'] = $element['#attributes']['class'];
     $element['#attributes']['class'] = 'profile_item';  
+  } else {
+    $element['#attributes']['class'] = 'profile_item';  
   }
 
   $out = '<div' . drupal_attributes($element['#attributes']) . ">\n";

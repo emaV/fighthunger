@@ -1,0 +1,20 @@
+Index: /home/workspace/fh47/modules/user.module
+===================================================================
+--- /home/workspace/fh47/modules/user.module	(revision 115)
++++ /home/workspace/fh47/modules/user.module	(working copy)
+@@ -802,6 +802,7 @@
+       'weight' => 10);
+   }
+   else {
++    /*
+     if (arg(0) == 'user' && is_numeric(arg(1)) && arg(1) > 0) {
+       $account = user_load(array('uid' => arg(1)));
+ 
+@@ -839,6 +840,7 @@
+         }
+       }
+     }
++    */
+   }
+ 
+   return $items;

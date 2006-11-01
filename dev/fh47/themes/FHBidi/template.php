@@ -359,7 +359,7 @@ function phptemplate_fhuser_user_edit($form) {
     $form[$key_set]['button'] = $item_button;
     $form[$key_set]['#attributes'] = array('class' => 'profile_set', 'id' => "$id" );
     $form[$key_set]['#type'] = 'profile_set';
-    $out_header .= "<dt><a href='#$id'>" . $cat['#title'] . "</a></dt>\n";
+    $out_header .= "<dt><a href='#$id'>" . $cat['title'] . "</a></dt>\n";
     $out_header .= "<dd>" . $settings["FH_profile_$id"] . "</dd>\n";     
   }
   $out_header .= "</dl>\n";

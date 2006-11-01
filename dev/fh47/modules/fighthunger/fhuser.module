@@ -16,6 +16,7 @@
  * 
  */
 
+
 /**
  * Implementation of hook_help().
  */
@@ -165,6 +166,9 @@ function fhuser_user_view($uid = 0) {
       }
     }
   }
+  // Disabled profile fields
+  unset($fields['disabled']);
+  
   // Pass on some other values
   $fields['_account'] = array('#type' => 'value', '#value' => $account);
   $fields['_categories'] = array('#type' => 'value', '#value' => $categories);  
@@ -246,7 +250,7 @@ function fhuser_user_edit(){
   $categories = fhuser_user_categories($account);
   
   foreach ($categories as  $category) {
-  	$fieldset = _user_forms($edit, $account, $category['name']);
+  	$fieldset = fhuser_user_forms($edit, $account, $category['name']);
     
     // Go for form_alter for each subform
     $fieldset['_category'] = array('#type' => 'value', '#value' => $category['name']);
@@ -260,6 +264,20 @@ function fhuser_user_edit(){
       $form += $fieldset;
     }
   }
+  
+  // Re-organize location fields: $form['account'][0]['location'];
+
+  $c_personal = 'Personal Information';
+  // Special country field
+  $form[$c_personal][0]['location']['country'] = $form['account'][0]['location']['country'];
+  $form[$c_personal][0]['location']['country']['#required'] = TRUE;
+  $form[$c_personal][0]['location']['#tree'] = TRUE;
+  unset($form['account'][0]['location']['country']);
+  $form[$c_personal][1]['location'] = $form['account'][0]['location'];
+  unset($form['account'][0]);
+  
+  
+  // Complete the form
   $form['_categories'] = array('#type' => 'value', '#value' => $categories);
   $form['_account'] = array('#type' => 'value', '#value' => $account);
   $form['submit'] = array('#type' => 'submit', '#value' => t('Submit'), '#weight' => 30);
@@ -774,23 +792,55 @@ function fhuser_save_location($op, &$edit, &$account) {
   }
 }
 /**
- * Retrieves user categories removing translated and civicrm ones
+ * Retrieves user categories without translated profile ones and civicrm ones
  */
 function fhuser_user_categories($account) {
   $categories = array();
+  $collected = array();
+  
+  foreach (module_list() as $module) {
+    if ($module != 'civicrm' && $data = module_invoke($module, 'user', 'categories', NULL, $account, '')) {
+      $collected = array_merge($data, $collected);
+    }
+  }
 
-  foreach(_user_categories($account) as $category) {
+  usort($collected, '_user_sort');
+
+  foreach($collected as $category) {
     // Translated profile categories will have same name but lower weight..
     if (!isset($categories[$category['name']])) {
     	$categories[$category['name']] = $category;
     }
   }
-  
+  /*
   if($crmprofile =  variable_get('fhuser_crm_profile', '')) {
   	unset($categories[$crmprofile]);
   }
+  */
+  
+  // TO-DO: Remove this when deleted these categories
+  unset($categories['disabled']);
+  
   return $categories;
 }
+
+/**
+ * Retrieve a list of all form elements for the specified category.
+ * 
+ * Do not fetch civicrm forms
+ */
+function fhuser_user_forms(&$edit, $account, $category, $hook = 'form') {
+  $groups = array();
+  foreach (module_list() as $module) {
+    if ($module != 'civicrm' && $data = module_invoke($module, 'user', $hook, $edit, $account, $category)) {
+      $groups = array_merge_recursive($data, $groups);
+    }
+  }
+  uasort($groups, '_user_sort');
+
+  return empty($groups) ? FALSE : $groups;
+}
+
 /**
  * Synchronize: Update Drupal data with CiviCRM data
  */

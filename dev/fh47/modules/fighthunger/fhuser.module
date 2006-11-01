@@ -16,6 +16,9 @@
  * 
  */
 
+// Some configured categories
+define('USER_CATEGORY_PERSONAL', 'Personal Information');
+define('USER_CATEGORY_TEAM', 'Team Up');
 
 /**
  * Implementation of hook_help().
@@ -346,14 +349,16 @@ function fhuser_form_alter($form_id, &$form) {
   if ($form_id == 'user_edit' && ($category = $form['_category']['#value'])) {
     fhuser_form_user_alter($form_id, $form, $category);
   } elseif($form_id == 'user_register') {
-    // Rewrite profile known categories
-    /*
-    foreach(fhuser_user_categories() as $category) {
-    	if (isset($form[$category['name']])) {
-    		$form[$category['name']]['#title'] = $category['title'];
-    	}
+    // Remove disabled fields
+    unset($form['disabled']);
+    // Add location fields if no country field is already there -like for the subform
+    if (!isset($form['country']) && $location = module_invoke('location', 'user', 'form', NULL, NULL, 'account')) {
+        $location = $location[0]['location'];
+        $location['country']['#required'] = TRUE;
+        $form[USER_CATEGORY_PERSONAL][0]['location']= array('#tree' => TRUE, 'country' => $location['country']);
+        unset($location['country']);
+        $form[USER_CATEGORY_PERSONAL][1]['location'] = $location;
     }
-    */
     fhuser_form_user_alter($form_id, $form, NULL);
     //$form['#validate'] = array('fhuser_user_register_validate' => array());
     //$form['#submit'] = array('fhuser_user_register_submit' => array());
@@ -964,7 +969,7 @@ function fhuser_mapping($data, $fieldmap) {
     	//drupal_set_message("DEBUG:fhuser_mapping, field = $name NO MAPPING");
     }
   }
-  drupal_set_message("DEBUG:fhuser_mapping, result=". print_r($result, TRUE));  
+  // drupal_set_message("DEBUG:fhuser_mapping, result=". print_r($result, TRUE));  
   return $result;
 }
 

@@ -86,9 +86,9 @@
  */
 //$db_url = 'mysql://username:password@localhost/databasename';
 $db_url = array(
-  'default' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_www',
+  'default' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/live47_www',
   'gis'     => 'mysql://gis:NzH82tu5@ewhserver358/gis',
-  'civicrm'     => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm');
+  'civicrm'     => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/live47_crm');
 $db_prefix = '';
 
 /**
@@ -110,7 +110,7 @@ $db_prefix = '';
  * It is not allowed to have a trailing slash; Drupal will add it
  * for you.
  */
-$base_url = 'http://dev.fighthunger.org';  // NO trailing slash!
+$base_url = 'http://test.fighthunger.org';  // NO trailing slash!
 
 /**
  * PHP settings:

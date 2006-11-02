@@ -1,0 +1,126 @@
+********************************************************************
+                     D R U P A L    M O D U L E                         
+********************************************************************
+Name: i18n module and translation module
+Author: Jose A. Reyero
+Email: drupal at reyero dot net
+
+********************************************************************
+  This is the development version of i18n module, and works with Drupal 4.7.x
+********************************************************************
+
+********************************************************************
+Updated documentation will be kept on-line at http://drupal.org/node/31631
+********************************************************************
+
+INSTALLATION:
+============
+
+1. Create folder 'modules/i18n', and copy all the modules files, keeping directory structure, to this folder.
+2. If updating, run the update.php script following the standard procedure for Drupal updates.
+
+POST-INSTALLATION/CONFIGURATION:
+============
+- Enable the modules in administration > modules
+	i18n module
+	translation module
+- Configure the modules in 
+	administer > settings > i18n
+	administer > settings > translation
+- Enable multilingual support for each content type you want to translate
+	administer > settings > content types
+    A new field 'language' and a new tab 'translations' will be available when editing these node types
+- There are now two language blocks
+	- A simple language switcher provided by i18n.module
+	- A translation block provided by translation.module
+
+- Set up language for existing nodes, editing them manually.
+- Set up language for existing taxonomy terms
+  Only terms in the node's language or terms without language will show up when editing a node
+
+Language Definition
+===================
+You can use the languages defined -and enabled- in 'locale' module or modify the Drupal configuration file '../settings.php' to define the languages you want to use.  
+  For instance, for English and Spanish:
+    
+   $conf['i18n_languages'] = array("es" => "espa&ntilde;ol", "en" => "english");
+
+* You have to define languages using the native name, also in the locale module. This is the name that will show up in the block.
+** This will override languages defined by locale module
+
+To get more flags
+=================
+Add any flag icons beyond the ones provided by placing them in 'modules/i18n/flags'.  
+You can try this to get new icons:
+  http://www.google.com/search?q=awstats+icon+flags
+
+Language dependent variables
+============================
+  The list of variables to be made language dependent must be defined in the config file:
+
+  I.e.
+  
+    $conf['i18n_variables'] = array(
+        // Site configuration
+        'site_name',
+        'site_slogan',
+        'site_mission',
+        'site_footer',
+        'anonymous',
+        // Node help
+        'blog_help',
+        'story_help',
+        // User configuration
+        'user_registration_help',
+        'user_mail_welcome_subject',
+        'user_mail_welcome_body',
+        'user_mail_approval_subject',
+        'user_mail_approval_body',
+        'user_mail_pass_subject',
+        'user_mail_pass_body',
+        // Theme settings: primary and secondary links, logo, etc..
+		'theme_settings',
+        // These are for PHPtemplate
+    	'phptemplate_primary_links',
+    	'phptemplate_primary_links_more',
+    	'phptemplate_secondary_links',
+    	'phptemplate_secondary_links_more',        
+    );
+    
+  These are only the suggested ones, but you can add as many Drupal variables as you want to the array.
+    
+  You need to redefine these variables for the first time for every language, as previous values are lost and they return to defaults -they will be back if you disable i18n-. 
+    
+Language dependent tables 
+=========================
+  [ADVANCED, NOT REQUIRED, just for some limited backwards compatibility and experimentation]
+  This module can manage language dependent tables, which means you can have different specific tables for each language, and the one for the current language will be selected at run time. 
+  
+  You need to modify $db_prefix and add a new global variable $db_prefix_i18n in .conf file. This is a sample:
+    
+    $db_prefix=array (
+
+        'default' => 'prefix_', // The default prefix
+
+    );
+
+   [IMPORTANT UPDATE: The way to add a new global variable, since Drupal 4.7 is through the $GLOBALS array]
+   
+    $GLOBALS['db_prefix_i18n'] = array (
+        // '**' will be replaced by language code at runtime.
+        'table1'    => 'prefix_**_'  
+        'table2'    => 'prefix_**_',
+    );
+    
+
+Additional Support
+==================
+For support, please create a support request for this module's project: http://drupal.org/project/i18n
+
+If you need professional support, contact me by e-mail: freelance at reyero dot net
+
+
+====================================================================
+Jose A. Reyero, drupal at reyero dot net, http://www.reyero.net
+
+Feedback is welcomed.

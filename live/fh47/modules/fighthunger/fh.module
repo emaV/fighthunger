@@ -1,0 +1,176 @@
+<?php
+// $Id: fh.module $
+
+/**
+ * @file
+ * Fighthunger common API
+ * 
+ * This module provides a basic API for all other fighthunger modules and thems.
+ *  
+ * Developed by Jose A. Reyero,  http://www.reyero.net
+ * for FightHunger.org
+ * Some CiviCRM integration code from civinode module, by Rob Thorne
+ */
+
+
+/**
+ * Implementation of hook_help().
+ */
+function fh_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Fighthunger site common API. Required by all FH modules.');
+  }
+}
+
+/**
+ * Get country list, indexed by ISO code
+ * 
+ * Gets the list of enabled contries from location.module
+ * 
+ * @return
+ *   Array of countries indexed by two-letter ISO code
+ */
+function fh_get_country_list() {
+  return array('' => '--') + location_configured_countries();
+} 
+
+/**
+ * Get country name from two-letter ISO code
+ * 
+ * @param
+ *   $code, two-letter ISO code
+ * @return
+ *   Country name or 'Unknown' if not in the list
+ */
+function fh_get_country_name($code) {
+  $countries = fh_get_country_list();
+  return array_key_exists($code, $countries) ? $countries[$code] : 'Unknown';
+}
+
+/**
+ * Get partner list for a node, used for donations
+ * 
+ * @param
+ *   $nid, node id
+ * @return
+ *   List of partner names indexed by nid
+ */
+function fh_node_get_partners($nid) {
+  $result = db_query("SELECT n.nid, n.title FROM {node} n INNER JOIN {partners_partners} p ON n.nid = p.pid INNER JOIN {partners_node} pn ON pn.nid = n.nid WHERE p.nid=%d  AND pn.active ", $nid);
+  while($partner = db_fetch_object($result)) {
+    $list[$partner->nid] = $partner->title;
+  }
+  return isset($list) ? $list : NULL;
+}
+
+/**
+ * @group civiCRM related functions
+ */
+
+/**
+ * CiviCRM initialization
+ * 
+ * @return
+ *   TRUE if CiviCRM initialized
+ */
+function fh_crm_init(){
+  if (function_exists('civicrm_initialize')) {
+    civicrm_initialize(TRUE);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Get profile groups
+ */
+function fh_crm_get_profiles(){
+  if (!fh_crm_init()) {
+  	return array();
+  } else {
+    $profiles = crm_uf_get_profile_groups();
+    $result = array();
+    foreach($profiles as $name) {
+    	$result[check_plain($name)] = $name;
+    }
+    return $result;
+  }
+}
+
+/**
+ * Get CiviCRM contact related to Drupal account
+ */
+function fh_crm_get_contact($account) {
+  if (!fh_crm_init()) return FALSE;
+  return crm_get_contact(array('email' => $account->mail));
+}
+/**
+ * Update CiviCRM contact related with Drupal user account
+ * 
+ * @param $account
+ *   Drupal user account
+ * @param $data
+ *   Array of field => values to update
+ */
+function fh_crm_update_contact($account, $data) {
+  if (!fh_crm_init()) return FALSE;
+  $contact = crm_get_contact(array('email' => $account->mail));
+  crm_update_contact($contact, $data);
+}
+/**
+ * Get CiviCRM id for a country
+ * 
+ * @param $code
+ *   ISO code for a country
+ * @return
+ *   CiviCRM ID for the country
+ */
+function fh_crm_country_iso2id($code) {
+  if (!fh_crm_init()) return FALSE;
+  db_set_active('civicrm');
+  $id = db_result(db_query("SELECT id  FROM civicrm_country WHERE iso_code = '%s'", strtoupper($code)));
+  db_set_active();
+  return $id;
+}
+/**
+ * Get ISO code for a country
+ * 
+ * @param $code
+ *   CiviCRM ID for a country
+ * @return
+ *   ISO code for a country   
+ */
+function fh_crm_country_id2iso($code) {
+	if (!fh_crm_init()) return FALSE;
+  db_set_active('civicrm');
+  $iso = db_result(db_query('SELECT iso_code FROM civicrm_country WHERE id = %d', $code));
+  db_set_active();  
+  return strtolower($iso);
+}
+/**
+ * Get CiviCRM id for a province/state
+ * 
+ * @param $code
+ *   CiviCRM ID for a country
+ * @return
+ *   ISO code for a country   
+ */
+function fh_crm_state_abbr2id($code) {
+  if (!fh_crm_init()) return FALSE;
+  db_set_active('civicrm');
+  $result = db_result(db_query("SELECT id FROM civicrm_state_province WHERE abbreviation ='%s'", strtolower($code)));
+  db_set_active();  
+  return strtolower($result);
+}
+
+/**
+ * Convert CiviCRM contact into array of data
+ */
+function fh_crm_contact2array($contact) {
+  // Contact object 2 array
+	$contactdata = (array)($contact->contact_type_object);
+  // Address 2 array
+  $addressdata = (array)($contact->location[1]->address);
+  return array_merge($contactdata, $addressdata);
+}

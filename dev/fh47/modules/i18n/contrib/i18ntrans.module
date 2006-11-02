@@ -155,22 +155,14 @@ function _i18ntrans_form_var($i18n_var) {
       break;
     case "string":
       $nrow = floor(strlen($i18n_var['untrans']) / 50);
-      if ($nrow>0) {
-        $form = array(
-          '#type' => 'textarea',
-          '#title' => t('translation'),
-          '#default_value' => $i18n_var['trans'],
-          '#rows' => floor($nrow*1.25),
-          '#required' => FALSE
-        );
-      } else {
-        $form = array(
-          '#type' => 'textfield',
-          '#title' => t('translation'),
-          '#default_value' => $i18n_var['trans'],
-          '#required' => FALSE
-        );
-      }
+      $nrow = ($nrow>2) ? $nrow : 2;
+      $form = array(
+        '#type' => 'textarea',
+        '#title' => t('translation'),
+        '#default_value' => $i18n_var['trans'],
+        '#rows' => $nrow,
+        '#required' => FALSE
+      );
       break;
   }
   return $form; 
@@ -206,21 +198,22 @@ function i18ntrans_page_variables() {
 
 // load i18n variables
   $i18n_variables = $conf['i18n_variables'];
-  
-// load from cache untranslated i18n variables
-  if ($cached = cache_get('variables')) {
-    $cached_vars = unserialize($cached->data);
-  }
-  foreach ($i18n_variables as $variable) {
-    $i18n_vars[$variable]['untrans'] = $cached_vars[$variable];
-  }
+  $i18n_vars = array();
   
 // load from table translated i18n variables
-  $i18n_translation = array();
   $result = db_query("SELECT * FROM {i18n_variable} WHERE language='%s'", $lang);
+  $variables_trans = array();
   while ($variable = db_fetch_object($result)) {
-    $i18n_vars[$variable->name]['trans'] = unserialize($variable->value);
+    $variables_trans[$variable->name] = unserialize($variable->value);
   }
+
+// load from cache untranslated i18n variables
+  $cached = cache_get('variables:en');
+  $variables = unserialize($cached->data);
+  foreach($i18n_variables as $name) {
+    $i18n_vars[$name]['untrans'] = isset($variables[$name]) ? $variables[$name] : (isset($conf[$name]) ? $conf[$name] : '');
+    $i18n_vars[$name]['trans'] = isset($variables_trans[$name]) ? $variables_trans[$name] : '';
+  }  
   
 // created form
   $form['i18n'] = array(
@@ -412,7 +405,7 @@ function i18ntrans_page_nodes() {
         $trnode = $node->translation[$lang_curr];
         $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
       } else {
-        $trans_options = l(t('create translation'), "node/add/$node->type/translation/$node->nid/$lang_curr");
+        $trans_options = l(t('create translation'), "node/add/$node->type", array(), "translation=$node->nid&language=$lang_curr");      
         $trans_options .= ' | ' . l(t('select node'), "node/$node->nid/translation/select/$lang_curr");
       }
       $row = array( $nid, $trans_original, $trans_options);
@@ -424,7 +417,7 @@ function i18ntrans_page_nodes() {
             $trnode = $node->translation[$lang];
             $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
           } else {
-            $trans_options = l(t('create'), "node/add/$node->type/translation/$node->nid/$lang");
+            $trans_options = l(t('create'), "node/add/$node->type", array(), "translation=$node->nid&language=$lang");      
             $trans_options .= ' | ' . l(t('select'), "node/$node->nid/translation/select/$lang");
           }
           $row[] = $trans_options;

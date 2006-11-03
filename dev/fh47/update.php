@@ -17,6 +17,7 @@
 // Enforce access checking?
 $access_check = FALSE;
 
+
 function update_sql($sql) {
   $result = db_query($sql);
   return array('success' => $result !== FALSE, 'query' => check_plain($sql));

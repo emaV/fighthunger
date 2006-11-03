@@ -1,0 +1,20 @@
+-- Change settings for profile fields
+
+-- Rename a pair fields names
+UPDATE profile_fields
+SET name = 'first_name'
+WHERE name = 'profile_firstname';
+
+UPDATE profile_fields
+SET name = 'last_name'
+WHERE name = 'profile_lastname';
+
+-- Rename category
+UPDATE profile_fields
+SET category = 'Team Up'
+WHERE category = 'team_up';
+
+-- Hide some other fields
+UPDATE profile_fields
+SET category = 'disabled', required = 0, register = 0, visibility = 4
+WHERE name IN ('profile_addres', 'profile_country', 'profile_city', 'profile_zipcode', 'profile_state');

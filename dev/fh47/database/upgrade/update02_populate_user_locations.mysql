@@ -1,0 +1,33 @@
+-- Delete existing and create new rows
+DELETE FROM location WHERE type = 'user';
+INSERT INTO location(oid, type) SELECT uid, 'user' FROM users;
+
+-- Address
+UPDATE location 
+INNER JOIN profile_values v ON location.oid = v.uid 
+INNER JOIN profile_fields f ON v.fid = f.fid AND f.name = 'profile_address'
+SET street = v.value
+WHERE location.type = 'user';
+
+-- Update city
+UPDATE location 
+INNER JOIN profile_values v ON location.oid = v.uid 
+INNER JOIN profile_fields f ON v.fid = f.fid AND f.name = 'profile_city'
+SET city = v.value
+WHERE location.type = 'user';
+
+-- Postal code
+UPDATE location 
+INNER JOIN profile_values v ON location.oid = v.uid 
+INNER JOIN profile_fields f ON v.fid = f.fid AND f.name = 'profile_zipcode'
+SET postal_code = v.value
+WHERE location.type = 'user';
+
+-- Update countries
+UPDATE location 
+INNER JOIN profile_values v ON location.oid = v.uid 
+INNER JOIN profile_fields f ON v.fid = f.fid 
+INNER JOIN countries c ON v.value = c.name
+SET country = LOWER(c.ccid)
+WHERE location.type = 'user' AND f.name = 'profile_country';
+

@@ -47,7 +47,7 @@ define( 'CIVICRM_UF_URLVAR'        , 'q'  );
  *      define( 'CIVICRM_UF_DSN', 'mysql://cms_db_username:cms_db_password@db_server/cms_database?new_link=true');
  */
 //define( 'CIVICRM_UF_DSN'           , 'mysql://DBUSER:PASSWORD@HOSTNAME/DATABASE?new_link=true' );
-define( 'CIVICRM_UF_DSN', 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/dev_www?new_link=true' 
+define( 'CIVICRM_UF_DSN', 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47__www?new_link=true' 
 );
 
 /** 
@@ -207,7 +207,7 @@ define( 'CIVICRM_IMAGE_UPLOADURL' , "$http_base/files/crm_files/persist/" );
 // specify minor revision (second dot) - 4.1.2 is NOT a valid value for this setting. 
 define( 'CIVICRM_MYSQL_VERSION', 4.0 );
 //define( 'CIVICRM_DSN'          , 'mysql://DBUSER:PASSWORD@HOSTNAME/DATABASE?new_link=true' );
-define( 'CIVICRM_DSN'       , 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/dev47_crm?new_link=true' );
+define( 'CIVICRM_DSN'       , 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm?new_link=true' );
 define( 'CIVICRM_MYSQL_PATH', '/usr/bin/' );
 
 /**

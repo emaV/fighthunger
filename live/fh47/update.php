@@ -15,7 +15,7 @@
  */
 
 // Enforce access checking?
-$access_check = TRUE;
+$access_check = FALSE;
 
 
 function update_sql($sql) {

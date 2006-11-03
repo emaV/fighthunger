@@ -38,6 +38,7 @@ function i18nmenu_translate_all(){
 }
 
 function i18nmenu_help($section = 'admin/help#i18nmenu' ) {
+	$output = '';
   switch ($section) {
     case 'admin/help#i18nmenu' :
       return t('

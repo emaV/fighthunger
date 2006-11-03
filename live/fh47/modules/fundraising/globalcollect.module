@@ -401,7 +401,7 @@ function globalcollect_create_order($donation){
   $order->CURRENCYCODE = $donation->currency;
   $order->LANGUAGECODE = 'en';
   $order->IPADDRESSCUSTOMER = $_SERVER['REMOTE_ADDR'];
-  $order->COUNTRYCODE = $donation->country;
+  $order->COUNTRYCODE = strtoupper($donation->country);
   // Additional user data
   global $user;
   $order->EMAIL = $user->mail;

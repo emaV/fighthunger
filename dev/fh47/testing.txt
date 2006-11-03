@@ -1,0 +1,24 @@
+total 152
+-rw-r--r--  1 jose jose 24288 2006-08-02 20:13 CHANGELOG.txt
+-rw-r--r--  1 jose jose   786 2005-12-31 15:18 cron.php
+drwxr-xr-x  4 jose jose  4096 2006-10-04 20:00 database
+drwxrwxrwx  4 jose jose  4096 2006-10-12 12:51 files
+drwxr-xr-x  3 jose jose  4096 2006-10-14 20:15 includes
+-rw-r--r--  1 jose jose   790 2006-01-27 19:51 index.php
+-rw-r--r--  1 jose jose  2752 2006-04-17 22:48 INSTALL.mysql.txt
+-rw-r--r--  1 jose jose  1720 2006-01-21 02:42 INSTALL.pgsql.txt
+-rw-r--r--  1 jose jose  8847 2006-06-08 23:25 INSTALL.txt
+-rw-r--r--  1 jose jose 18069 2006-07-27 10:26 LICENSE.txt
+-rw-r--r--  1 jose jose  1789 2006-07-27 10:26 MAINTAINERS.txt
+drwxr-xr-x  3 jose jose  4096 2006-10-03 20:22 misc
+drwxr-xr-x 15 jose jose  4096 2006-10-31 16:46 modules
+drwxr-xr-x  2 jose jose  4096 2006-11-01 10:47 mydocs
+lrwxrwxrwx  1 jose jose     1 2006-11-03 17:37 oldsite -> .
+drwxr-xr-x  3 jose jose  4096 2006-11-01 10:47 patches
+drwxr-xr-x  3 jose jose  4096 2006-10-03 20:22 scripts
+drwxr-xr-x  6 jose jose  4096 2006-11-03 17:40 sites
+-rw-r--r--  1 jose jose     0 2006-11-03 19:58 testing.txt
+drwxr-xr-x  8 jose jose  4096 2006-10-09 14:50 themes
+-rw-r--r--  1 jose jose 26887 2006-11-03 19:54 update.php
+-rw-r--r--  1 jose jose   518 2005-12-10 20:26 UPGRADE.txt
+-rw-r--r--  1 jose jose   352 2005-12-10 20:26 xmlrpc.php

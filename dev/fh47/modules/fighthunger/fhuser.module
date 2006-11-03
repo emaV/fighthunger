@@ -87,11 +87,6 @@ function fhuser_menu($may_cache) {
 
   if($may_cache) {
   	// Your personal page
-    if ($user->uid) {
-      $items[] = array('path' => 'fhuser/'. $user->uid, 'title' => t('my account'),
-        'callback' => 'fhuser_user_view', 'callback arguments' => array(arg(1)), 'access' => TRUE,
-        'type' => MENU_DYNAMIC_ITEM);
-    }
   } else {
     // Re-define all user menu items
     if (arg(0) == 'user' && is_numeric(arg(1)) && arg(1) > 0) {

@@ -223,7 +223,7 @@ function donation_perm() {
  */
 function donation_settings() {
   $form['donation_presentation'] = array('#type' => 'textarea', '#title' => t('Presentation'), '#default_value' => variable_get('donation_presentation', ''), '#rows' => 10, '#description' => t('Presentation text for plain donations. This may contain HTML markup.'));
-  $form['donation_presentation_teaser'] = array('#type' => 'textarea', '#title' => t('Short resentation'), '#default_value' => variable_get('donation_presentation_teaser', ''), '#rows' => 10, '#description' => t('Short presentation text for user forms. This may contain HTML markup.'));
+  $form['donation_presentation_teaser'] = array('#type' => 'textarea', '#title' => t('Short Presentation'), '#default_value' => variable_get('donation_presentation_teaser', ''), '#rows' => 10, '#description' => t('Short presentation text for user forms. This may contain HTML markup.'));
   $form['donation_user_message'] = array('#type' => 'textfield', '#title' => t('User message'), '#default_value' => variable_get('donation_user_message', t('Make a donation')), '#description' => t('Donation message for user profile page.'));
   return $form;
 }

@@ -123,7 +123,7 @@ define( 'CIVICRM_UF_USERSTABLENAME', 'users' );
  */
 global $civicrm_root;
 $site_root = '/var/www/vhosts_balanced/live.fighthunger.org';
-$civicrm_root = '$site_root/modules/civicrm/';
+$civicrm_root = "$site_root/modules/civicrm/";
 define( 'CIVICRM_TEMPLATE_COMPILEDIR'  , "$site_root/files/crm_files/templates_c/" );
 define( 'CIVICRM_UPLOADDIR'            , "$site_root/files/crm_files/upload/" );
 define( 'CIVICRM_IMAGE_UPLOADDIR'      , "$site_root/files/crm_files/persist/" );
@@ -168,7 +168,7 @@ define( 'CIVICRM_CUSTOM_FILE_UPLOADDIR', "$site_root/files/crm_files/custom_file
  *      define( 'CIVICRM_IMAGE_UPLOADURL'    , 'http://www.example.com/joomla/media/civicrm/persist/' );
  *
  */
-$http_base='http://dev.fighthunger.org';
+$http_base='http://test.fighthunger.org';
 define( 'CIVICRM_UF_BASEURL'      , "$http_base/" );
 define( 'CIVICRM_UF_RESOURCEURL'  , "$http_base/modules/civicrm/" );
 define( 'CIVICRM_IMAGE_UPLOADURL' , "$http_base/files/crm_files/persist/" );
@@ -205,7 +205,7 @@ define( 'CIVICRM_IMAGE_UPLOADURL' , "$http_base/files/crm_files/persist/" );
  */
 // Enter closest dot release to your installed version. 4.0, 4.1, 5.0 are all valid examples. Do NOT
 // specify minor revision (second dot) - 4.1.2 is NOT a valid value for this setting. 
-define( 'CIVICRM_MYSQL_VERSION', 4.0 );
+define( 'CIVICRM_MYSQL_VERSION', 5.0 );
 //define( 'CIVICRM_DSN'          , 'mysql://DBUSER:PASSWORD@HOSTNAME/DATABASE?new_link=true' );
 define( 'CIVICRM_DSN'       , 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm?new_link=true' );
 define( 'CIVICRM_MYSQL_PATH', '/usr/bin/' );

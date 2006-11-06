@@ -122,7 +122,7 @@ define( 'CIVICRM_UF_USERSTABLENAME', 'users' );
  *      define( 'CIVICRM_CUSTOM_FILE_UPLOADDIR', '/var/crm_docs/' );
  */
 global $civicrm_root;
-$site_root = '/var/www/vhosts_balanced/live.fighthunger.org';
+$site_root = '/var/www/vhosts_balanced/live47.fighthunger.org';
 $civicrm_root = "$site_root/modules/civicrm/";
 define( 'CIVICRM_TEMPLATE_COMPILEDIR'  , "$site_root/files/crm_files/templates_c/" );
 define( 'CIVICRM_UPLOADDIR'            , "$site_root/files/crm_files/upload/" );

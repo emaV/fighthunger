@@ -86,9 +86,9 @@
  */
 //$db_url = 'mysql://username:password@localhost/databasename';
 $db_url = array(
-  'default' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_www',
+  'default' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/dev47_www',
   'gis'     => 'mysql://gis:NzH82tu5@ewhserver358/gis',
-  'civicrm'     => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm');
+  'civicrm' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/dev47_crm');
 $db_prefix = '';
 
 /**

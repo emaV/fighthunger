@@ -168,7 +168,7 @@ define( 'CIVICRM_CUSTOM_FILE_UPLOADDIR', "$site_root/files/crm_files/custom_file
  *      define( 'CIVICRM_IMAGE_UPLOADURL'    , 'http://www.example.com/joomla/media/civicrm/persist/' );
  *
  */
-$http_base='http://test.fighthunger.org';
+$http_base='http://www.fighthunger.org';
 define( 'CIVICRM_UF_BASEURL'      , "$http_base/" );
 define( 'CIVICRM_UF_RESOURCEURL'  , "$http_base/modules/civicrm/" );
 define( 'CIVICRM_IMAGE_UPLOADURL' , "$http_base/files/crm_files/persist/" );

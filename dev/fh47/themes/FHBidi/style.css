@@ -601,7 +601,11 @@ td input.form-text {
 
 .block {
 	border:0px;
-	
+}
+
+.block-aggregator .item-list ul li {
+  margin: 1em 0 0 0;
+  font-size: 0.8em;
 }
 
 #gathering-info {

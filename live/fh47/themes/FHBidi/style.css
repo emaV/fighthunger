@@ -658,3 +658,12 @@ border:0px;
   display: inline;
   margin-left: 10px;
 }
+
+ul.block_menu li:before {
+   content: "\0020 \0020 \0020 \00BB \0020";
+   color: #ff6600;
+}
+ul.block_menu li {
+   margin-top: 0.2em;
+   list-style: none;
+}

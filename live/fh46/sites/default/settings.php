@@ -90,7 +90,7 @@ $db_prefix = '';
  * The URL of your website's main page. It is not allowed to have
  * a trailing slash; Drupal will add it for you.
  */
-$base_url = 'http://www.fighthunger.org';
+$base_url = 'http://test.fighthunger.org';
 
 /**
  * PHP settings:

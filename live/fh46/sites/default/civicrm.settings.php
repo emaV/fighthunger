@@ -98,7 +98,7 @@ define( 'CIVICRM_UPLOADDIR'          , '/var/www/vhosts_balanced/fighthunger.org
  * have clean url's turned on, make sure CIVICRM_MAINMENU is valid for your install. 
  * e.g. define( 'CIVICRM_MAINMENU'    , '/civicspace?q=civicrm' ) 
  */
-define( 'CIVICRM_UF_BASEURL'  , 'http://www.fighthunger.org/' );
+define( 'CIVICRM_UF_BASEURL'  , 'http://test.fighthunger.org/' );
 define( 'CIVICRM_HTTPBASE'    , '/'                     );
 define( 'CIVICRM_RESOURCEBASE', '/modules/civicrm/'     );
 define( 'CIVICRM_MAINMENU'    , '/civicrm'              );

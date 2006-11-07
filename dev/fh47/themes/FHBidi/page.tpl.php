@@ -27,6 +27,15 @@
 
 <!-- header start -->
 <div id="header"> 
+
+<!-- header_blocks start -->
+<?php if ($header): ?>
+  <div id="header_blocks"> 
+<?php print $header; ?>
+  </div> 
+<?php endif; ?>
+<!-- header_blocks end -->
+
   <!-- <a href="."><h1>FightHunger.org: Working to END CHILD HUNGER by 2015</h1></a> -->
 
   <?php if ($search_box): ?>

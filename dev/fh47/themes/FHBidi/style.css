@@ -639,3 +639,22 @@ padding:.75em;
 #sidebar-right .block {
 border:0px;
 }
+
+.block-i18n h2 {
+  visibility: hidden;
+  height: 0;
+}
+.block-i18n li {
+  display: inline;
+  margin: 2px;
+  padding: 2px;
+  font-size: 0.8em;
+}
+.block-i18n li .active {
+  font-weight: bold;
+}
+
+.block-i18n ul {
+  display: inline;
+  margin-left: 10px;
+}

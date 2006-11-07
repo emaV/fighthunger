@@ -35,7 +35,7 @@ function i18ntrans_help($section = 'admin/help#i18ntrans' ) {
  */
  // todo: set the permission
 function i18ntrans_perm() {
-  return array('i18n vars');
+  return array('manage translations');
 }
 
 /**
@@ -43,12 +43,7 @@ function i18ntrans_perm() {
  */
 function i18ntrans_access($op, $node) {
   global $user;
-/*
-  if ($op == 'update') {
-    return user_access('i18n vars');
-  }
-*/
-  return true;
+  return user_access('manage translations');
 }
 
 /**
@@ -56,13 +51,14 @@ function i18ntrans_access($op, $node) {
  */
 function i18ntrans_menu($may_cache) {
   $items = array();
+  $access = user_access('manage translations');
 
   if ($may_cache) {
     $items[] = array('path' => 'admin/i18ntrans', 
       'title' => t('translation'),
       'callback' => 'i18ntrans_page_variables',
       'type' => MENU_NORMAL_ITEM,
-      'access' => true);
+      'access' => $access);
     $items[] = array('path' => 'admin/i18ntrans/variables', 
       'title' => t('variables') . ' (i18n)',
       'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
@@ -71,7 +67,7 @@ function i18ntrans_menu($may_cache) {
       'callback' => 'i18ntrans_page_settings',
       'type' => MENU_LOCAL_TASK,
       'weight' => 2,
-      'access' => true);      
+      'access' => $access);      
     $items[] = array('path' => 'admin/i18ntrans/strings', 
       'title' => t('strings') . ' (l10n)',
       'callback' => 'i18ntrans_page_strings',
@@ -83,19 +79,19 @@ function i18ntrans_menu($may_cache) {
       'callback' => 'i18ntrans_page_nodes',
       'type' => MENU_LOCAL_TASK,
       'weight' => 3,
-      'access' => true);
+      'access' => $access);
     $items[] = array('path' => 'admin/i18ntrans/profile', 
       'title' => t('profile') . ' (i18n)',
       'callback' => 'i18ntrans_page_profile',
       'type' => MENU_LOCAL_TASK,
       'weight' => 4,
-      'access' => true);
+      'access' => $access);
     $items[] = array('path' => 'admin/i18ntrans/menu', 
       'title' => t('menu') . ' (l10n)',
       'callback' => 'i18ntrans_page_menu',
       'type' => MENU_LOCAL_TASK,
       'weight' => 5,
-      'access' => true);
+      'access' => $access);
   }
   return $items;
 }

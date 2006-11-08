@@ -1,0 +1,756 @@
+<?php
+// $Id: shipping.module,v 1.43.2.3 2006/10/02 00:33:21 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_help()
+ */
+function shipping_help($section = 'admin/help#shipping') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Enable a shipping module API for ecommerce. You must also install and enable at least one shipping module to use the API.');
+  }
+}
+
+/**
+ * Callback for shipping settings.
+ */
+function shipping_settings() {
+  $output = store_email_form('shipping', 'shipping_notification', t("Shipping email"), t("This text will be emailed to customers after their order has been shipped."));
+  return $output;
+}
+
+function shipping_admin() {
+  $output = shipping_shipfrom_table();
+  $output .= shipping_shipfrom_edit_form();
+  return $output;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function shipping_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'admin/store/settings/shipping',
+      'title' => t('shipping'),
+      'callback' => 'shipping_admin',
+      'access' => user_access('administer store')
+    );
+    $items[] = array(
+      'path' => 'admin/store/transaction/shipping', 
+      'title' => t('shipping'),
+      'callback' => 'shipping_shipping_notification', 
+      'access' => user_access('administer store'),
+      'type' => MENU_CALLBACK
+    );
+  }
+  return $items;
+}
+
+/**
+ * Form for email settings.
+ */
+function shipping_email_settings_form() {
+  $form["shipping_subject"] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject of shipping e-mail'),
+    '#default_value' => variable_get("shipping_subject", t("Your %site order has shipped (#%txnid)")),
+    '#size' => 70,
+    '#maxlength' => 180
+  );
+  $form["shipping_new"] = array(
+    '#type' => 'textarea',
+    '#title' => t("Shipping email"),
+    '#default_value' => variable_get("shipping_new", shipping_help("Shipping email")),
+    '#cols' => 70,
+    '#rows' => 10,
+    '#description' => t("This text will be emailed to customers after their order has been shipped.")
+  );
+
+  return system_settings_form('shipping_email_settings', $form);
+}
+
+/**
+ * Implementation of hook_form_alter()
+ */
+function shipping_form_alter($form_id, &$form) {
+  // On each product type's settings page, e.g., admin/settings/content-types/product/tangible,
+  // offer shipping methods for the type.
+  if (($form_id == 'product_type_settings') && product_is_shippable(NULL, $form['#ptype'])) {
+    $ptype = $form['#ptype'];
+    $form[$ptype . '_shipping_methods'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Shipping methods'),
+      '#description' => t('Select the shipping methods you wish to make available for this product type.'),
+      '#weight' => -10,
+      '#tree' => TRUE
+    );
+    $methods = shipping_get_methods();
+    $settings = variable_get($ptype . '_shipping_methods', array());
+    foreach ($methods as $service => $method) {
+      $options = array();
+      foreach (element_children($method) as $key) {
+        $options[$key] = $method[$key]['#title'];
+      }
+      // Read title from method.
+      $form[$ptype . '_shipping_methods'][$service] = array(
+        '#title' => $methods[$service]['#title'],
+        '#type' => 'checkboxes',
+        '#default_value' => $settings[$service] ? array_filter($settings[$service]) : array(),
+        '#options' => $options
+      );
+      // Read in the optional method description.
+      if ($methods[$service]['#description']) {
+        $form[$ptype . 'shipping_methods'][$service]['#description'] = $methods[$service]['#description'];
+      };
+    }
+  }
+  // On the product add/edit form, add shipping method selection.
+  else if (isset($form['product']) && isset($form['product']['ptype'])) {
+    $ptype = $form['product']['ptype']['#value'];
+    $methods = shipping_get_methods(NULL, $ptype);
+    if (count($methods)) {
+      $form['shipping_data'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Shipping methods'),
+        '#description' => t('Select the shipping methods you wish to make available for this product.'),
+        '#collapsible' => TRUE
+      );
+      $form['shipping_data']['shipping_methods'] = array(
+        '#tree' => TRUE
+      );
+      foreach ($methods as $service => $method) {
+        $options = array();
+        foreach (element_children($method) as $key) {
+          $options[$key] = $method[$key]['#title'];
+        }
+        // Read title from method.
+        // The value of the checkboxes comes from the shipping_methods array set at nodeapi load.
+        $form['shipping_data']['shipping_methods'][$service] = array(
+          '#title' => $methods[$service]['#title'],
+          '#type' => 'checkboxes',
+          '#default_value' => !empty($form['#node']->shipping_methods[$service]) ? $form['#node']->shipping_methods[$service] : array_keys($options),
+          '#options' => $options
+        );
+        // Read in the optional method description.
+        if ($methods[$service]['#description']) {
+          $form['shipping_data']['shipping_methods'][$service]['#description'] = $methods[$service]['#description'];
+        };
+      }
+      // Allow shipping modules to add elements for collecting product attribute data.
+      // We need to call a hook rather than relying on form_alter because
+      // other modules need to add to the shipping_methods fieldset, which won't be available
+      // until shipping.module has been called.
+      $form['shipping_data']['product_attributes'] = module_invoke_all('shipping_product_attributes', $form, $methods);
+      $form['shipping_data']['product_attributes']['#tree'] = TRUE;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ *
+ * On load, we add an array of shipping_methods to the node object.
+ */
+function shipping_nodeapi(&$node, $op, $teaser) {
+  // Only act on products.
+  if (!isset($node->ptype)) {
+    return;
+  }
+
+  switch ($op) {
+
+    case 'load':
+      // Load service and method data.
+      $result = db_query("SELECT service, method FROM {ec_shipping_product} WHERE vid = %d", $node->vid);
+      if (db_num_rows($result)) {
+        $node->shipping_methods = array();
+        while ($method = db_fetch_object($result)) {
+          $node->shipping_methods[$method->service][] = $method->method;
+        }
+      }
+
+      // Load product attribute data.
+      $result = db_query("SELECT field, value FROM {ec_shipping_product_attribute} WHERE vid = %d", $node->vid);
+      if (db_num_rows($result)) {
+        $node->product_attributes = array();
+        while ($attribute = db_fetch_object($result)) {
+          $node->product_attributes[$attribute->field] = $attribute->value;
+        }
+      }
+      break;
+    case 'update':
+      // Delete service and method data.
+      if ($node->shipping_methods && !$node->revision) {
+        db_query('DELETE FROM {ec_shipping_product} WHERE vid = %d', $node->vid);
+      }
+      // Delete product attribute data.
+      db_query("DELETE FROM {ec_shipping_product_attribute} WHERE vid = %d", $node->vid);
+      // Fall through.
+    case 'insert':
+      // Insert service and method data.
+      if (is_array($node->shipping_methods)) {
+        foreach ($node->shipping_methods as $service => $methods) {
+          foreach ($methods as $method) {
+            if ($method) {
+              db_query("INSERT INTO {ec_shipping_product} (vid, nid, service, method) VALUES (%d, %d, '%s', '%s')", $node->vid, $node->nid, $service, $method);
+            }
+          }
+        }
+      }
+      // Insert product attribute data.
+      if (is_array($node->product_attributes)) {
+        foreach ($node->product_attributes as $field => $value) {
+          db_query("INSERT INTO {ec_shipping_product_attribute} (vid, nid, field, value) VALUES (%d, %d, '%s', '%s')", $node->vid, $node->nid, $field, $value);
+        }
+      }
+      break;
+
+    case 'delete':
+      db_query('DELETE FROM {ec_shipping_product} WHERE nid = %d', $node->nid);
+      db_query("DELETE FROM {ec_shipping_product_attribute} WHERE nid = %d", $node->nid);
+      break;
+
+    case 'delete revision':
+      db_query('DELETE FROM {ec_shipping_product} WHERE vid = %d', $node->vid);
+      db_query("DELETE FROM {ec_shipping_product_attribute} WHERE vid = %d", $node->vid);
+      break;
+  }
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+
+/**
+ * Return shipping methods.
+ */
+function shipping_get_methods($module = NULL, $ptype = NULL) {
+  // If a module is set, we want only its methods. Otherwise, we want all.
+  $methods = $module ? module_invoke($module, 'shipping_methods') : module_invoke_all('shipping_methods');
+  // If a ptype is set, we want only its registered methods.
+  if ($ptype) {
+    // Load the product type settings.
+    $ptype_methods = variable_get($ptype . '_shipping_methods', array());
+    // We filter the values because checkboxes saves unneeded zeros.
+    foreach ($ptype_methods as $service => $method) {
+      $ptype_methods[$service] = array_filter($method);
+    }
+    // Filter to unset any methods not applicable for this product type.
+    $methods = shipping_methods_filter($methods, $ptype_methods);
+  }
+  return $methods;
+}
+
+/**
+ * Filter a set of shipping methods.
+ *
+ * Arrays of methods are generally in one of two different formats.
+ * The first is that returned by the _shipping_methods hook, e.g,
+ * 
+ * <code>
+ * $methods['ups'] = array(
+ *    '#title' => t('UPS'),
+ *    '#description' => t('United Parcel Service of America, Inc.')
+ *  );
+ *  $methods['ups']['1DM'] = array(
+ *    '#title' => t('Next Day Air Early AM'),
+ *  );
+ * </code>
+ *
+ * The second is that used to pass product type and product shipping
+ * options, e.g.,
+ *
+ * <code>
+ * array('ups' => array('1DM', '1DA'));
+ * </code>
+ *
+ * This function is used to filter method arrays of the first type (the
+ * first argument), returning only items with corresponding values in the
+ * method of the second type (the second argument).
+ */
+function shipping_methods_filter($methods, $used_methods) {
+
+  foreach ($methods as $service => $method) {
+    // First filter out base methods, e.g, 'ups'.
+    if (!in_array($service, array_keys($used_methods))) {
+      unset($methods[$service]);
+    }
+    // For applicable methods, filter out any sub-methods not used, e.g., for 'ups', 'firstday'.
+    else {
+      foreach (element_children($method) as $key) {
+        if (!in_array($key, $used_methods[$service])) {
+          unset($methods[$service][$key]);
+        }
+      }
+    }
+  }
+
+  return $methods;
+}
+
+/**
+ * Use checkoutapi to calculate shipping costs.
+ */
+function shipping_checkoutapi(&$txn, $op, $arg3 = NULL, $arg4 = NULL) {
+  // cart_get_items() doesn't do a full node load, so we don't have
+  // access to shipping data and therefore need to manually add
+  // shipping methods data here.
+  if (isset($txn->items)) {
+    foreach (array_keys($txn->items) as $nid) {
+      shipping_nodeapi($txn->items[$nid], 'load', NULL);
+    }
+  }
+  switch ($op) {
+    case 'form':
+      if ($txn == 'shipping') {
+        return TRUE;
+      }
+      return shipping_checkout_form($txn);
+    case 'validate':
+      if (!$txn->shipping_method) {
+        form_set_error('', t('Please select a shipping method.'));
+      }
+      break;
+    case 'save':
+      $method = split('__', $txn->shipping_method);
+      $txn->ship = array(
+        'service' => $method[0],
+        'method' => $method[1],
+        'cost' => $method[2],
+        'currency' => $method[3]
+      );
+      $txn->screen++;
+      break;
+    case 'review':
+      if ($txn == 'shipping') {
+        return TRUE;
+      }
+      if (($key = store_search_misc(array('type' => 'shipping'), $txn)) !== FALSE) {
+        $txn->misc[$key]->price = $txn->ship['cost'];
+      }
+      else {
+         $misc = array(
+           'type' => 'shipping',
+           'description' => t('Shipping'),
+           'price' => $txn->ship['cost'],
+           'weight' => 9
+         );
+         $txn->misc[] = (object)$misc;
+      }
+      break;
+  }
+}
+
+/**
+ * Build the shipping checkout form, which lists all available shipping options.
+ *
+ * @param $txn
+ *  The current transaction.
+ */
+function shipping_checkout_form(&$txn) {
+  if (!is_array($txn->items)) {
+    // No items are defined, we shouldn't be here, just return.
+    return;
+  }
+  else {
+    $shippable = FALSE;
+    foreach ($txn->items as $item) {
+      if (is_array($item->shipping_methods)) {
+        $shippable = TRUE;
+      }
+    }
+    if (!$shippable) {
+      // No shippable items are defined, just return.
+      return;
+    }
+  }
+
+  drupal_set_title(t('Choose shipping method'));
+
+  $form = array();
+  $options = array();
+
+  $rates = module_invoke_all('shipping_checkout_rates', $txn);
+
+  if (sizeof($rates) == 1) {
+    // Only one shipping method, auto select
+    $rate = array_pop($rates);
+    $txn->shipping_method = $rate['#service'] .'__'. $rate['#key'] .'__'. $rate['#cost'] .'__'. $rate['#currency'];
+    shipping_checkoutapi($txn, 'save');
+    return;
+  }
+
+  foreach ($rates as $rate) {
+    $options[$rate['#service'] .'__'. $rate['#key'] .'__'. $rate['#cost'] .'__'. $rate['#currency']] = t('%price %currency - %method', array('%price' => $rate['#cost'], '%currency' => $rate['#currency'], '%method' => $rate['#method']));
+  }
+  $form['shipping_method'] = array(
+    '#type' => 'radios',
+    '#options' => $options
+  );
+
+  $form[] = array(
+    '#type' => 'submit',
+    '#default_value' => t('Continue')
+  );
+
+  return $form;
+}
+
+/**
+ * Implementation of hook_ec_transactionapi().
+ */
+function shipping_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'load':
+      $txn->ship = db_fetch_object(db_query('SELECT service, method, cost FROM {ec_shipping_transaction} WHERE txnid = %d', $txn->txnid));
+      break;
+    case 'update':
+    case 'insert':
+      if (is_array($txn->ship) && is_numeric($txn->txnid)) {
+        db_query("UPDATE {ec_shipping_transaction} SET service = '%s', method = '%s', cost = '%s' WHERE txnid = %d", $txn->ship['service'], $txn->ship['method'], $txn->ship['cost'], $txn->txnid);
+        if (!db_affected_rows()) {
+          db_query("INSERT INTO {ec_shipping_transaction} (txnid, service, method, cost) VALUES (%d, '%s', '%s', '%s')", $txn->txnid, $txn->ship['service'], $txn->ship['method'], $txn->ship['cost']);
+        }
+      }
+      break;
+    case 'delete':
+      db_query('DELETE FROM {ec_shipping_transaction} WHERE txnid = %d', $txn->txnid);
+      break;
+  }
+}
+
+
+/**
+ * Build a table listing all configured fulfillment centers.
+ */
+function shipping_shipfrom_table() {
+  $form['header'] = array('#type' => 'value', '#value' => array(
+    array('data' => t('Name'), 'field' => 'title', 'sort' => 'asc'),
+    array('data' => t('Code'), 'field' => 'code'),
+    array('data' => t('City'), 'field' => 'city'),
+    array('data' => t('Region'), 'field' => 'region'),
+    array('data' => t('Country'), 'field' => 'country'),
+    array('data' => t('Default'), 'field' => 'status'),
+    array('data' => t('Operations'), 'colspan' => 2))
+  );
+
+  $sql = 'SELECT * FROM {ec_shipping_shipfrom}';
+  $sql .= tablesort_sql($form['header']['#value']);
+  $result = pager_query($sql, 25);
+  $i = 0;
+  while ($address = db_fetch_object($result)) {
+    $form['title'][$i] = array('#value' => htmlspecialchars($address->title));
+    $form['code'][$i] = array('#value' => $address->code);
+    $form['city'][$i] = array('#value' => $address->city);
+    $form['region'][$i] = array('#value' => $address->region);
+    $form['country'][$i] = array('#value' => $address->country);
+    $form['status'][$i] = array('#value' => ($address->status ? t('default') : ''));
+    $form['operations'][$i] = array('#value' => l(t('edit'), "admin/store/settings/shipping/$address->sid/edit") . '&nbsp;' . l(t('delete'), "admin/store/settings/shipping/$address->sid/delete"));
+    $i++;
+  }
+
+  return drupal_get_form('shipping_shipfrom_table', $form);
+}
+ 
+/**
+ * Theme the table of fulfillment centers.
+ */
+function theme_shipping_shipfrom_table($form) {
+  if (isset($form['title']) && is_array($form['title'])) {
+    foreach (element_children($form['title']) as $key) {
+      $row = array();
+      $row[] = form_render($form['title'][$key]);
+      $row[] = form_render($form['code'][$key]);
+      $row[] = form_render($form['city'][$key]);
+      $row[] = form_render($form['region'][$key]);
+      $row[] = form_render($form['country'][$key]);
+      $row[] = form_render($form['status'][$key]);
+      $row[] = form_render($form['operations'][$key]);
+      $rows[] = $row;
+    }
+  }
+  else {
+    $rows[] = array(array('data' => t('There are no fulfillment centers configured.'), 'colspan' => '99'));
+  }
+
+  $table = theme('table', $form['header']['#value'], $rows);
+  if ($form['pager']['#value']) {
+    $table .= form_render($form['pager']);
+  }
+
+  $output = theme('fieldset', array(
+    '#title' => t('Fulfillment centers'),
+    '#prefix' => '<div class="container-inline">',
+    '#suffix' => '</div>',
+    '#children' => $table));
+  $output .= form_render($form);
+
+  return $output;
+}
+
+/**
+ * Display a form to add/edit fulfillment centers.
+ */
+function shipping_shipfrom_edit_form() {
+  global $form_values;
+
+  if (arg(5) == 'edit' && is_numeric(arg(4))) {
+    $edit = _shipping_shipfrom_load(arg(4));
+  }
+  else if (arg(5) == 'delete' && is_numeric(arg(4))) {
+    $edit = _shipping_shipfrom_load(arg(4));
+    return confirm_form('shipping_shipfrom_delete', array(), t('Confirm deletion of fulfillment center <em>%shipfrom</em>', array('%shipfrom' => $edit['title'])), 'admin/store/settings/shipping', t('Click the <em>Delete</em> button to permanently delete the <em>%shipfrom</em> fulfillment center. This action cannot be undone.', array('%shipfrom' => $edit['title'])), t('Delete'), t('Cancel'));
+  }
+
+  $form['shipfrom'] = array(
+    '#type' => 'fieldset',
+    '#title' => ($edit['sid'] ? t('Edit fulfillment center') : t('Add fulfillment center'))
+  );
+
+  if (isset($edit['sid'])) {
+    $form['shipfrom']['sid'] = array(
+      '#type' => 'hidden',
+      '#value' => $edit['sid']
+    );
+  }
+
+  $form['shipfrom']['status'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Default'),
+    '#default_value' => $edit['status'],
+    '#description' => t('Check this box if this is the default fulfillment center.  (<em>Currently all shipments are sent from the default fulfillment center.</em>)')
+  );
+
+  $form['shipfrom']['title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#size' => 80,
+    '#maxlength' => 255,
+    '#required' => TRUE,
+    '#default_value' => $edit['title'],
+    '#description' => t('The name of the fulfillment center.')
+  );
+  $form['shipfrom']['city'] = array(
+    '#type' => 'textfield',
+    '#title' => t('City'),
+    '#size' => 80,
+    '#maxlength' => 255,
+    '#required' => TRUE,
+    '#default_value' => $edit['city'],
+    '#description' => t('The city that the fulfillment center is located in.')
+  );
+  $form['shipfrom']['region'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Region (State/Province)'),
+    '#size' => 80,
+    '#maxlength' => 255,
+    '#required' => TRUE,
+    '#default_value' => $edit['region'],
+    '#description' => t('The region (state/province) that the fulfillment center is located in.')
+  );
+  $form['shipfrom']['code'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Zip/Postal code'),
+    '#size' => 20,
+    '#maxlength' => 255,
+    '#default_value' => $edit['code'],
+    '#description' => t('The fulfillment center zipcode or postal code.')
+  );
+  $form['shipfrom']['country'] = array(
+    '#type' => 'select',
+    '#title' => t('Country'),
+    '#default_value' => variable_get('ec_country', ''),
+    '#options' => store_build_countries(),
+    '#default_value' => $edit['country'],
+    '#description' => t('The country that the fulfillment center is located in.')
+  );
+
+  $form['shipfrom']['actions'] = array(
+    '#prefix' => '<div class="container-inline">',
+    '#suffice' => '</div>'
+  );
+  $form['shipfrom']['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => ($edit['sid'] ? t('Edit fulfillment center') : t('Add fulfillment center'))
+  );
+  if ($edit['sid']) {
+    $form['shipfrom']['actions']['cancel'] = array(
+      '#value' => l(t('Cancel'), 'admin/store/settings/shipping')
+    );
+  }
+
+  return drupal_get_form('shipping_shipfrom_edit_form', $form);
+}
+
+/**
+ * Save fulfillment centers when added or edited.
+ */
+function shipping_shipfrom_edit_form_submit() {
+  global $form_values;
+
+  $default = db_result(db_query('SELECT sid FROM {ec_shipping_shipfrom} WHERE status = 1'));
+  if (!$default) {
+    $form_values['status'] = 1;
+  }
+  // There can only be one default -- this will need to be updated when
+  // 'status' is expanded to provide more than just 'default'.
+  elseif ((int)$form_values['status'] > 0) {
+    db_query('UPDATE {ec_shipping_shipfrom} SET status = 0');
+  }
+
+  if (isset($form_values['sid'])) {
+    db_query("UPDATE {ec_shipping_shipfrom} SET title = '%s', code = '%s', city = '%s', region = '%s', country = '%s', status = %d WHERE sid = %d", $form_values['title'], $form_values['code'], $form_values['city'], $form_values['region'], $form_values['country'], $form_values['status'], $form_values['sid']);
+    drupal_set_message(t('Fulfillment center updated.'));
+  }
+  else {
+    db_query("INSERT INTO {ec_shipping_shipfrom} (title, code, city, region, country, status) VALUES('%s', '%s', '%s', '%s', '%s', %d)", $form_values['title'], $form_values['code'], $form_values['city'], $form_values['region'], $form_values['country'], $form_values['status']);
+    drupal_set_message(t('Fulfillment center added.'));
+  }
+
+  drupal_goto('admin/store/settings/shipping');
+}
+
+/**
+ * Delete the selected shipfrom address.  If it was a default address, set a
+ * new default.
+ *
+ * @param $form
+ */
+function shipping_shipfrom_delete_submit($form) {
+  if (arg(5) == 'delete' && is_numeric(arg(4))) {
+    $default = db_result(db_query('SELECT sid FROM {ec_shipping_shipfrom} WHERE status = 1'));
+    db_query('DELETE FROM {ec_shipping_shipfrom} WHERE sid = %d', arg(4));
+    if ($default == arg(4)) {
+      // We just deleted the default, auto-set a new default
+      $new = db_result(db_query_range('SELECT sid FROM {ec_shipping_shipfrom} ORDER BY title', 0, 1));
+      if ($new) {
+        db_query('UPDATE {ec_shipping_shipfrom} SET status = 1 WHERE sid = %d', $new);
+      }
+    }
+  }
+  drupal_goto('admin/store/settings/shipping');
+}
+
+/**
+ * Return the default shipfrom address, useful to shipping partner .inc files.
+ */
+function shipping_default_shipfrom() {
+  $result = db_fetch_array(db_query('SELECT * FROM {ec_shipping_shipfrom} WHERE status = 1'));
+  if ($result == array()) {
+    drupal_set_message(t('No shipping default fulfillment center configured, shipping prices will not be accurate.'), 'error');
+  }
+  return $result;
+}
+
+/**
+ * Load the specified fulfillment center.
+ */
+function _shipping_shipfrom_load($sid) {
+  return db_fetch_array(db_query('SELECT * FROM {ec_shipping_shipfrom} WHERE sid = %d', $sid));
+}
+
+/**
+ * Callback to send email.
+ */
+function shipping_email($action) {
+
+  switch ($action) {
+    case 'send':
+      drupal_set_title(t('Shipping notification'));
+      $output = shipping_preview_email(arg(4), 1);
+      break;
+
+    case t('Send shipping notification'):
+      if ($edit['destination'] && shipping_send_email($edit)) {
+        drupal_set_message(t('Shipping notification has been sent.'));
+        unset($_REQUEST['destination']);
+        unset($_REQUEST['edit']['destination']);
+        drupal_goto(base64_decode(urldecode($edit['destination'])));
+      }
+      else {
+        drupal_set_message(t('Unable to send email.'), 'error');
+      }
+      break;
+  }
+
+  return $output;
+}
+
+function shipping_shipping_notification() {
+  $t = store_transaction_load(arg(4));
+  $variables  = store_email_get_transaction_variables($t);
+  $from = variable_get("site_mail", ini_get("sendmail_from"));
+
+  if ($t->mail && valid_email_address($t->mail)) {
+    $to = $t->mail;
+  } elseif ($t->uid != 0) {
+    $to = db_result(db_query("SELECT mail FROM {users} WHERE uid = '%d'", $t->uid));
+  }
+
+  $form['info'] = array(
+    '#type' => 'markup',
+    '#value' => t("<p>This is a preview of the message to be sent from %from to %to.</p>", array('%from' => $from, '%to' => $to))
+  );
+
+  $form['to'] = array(
+    '#type' => 'hidden',
+    '#value' => $to,
+  );
+
+  $form['from'] = array(
+    '#type' => 'hidden',
+    '#value' => $from,
+  );
+
+  $form['txnid'] = array(
+    '#type' => 'hidden',
+    '#value' => $t->txnid,
+  );
+
+  $form['message'] = store_email_form('shipping', 'shipping_notification', t('Shipping notification'), NULL, $variables);
+
+  if ($workflow = $_GET['wf']) {
+    $form['change_workflow'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Change Workflow'),
+      '#description' => t('Check here if you want to change the transaction workflow to <strong>%new_workflow</strong>.', array('%new_workflow' => transaction_get_workflow($workflow))),
+      '#default_value' => TRUE
+    );
+    $form['wf'] = array('#type' => 'hidden', '#value' => $workflow);
+  }
+
+  return confirm_form('shipping_shipping_notification', $form, t('Use this form to change the message that will be sent to the customer'), $_GET['destination'], '<br />', t('Send shipping notification'), t('Cancel'));
+}
+
+function shipping_shipping_notification_submit($form_id, $edit) {
+  if ($edit['confirm']) {
+    $mail_sent = store_email_send($edit['from'], $edit['to'], $edit['subject'], $edit['body'], $edit['headers']);
+    if ($mail_sent) {
+      drupal_set_message(t('The shipping notification has been sent to the customer.'));
+      if ($edit['change_workflow'] && is_numeric($edit['wf'])) {
+        db_query("UPDATE {ec_transaction} SET workflow = '%d' WHERE txnid = '%d'", $edit['wf'], $edit['txnid']);
+        drupal_set_message(t('The transaction workflow has been updated.'));
+      }
+    }
+  }
+  return $edit['destination'];
+}
+
+/**
+ * Implementation of hook_store_email_text()
+ */
+function shipping_store_email_text($messageid) {
+  if ($messageid == 'shipping_notification') {
+    return array(
+      'subject' => t("Your %site order has shipped (#%txnid)"),
+      'body' => t("Hello %first_name,\n\nWe have shipped the following item(s) from Order #%txnid, received  %order_date.\n\nItems(s) Shipped:\n%items\n%shipping_to\nQuestions about your order? Please contact us at %email.\n\nThanks for shopping at %site.  We hope to hear from you again real soon!\n\n%uri"),
+      'variables' => array('%order_date', '%txnid', '%billing_name', '%first_name', '%user_data', '%billing_to', '%shipping_to', '%items', '%email', '%site', '%uri', '%uri_brief', '%date')
+    );
+  }
+}

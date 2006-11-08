@@ -1,0 +1,3101 @@
+<?php
+// $Id: store.module,v 1.125.2.23 2006/11/03 11:47:49 sime Exp $
+
+require_once(drupal_get_path('module', 'store'). '/store.inc');
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_cron().
+ */
+function store_cron() {
+  /* Any item whose workflow is 'shipped', move it to 'completed'. This does
+     seem presumptous. Ideally we'd email the user a list of shipped items for
+     day and then adjust the shipping workflow after a given time period, such
+     as 2 week (in case of returns or something) rather than automatically
+     closing it here.  */
+  db_query('UPDATE {ec_transaction} SET workflow = 6 WHERE workflow = 3 AND payment_status = 2');
+
+  if (variable_get('payment_notices', 0)) {
+    global $base_url;
+
+    // Find order(s) with a 'cleared' payment status needs action.
+    if ($count = db_result(db_query("SELECT COUNT(st.txnid) FROM {ec_transaction} AS st WHERE st.payment_status = '2' AND (st.workflow = '1' OR st.workflow = '2' OR st.workflow = '3' OR st.workflow = '4')"))) {
+
+      $beg_month    = mktime(0, 0, 0, date('m'), 1, date('Y'));
+      $mon_orders  = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month));
+      $mon_sales    = '$'. number_format(db_result(db_query("SELECT SUM(gross) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month)), 2);
+
+      $buf = t("%count order(s) with a 'cleared' payment status needs action: \n", array('%count' => $count));
+      $result = db_query("SELECT * FROM {ec_transaction} AS st WHERE st.payment_status = '2' AND (st.workflow = '1' OR st.workflow = '2' OR st.workflow = '3' OR st.workflow = '4') ORDER BY st.txnid DESC");
+      while ($data = db_fetch_object($result)) {
+
+        $buf .= t('Order #%txnid created %timestamp ago', array('%txnid' => $data->txnid, '%timestamp' => format_interval(time() - $data->created, 2))). "\n";
+        $buf .= t('Workflow status: %transaction-workflow', array('%transaction-workflow' => transaction_get_workflow($data->workflow))). "\n";
+        $buf .= t('Email: %email', array('%email' => $data->mail)). "\n";
+        $buf .= t('Total: %gross', array('%gross' => payment_format($data->gross))). "\n";
+
+        $r = db_query("SELECT stp.*, st.payment_status, st.workflow FROM {ec_transaction} AS st, {ec_transaction_product} AS stp WHERE st.txnid = '%d' AND st.txnid = stp.txnid ORDER BY st.txnid DESC", $data->txnid);
+        $items = NULL;
+        $has_shippable_item = FALSE;
+        while ($item = db_fetch_object($r)) {
+          foreach(product_load($item) as $key => $value) {
+            if ($key != 'title' && $key != 'price') {
+              $item->$key = $value;
+            }
+          }
+
+          if (product_is_shippable($item->vid)) {
+            $has_shippable_item = TRUE;
+          }
+
+          $sku = ($item->sku) ? " [$item->sku]" : "";
+          $items .= t('%order of %title at %price each', array('%order' => format_plural($item->qty, '1 order', '%count orders'), '%title' => $item->title. $sku, '%price' => payment_format($item->price)));
+        }
+
+        /* If the transaction has no shippable items and the payment status is
+           'complete' and the workflow is 'transaction received', set the
+           workflow to 'complete' */
+        if (!$has_shippable_item && $data->payment_status == 2 && $data->workflow == 1) {
+          db_query("UPDATE {ec_transaction} SET workflow = '6' WHERE txnid = %d", $data->txnid);
+        }
+
+        $shipping_to = store_format_address($data, 'shipping', 'text');
+        $billing_to = store_format_address($data, 'billing', 'text');
+
+        $buf .= "Shipping to:\n$shipping_to\nBilling to:\n$billing_to\n";
+        $buf .= "$items";
+        $buf .= "\nUpdate: $base_url/admin/store/transaction/edit/$data->txnid\n";
+        $buf .= "=====\n";
+
+      }
+
+      $output = $buf;
+      $output .= t("(These orders will no longer be listed once the transaction workflow is set to either 'Completed' or 'Canceled')");
+      $output .= t("\nMonthly Summary\nNumber of completed orders: %monthly-orders\nSales: %monthly-sales\n", array('%monthly-orders' => $mon_orders, '%monthly-sales' => $mon_sales));
+      $output .= t("Want more reports? Visit %base_url/admin/store\n", array('%base_url' => $base_url));
+
+      $subject    = t('%site-name transaction summary', array('%site-name' => variable_get('site_name', 'Drupal')));
+      $to         = variable_get("site_mail", ini_get("sendmail_from"));
+      $from       = variable_get("site_mail", ini_get("sendmail_from"));
+      $headers    = "From: $from\nReply-to: $from\nX-Mailer: PHP\nReturn-path: $from\nErrors-to: $from";
+
+      user_mail($to, $subject, $output, $headers);
+    }
+  } // End receive payment notices.
+
+  // Handle recurring payment notifications
+  if (variable_get('payment_recurring', 0) == 1) {
+    product_send_recurring_payment_notifications();
+  }
+}
+
+/**
+ * Implementation of help_hook()
+ */
+function store_help($section = 'admin/help#store') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t("<b>EC:</b> Configuration module for ecommerce.");
+
+    case 'admin/store/transaction':
+      return t("<p>This is all the transactions for your store. Use the search form if you want to <a href=\"%transaction_search\">search the data and filter the results</a>.</p>", array("%transaction_search" => url("admin/store/search")));
+
+    case 'admin/store/transaction/add':
+      return t("<p>No mail will be sent to the user.</p>");
+    
+    case 'admin/store/search':
+      return t("Use this search form to find transaction related information.");
+
+    case 'admin/store':
+      return t("<p>Can't find an order?  <a href=\"%show_all_transactions\">View</a> or <a href=\"%transaction_search\">search</a> all transactions.</p>", array("%transaction_search" => url("admin/store/search"), "%show_all_transactions" => url("admin/store/transaction")));
+  }
+}
+
+/**
+ * Implementation of menu_hook()
+ */
+function store_menu($may_cache) {
+  global $user;
+  $items  = array();
+
+  $access = user_access('administer store');
+
+  if ($may_cache) {
+    $items[] = array('path' => 'admin/store', 'title' => t('store'), 'callback' => 'store_admin', 'access' => $access);
+    $items[] = array('path' => 'admin/store/search', 'title' => t('search'), 'access' => $access);
+    $items[] = array('path' => 'admin/store/transaction', 'title' => t('transactions'), 'access' => $access);
+    $items[] = array('path' => 'admin/store/transaction/list', 'title' => t('transaction list'), 'access' => $access, 'type' => MENU_DEFAULT_LOCAL_TASK);
+    $items[] = array('path' => 'admin/store/transaction/create', 'title' => t('create transaction'), 'access' => $access, 'type' => MENU_LOCAL_TASK, 'weight' => 1);
+    $items[] = array('path' => 'admin/store/transaction/ask', 'title' => t('ask customer'), 'callback' => 'store_transaction_ask_customer', 'access' => $access, 'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/store/transaction/cancel', 'title' => t('ask customer'), 'callback' => 'store_transaction_cancel', 'access' => $access, 'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/store/transaction/print', 'title' => t('print invoice'),
+      'callback' => 'store_invoice', 'access' => $access, 'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/store/transaction/product/view', 'title' => t('admin items ordered'),
+      'callback' => 'store_transaction_items', 'access' => $access, 'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/store/transaction/product/edit', 'title' => t('edit transaction items'),
+      'callback' => 'store_transaction_edit_items', 'access' => $access, 'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'admin/store/settings', 'title' => t('settings'),
+      'callback' => 'store_settings_controller', 'access' => user_access('administer store'));
+    foreach (module_implements('ec_settings') as $name) {
+      if ($name != 'store') {
+        $items[] = array('path' => 'admin/store/settings/' .$name, 'title' => t($name), 'callback arguments' => array($name));
+      }
+    }
+  }
+  else {
+    $txnid = arg(4);
+    if (!is_numeric($txnid)) {
+      $txnid = arg(3);
+    }
+
+    global $user;
+
+    $user_access = false;
+    $uid = $user->uid;
+    if (user_access('administer store')) {
+      if (arg(2) > 0) {
+        $uid = arg(2);
+      }
+      $user_access = true;
+    }
+    elseif (($uid != 0) && ($uid == arg(2) || (arg(2) == '' && $uid > 0))) {
+      $user_access = true;
+    }
+
+    $view_transaction = false;
+    if (is_numeric($txnid) && ($access || (($uid != 0) && db_result(db_query('SELECT COUNT(uid) FROM {ec_transaction} WHERE txnid = %d AND uid = %d', $txnid, $uid))))) {
+      $view_transaction = true;
+    }
+
+    $items[] = array('path' => 'store/transaction/view', 'title' => t('view transaction'),
+      'callback' => 'store_transaction_view', 'access' => $view_transaction, 'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'store/transaction/address/edit', 'title' => t('Update shipping address'),
+      'callback' => 'store_user_address_edit', 'access' => $view_transaction, 'type' => MENU_CALLBACK);
+
+    $items[] = array('path' => "store/history", 'title' => t('order history'),
+      'callback' => 'store_user_history', 'access' => $user_access, 'type' => MENU_CALLBACK);
+
+    $items[] = array('path' => "store/subscriptions", 'title' => t('order history'),
+      'callback' => 'store_user_subscriptions', 'access' => $user_access, 'type' => MENU_CALLBACK);
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function store_perm() {
+  return array('administer store');
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function store_ec_settings() {
+  $options = array(
+      t('Customers do not have to create accounts in order to purchase items from this site.'),
+      t('Customers must create accounts before purchasing an item from this site.'));
+  $form['store_auth_cust'] = array(
+    '#type' => 'radios',
+    '#title' => t('Authenticated customers'),
+    '#default_value' => variable_get('store_auth_cust', 1),
+    '#options' => $options,
+    '#description' => t('There are several advantages in having customers create accounts. When they shop, the items in their cart will be remembered from visit to visit, and they can store their shipping and billing addresses in an address book at this site.')
+  );
+
+  $site_mail = variable_get('site_mail', ini_get('sendmail_from'));
+  if (!$site_mail) {
+    $site_mail = 'no e-mail address found';
+  }
+
+  $form['payment_notices'] = array(
+    '#type' => 'radios',
+    '#title' => t('Transaction notices'),
+    '#default_value' => variable_get('payment_notices', 0),
+    '#options' => array(t('Disabled'), t('Enabled')),
+    '#description' => t("Enable or disable transaction notifications.  If enabled, the site administrator (%site_mail) will receive an email summarizing the status of all orders. The frequency of emails is dependent on how often the site administrator has scheduled to run cron jobs.  Finally, The site administrator e-mail address can be changed in the <a href=\"%general_config_screen\">general configuration screen</a>,", array('%site_mail' => $site_mail, '%general_config_screen' => url('admin/settings')))
+  );
+
+  /*
+  */
+  $form['ec_order_overview'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Order history overview'),
+    '#default_value' => variable_get('ec_order_overview', ''),
+    '#cols' => 70,
+    '#rows' => 5,
+    '#description' => t('This text will be displayed at the top of users\' order history pages.'),
+  );
+
+  // Begin email notification settings
+  $form['email_notification'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Email Notifications'), 
+    '#collapsible' => TRUE, 
+    '#collapsed' => TRUE 
+  );
+  $form['email_notification']['customer_invoice'] = store_email_form('store', 'customer_invoice', t('Customer invoice e-mail'), t('This text will be emailed to customers after they make a purchase.'));
+  $form['email_notification']['processing_error'] = store_email_form('store', 'processing_error', t('Payment error e-mail'), t('This text will be e-mailed to customers if there is a payment processing problem.'));
+  $form['email_notification']['ask_customer_template'] = store_email_form('store', 'ask_customer_template', t('Ask customer e-mail template'), t('This text is used as a template for asking customer.'));
+  $form['email_notification']['cancel_transaction'] = store_email_form('store', 'cancel_transaction', t('Cancel transaction e-mail'), t('This text will be e-mailed to customers if their purchase has been canceled.'));
+
+  $form['product_cart_addition_by_link'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Users adds product to cart using link.'),
+    '#default_value' => variable_get('product_cart_addition_by_link', 1),
+    '#description' => t('If this field is unchecked a form will be placed at
+    the bottom of the product view which will allow the user select the
+    quantity and other information.'),
+  );
+  
+  $form['product_cart_is_destination'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('User is directed to the shopping cart after adding item.'),
+    '#default_value' => variable_get('product_cart_is_destination', 0),
+    '#description' => t('If left unchecked, the user will remain
+    on the product page and a message will alert them that the item has been added
+    to their cart.'),
+  );
+  
+  return $form;
+}
+
+function theme_store_settings_form($form) {
+  $output.= form_render($form['store_auth_cust']);
+  $output.= form_render($form['payment_notices']);
+  $output.= t('<h3>E-Commerce core modules</h3>');
+  $header = array(t('Module name'), t('Status'));
+  $store_mods = array('payment' => 'payment', 'product' => 'product', 'shipping' => 'shipping', 'cart' => 'cart', 'store' => 'store',);
+  foreach ($store_mods as $name => $mod_name) {
+    if (module_exist($mod_name)) {
+      $row[] = array($name, t('Installed'));
+    }
+    else {
+      $row[] = array($name, t('Not found'));
+    }
+  }
+  $output.= theme('table', $header, $row);
+  $output.= form_render($form);
+  return $output;
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function store_user($type, &$edit, &$user) {
+  // Only display the link for the user who owns it.
+  if ($type == 'view' && $GLOBALS['user']->uid == $user->uid) {
+    $items[] = array(
+      'type' => 'item',
+      'title' => t('Orders'),
+      'value' => l(t('View your order history'), "store/history")
+    );
+    return array(t('History') => $items);
+  }
+}
+
+/********************************************************************
+ * Themeable Functions
+ ********************************************************************/
+
+function theme_store_invoice($txn, $print_mode = TRUE, $trial = FALSE) {
+  global $base_url;
+
+  $header = array();
+  $row    = array();
+
+  if (empty($txn->mail) && $txn->uid > 0) {
+    $txn->mail = db_result(db_query('SELECT mail FROM {users} WHERE uid = %d', $txn->uid));
+  }
+
+  if ($txn->items) {
+    $header = array(t('Quantity'), t('Item'), t('Price'));
+
+    $shippable = FALSE;
+    foreach ($txn->items as $p) {
+      $prod = product_load($p);
+      if (product_is_shippable($p->vid)) $shippable = TRUE;
+
+      $price = store_adjust_misc($txn, $p);
+
+      $subtotal += (product_has_quantity($p) ? $p->qty * $price : $price);
+      $details = '';
+      if (is_array($p->data)) {
+        foreach ($p->data as $key => $value) {
+          if ($value) {
+            $items[] = '<strong>'. check_plain($key). ': </strong>'. check_plain($value);
+          }
+        }
+        if ($items) {
+          $details = theme('item_list', $items);
+        }
+      }
+
+      $row[] = array(array('data' => $p->qty, 'align' => 'center', 'valign' => 'top'), '<em>'. check_plain($p->title). '</em> '. (($prod->sku != '') ? "[". check_plain($prod->sku) ."]" : ''). '<br />'. $details, array('data' => payment_format($price), 'valign' => 'top'));
+    }
+
+    if (is_array($txn->misc)) {
+      foreach ($txn->misc as $misc) {
+        if (!$misc->seen) {
+          $row[] = array(array('data' => t("<strong>{$misc->description}</strong>: %price", array('%price' => payment_format($misc->price))), 'colspan' => 3, 'align' => 'right'));
+        }
+      }
+    }
+
+    $row[] = array(array('data' => '<hr size="1" noshade="noshade" />', 'colspan' => 3, 'align' => 'right'));
+    $row[] = array(array('data' => t('<strong>Total:</strong> %total', array('%total' => payment_format(store_transaction_calc_gross($txn)))), 'colspan' => 3, 'align' => 'right'));
+  }
+
+  $payment_info  = t('<div><strong>Ordered On:</strong> %order-date</div>', array('%order-date' => format_date($txn->created)));
+  if ($txn->duedate) {
+    $payment_info.= t('<div><strong>Due Date:</strong> %due-date</div>', array('%due-date' => format_date($txn->duedate)));
+  }
+  $payment_info .= t('<div><strong>Transaction ID:</strong> %txnid</div>', array('%txnid' => $trial ? t('Trial Invoice - Not Yet Posted') : $txn->txnid));
+
+  $css        = base_path(). drupal_get_path('module', 'store') .'/invoice.css';
+  $site_name  = t('%site-name Invoice', array('%site-name' => variable_get("site_name", "drupal")));
+
+  if ($shipping_to = store_format_address($txn, 'shipping', 'html')) {
+    $shipping_label = t('Shipping to');
+  }
+
+  if ($billing_to = store_format_address($txn, 'billing', 'html')) {
+    $billing_label = t('Billing to');
+  }
+
+  if ($txn->ship) {
+    $shipping_method_label = t('Shipping method:');
+    $shipping_method = store_format_shipping_method($txn);
+  }
+  $email_label = t('E-mail:');
+  $items_label = t('Items ordered');
+  $items_view = theme('table', $header, $row, array('cellpadding' => 3, 'cellspacing' => 3));
+
+  $payment_label = t('Payment Info');
+
+  if ($print_mode) {
+    $output .= <<<EOD
+<html>
+  <head>
+    <style type="text/css" media="all">@import url('$css');</style>
+  </head>
+  <body>    
+EOD;
+  }
+
+$output .= <<<EOD
+    <h1>$site_name</h1>
+
+    <table cellspacing="5">
+      <tr>
+        <th align="left">$shipping_label</th>
+        <th align="left">$billing_label</th>
+      </tr>
+      <tr>
+        <td>$shipping_to</td>
+        <td>$billing_to</td>
+      </tr>
+    </table>
+
+    <p><strong>$shipping_method_label</strong> $shipping_method</p>
+    <p><strong>$email_label</strong> $txn->mail</p>
+
+    <h2>$items_label</h2>
+    $items_view
+
+    <h2>$payment_label</h2>
+    $payment_info
+EOD;
+
+if ($print_mode) {
+  $output .= <<<EOD
+    </body>
+  </html>
+EOD;
+}
+
+  if (!$print_mode) {  
+    return $output;
+  }
+  print $output;
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+
+/**
+ * Controller for the URI's of admin/store*
+ */
+function store_admin() {
+
+  $edit = $_POST['edit'];
+  $op = $_POST["op"];
+
+  if (!$op) {
+    $op = arg(2);
+  }
+
+  switch ($op) {
+    case 'search':
+    case t('Search'):
+    case t('Advanced search'):
+      $output = store_transactions_search();
+      break;
+
+    case 'transaction':
+      if (arg(3) == 'edit') {
+        $output = store_transaction_form(store_transaction_load(arg(4)));
+      }
+      elseif (arg(3) == 'send') {
+        $title = t('Message preview');
+        $output = store_send_invoice_email(arg(4), 1);
+      }
+      elseif (arg(3) == 'create') {
+        $title = t('Create new transaction');
+        $edit = array('destination' => 'admin/store/transaction');
+        $output = store_transaction_form($edit);
+      }
+      else {
+        $output = store_transaction_default();
+      }
+      break;
+
+    case t('Update transaction'):
+    case t('Create new transaction'):
+      if (store_transaction_validate($edit)) {
+        $edit['txnid'] = store_transaction_save($edit);
+        if ($edit['destination']) {
+          drupal_goto();
+        }
+        else {
+          $output = store_admin_overview();
+        }
+      }
+      else {
+        $output = store_transaction_form($edit);
+      }
+      break;
+
+    case t('Delete'):
+      $output = store_transaction_confirm_delete(arg(4));
+      break;
+
+    case t('Confirm delete'):
+      $output = store_transaction_delete($edit['txnid']);
+      if ($edit['destination']) {
+        unset($_REQUEST['destination']);
+        unset($_REQUEST['edit']['destination']);
+        drupal_goto(base64_decode(urldecode($edit['destination'])));
+      }
+      else {
+        $output = store_admin_overview();
+      }
+      break;
+
+    default:
+      drupal_set_title(t('Store (%revision)', array('%revision' => '$Revision: 1.125.2.23 $')));
+      $output = store_admin_overview();
+  }
+
+  drupal_set_title($title);
+  return $output;
+}
+
+function store_settings_controller($module = 'store') {
+  $form = module_invoke($module, 'ec_settings');
+
+  return system_settings_form($module .'_settings_form', $form);
+}
+
+function store_transaction_default() {
+  $query = (object) array('txnid' => '>0');  
+  return store_transactions_search_result($query, FALSE, FALSE);
+}
+
+function store_transaction_confirm_delete($txnid) {
+  $form['txnid'] = array(
+    '#type' => 'hidden',
+    '#value' => $txnid,
+  );
+  $form['destination'] = array(
+    '#type' => 'hidden',
+    '#value' => $edit['destination'],
+  );
+  $form[] = array(
+    '#type' => 'submit',
+    '#value' => t('Confirm delete')
+  );
+  $form[] = array(
+    '#type' => 'submit',
+    '#value' => t('Cancel')
+  );
+  return drupal_get_form('store_transaction_confirm_delete', $form);
+}
+
+function theme_store_transaction_confirm_delete($form) {
+  $output = t('<p>Are you sure you want to delete transaction #%txnid?</p>', array('%txnid' => $form['txnid']['#value']));
+  $output.= form_render($form);
+
+  return $output;
+}
+
+function store_transaction_delete($txnid) {
+
+  $t = store_transaction_load($txnid);
+  db_query('DELETE FROM {ec_transaction} WHERE txnid = %d', $txnid);
+  db_query('DELETE FROM {ec_transaction_product} WHERE txnid = %d', $txnid);
+  db_query('DELETE FROM {ec_renewal} WHERE txnid = %d', $txnid);
+  store_invoke_ec_transactionapi($t, 'delete');
+}
+
+/**
+ * Return an array of transaction workflow settings.
+ */
+function store_transaction_workflow() {
+  $transaction_workflow = array (
+    1 => t('transaction received'),
+    2 => t('invoiced'),
+    3 => t('shipped'),
+    4 => t('awaiting customer response'),
+    5 => t('canceled'),
+    6 => t('completed'),
+  );
+
+  return $transaction_workflow;
+}
+
+function transaction_get_workflow_id($name) {
+  return array_search(t($name), store_transaction_workflow());
+}
+
+function transaction_get_workflow($id) {
+  $workflow = store_transaction_workflow();
+  return $workflow[$id];
+}
+
+function store_transaction_validate(&$edit) {
+  $edit['section'] = $edit['section'] ? strtoupper($edit['section']) : 'ALL';
+
+  switch ($edit['section']) {
+
+    case 'OVERVIEW':
+      store_transaction_validate_overview($edit);
+      break;
+
+    case 'ADDRESSES':
+      store_transaction_validate_addresses($edit);
+      break;
+
+    case 'ITEMS':
+      store_transaction_validate_item($edit);
+      break;
+
+    default:
+      store_transaction_validate_overview($edit);
+      store_transaction_validate_addresses($edit);
+      store_transaction_validate_item($edit);
+  }
+
+  store_invoke_ec_transactionapi($edit, 'validate', strtoupper($edit['section']));
+
+  return ((form_get_errors()) ? false : true);
+}
+
+function store_transaction_fields() {
+  return array(
+    'txnid',
+    'uid',
+    'type',
+    'mail',
+    'shipping_cost',
+    'payment_method',
+    'payment_status',
+    'workflow',
+    'gross',
+    'expires',
+    'created',
+    'changed',
+    'duedate',
+  );
+}
+
+function store_transaction_address_fields() {
+  return array(
+    'firstname',
+    'lastname',
+    'street1',
+    'street2',
+    'zip',
+    'city',
+    'state',
+    'country',
+  );
+}
+
+function store_transaction_product_fields() {
+  return array('txnid', 'nid', 'vid', 'title', 'price', 'qty', 'expires', 'is_recurring', 'price_interval', 'price_unit', 'price_cycle', 'auto_charge', 'last_notify', 'data');
+}
+
+function store_transaction_misc_fields() {
+  return array('txnid', 'type', 'vid', 'description', 'invisible', 'price', 'qty', 'weight');
+}
+
+/**
+ * Save a transaction to the database.
+ */
+function store_transaction_save($edit) {
+  $edit = (array)($edit);
+
+  if (!$edit['changed']) {
+    $edit['changed'] = time();
+  }
+
+  $transaction_fields = store_transaction_fields();
+  $paid = FALSE;
+  $add_to_roles = FALSE;
+
+  if ($edit['txnid']) { // Update
+    $completed = payment_get_status_id('completed');
+    $previous_payment_status = db_result(db_query('SELECT payment_status FROM {ec_transaction} AS st WHERE st.txnid = %d', $edit['txnid']));
+
+    // Trigger the PAID event only
+    if ($edit['payment_status'] == $completed && $previous_payment_status != $completed) {
+      $paid = TRUE;
+    }
+
+    foreach ($transaction_fields as $key) {
+      if (isset($edit[$key]) && !empty($edit[$key])) {
+        $q[] = db_escape_string($key) ." = '%s'";
+        $v[] = $edit[$key];
+      }
+    }
+    if (is_array($q) && is_array($v)) {
+      db_query('UPDATE {ec_transaction} SET '. implode(', ', $q) ." WHERE txnid = $edit[txnid]", $v);
+    }
+
+    store_transaction_addresses_save($edit, FALSE);
+
+    // Handle renewals.
+    if (is_array($edit['renewal'])) {
+      db_query('DELETE FROM {ec_renewal} WHERE txnid = %d', $edit['txnid']);
+      foreach ($edit['renewal'] as $rnid => $rtxnid) {
+        db_query('INSERT INTO {ec_renewal} (txnid, rtxnid, rnid) VALUES (%d, %d, %d)', $edit['txnid'], $rtxnid, $rnid);
+      }
+    }
+
+    if (is_array($edit['items'])) {
+      foreach ($edit['items'] as $item) {
+        if ($item->price_interval) {
+          $item->is_recurring = 1;
+          if (!$item->expires && $paid) {
+            $item->expires = strtotime($item->price_interval. ' '. product_unit_nice_name($item->price_unit, $item->price_interval), time());
+          } else {
+            $item->expires = 0;
+          }
+          $add_to_roles = TRUE;
+        }
+        else {
+          $item->is_recurring = 0;
+        }
+        $item->txnid = $edit['txnid'];
+        store_transaction_save_product($item);
+      }
+    }
+    elseif ($edit['nids']) {
+      store_transaction_save_nids($edit);
+    }
+
+    if (is_array($edit['misc'])) {
+      foreach ($edit['misc'] as $misc) {
+        $misc->txnid = $edit['txnid'];
+        $misc->vid = $misc->vid ? $misc->vid : 0;
+        store_transaction_save_misc($misc);
+      }
+    }
+
+    $edit = (object)($edit);
+    store_invoke_ec_transactionapi($edit, 'update');
+    $edit = (array)($edit);
+
+    /* Update inventory for transactions that just gained a payment status of 'completed' */
+    if ($paid) {
+      store_payment_status_complete_callback($edit);
+    }
+  }
+  else { // INSERT
+    if (!$edit['created']) {
+      $edit['created'] = time();
+    }
+
+    if (!$edit['payment_status']) {
+      /* Default payment status is pending. */
+      $edit['payment_status'] = payment_get_status_id('pending');
+    }
+
+    if (!$edit['workflow']) {
+      /* Default transaction is Transaction received. */
+      $edit['workflow'] = 1;
+    }
+
+    $edit['txnid'] = db_next_id('{ec_transaction}_txnid');
+
+    foreach ($transaction_fields as $key) {
+      if (isset($edit[$key])) {
+        $k[] = db_escape_string($key);
+        $v[] = $edit[$key];
+        $s[] = "'%s'";
+      }
+    }
+    db_query('INSERT INTO {ec_transaction} ('. implode(', ', $k) .') VALUES('. implode(', ', $s) .')', $v);
+
+    store_transaction_addresses_save($edit, TRUE);
+
+    // Insert the metadata for transactions that contain renewals.
+    foreach ((array) $edit['renewal'] as $rnid => $rtxnid) {
+      db_query('INSERT INTO {ec_renewal} (txnid, rtxnid, rnid) VALUES (%d, %d, %d)', $edit['txnid'], $rtxnid, $rnid);
+    }
+
+    if ($edit['items']) {
+      foreach ($edit['items'] as $item) {
+        $item->is_recurring = ($item->price_interval) ? 1 : 0;
+        if ($item->is_recurring) {
+          if (!$item->expires && $edit['payment_status'] == payment_get_status_id('completed')) {
+            $item->expires = strtotime($item->price_interval. ' '. product_unit_nice_name($item->price_unit, $item->price_interval), time());
+          } else {
+            $item->expires = 0;
+          }
+          $add_to_roles = TRUE;
+        }
+        $item->txnid = $edit['txnid'];
+        store_transaction_save_product($item);
+      }
+    }
+    elseif ($edit['nids']) {
+      store_transaction_save_nids($edit);
+    }
+
+    if (is_array($edit['misc'])) {
+      foreach ($edit['misc'] as $misc) {
+        $misc->txnid = $edit['txnid'];
+        $misc->vid = $misc->vid ? $misc->vid : 0;
+        store_transaction_save_misc($misc);
+      }
+    }
+
+    $edit = (object)($edit);
+    store_invoke_ec_transactionapi($edit, 'insert');
+    $edit = (array)($edit);
+    /* Update inventory for new transactions that have a payment status of 'completed' */
+    $paid = FALSE;
+    if ($edit['payment_status'] == payment_get_status_id('completed')) {
+      $paid = TRUE;
+      store_payment_status_complete_callback($edit);
+    }
+  }
+
+  if ($paid) {
+    store_change_role($edit, $add_to_roles);
+  }
+  
+  if (strstr($_GET['q'], 'transaction/create')) {
+    drupal_set_message(t('the transaction has been created'));
+  }
+
+  return $edit['txnid'];
+}
+
+function store_transaction_save_nids($txn) {
+  $paid = FALSE;
+  if ($txn['payment_status'] == payment_get_status_id('completed')) $paid = TRUE;
+  $product_fields = store_transaction_product_fields();
+  /* Let's look for a CSV of nids, which is used in manual transaction creation. */
+  $nids = explode(',', $txn['nids']);
+
+  foreach ($nids as $nid) {
+    $item = node_load(trim($nid));
+    unset($item->data);
+    $item->qty = 1;
+    $item->txnid = $txn['txnid'];
+
+    if ($item->is_recurring) {
+      if (!$item->expires) {
+        $item->expires = strtotime($item->price_interval. ' '. product_unit_nice_name($item->price_unit, $item->price_interval), time());
+      }
+    }
+
+    db_query('DELETE FROM {ec_transaction_product} WHERE txnid = %d AND nid = %d', $item->txnid, $item->nid);
+    $k = $v = $s = array();
+    foreach ($product_fields as $key) {
+      if (isset($item->{$key})) {
+        $k[] = db_escape_string($key);
+        $v[] = $item->{$key};
+        $s[] = "'%s'";
+      }
+    }
+
+    db_query('INSERT INTO {ec_transaction_product} ('. implode(', ', $k) .') VALUES('. implode(', ', $s) .')', $v);
+    module_invoke($item->ptype, 'productapi', $item, 'transaction', 'insert');
+  }
+
+  // Fix up Gross
+  $t = store_transaction_load($txn['txnid']);
+  $t->gross = store_transaction_calc_gross($t);
+  db_query('UPDATE {ec_transaction} SET gross = %f WHERE txnid = %d', $t->gross, $t->txnid);
+}
+
+/**
+ * Save transaction products.
+ */
+function store_transaction_save_product($item) {
+  static $product_cache = array();
+  $product_fields = store_transaction_product_fields();
+
+  if (!$product_cache[$item->txnid]) {
+    $result = db_query("SELECT vid FROM {ec_transaction_product} WHERE txnid = %d", $item->txnid);
+    while ($row = db_fetch_object($result)) {
+      $product_cache[$item->txnid][] = $row->vid;
+    }
+  }
+  // Serialize the data field so that it is saved to the database.
+  if (isset($item->data)) {
+    $item->data = serialize($item->data);
+  }
+
+  if (is_array($product_cache[$item->txnid]) && in_array($item->vid, $product_cache[$item->txnid])) {
+    // Update product
+    unset($q, $v);
+    foreach($product_fields as $key) {
+      if (isset($item->$key)) {
+        $q[] = db_escape_string($key) ." = '%s'";
+        $v[] = $item->$key;
+      }
+    }
+    db_query('UPDATE {ec_transaction_product} SET '. implode(', ', $q) ." WHERE txnid = '". $item->txnid ."' AND vid = '".$item->vid  ."'", $v);
+    module_invoke($item->ptype, 'productapi', $item, 'transaction', 'update');
+  }
+  else {
+    // Insert Product
+    if (!$item->title) {
+      $item->title = db_result(db_query('SELECT title FROM {node} WHERE nid = %d', $item->nid));
+    }
+    if (!$item->ptype) {
+      $item->ptype = db_result(db_query('SELECT ptype FROM {ec_product} WHERE nid = %d', $item->nid));
+    }
+
+    unset($k, $v, $s);
+    foreach ($product_fields as $key) {
+      if (isset($item->$key)) {
+        $k[] = db_escape_string($key);
+        $v[] = $item->$key;
+        $s[] = "'%s'";
+      }
+    }
+    db_query('INSERT INTO {ec_transaction_product} ('. implode(', ', $k) .') VALUES('. implode(', ', $s) .')', $v);
+    module_invoke($item->ptype, 'productapi', $item, 'transaction', 'insert');
+    $product_cache[$item->txnid][] = $item->vid;
+  }
+}
+
+/**
+ * Save Miscellaneous transactions
+ */
+function store_transaction_save_misc($misc) {
+  static $misc_cache = array();
+  $misc_fields = store_transaction_misc_fields();
+
+  if (!$misc_cache[$misc->txnid]) {
+    $result = db_query("SELECT CONCAT(type, '|', vid) AS id FROM {ec_transaction_misc} WHERE txnid = %d", $misc->txnid);
+    while ($row = db_fetch_object($result)) {
+      $misc_cache[$misc->txnid][] = $row->id;
+    }
+  }
+
+  if (is_array($misc_cache[$misc->txnid]) && in_array("{$misc->type}|{$misc->vid}", $misc_cache[$misc->txnid])) {
+    // Update misc
+    foreach($misc_fields as $key) {
+      if (isset($misc->$key)) {
+        $q[] = db_escape_string($key) ." = '%s'";
+        $v[] = $misc->$key;
+      }
+    }
+    $v[] = $misc->txnid;
+    $v[] = $misc->type;
+    $v[] = $misc->vid;
+    db_query('UPDATE {ec_transaction_misc} SET '. implode(', ', $q) ." WHERE txnid = %d AND type = '%s' AND vid = %d", $v);
+  }
+  else {
+    // Insert Misc
+    foreach ($misc_fields as $key) {
+      if (isset($misc->$key)) {
+        $k[] = db_escape_string($key);
+        $v[] = $misc->$key;
+        $s[] = "'%s'";
+      }
+    }
+    db_query('INSERT INTO {ec_transaction_misc} ('. implode(', ', $k) .') VALUES('. implode(', ', $s) .')', $v);
+    $misc_cache[$misc->txnid][] = "$misc->type|$misc->vid";
+  }
+}
+
+/**
+ * Assign or remove a user from a role based on payment status and product expiration.
+ *
+ */
+function store_change_role($txn, $add_to_roles) {
+  $txn = (object)($txn);
+  $u = user_load(array('uid' => $txn->uid));
+  $on_payment_roles = array_flip((array) variable_get('on_payment_roles', ''));
+  $roles = user_roles();
+
+  if ($u->uid >= 1 && is_array($on_payment_roles)) {
+
+    // If PAID - add user to role, else drop 'em
+    if ($add_to_roles) {
+      foreach($on_payment_roles as $rid => $rname) {
+        if (!isset($u->roles[$rid])) {
+          watchdog('ecommerce', t('Adding %name to role %role.', array('%name' => theme('placeholder', $u->name), '%role' => theme('placeholder', $roles[$rid]))));
+          $u->roles[$rid] = '';
+        }
+      }
+      user_save($u, array('roles' => $u->roles));
+    }
+    else {
+      // When unsetting a role, we have to check if the user has any purchases from other
+      // transactions that'll keep him/her in the paid member role.
+      $remove_from_role = TRUE;
+      $rp = product_find_recurring_payments($u->uid);
+      foreach ((array) $rp as $p) {
+        if (!$p->expired && $p->payment_status == payment_get_status_id('completed')) {
+          $remove_from_role = FALSE;
+        }
+      }
+      if ($remove_from_role) {
+        foreach($u->roles as $rid => $rname) {
+          if (isset($on_payment_roles[$rid])) {
+            watchdog('ecommerce', t('Removing %name from role %role.', array('%name' => theme('placeholder', $u->name), '%role' => theme('placeholder', $roles[$rid]))));
+            unset($u->roles[$rid]);
+          }
+        }
+      }
+      user_save($u, array('roles' => $u->roles));
+    }
+  }
+}
+
+/**
+ * When the payment_status is marked complete invoke the
+ * 'on payment completion' callback.  This is only when the payment status
+ * changes to complete, so it's good place for things like inventory updates and
+ * account credits.
+ *
+ * $t array of transaction details
+ */
+function store_payment_status_complete_callback($t) {
+  /* Reload the complete transaction from the database so that all the
+   * items get processed for the "on payment completion" and recurring
+   * payments get updated for all items. */
+  $t = (array)$t;
+  $t = (array)store_transaction_load($t['txnid']);
+
+  /* Update the payment_date to now, so that we know when the payment
+   * completed. */
+  if (!$t['payment_date']) {
+    $t['payment_date'] = time();
+    db_query('UPDATE {ec_transaction} SET payment_date = %d WHERE txnid = %d', $t['payment_date'], $t['txnid']);
+  }
+  
+  /* Update any products that need to do something when payments complete */
+  if (is_array($t['items'])) {
+    foreach ($t['items'] as $nid => $item) {
+      $item = (array)($item);
+      $node = node_load($item['nid']);
+      // Reset/extend the expiration date for recurring payments.
+      if ($item['rtxnid'] && $item['rnid']) {
+        $ritem = db_fetch_object(db_query('SELECT stp.expires, stp.price_interval, stp.price_unit FROM {ec_transaction} AS st, {ec_transaction_product} AS stp WHERE stp.is_recurring = 1 AND st.txnid = stp.txnid AND stp.txnid = %d AND stp.nid = %d', $item['rtxnid'], $item['rnid']));
+        $foo->nid = $item['rnid'];
+        $rnode = product_load($foo);
+        // We should use the data from the current existing product first. If
+        // that doesn't work (e.g., the node is deleted), use the previous
+        //transactions price interval data
+        if ($node->is_recurring) {
+          $item['expires'] = strtotime($rnode->price_interval. ' '. product_unit_nice_name($rnode->price_unit, $rnode->price_interval), $ritem->expires);
+        }
+        else {
+          $item['expires'] = strtotime($ritem->price_interval. ' '. product_unit_nice_name($ritem->price_unit, $ritem->price_interval), $ritem->expires);
+        }
+        db_query('UPDATE {ec_transaction_product} SET expires = %d WHERE txnid = %d AND nid = %d', $item['expires'], $item['rtxnid'], $item['rnid']);
+      } else if ($node->is_recurring && !$node->expires) { // set the initial expiration date
+        $item['expires'] = strtotime($item['price_interval']. ' '.product_unit_nice_name($item['price_unit'], $item['price_interval']), time());
+        db_query('UPDATE {ec_transaction_product} SET expires = %d WHERE txnid = %d AND nid = %d', $item['expires'], $t['txnid'], $node->nid);
+        store_change_role($t, TRUE);
+      }
+
+      foreach ($item as $key => $value) {
+        $node->$key = $value;
+      }
+      $node->uid = $t['uid'];
+      module_invoke($node->ptype, 'productapi', $node, 'on payment completion');
+    }
+  }
+  // give all modules a chance to react to payment completion event
+  module_invoke_all('ecommerceapi', $t, 'on payment completion');
+}
+
+/**
+ * Valid sections are
+ *    - overview: changing workflow, timestamps, and totals
+ *      admin/store/transaction
+ *
+ *    - addresses: shipping and billing info
+ *      admin/store/transaction/address
+ *
+ *    - items: editing and adding items
+ *      admin/store/transaction/item/
+ */
+function store_transaction_form($edit = null) {
+  $edit = is_array($edit) ? (object) $edit : $edit;
+
+  $section = $edit->section ? $edit->section : $_GET['section'];
+
+  switch (strtoupper($section)) {
+
+    case 'OVERVIEW':
+      $form = store_transaction_overview_form($edit);
+      break;
+
+    case 'ADDRESSES':
+      $form = store_transaction_addresses_form($edit);
+      break;
+
+    case 'ITEMS':
+      $form = store_transaction_item_form($edit);
+      break;
+
+    default:
+      $form = array_merge(store_transaction_overview_form($edit), store_transaction_addresses_form($edit), store_transaction_item_form($edit));
+  }
+
+  if ($edit->uid && is_numeric($edit->uid)) {
+    $edit->uid = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $edit->uid));
+  }
+
+  $edit->destination = $edit->destination ? $edit->destination : $_GET['destination'];
+  $form['destination'] = array(
+    '#type' => 'hidden',
+    '#value' => $edit->destination,
+    );
+
+  if ($edit->txnid) {
+    $form['txnid'] = array(
+      '#type' => 'hidden',
+      '#value' => $edit->txnid,
+      );
+    $form[] = array(
+      '#type' => 'submit',
+      '#value' => t('Update transaction')
+      );
+    $form[] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete'),
+      );
+  }
+  else {
+    $form[] = array(
+      '#type' => 'submit',
+      '#value' => t('Create new transaction'),
+      );
+  }
+
+  $form['section'] = array(
+    '#type' => 'hidden',
+    '#value' => $section,
+    );
+
+  $output = drupal_get_form('store_transaction_form', $form);
+
+  return $output;
+}
+
+function store_send_invoice_email($txnid, $preview = null) {
+
+  $t = store_transaction_load($txnid);
+  $variables  = store_email_get_transaction_variables($t);
+  $from = variable_get("site_mail", ini_get("sendmail_from"));
+
+  if ($t->mail && valid_email_address($t->mail)) {
+    $to = $t->mail;
+  } elseif ($t->uid != 0) {
+    $to = db_result(db_query("SELECT mail FROM {users} WHERE uid = '%d'", $t->uid));
+  }
+
+  $message = store_email_text('store', 'customer_invoice', $variables);
+
+  if ($preview) {
+
+    $output = t('<p>This is a preview of the message to be sent.</p>');
+    $output .= t('<p>To: <strong>%to</strong><br />', array('%to' => $to));
+    $output .= t('From: <strong>%from</strong><br />', array('%from' => $from));
+    $output .= t('Subject: <strong>%subject</strong></p>', array('%subject' => $message->subject));
+    $output .= t('Body: <pre>%body</pre>', array('%body' => wordwrap($message->body)));
+
+    return $output;
+  }
+  elseif ($to && valid_email_address($to)) {
+    return store_email_send($from, $to, $message->subject, $message->body);
+  }
+  else {
+    return false;
+  }
+}
+
+function store_send_error_email($txnid, $preview = null) {
+  $t = store_transaction_load($txnid);
+  $variables  = store_email_get_transaction_variables($t);
+  $from = variable_get("site_mail", ini_get("sendmail_from"));
+
+  if ($t->mail && valid_email_address($t->mail)) {
+    $to = $t->mail;
+  } elseif ($t->uid != 0) {
+    $to = db_result(db_query('SELECT mail FROM {users} WHERE uid = %d', $t->uid));
+  }
+
+  $message = store_email_text('store', 'processing_error', $variables);
+
+  if ($preview) {
+
+    $output = t('<p>This is a preview of the message to be sent.</p>');
+    $output .= t('<p>To: <strong>%to</strong><br />', array('%to' => $to));
+    $output .= t('From: <strong>%from</strong><br />', array('%from' => $from));
+    $output .= t('Subject: <strong>%subject</strong></p>', array('%subject' => $message->subject));
+    $output .= t('Body: <pre>%body</pre>', array('%body' => wordwrap($message->body)));
+
+    return $output;
+  }
+  elseif ($to && valid_email_address($to)) {
+    return store_email_send($from, $to, $message->subject, $message->body);
+  }
+  else {
+    return false;
+  }
+}
+
+function store_transaction_ask_customer() {
+  $t = store_transaction_load(arg(4));
+  $variables  = store_email_get_transaction_variables($t);
+  $from = variable_get("site_mail", ini_get("sendmail_from"));
+
+  if ($t->mail && valid_email_address($t->mail)) {
+    $to = $t->mail;
+  } elseif ($t->uid != 0) {
+    $to = db_result(db_query("SELECT mail FROM {users} WHERE uid = '%d'", $t->uid));
+  }
+
+  $form['info'] = array(
+    '#type' => 'markup',
+    '#value' => t("<p>This is a preview of the message to be sent from %from to %to.</p>", array('%from' => $from, '%to' => $to))
+  );
+  $form['to'] = array(
+    '#type' => 'hidden',
+    '#value' => $to
+  );
+  $form['from'] = array(
+    '#type' => 'hidden',
+    '#value' => $from
+  );
+  $form['txnid'] = array(
+    '#type' => 'hidden',
+    '#value' => $t->txnid
+  );
+  $form['message'] = store_email_form('store', 'ask_customer_template', t('Question'), NULL, $variables);
+  if ($workflow = $_GET['wf']) {
+    $form['change_workflow'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Change Workflow'),
+      '#description' => t('Check here if you want to change the transaction workflow to <strong>%new_workflow</strong>.', array('%new_workflow' => transaction_get_workflow($workflow))),
+      '#default_value' => TRUE
+    );
+    $form['wf'] = array('#type' => 'hidden', '#value' => $workflow);
+  }
+
+  return confirm_form('store_transaction_ask_customer', $form, t('Use this form to ask some question to the customer'), $_GET['destination'], '<br />', t('Ask customer'), t('Cancel'));
+}
+
+function store_transaction_ask_customer_submit($form_id, $edit) {
+  if ($edit['confirm']) {
+    $mail_sent = store_email_send($edit['from'], $edit['to'], $edit['subject'], $edit['body']);
+    if ($mail_sent) {
+      drupal_set_message(t('The question has been sent to the customer.'));
+      if ($edit['change_workflow'] && is_numeric($edit['wf'])) {
+        db_query("UPDATE {ec_transaction} SET workflow = '%d' WHERE txnid = '%d'", $edit['wf'], $edit['txnid']);
+        drupal_set_message(t('The transaction workflow has been updated.'));
+      }
+    }
+  }
+  return $edit['destination'];
+}
+
+function store_transaction_cancel() {
+  $t = store_transaction_load(arg(4));
+  $variables  = store_email_get_transaction_variables($t);
+  $from = variable_get("site_mail", ini_get("sendmail_from"));
+
+  if ($t->mail && valid_email_address($t->mail)) {
+    $to = $t->mail;
+  } elseif ($t->uid != 0) {
+    $to = db_result(db_query("SELECT mail FROM {users} WHERE uid = '%d'", $t->uid));
+  }
+
+  $form['info'] = array(
+    '#type' => 'markup',
+    '#value' => t("<p>This is a preview of the message to be sent from %from to %to.</p>", array('%from' => $from, '%to' => $to))
+  );
+  $form['to'] = array(
+    '#type' => 'hidden',
+    '#value' => $to
+  );
+  $form['from'] = array(
+    '#type' => 'hidden',
+    '#value' => $from
+  );
+  $form['txnid'] = array(
+    '#type' => 'hidden',
+    '#value' => $t->txnid
+  );
+  $form['notify'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Send notification'),
+    '#description' => t('Check here if you want to send this notification to the customer.'),
+    '#default_value' => TRUE
+  );
+  $form['message'] = store_email_form('store', 'cancel_transaction', t('Cancel transaction notification'), NULL, $variables);
+  if ($workflow = $_GET['wf']) {
+    $form['wf'] = array('#type' => 'hidden', '#value' => $workflow);
+  }
+
+  return confirm_form('store_transaction_cancel', $form, t('Are you sure you want to cancel this transaction?'), $_GET['destination'], '<br />', t('Cancel transaction'), t('Abort'));
+}
+
+function store_transaction_cancel_submit($form_id, $edit) {
+  if ($edit['confirm']) {
+    if (is_numeric($edit['wf'])) {
+      db_query("UPDATE {ec_transaction} SET workflow = '%d' WHERE txnid = '%d'", $edit['wf'], $edit['txnid']);
+      drupal_set_message(t('The transaction has been marked as canceled.'));
+    }
+    if ($edit['notify']) {
+      $mail_sent = store_email_send($edit['from'], $edit['to'], $edit['subject'], $edit['body']);
+      if ($mail_sent) {
+        drupal_set_message(t('A notification about that has been sent to the customer.'));
+      }
+    }
+  }
+  return $edit['destination'];
+}
+
+function store_transaction_load($txnid) {
+
+  $t = db_fetch_object(db_query("SELECT * FROM {ec_transaction} AS st WHERE st.txnid = '%d'", $txnid));
+
+  $result = db_query('SELECT stp.*, r.rtxnid as rtxnid, r.rnid as rnid, p.ptype FROM {ec_transaction_product} stp LEFT JOIN {ec_renewal} r ON stp.txnid = r.txnid LEFT JOIN {ec_product} p ON stp.vid = p.vid WHERE stp.txnid = %d', $t->txnid);
+  while ($data = db_fetch_object($result)) {
+    $data->data = unserialize($data->data);
+    if ($data->rtxnid) {
+      $t->renewal[$data->rnid] = $data->rtxnid;
+    }
+
+    if ($extra = product_invoke_productapi($item, 'transaction', 'load')) {
+      foreach ($extra as $key => $value) {
+        $item->$key = $value;
+      }
+    }
+
+    $items[] = $data;
+  }
+  $t->items = $items;
+
+  $result = db_query("SELECT stm.* FROM {ec_transaction_misc} stm WHERE stm.txnid = %d ORDER BY stm.weight ASC", $t->txnid);
+  while ($misc = db_fetch_object($result)) {
+    $t->misc[] = $misc;
+  }
+
+  // Load Addressess
+  $result = db_query('SELECT sta.* FROM {ec_transaction_address} sta WHERE sta.txnid = %d', $t->txnid);
+  while ($misc = db_fetch_object($result)) {
+    $t->address[$misc->type] = $misc;
+  }
+
+  if ($extra = store_invoke_ec_transactionapi($t, 'load')) {
+    foreach ($extra as $key => $value) {
+      $t->$key = $value;
+    }
+  }
+
+  return $t;
+}
+
+/**
+ * Default view of the admin store link.
+ *
+ * Generates statistical data of the store with links to view and the details
+ * of transactions.
+ */
+function store_admin_overview() {
+
+  $num_pending    = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE (payment_status = '%d' OR payment_status = '%d') AND (workflow = '%d' OR workflow = '%d' OR workflow = '%d' OR workflow = '%d')", payment_get_status_id('pending'), payment_get_status_id('payment received'), transaction_get_workflow_id("transaction received"), transaction_get_workflow_id("invoiced"), transaction_get_workflow_id("shipped"), transaction_get_workflow_id("awaiting customer response")));
+  $num_processing = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE payment_status = '%d' AND (workflow = '%d' OR workflow = '%d' OR workflow = '%d' OR workflow = '%d')", payment_get_status_id('completed'), transaction_get_workflow_id("transaction received"), transaction_get_workflow_id("invoiced"), transaction_get_workflow_id("shipped"), transaction_get_workflow_id("awaiting customer response")));
+  $num_completed  = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE payment_status = '%d' and workflow = '%d'", payment_get_status_id('completed'), transaction_get_workflow_id("completed")));
+
+  /* Counter the new table width: 100% in drupal.css */
+  $style = array('style' => 'width:auto;');
+
+  $header = array(array("data" => t('Orders'), 'colspan' => 2));
+  $row[] = array(array("data" => l(t("payments pending"), "admin/store/search", array(), "status=1,7&workflow=1,2,3,4"), 'align' => 'right', 'title' => t('payment status: Pending, workflow: Not Complete')), $num_pending);
+  $row[] = array(array("data" => l(t("orders needing action"), "admin/store/search", array(), "status=2&workflow=1,2,3,4"), 'align' => 'right', 'title' => t('payment status: Complete, workflow: Not Complete')), $num_processing);
+  $row[] = array(array("data" => l(t("completed"), "admin/store/search", array(), "workflow=6"), "align" => "right"), $num_completed);
+
+  $output = theme("table", $header, $row, $style) . '<br />';
+  $row = null;
+
+  $beg_month   = mktime(0, 0, 0, date('m'), 1, date('Y'));
+  $num_orders  = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month));
+  $mon_sales   = payment_format(db_result(db_query("SELECT SUM(gross) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month)));
+
+  $header = array(array("data" => t('Monthly figures'), 'colspan' => 2));
+  $row[] = array(array("data" => l(t("monthly orders"), "admin/store/search", array(), "date=>". date('m/d/Y', $beg_month)), "align" => "right"), $num_orders);
+  $row[] = array(array("data" => t('monthly sales'), "align" => "right"), $mon_sales);
+
+  $output .= theme("table", $header, $row, $style) . '<br />';
+  $row = null;
+
+  if (variable_get('payment_recurring', 0)) {
+    $num_orders  = db_result(db_query("SELECT COUNT(st.txnid) FROM {ec_transaction} AS st, {ec_product} AS p, {ec_transaction_product} AS stp WHERE p.nid = stp.nid AND st.txnid = stp.txnid AND stp.expires > %d AND payment_status = 2 AND workflow = 6", time()));
+    $header = array(array("data" => t('Recurring Payments'), "colspan" => 2));
+    $row[] = array(array("data" => l(t("active transactions"), "admin/store/search", array(), "is_recurring=1&nid_expires=>now&workflow=6"), "align" => "right"), $num_orders);
+    $output .= theme("table", $header, $row, $style) . '<br />';
+    $row = null;
+  }
+
+  $beg_year       = mktime(0, 0, 0, 1, 1, date('Y'));
+  $num_customers  = db_result(db_query("SELECT COUNT(DISTINCT uid) FROM {ec_transaction}"));
+  $num_products   = db_result(db_query("SELECT COUNT(nid) FROM {ec_product}"));
+  $year_sales     = payment_format(db_result(db_query("SELECT SUM(gross) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_year)));
+
+  $header = array(array("data" => t('General statistics'), "colspan" => 2));
+  $row[] = array(array("data" => l(t("customers"), "admin/user"), "align" => "right"), $num_customers);
+  $row[] = array(array("data" => l(t('products'), 'product'), "align" => "right"), $num_products);
+  $row[] = array(array("data" => t('yearly sales'), "align" => "right"), $year_sales);
+
+  /*
+  // Started to work on some queries to generate top selling product reports.
+  $result = db_query("SELECT nid, title, COUNT(*) as count FROM {ec_transaction_product} GROUP BY nid ORDER BY count DESC");
+  $header = array(array("data" => "Product statistics", "colspan" => 2));
+  $row[] = array(array("data" => l(t("Top selling"), "products/top"), "align" => "right"), $num_customers);
+  */
+
+  $output .= theme("table", $header, $row, $style);
+  $row = null;
+
+  return $output;
+}
+
+function store_transactions_search() {
+  // List the available items to search for.
+  $fields = array('text', 'txnid', 'uid', 'is_recurring', 'nid', 'nid_expires', 'date', 'gross', 'status', 'workflow', 'method', 'ptype');
+
+   // If we have an edit array, recompose the array into separate stand-alone variables.
+  $edit = ($_POST['edit']) ? $_POST['edit'] : array();
+  foreach($edit as $key => $value) {
+    if ($value) {
+      // I had to recompose the $_POST vars to make tablesort smile at me.
+      $_POST[$key] = (is_array($value)) ? implode(',', $value) : $value;
+      $_REQUEST[$key] = $_POST[$key];
+    }
+  }
+  unset($_POST['edit']); // Again, an all too famous tablesort issue.
+
+  /* Grab the values we need from the $_REQUEST object. */
+  foreach($fields as $field) {
+    $value = $_REQUEST[$field];
+    if (array_key_exists($field, $_REQUEST) === true && $value != "") {
+      $query->$field = $value;
+    }
+  }
+  
+  $output  = store_transactions_search_form($query);
+  $output .= store_transactions_search_result($query);
+  return $output;
+}
+
+function store_transactions_search_form($query) {
+  $query = (object) $query;
+  $form['basic'] = array('#prefix' => '<div class="container-inline">', '#suffix' => '</div>');
+  $form['basic']['text'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Search for'),
+    '#default_value' => $query->text,
+    '#size' => 60,
+    '#maxlength' => 255
+  );
+  $form['basic']['submit'] = array('#type' => 'submit', '#value' => t('Search'));
+  $form['instructions'] = array(
+    '#type' => 'markup', 
+    '#prefix' => '<div class="description">', 
+    '#suffix' => '</div>', 
+    '#value' => t('Searches the title and content of a product for a string of text.')
+  );
+  $form['advanced'] =  array(
+    '#type' => 'fieldset',
+    '#title' => t('Advanced search'),
+    '#description' => t("<p>The textfields in this form recognize special operators like greater than (&gt;), less than (&lt;), comma separated values and equals to, which is also the default option if none is specified. This allows you to easily find ranges and multiple values and works with IDs and dates.</p>"),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#attributes' => array('class' => 'search-advanced')
+  );
+  $form['advanced']['fields'] = store_transactions_advanced_search_form($query);
+  return drupal_get_form('transactions_search_form', $form);
+}
+
+function store_transactions_advanced_search_form($query) {
+  $form['keywords1'] = array('#prefix' => '<div class="criterion">', '#suffix' => '</div>');
+  $form['keywords1']['txnid'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Transaction ID'),
+    '#default_value' => $query->txnid,
+    '#size' => 30,
+    '#maxlength' => 255,
+    '#description' => t('The ID number of a transaction.')
+  );
+  $form['keywords1']['uid'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Username or ID'),
+    '#default_value' => $query->uid,
+    '#size' => 30,
+    '#maxlength' => 255,
+    '#description' => t('The user that placed the order.')
+  );
+  $form['keywords1']['nid'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Product ID'),
+    '#default_value' => $query->nid,
+    '#size' => 30,
+    '#maxlength' => 255,
+    '#description' => t('Find a transaction that has the following product(s).')
+  );
+  $form['keywords2'] = array('#prefix' => '<div class="criterion">', '#suffix' => '</div>');
+  $form['keywords2']['nid_expires'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Product expiration'),
+    '#default_value' => $query->nid_expires,
+    '#size' => 30,
+    '#maxlength' => 255,
+    '#description' => t('Date product expires.')
+  );
+  $form['keywords2']['date'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Date created'),
+    '#default_value' => $query->date,
+    '#size' => 30,
+    '#maxlength' => 255,
+    '#description' => t('Date transaction was created.')
+  );
+  $form['keywords2']['gross'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Total cost'),
+    '#default_value' => $query->gross,
+    '#size' => 30,
+    '#maxlength' => 255
+  );
+  $form['status'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Payment status'),
+    '#default_value' => explode(',', $query->status),
+    '#options' => payment_build_status(),
+    '#prefix' => '<div class="criterion">',
+    '#suffix' => '</div>'
+  );
+  $form['workflow'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Workflow'),
+    '#default_value' => explode(',', $query->workflow),
+    '#options' => store_transaction_workflow(),
+    '#prefix' => '<div class="criterion">',
+    '#suffix' => '</div>'
+  );
+  $form['method'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Payment method'),
+    '#default_value' => explode(',', $query->method),
+    '#options' => payment_get_methods(),
+    '#prefix' => '<div class="criterion">',
+    '#suffix' => '</div>'
+  );
+  $form['ptype'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Product type'),
+    '#default_value' => explode(',', $query->ptype),
+    '#options' => product_get_ptypes(),
+    '#prefix' => '<div class="criterion">',
+    '#suffix' => '</div>'
+  );
+  $form['is_recurring'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Recurring payments only'),
+    '#return_value' => TRUE,
+    '#default_value' => ($query->is_recurring) ? TRUE : FALSE,
+    '#description' => t('Check this box if you only want transactions containing recurring payments.'),
+    '#prefix' => '<br class="clear" />'
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Advanced search'),
+    '#prefix' => '<div class="action">',
+    '#suffix' => '</div><br class="clear" />'
+  );
+  return $form;
+}
+
+/**
+ * Query the transaction (and other associated tables) in a myriad of ways.
+ *
+ * @param $query
+ *   Object representing the search criteria.
+ * @param $show_details
+ *   Whether to show details of the search criteria.
+ * @param $show_permlink
+ *   Whether to show a permanent link for a search.
+ * @return
+ *   A sortable HTML table with the transactions matching the search criteria.
+ */
+function store_transactions_search_result($query, $show_details = TRUE, $show_permlink = TRUE) {
+  // If we have a valid query object, let's hit the database.
+  if (!empty($query)) {
+
+    $select = array();
+    $from   = array();
+    $where  = array();
+
+    foreach ($query as $criterion => $criterion_value) {
+      $data = array();
+      $operator = null;
+      $criterion_value = trim($criterion_value);
+
+      // Handle any comparison operators
+      if (strpos($criterion_value, ',') !== false) {
+        $operator = ',';
+        $data     = explode(',', $criterion_value);
+        $data = array_map('db_escape_string', $data);
+      }
+      elseif (strpos($criterion_value, '-') !== false) {
+        $operator = '-';
+        $data     = explode('-', $criterion_value);
+        $data = array_map('db_escape_string', $data);
+      }
+      else {
+        // This order is important.
+        $operators = array('>=', '<=', '>', '<', '=');
+        foreach ($operators as $op) {
+          $op_len = strlen($op);
+          // Only catch these operators at the beginning of the value.
+          if (strlen($criterion_value) >= $op_len && substr($criterion_value, 0, $op_len) == $op) {
+            $operator = '<>';
+            $data['op'] = $op;
+            $data[0] = db_escape_string(trim(substr($criterion_value, $op_len)));
+            break;
+          }
+        }
+      }
+
+      if ($operator == null) {
+        $data[] = db_escape_string($criterion_value);
+      }
+
+      $select[] = "st.*";
+      $from[]   = "{ec_transaction} AS st";
+
+      switch ($criterion) {
+        case "text":
+          $from[]   = "{node} AS n";
+          $from[]   = "{node_revisions} AS r";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = "AND (n.title LIKE '%%$data[0]%%' OR r.body LIKE '%%$data[0]%%')";
+          $where[]  = "AND n.vid = stp.vid";
+          $where[]  = "AND n.vid = r.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $details[] = _store_transactions_search_detail(t('Text'), $data, $operator);
+          break;
+
+        case "txnid":
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.txnid');
+          $details[] = _store_transactions_search_detail(t('Transaction id'), $data, $operator);
+          break;
+
+        case "uid":
+          $from[]   = "{users} AS u";
+          $where[]  = "AND u.uid = st.uid";
+
+          $i = 0;
+          $where_uid = '';
+          $op = ($data['op']) ? $data['op'] : '=';
+          foreach ($data as $key => $value) {
+            if (is_numeric($value)) {
+              $where_uid .= ($i == 0) ? "AND (" : " OR ";
+              $where_uid .= "st.uid $op '$value'";
+            }
+            else {
+              $where_uid .= ($i == 0) ? "AND (" : " OR ";
+              $where_uid .= "u.name LIKE '%%$value%%'";
+            }
+            $i++;
+          }
+          $where_uid .= ")";
+
+          $where[] = $where_uid;
+          $details[] = _store_transactions_search_detail(t('User'), $data, $operator);
+          break;
+
+        case "nid":
+          $from[]   = "{ec_product} AS p";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = "AND p.vid = stp.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $where[]  = _store_transactions_search_operator($data, $operator, 'p.nid');
+          $details[] = _store_transactions_search_detail(t('Product id'), $data, $operator);
+          break;
+
+        case "nid_expires":
+          $from[]   = "{ec_product} AS p";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = "AND p.vid = stp.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $mod = array();
+          foreach ($data as $key => $value) {
+            if ($key !== 'op') {
+              $mod[$key] = format_date(strtotime($value), 'small');
+            }
+          }
+          $where[]  = _store_transactions_search_operator($data, $operator, 'stp.expires', 'strtotime');
+          $details[] = _store_transactions_search_detail(t('Product expires'), $mod, $operator);
+          break;
+
+        case "is_recurring":
+          $from[]   = "{ec_product} AS p";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = "AND p.vid = stp.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $where[]  = _store_transactions_search_operator($data, $operator, 'stp.is_recurring');
+          $details[] = _store_transactions_search_detail(t('Recurring payment'), $data, $operator);
+          break;
+
+        case "date":
+          $mod = array();
+          foreach ($data as $key => $value) {
+            if ($key !== 'op') {
+              $mod[$key] = format_date(strtotime($value), 'small');
+            }
+          }
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.created', 'strtotime');
+          $details[] = _store_transactions_search_detail(t('Date'), $mod, $operator);
+          break;
+
+        case "gross":
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.gross + st.shipping_cost');
+          $details[] = _store_transactions_search_detail(t('Cost'), $data, $operator);
+          break;
+
+        case "status":
+          $mod = array();
+          foreach ($data as $key => $value) {
+            $value = ($key !== 'op') ? payment_get_status($value) : $value;
+            $mod[$key] = $value;
+          }
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.payment_status');
+          $details[] = _store_transactions_search_detail(t('Payment status'), $mod, $operator);
+          break;
+
+        case "workflow":
+          $mod = array();
+          foreach ($data as $key => $value) {
+            $value = ($key !== 'op') ? transaction_get_workflow($value) : $value;
+            $mod[$key] = $value;
+          }
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.workflow');
+          $details[] = _store_transactions_search_detail(t('Workflow'), $mod, $operator);
+          break;
+
+        case "method":
+          $methods = payment_get_methods();
+          $mod = array();
+          foreach ($data as $key => $value) {
+            $value = ($key !== 'op') ? $methods[$value] : $value;
+            $mod[$key] = $value;
+          }
+          $where[]  = _store_transactions_search_operator($mod, $operator, 'st.payment_method');
+          $details[] = _store_transactions_search_detail(t('Payment method'), $mod, $operator);
+          break;
+
+        case "ptype":
+          $from[]   = "{ec_product} AS p";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = _store_transactions_search_operator($data, $operator, 'p.ptype');
+          $where[]  = "AND p.vid = stp.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $details[] = _store_transactions_search_detail(t('Product type'), $data, $operator);
+          break;
+      }
+      $get[] = _store_transactions_search_uri($criterion, $data);
+    } //The end of a really really long for loop.
+
+    // Now that we know the tables, apply the correct column display map.
+    $column_map = array(
+      'users'          => array(array('data' => t('user'), 'field' => 'u.uid')),
+      'ec_transaction' => array(array('data' => t('txnid'), 'field' => 'st.txnid', 'sort' => 'desc'), array('data' => t('user'), 'field' => 'st.uid'), array('data' => t('payment status'), 'field' => 'st.payment_status'), array('data' => t('workflow'), 'field' => 'st.workflow'), array('data' => t('gross'), 'field' => 'st.gross'), array('data' => t('created'), 'field' => 'st.created'), array('data' => t('changed'), 'field' => 'st.changed'))
+    );
+
+    // Expand all query parts.
+    $sql_select = implode(', ', array_unique($select));
+    $sql_from = implode(', ', array_unique($from));
+    $sql_where = preg_replace('/^(and|or)/i', '', implode(' ', array_unique($where)));
+
+    // Merge all table columns that exist in the current query into an array.
+    $table = array();
+    foreach (_store_extract_tablenames($sql_from) as $key) {
+      if (array_key_exists($key, $column_map)) {
+        $table = array_merge($table, $column_map[$key]);
+
+        foreach ($column_map[$key] as $value) {
+          $columns[]  = substr($value['field'], strpos($value['field'], '.') + 1);
+        }
+      }
+    }
+    $columns = array_unique($columns);
+    $header = _store_array_distinct($table, 'data');
+    $header[] = t('items ordered');
+    $header[] = t('operations');
+
+    // Get SQL sort clause.
+    $sql_orderby = tablesort_sql($header);
+
+    $count_query = "SELECT COUNT(DISTINCT st.txnid) FROM $sql_from". ($sql_where ? " WHERE $sql_where" : '');
+    $numset = db_result(db_query($count_query));
+
+    $result = pager_query("SELECT DISTINCT $sql_select FROM $sql_from ". ($sql_where ? "WHERE $sql_where" : '') ." $sql_orderby", 50, 0, $count_query);
+    while ($data = db_fetch_object($result)) {
+
+      $edit_uri = "admin/store/transaction/edit/$data->txnid";
+      $edit_params = "section=overview&". drupal_get_destination();
+
+      // Before we hand over the table row to the table() function, some
+      // fields need special formatting.
+      foreach ($columns as $col) {
+
+        if (($col == 'created' || $col == 'changed' || $col == 'expires') && $data->$col != 0) {
+          $row[] = format_date($data->$col, 'small');
+        }
+        elseif ($col == 'uid') {
+          $username = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $data->$col));
+          if ($billing_address = db_fetch_object(db_query("SELECT * FROM {ec_transaction_address} WHERE txnid = %d AND type = 'billing'", $data->txnid))) {
+            $data->address['billing'] = $billing_address;
+          }
+          if ($data->address['billing']->firstname && $data->address['billing']->lastname) {
+            $name = $data->address['billing']->firstname . ' ' . $data->address['billing']->lastname;
+            $name = l($name, "admin/store/transaction/edit/$data->txnid", array(), "section=addresses&destination=$destination");
+            if (user_access('administer users') && $data->$col) {
+              $username = l($username, 'user/'. $data->$col);
+            }
+            elseif (!$data->$col) {
+              $username = variable_get('anonymous', 'Anonymous');
+            }
+            if ($username) {
+              $name .= '<br />('. $username .')';
+            }
+          }
+          else {
+            $name = l($username, "admin/store/transaction/edit/$data->txnid", array(), "section=addresses&". drupal_get_destination());
+          }
+          $row[] = array('data' => $name, 'nowrap' => 'nowrap');
+        }
+        elseif ($col == 'payment_status') {
+          $row[] = payment_get_status($data->$col);
+        }
+        elseif ($col == 'workflow') {
+          // invoiced = 2, shipped = 3
+          $actions = array(
+            'print_invoice' => l(t('print invoice'), "admin/store/transaction/print/$data->txnid", array(), ($data->$col > 1 ? NULL : 'wf=2')),
+            'ship_notify' => l(t('shipping notify'), "admin/store/transaction/shipping/$data->txnid", array(), 'wf=3&'. drupal_get_destination()),
+            'ask_customer' => l(t('ask customer'), "admin/store/transaction/ask/$data->txnid", array(), 'wf=4&'. drupal_get_destination()),
+            'cancel_transaction' => l(t('cancel transaction'), "admin/store/transaction/cancel/$data->txnid", array(), 'wf=5&'. drupal_get_destination()) 
+          );
+          $row[] = array('data' => theme('fieldset', array('#title' => transaction_get_workflow($data->$col), '#children' => theme('item_list', $actions), '#collapsible' => TRUE, '#collapsed' => TRUE)) ,'nowrap' => 'nowrap');
+        } elseif ($col == 'gross') {
+          $row[] =  payment_format($data->$col);
+        }
+        else {
+          $row[] = $data->$col;
+        }
+      }
+
+      // Count the number of items in this transaction
+      $num_items = db_result(db_query("SELECT SUM(qty) as items FROM {ec_transaction_product} WHERE txnid = %d", $data->txnid));
+      $row[] = l(format_plural($num_items, '1 item', '%count items'), "admin/store/transaction/product/view/$data->txnid", array('onclick' => "window.open(this.href, 'items_ordered', 'width=480,height=480,scrollbars=yes,status=yes'); return false"));
+
+      $row[] = l(t('edit'), $edit_uri, array(), $edit_params) .
+             '<br />&nbsp;&nbsp;&nbsp;'. l(t('addresses'), "admin/store/transaction/edit/$data->txnid", array(), "section=addresses&". drupal_get_destination()) .
+             '<br />&nbsp;&nbsp;&nbsp;'. l(t('items'), "admin/store/transaction/product/edit/$data->txnid");
+      $rows[] = $row;
+      $row = null;
+    }
+
+    if ($pager = theme('pager', NULL, 50, 0)) {
+      $rows[] = array(array("data" => $pager, "colspan" => count($header)));
+    }
+
+    // Search criterion details
+    if ($show_details) {
+      $output .= ($numset > 0) ? t('<h2>%result found</h2>', array('%result' => format_plural($numset, '1 result', '%count results'))) : t('<h2>No results found</h2>');
+      $output .= theme('item_list', $details, t('Search criteria:'));
+      $output .= "<p>". l(t('reset'), "admin/store/search", array('title' => t('Reset search criteria.'))) ."</p>";
+    }
+    elseif (!$numset) {
+      $output .= t('<h2>No transactions found</h2>'); 
+    }
+
+    if ($numset) {
+      $output .= theme('table', $header, $rows);
+      // If we have links that, when clicked change the workflow, give the user some warning.
+      $output .= '<div id="help"><strong>*</strong>'. t('Clicking links marked with an asterisk will also cause the transaction to shift into it\'s respective workflow state.'). '</div>';
+      if ($show_permlink) {
+        $output .= "<p>". l(t("#"), "admin/store/search", array('title' => t('Permanent link to this search query.')), implode('&', $get)) ."</p>";
+      }
+    }
+  }
+  return $output;
+}
+
+function store_transaction_item_list(&$txn) {
+  $rows = array();
+  foreach (array_keys($txn->items) as $key) {
+    $p =& $txn->items[$key];
+    $rows[] = array($p->title, l(t('edit'), "admin/store/transaction/product/edit/$txn->txnid/$p->nid", array(), drupal_get_destination()));
+  }
+
+  if (count($rows)) {
+    return theme('table', array('product', 'op'), $rows);
+  }
+
+  return '';
+}
+
+function store_transaction_edit_items($txnid, $nid = NULL) {
+  if (!is_numeric($txnid) || !($t = store_transaction_load($txnid))) {
+    return drupal_not_found();
+  }
+
+  if (is_null($nid) || !is_numeric($nid)) {
+    return store_transaction_add_items_form($t);
+  } else {
+    $p = null;
+    foreach (array_keys($t->items) as $k) {
+      $p =& $t->items[$k];
+      if ($p->nid == $nid) {
+        break;
+      }
+    }
+      
+    if (is_null($p)) {
+      return drupal_not_found();
+    }
+
+    return store_transaction_edit_items_form($t, $p);
+  }
+}
+
+function store_transaction_add_items_form(&$txn) {
+  $items = store_transaction_item_list($txn);
+
+  if (empty($items)) {
+    $items = t('No items found for the transaction');
+  }
+  $form['items'] = array(
+    '#type' => 'item',
+    '#title' => t('Transaction items'),
+    '#value' => $items
+  );
+  $form['txnid'] = array(
+    '#type' => 'value',
+    '#value' => $t->txnid
+  );
+
+  $form['products'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Products'),
+  );
+  $form['products']['nids'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Product IDs'),
+    '#default_value' => $txn->nids,
+    '#autocomplete_path' => 'product/autocomplete',
+    '#size' => 60,
+    '#maxlength' => 128,
+    '#description' =>  t('Enter a comma separated list of product ids to add to this transaction. Here is a <a href="%product_quicklist" onclick="window.open(this.href, \'%product_quicklist\', \'width=480,height=480,scrollbars=yes,status=yes\'); return false">list of all products</a>.', array('%product_quicklist' => url('admin/store/products/quicklist')))
+  );
+  $form['products'][] = array('#type' => 'submit', '#value' => t('Add products'));
+  
+  return drupal_get_form('store_transaction_add_items', $form);
+}
+
+function store_transaction_add_items_validate($form_id, &$fv) {
+  foreach (split(', ?', $fv['nids']) as $nid) {
+    if (!is_numeric($nid) || !db_result(db_query("SELECT nid FROM {node} WHERE nid = %d AND type = 'product'", $nid))) {
+      form_set_error('nids', t('Invalid list of product IDs'));
+      break;
+    }
+  }
+}
+
+function store_transaction_add_items_submit($form_id, &$fv) {
+  $fv['nids'] = str_replace(' ', '', $fv['nids']);
+  store_transaction_save_nids($fv);
+}
+
+/**
+ * Displays the form for editing a product already attached to a transaction.
+ *
+ * @param $t Transaction
+ * @param $p Product
+ * @return HTML form for editing the given product as part of the given transaction.
+ */
+function store_transaction_edit_items_form(&$t, &$p) {
+  $form['txnid'] = array(
+    '#type' => 'value',
+    '#value' => $t->txnid
+  );
+  $form['nid'] = array(
+    '#type' => 'value',
+    '#value' => $p->nid
+  );
+  $form['vid'] = array(
+    '#type' => 'value',
+    '#value' => $p->vid
+  );
+  $form['title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Title'),
+    '#default_value' => $p->title,
+    '#size' => 30,
+    '#maxlength' => 128,
+  );
+  $form['qty'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Quantity'),
+    '#default_value' => $p->qty,
+    '#size' => 15,
+    '#maxlength' => 15,
+  );
+  $form['data'] = array(
+    '#type' => 'hidden',
+    '#value' => $p->data,
+  );
+
+  $interval = drupal_map_assoc(range(0, 31));
+  $interval[0] = '--';
+  $unit = array(0 => t('-please choose-'), 'D' => t('Day(s)'), 'W' => t('Week(s)'), 'M' => t('Month(s)'), 'Y' => t('Year(s)'));
+
+  if ($p->is_recurring) {
+    $p->oldexpiry = $p->expires;
+    $p->expires = format_date($p->expires, 'custom', 'Y-m-d H:i O');
+
+    $form['recurring'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Billing cycle length'),
+      '#weight' => 1
+    );
+/*    $form['recurring']['price_interval'] = array(
+      '#type' => 'select',
+      '#title' => t('Interval'),
+      '#default_value' => $p->price_interval,
+      '#options' => $interval,
+    );
+    $form['recurring']['price_unit'] = array(
+      '#type' => 'select',
+      '#title' => t('Unit'),
+      '#default_value' => $p->price_unit,
+      '#options' => $unit,
+    );
+    $interval[0] = 0;
+    $interval[-1] = t('unlimited');
+    $form['recurring']['price_cycle'] = array(
+      '#type' => 'select',
+      '#title' => t('Number of payments cycles'),
+      '#default_value' => $p->price_cycle,
+      '#options' => $interval,
+      '#description' => t('Select the number of recurring payment cycles this product has.'),
+    );*/
+    $form['recurring']['expires'] = array(
+      '#type' => 'textfield',
+      '#title' => t('expires'),
+      '#default_value' => $p->expires,
+      '#size' => 21,
+      '#maxlength' => 25,
+      '#description' => t('<b>Currently: %curexpiry</b> The date the product will expire, or if using recurring payments, the date of the next billing cycle unless all payment cycles have ended.', array('%curexpiry' => $p->expires)),
+    );
+    $form['recurring']['oldexpiry'] = array(
+      '#type' => 'value',
+      '#value' => $p->oldexpiry
+    );
+  }
+  $form[] = array('#type' => 'submit', '#value' => t('Update'), '#weight' => 2);
+    //$form[] = array('#type' => 'submit', '#value' => t('Delete'), '#weight' => 3);
+
+  return drupal_get_form('store_transaction_edit_items', $form);
+}
+
+function store_transaction_edit_items_validate($form_id, &$fv) {
+  if (strtotime($fv['expires']) === FALSE && strtotime($fv['expires'], $fv['oldexpiry']) === FALSE) {
+    form_set_error('expires', t('The expiry time you entered is invalid'));
+  }
+}
+
+function store_transaction_edit_items_submit($form_id, &$fv) {
+  if (preg_match('/^[+-]/', $fv['expires'])) {
+    $fv['expires'] = strtotime($fv['expires'], $fv['oldexpiry']);
+  } else {
+    $fv['expires'] = strtotime($fv['expires']);
+  }
+
+  store_transaction_save_product((object)$fv);
+  
+  // Fix up Gross
+  $t = store_transaction_load($fv['txnid']);
+  $t->gross = store_transaction_calc_gross($t);
+  db_query('UPDATE {ec_transaction} SET gross = %f WHERE txnid = %d', $t->gross, $t->txnid);
+}
+
+function store_transaction_items($txnid) {
+  global $base_url;
+  $base_url .= '/';
+
+  $html = "<html>\n<head>\n<base href=\"$base_url\" />\n<style type=\"text/css\" media=\"all\">\n@import url(misc/drupal.css);\nbody, table {font-size: 0.9em;}</style>\n</head>\n<body>\n";
+
+  $header = array(
+    array('data' => t('nid'), 'field' => 'p.nid'),
+    array('data' => t('sku'), 'field' => 'p.sku'),
+    array('data' => t('title'), 'field' => 'stp.title', 'sort' => 'asc'),
+    array('data' => t('qty'), 'field' => 'stp.qty'),
+    array('data' => t('type'), 'field' => 'p.ptype')
+  );
+
+  if ($count = db_result(db_query('SELECT COUNT(p.nid) FROM {ec_transaction_product} as stp, {ec_product} as p WHERE stp.vid = p.vid AND stp.txnid = %d', $txnid))) {
+    $sql = 'SELECT * FROM {ec_transaction_product} as stp, {ec_product} as p WHERE stp.vid = p.vid AND stp.txnid = %d'. tablesort_sql($header);
+  }
+  else {
+    $sql = 'SELECT * FROM {ec_transaction_product} as stp WHERE stp.txnid = %d'. tablesort_sql($header);
+  }
+  $result = pager_query($sql, 50, 0, NULL, $txnid);
+
+  $num_items = 0;
+  while ($data = db_fetch_object($result)) {
+    $num_items++;
+    $qty += $data->qty;
+
+    $rows[] = array($data->nid, check_plain($data->sku), l($data->title, "node/$data->nid", array('target' => '_blank')), $data->qty, $data->ptype);
+  }
+
+  $r[] = array(array('data' => 'Unique items:', 'align' => 'right'), array('data' => t('<strong>%num_items</strong>', array('%num_items' => $num_items))));
+  $r[] = array(array('data' => 'Total quantity:', 'align' => 'right'), array('data' => t('<strong>%quantity</strong>', array('%quantity' => $qty))));
+  $table = theme('table', null, $r, array('border' => 0));
+
+  $rows[] = array(array('data' => $table, 'colspan' => 5, 'align' => 'right'));
+
+  $pager = theme('pager', NULL, 50, 0);
+  if (!empty($pager)) {
+    $rows[] = array(array('data' => $pager, 'colspan' => 5));
+  }
+
+  print $html;
+  if ($rows) {
+    print theme("table", $header, $rows);
+  }
+  else {
+    print t('<p>There are no transactions to view. You can manually <a href="%add_transaction">add transactions</a>, however.</p>', array('%add_transaction' => 'admin/store/transaction/add'));
+  }
+  print '</body></html>';
+}
+
+/**
+ * Converts the criteria operator to a database friendly one.
+ *
+ * @param $data
+ *   Array representing the values of the search criterion.
+ * @param $operator
+ *   String representing the criterion operator.
+ * @param $column
+ *   String representing the database column relationed to this criterion.
+ * @param $callback
+ *   A callback function to run in every values of $data.
+ * @return
+ *   A string representing a sql WHERE clause part.
+ */
+function _store_transactions_search_operator($data, $operator, $column, $callback = null) {
+
+  $query = '';
+
+  switch ($operator) {
+
+    case "-";
+      $data = ($callback) ? array_map($callback, $data) : $data;
+      for ($i = 0; $i < 2; $i++) {
+        $query .= ($i == 0) ? "AND ($column >= '$data[$i]'" : " AND $column <= '$data[$i]'";
+      }
+      return $query . ')';
+      break;
+
+    case ",";
+      $data = ($callback) ? array_map($callback, $data) : $data;
+      return "AND $column  IN('" . implode("','", $data) . "')";
+      break;
+
+    case "<>";
+      $data[0] = ($callback) ? $callback($data[0]) : $data[0];
+      return "AND $column ". $data['op']. " '$data[0]'";
+      break;
+
+    default:
+      $data[0] = ($callback) ? $callback($data[0]) : $data[0];
+      return "AND $column = '$data[0]'";
+  }
+
+  return false;
+}
+
+/**
+ * Format a string for using in Search criteria details.
+ *
+ * @param $label
+ *   Nice name of the search criterion.
+ * @param $data
+ *   Array representing the values of the search criterion.
+ * @param $operator
+ *   String representing a criterion operator.
+ * @return
+ *   HTML string with label, operator and value of the criterion.
+ */
+function _store_transactions_search_detail($label, $data, $operator) {
+  switch ($operator) {
+    case ',':
+      $value = ' = '. implode(',', $data);
+      break;
+
+    case '<>':
+      $op = $data['op'];
+      unset($data['op']);
+      $value = " $op ". implode(',', $data);
+      break;
+
+    case '-':
+      $value = " $data[0] - $data[1]";
+      break;
+
+    default:
+      $value = ' = '. implode(',', $data);
+  }
+  return '<strong>'. check_plain($label). '</strong>'. check_plain($value);
+}
+
+/**
+ * Creates a http query string part for using in transactions search.
+ *
+ * @param $field
+ *   The name of a search criterion.
+ * @param $data
+ *   Array representing the values of the search criterion.
+ * @return
+ *   String http query string part.
+ */
+function _store_transactions_search_uri($field, $data) {
+  $data[0] = ($data['op']) ? $data['op'] . $data[0] : $data[0];
+  unset($data['op']);
+  return $field . '=' . implode(',', array_map('urlencode', $data));
+}
+
+/**
+ * Make a multi-dimensional array have only DISTINCT values for a certain "column".
+ *
+ * It's like using the DISTINCT parameter on a SELECT sql statement.
+ * This function was taken from http://php.net/array_unique and contributed by
+ * tru at ascribedata dot com
+ * 
+ * @param $array
+ *   Multi-dimensional array with duplicated sub values.
+ * @param $sub_key
+ *   The sub key that you want to check for duplicated values.
+ * @return
+ *   Array with DISTINCT sub values.
+ */
+function _store_array_distinct($array, $sub_key) {
+  $target = array();
+  $existing_sub_key_values = array();
+  foreach ($array as $key => $sub_array) {
+    if (!in_array($sub_array[$sub_key], $existing_sub_key_values)) {
+      $existing_sub_key_values[] = $sub_array[$sub_key];
+      $target[$key] = $sub_array;
+    }
+  }
+
+  return $target;
+}
+
+/**
+ * Extract table names from a sql query string or
+ * a sql FROM clause string.
+ *
+ * @param $sql
+ *   String representing a full sql query or just its FROM clause part.
+ * @return
+ *   Array of table names.
+ */
+function _store_extract_tablenames($from) {
+  $tables = array();
+  preg_match_all("/{([a-zA-Z0-9_.]+)}/", $from, $tables);
+  return array_unique($tables[1]);
+}
+
+/**
+ * Retrieve an ecommerce email message.
+ * 
+ * This method is used to get an email message that was
+ * added using the hook_store_email_text. Also, this takes
+ * care of checking if the default message has been customized
+ * through the settings pages.
+ * 
+ * @param $module
+ *   The name of the module that adds the message we are looking for.
+ * @param $messageid
+ *   The identifier of the message we want to get.
+ * @param $variables
+ *   An array with the variables available for this message
+ *   and its respectives values.
+ * @return
+ *   Indexed array representing the email message, if $variables is
+ *   given this will apply/replace them in the message subject and body.
+ */
+function store_email_text($module, $messageid, $variables = NULL) {
+  if($module == 'store') {
+
+    $allowed_variables = array('%order_date', '%txnid', '%billing_name', '%first_name', '%user_data', '%billing_to', '%shipping_to', '%shipping_method', '%items', '%email', '%site', '%uri', '%uri_brief', '%date');
+
+    switch ($messageid) {
+      case 'customer_invoice':
+        $message = array(
+          'subject' => t('Your %site order'),
+          'body' => t("Dear %billing_name,\n\nThanks for your recent purchase from %site.  This message includes important information about your order. Please take a moment to read it closely, and be sure to save a copy for future reference.\n\n********************************\nBilling and Shipping Information\n********************************\n%user_data\n********************************\nOrder Details\n********************************\n%items\nQuestions about your order? Please contact us at %email\n\n********************************\nShipping Instructions\n********************************\nWe will notify you by email as soon as your order ships.\n\nThanks for shopping at %site.  We hope to hear from you again real soon!\n\n%uri"),
+          'variables' => $allowed_variables
+        );
+        break;
+
+      case 'processing_error':
+        $message = array(
+          'subject' => t('Purchase problem, %site'),
+          'body' => t("Dear Customer\n\nIt seems there was a problem while processing your order (%txnid). Please contact us at %email for further details.\n\nRegards,\n%site team\n%uri"),
+          'variables' => $allowed_variables
+        );
+        break;
+
+      case 'cancel_transaction':
+        $message = array(
+          'subject' => t('Your %site order has been canceled'),
+          'body' => t("Dear %billing_name,\n\nYour order (%txnid) has been canceled. Please contact us at %email for further details.\n\nRegards,\n%site team\n%uri"),
+          'variables' => $allowed_variables
+        );
+        break;
+
+      case 'ask_customer_template':
+        $message = array(
+          'subject' => t('Questions regarding your order from %site'),
+          'body' => t("Dear %billing_name,\n\nWe have some questions regarding your order from %site.\n\nRegards,\n%site team\n%uri"),
+          'variables' => $allowed_variables
+        );
+        break;
+    }
+  }
+  else {
+    $message = module_invoke($module, 'store_email_text', $messageid);
+  }
+  
+  $message = (object) $message;
+
+  // Check if an admin setting overrides the default string.
+  if ($admin_setting = variable_get($module . '_email_' . $messageid . '_subject', FALSE)) {
+    $message->subject = $admin_setting;
+  }
+  if ($admin_setting = variable_get($module . '_email_' . $messageid . '_body', FALSE)) {
+    $message->body = $admin_setting;
+  }
+
+  // We are getting this text to send, so we need to prepare it
+  // calling all _store_email_alter hooks
+  if ($variables) {
+    foreach (module_implements('store_email_alter') as $name) {
+      // We can't use module_invoke() here because we need
+      // to pass $message and $variables values as reference
+      $function = $name . '_store_email_alter'; 
+      $function($messageid, $message, $variables);
+    }
+    // Replace variables with its values
+    $message->subject = strtr($message->subject, $variables);
+    $message->body = strtr($message->body, $variables);
+  }
+  return $message;
+}
+
+/**
+ * Send an ecommerce email message.
+ * 
+ * Wrapper for sending email process, this allow us
+ * to change the default delivering mechanism through
+ * hook_store_email_send.
+ * 
+ * @param $from
+ *  The email address to be used as sender.
+ * @param $to
+ *  The recipient where to send this email.
+ * @param $subject
+ *  The subject of this email message.
+ * @param $body
+ *  The full message body string.
+ * @param $headers
+ *  Optional email headers to be added to the email.
+ * @return
+ *  Boolean TRUE indicating that the message was sucessful delivered
+ *  or FALSE if an error occurred while delivering the message
+ */
+function store_email_send($from, $to, $subject, $body, $headers = NULL) {
+  $sent = FALSE;
+  foreach (module_implements('store_email_send')  as $name) {
+    $success = module_invoke($name, 'store_email_send', $from, $to, $subject, $body, $headers);
+    if (!is_null($success)) {
+      $sent = TRUE;
+      // We should allow only one module implementing this hook,
+      // otherwise this could send duplicated emails
+      break;
+    }
+  }
+  if (!$sent) {
+    $headers = "From: $from\nReply-to: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from" . $headers;
+    $success = user_mail($to, $subject, $body, $headers);
+  }
+  return $success;
+}
+
+/**
+ * Build an ecommerce email form.
+ * 
+ * If $variables is given this will render a message preview
+ * form, otherwise this will render a form to be used to cutomize
+ * the message.
+ * 
+ * @param $module
+ *   The name of the module that adds this message.
+ * @param $messageid
+ *   The identifier of the message we want to preview/customize.
+ * @param $title
+ *   String used as label for the email field.
+ * @param $description
+ *   The description for this email message.
+ * @param $variables
+ *   An array with the variables available for this message
+ *   and its respectives values.
+ * @return
+ *   Form array for 'subject' and 'body'.
+ */
+function store_email_form($module, $messageid, $title, $description, $variables = NULL) {
+  $message = store_email_text($module, $messageid, $variables);
+  $form = array();
+  // Render the email preview form  
+  if ($variables) {
+    $form['subject'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('Subject of') . ' ' . strtolower($title), 
+      '#default_value' => $message->subject,
+      '#size' => 70, 
+      '#maxlength' => 180, 
+    );
+    $form['body'] = array(
+      '#type' => 'textarea', 
+      '#title' => $title, 
+      '#default_value' => $message->body,
+      '#cols' => 70, 
+      '#rows' => 10, 
+      '#description' => $description
+    );
+  }
+  // Render the email customization form
+  else {
+    $form[$module . '_email_' . $messageid . '_subject'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('Subject of') . ' ' . strtolower($title), 
+      '#default_value' => $message->subject,
+      '#size' => 70, 
+      '#maxlength' => 180, 
+    );
+    $description = $message->variables ? $description . ' ' . t('Variables available:') . ' ' . implode(', ', $message->variables) . '.' : $description; 
+    $form[$module . '_email_' . $messageid . '_body'] = array(
+      '#type' => 'textarea', 
+      '#title' => $title, 
+      '#default_value' => $message->body,
+      '#cols' => 70, 
+      '#rows' => 10, 
+      '#description' => $description
+    );
+  }
+  return $form;
+}
+
+/**
+ * Generate transaction email variables.
+ * 
+ * @param $transaction
+ *   Object representing a transaction.
+ * @return
+ *   Array with the variables to be replaced in transaction emails.
+ */
+function store_email_get_transaction_variables($transaction) {
+  global $base_url;
+
+  $shipping_to = t("Shipping to:\n%shipping-address\n", array('%shipping-address' => store_format_address($transaction, 'shipping')));
+  $billing_to = t("\nBilling to:\n%billing-address\n", array('%billing-address' => store_format_address($transaction, 'billing')));
+  $shipping_method = t("\nShipping service:\n%shipping-service\n", array('%shipping-service' => store_format_shipping_method($transaction)));
+
+  $billing_name = ucfirst($transaction->address['billing']->firstname). ' '. ucfirst($transaction->address['billing']->lastname);
+  $first_name = ucfirst($transaction->address['billing']->firstname);
+
+  $items = "";
+  if ($transaction->items) {
+    foreach ($transaction->items as $p) {
+      $product = product_load($p);
+      $subtotal += $p->qty * $p->price;
+      $items .= t('%order of %title at %price each', array('%order' => format_plural($p->qty, '1 order', '%count orders'), '%title' => $p->title, '%price' => payment_format($p->price))). "\n";
+    }
+  }
+
+  $variables = array(
+    '%order_date' => format_date($transaction->created),
+    '%txnid' => $transaction->txnid,
+    '%billing_name' => $billing_name,
+    '%first_name'   => $first_name,
+    '%billing_to'   => $billing_to,
+    '%shipping_to'  => $shipping_to,
+    '%shipping_method' => $shipping_method,
+    '%user_data' => $shipping_to . $billing_to . $shipping_method,
+    '%items' => $items,
+    '%email' => variable_get('site_mail', ini_get('sendmail_from')),
+    '%site' => variable_get('site_name', 'drupal'),
+    '%uri' => $base_url,
+    '%uri_brief' => substr($base_url, strlen("http://")),
+    '%date' => format_date(time())
+  );
+  return $variables;
+}
+
+/**
+ * A wrapper for theme('store_invoice')
+ *
+ * Because the menu callback can only handle functions with no parameters, we
+ * use this function as a wrapper.
+ */
+function store_invoice() {
+
+  $txnid = (int) arg(4);
+  $wf = (int) $_GET['wf'];
+
+  /* Adjust the workflow.. */
+  if ($wf && $txnid) {
+    db_query("UPDATE {ec_transaction} SET workflow = %d WHERE txnid = %d", $wf, $txnid);
+  }
+
+  $txn = store_transaction_load($txnid);
+
+  return theme('store_invoice', $txn);
+}
+
+function store_user_history($uid = '') {
+  global $user;
+
+  // Don't need to check security here as menu system does that
+  // for us. Calling this function directly is a security risk.
+  if ($uid == '') {
+    $uid = $user->uid;
+  }
+
+  $output = variable_get('ec_order_overview', '');
+
+  $breadcrumbs = drupal_get_breadcrumb();
+  $breadcrumbs[] = l(t('user account'), "user/$uid");
+  drupal_set_breadcrumb($breadcrumbs);
+
+  $name = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $uid));
+  $title = t('%username\'s order history', array('%username' => $name));
+
+  $header = array(
+    array('data' => t('ID'), 'field' => 'st.txnid', 'sort' => 'desc'),
+    array('data' => t('payment status'), 'field' => 'st.payment_status'),
+    array('data' => t('workflow'), 'field' => 'st.workflow'),
+    array('data' => t('total'), 'field' => 'st.gross'),
+    array('data' => t('created'), 'field' => 'st.created'),
+    array('data' => t('due date'), 'field' => 'st.duedate'),
+    t('items ordered'),
+    t('operations')
+  );
+
+  $sql = 'SELECT * FROM {ec_transaction} AS st WHERE st.uid = %d'. tablesort_sql($header);
+  $result = pager_query($sql, 25, 0, NULL, $uid);
+
+  while ($txn = db_fetch_object($result)) {
+    /* Count how many items in this transaction */
+    $resultset  = db_query("SELECT stp.qty FROM {ec_transaction} AS st, {ec_transaction_product} AS stp WHERE st.txnid = '%d' AND st.txnid = stp.txnid", $txn->txnid);
+    $num_items = 0;
+    while ($i = db_fetch_object($resultset)) {
+      $num_items += $i->qty;
+    }
+
+    $operations = array(l(t('view'), "store/transaction/view/$txn->txnid"));
+    if ($txn->payment_status == payment_get_status_id('pending')) {
+      $operations[] = l(t('make payment'), "store/payment/{$txn->txnid}");
+    };
+
+    $rows[] = array(
+      $txn->txnid, 
+      payment_get_status($txn->payment_status), 
+      transaction_get_workflow($txn->workflow), 
+      module_invoke('payment', 'format', $txn->gross), 
+      format_date($txn->created, 'small'), 
+      $txn->duedate ? (($txn->duedate > time()) ? format_date($txn->duedate, 'small') : t('Overdue')) : '', 
+      format_plural($num_items, '1 item', '%count items'), 
+      implode('<br />', $operations)
+    );
+  }
+
+  $pager = theme('pager', NULL, 25, 0);
+  if (!empty($pager)) {
+    $rows[] = array(array('data' => $pager, 'colspan' => 9));
+  }
+  $output .= theme("table", $header, $rows);
+
+  drupal_set_title($title);
+  return $output;
+}
+
+/**
+ * The correct format for renewal links is:
+ *   cart/renew/nid/txnid
+ */
+function store_user_subscriptions($uid = '') {
+  global $user;
+
+  if ($uid == '') {
+    $uid = $user->uid;
+  }
+
+  $name = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $uid));
+  $title = t('%username\'s subscriptions', array('%username' => $name));
+
+  $items = product_find_recurring_payments($uid);
+  $cart = cart_get_items();
+
+  $header = array(t('ID'), t('name'), t('price'), t('expires'), t('operations'));
+  foreach((array) $items as $item) {
+    if (!$item->expired) {
+      $item_name = $item->title. '<br>('. product_recurring_nice_string($item). ')';
+      $renew = t('This item is in <a href="%cart_view">your shopping cart</a>.', array('%cart_view' => url('cart/view')));
+      if (!$cart[$item->nid]->qty) {
+        $renew = l(t('renew'), "cart/renew/$item->nid/$item->txnid");
+      }
+      if (product_is_shippable($item->vid)) {
+        $edit_address = '<br />'. l(t('edit'), "store/transaction/address/edit/$item->txnid");
+      }
+      $rows[] = array($item->txnid, $item_name, payment_format($item->price), format_interval($item->expires - time()), $renew . $edit_address);
+    }
+  }
+
+  if ($rows) {
+    $output = theme('table', $header, $rows);
+  }
+  else {
+    $output = t('<p>You have no active subscriptions.</p>');
+  }
+
+  drupal_set_title($title);
+  return $output;
+}
+
+function store_user_address_edit($txnid) {
+  $edit = $_POST['edit'];
+  $op = $_POST['op'];
+
+  if ($op == t('update address')) {
+    if (store_transaction_validate_addresses($edit, 'shipping')) {
+      global $user;
+      store_transaction_save($edit);
+      drupal_set_message(t('updated shipping address'));
+      drupal_goto("store/subscriptions");
+    }
+  }
+  else {
+    $edit = empty($edit) ? store_transaction_load($txnid) : (object)($edit);
+    $form = store_transaction_addresses_form($edit, 'shipping');
+    $form['txnid'] = array(
+      '#type' => 'hidden',
+      '#value' => ($edit->txnid) ? $edit->txnid : $txnid,
+      );
+    $form[] = array(
+      '#type' => 'submit',
+      '#value' => t('update address'),
+      );
+    $output = drupal_get_form('store_user_address_edit', $form);
+  }
+
+  drupal_set_title($title);
+  return $output;
+}
+
+function store_transaction_view($txnid) {
+  $txn = store_transaction_load($txnid);
+  return theme('store_invoice', $txn, FALSE);
+}
+
+/**
+ * Invoke a hook_ec_transactionapi() operation in all modules.
+ *
+ * @param &$txn
+ *   A transaction object.
+ * @param $op
+ *   A string containing the name of the ec_transactionapi operation.
+ * @param $a3, $a4
+ *   Arguments to pass on to the hook, after the $txn and $op arguments.
+ * @return
+ *   The returned value of the invoked hooks.
+ */
+function store_invoke_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  $return = array();
+  foreach (module_implements('ec_transactionapi') as $name) {
+    $function = $name .'_ec_transactionapi';
+    $result = $function($txn, $op, $a3, $a4);
+    if (is_array($result)) {
+      $return = array_merge($return, $result);
+    }
+    else if (isset($result)) {
+      $return[] = $result;
+    }
+  }
+  return $return;
+}
+
+/**
+ * Search for miscellaneous transactions
+ */
+function store_search_misc($needle, $txn) {
+  if ($txn->misc) {
+    foreach ($txn->misc as $key => $misc) {
+      foreach ($needle as $k => $value) {
+        if ($misc->$k != $value) {
+          continue 2;
+        }
+      }
+      return $key;
+    }
+  }
+  return false;
+}
+
+/**
+ * Add all the invisible miscellaneous transaction to an item
+ */
+function store_adjust_misc(&$txn, $product) {
+  $price = $product->price;
+  foreach ((array)$txn->misc as $key => $misc) {
+    if ($misc->vid == $product->vid && $misc->invisible) {
+      $price+= $misc->price;
+      $txn->misc[$key]->seen = true;
+    }
+  }
+  return $price;
+}
+
+/**
+ * Calculate the total of the invoice
+ */
+function store_transaction_calc_gross($txn) {
+  $total = 0;
+  foreach ((array)$txn->items as $item) {
+    $total+= product_has_quantity($item) ? $item->price * $item->qty : $item-> price;
+  }
+  foreach ((array)$txn->misc as $key => $misc) {
+    if (function_exists($misc->callback)) {
+      $f = $misc->callback;
+      $amount = $f($txn, $misc, $total);
+    }
+    elseif ($misc->qty) {
+      $amount = ($misc->price * $misc->qty);
+    }
+    else {
+      $amount = $misc->price;
+     }
+    if(!$misc->already_added) {$total+= $amount;};
+  }
+  return $total;
+}
+
+/**
+ * Sort misc by weight
+ */
+function store_transaction_misc_sort($a, $b) {
+  $a->weight = $a->weight ? $a->weight : 0;
+  $b->weight = $b->weight ? $b->weight : 0;
+
+  if ($a->weight == $b->weight) {
+    return 0;
+  }
+  return ($a->weight < $b->weight) ? -1 : 1;
+}
+
+/**
+ * Search for the Id of a country.
+ */
+function store_get_country_id($name) {
+  return array_search(strtolower($name), array_map('strtolower', store_build_countries()));
+}
+
+/**
+ * Get the country name from the Id
+ */
+function store_get_country($id) {
+  $country = store_build_countries();
+  return $country[$id];
+}
+
+/**
+ * Build a list of Countries
+ */
+function store_build_countries() {
+  static $country;
+  if (!$country) {
+    $country = array(
+    'ad' => t('Andorra'),
+    'ae' => t('United Arab Emirates'),
+    'af' => t('Afghanistan'),
+    'ag' => t('Antigua and Barbuda'),
+    'ai' => t('Anguilla'),
+    'al' => t('Albania'),
+    'am' => t('Armenia'),
+    'an' => t('Netherlands Antilles'),
+    'ao' => t('Angola'),
+    'aq' => t('Antarctica'),
+    'ar' => t('Argentina'),
+    'as' => t('American Samoa'),
+    'at' => t('Austria'),
+    'au' => t('Australia'),
+    'aw' => t('Aruba'),
+    'ax' => t('Aland Islands'),
+    'az' => t('Azerbaijan'),
+    'ba' => t('Bosnia and Herzegovina'),
+    'bb' => t('Barbados'),
+    'bd' => t('Bangladesh'),
+    'be' => t('Belgium'),
+    'bf' => t('Burkina Faso'),
+    'bg' => t('Bulgaria'),
+    'bh' => t('Bahrain'),
+    'bi' => t('Burundi'),
+    'bj' => t('Benin'),
+    'bm' => t('Bermuda'),
+    'bn' => t('Brunei Darussalam'),
+    'bo' => t('Bolivia'),
+    'br' => t('Brazil'),
+    'bs' => t('Bahamas'),
+    'bt' => t('Bhutan'),
+    'bv' => t('Bouvet Island'),
+    'bw' => t('Botswana'),
+    'by' => t('Belarus'),
+    'bz' => t('Belize'),
+    'ca' => t('Canada'),
+    'cc' => t('Cocos (Keeling) Islands'),
+    'cd' => t('Democratic Republic of the Congo (formerly Zaire)'),
+    'cf' => t('Central African Republic'),
+    'cg' => t('Congo (Republic of the Congo)'),
+    'ch' => t('Switzerland (Confoederatio Helvetica)'),
+    'ci' => t('Cote d\'Ivoire (Ivory Coast)'),
+    'ck' => t('Cook Islands'),
+    'cl' => t('Chile'),
+    'cm' => t('Cameroon'),
+    'cn' => t('China'),
+    'co' => t('Colombia'),
+    'cr' => t('Costa Rica'),
+    'cs' => t('Serbia and Montenegro'),
+    'cu' => t('Cuba'),
+    'cv' => t('Cape Verde'),
+    'cx' => t('Christmas Island'),
+    'cy' => t('Cyprus'),
+    'cz' => t('Czech Republic'),
+    'de' => t('Germany (Deutschland)'),
+    'dj' => t('Djibouti'),
+    'dk' => t('Denmark'),
+    'dm' => t('Dominica'),
+    'do' => t('Dominican Republic'),
+    'dz' => t('Algeria'),
+    'ec' => t('Ecuador'),
+    'ee' => t('Estonia'),
+    'eg' => t('Egypt'),
+    'eh' => t('Western Sahara (formerly Spanish Sahara)'),
+    'er' => t('Eritrea'),
+    'es' => t('Spain (Espana)'),
+    'et' => t('Ethiopia'),
+    'fi' => t('Finland'),
+    'fj' => t('Fiji'),
+    'fk' => t('Falkland Islands'),
+    'fm' => t('Federated States of Micronesia'),
+    'fo' => t('Faroe Islands'),
+    'fr' => t('France'),
+    'ga' => t('Gabon'),
+    'gd' => t('Grenada'),
+    'ge' => t('Georgia'),
+    'gf' => t('French Guiana'),
+    'gd' => t('Ghana'),
+    'gi' => t('Gibraltar'),
+    'gl' => t('Greenland'),
+    'gm' => t('Gambia'),
+    'gn' => t('Guinea'),
+    'gp' => t('Guadeloupe'),
+    'gq' => t('Equatorial Guinea'),
+    'gr' => t('Greece'),
+    'gs' => t('South Georgia and the South Sandwich Islands'),
+    'gt' => t('Guatemala'),
+    'gu' => t('Guam'),
+    'gw' => t('Guinea-Bissau'),
+    'gy' => t('Guyana'),
+    'hk' => t('Hong Kong'),
+    'hm' => t('Heard Island and McDonald Islands'),
+    'hn' => t('Honduras'),
+    'hr' => t('Croatia (Hrvatska)'),
+    'ht' => t('Haiti'),
+    'hu' => t('Hungary'),
+    'id' => t('Indonesia'),
+    'ie' => t('Ireland'),
+    'il' => t('Israel'),
+    'in' => t('India'),
+    'io' => t('British Indian Ocean Territory (including Diego Garcia)'),
+    'iq' => t('Iraq'),
+    'ir' => t('Iran'),
+    'is' => t('Iceland'),
+    'it' => t('Italy'),
+    'jm' => t('Jamaica'),
+    'jo' => t('Jordan'),
+    'jp' => t('Japan'),
+    'ke' => t('Kenya'),
+    'kg' => t('Kyrgyzstan'),
+    'kh' => t('Cambodia'),
+    'ki' => t('Kiribati'),
+    'km' => t('Comoros'),
+    'kn' => t('Saint Kitts and Nevis'),
+    'kp' => t('North Korea'),
+    'kr' => t('South Korea'),
+    'kw' => t('Kuwait'),
+    'ky' => t('Cayman Islands'),
+    'kz' => t('Kazakhstan'),
+    'la' => t('Laos'),
+    'lb' => t('Lebanon'),
+    'lc' => t('Saint Lucia'),
+    'li' => t('Liechtenstein'),
+    'lk' => t('Sri Lanka'),
+    'lr' => t('Liberia'),
+    'ls' => t('Lesotho'),
+    'lt' => t('Lithuania'),
+    'lu' => t('Luxembourg'),
+    'lv' => t('Latvia'),
+    'ly' => t('Libya'),
+    'ma' => t('Morocco'),
+    'mc' => t('Monaco'),
+    'md' => t('Moldova'),
+    'mg' => t('Madagascar'),
+    'mh' => t('Marshall Islands'),
+    'mk' => t('Former Yugoslav Republic of Macedonia'),
+    'ml' => t('Mali'),
+    'mm' => t('Myanmar (Burma)'),
+    'mn' => t('Mongolia'),
+    'mo' => t('Macao (Macau)'),
+    'mp' => t('Northern Mariana Islands'),
+    'mq' => t('Martinique'),
+    'mr' => t('Mauritania'),
+    'ms' => t('Montserrat'),
+    'mt' => t('Malta'),
+    'mu' => t('Mauritius'),
+    'mv' => t('Maldives'),
+    'mw' => t('Malawi'),
+    'mx' => t('Mexico'),
+    'my' => t('Malaysia'),
+    'mz' => t('Mozambique'),
+    'na' => t('Namibia'),
+    'nc' => t('New Caledonia'),
+    'ne' => t('Niger'),
+    'nf' => t('Norfolk Island'),
+    'ng' => t('Nigeria'),
+    'ni' => t('Nicaragua'),
+    'nl' => t('Netherlands'),
+    'no' => t('Norway'),
+    'np' => t('Nepal'),
+    'nr' => t('Nauru'),
+    'nu' => t('Niue'),
+    'nz' => t('New Zealand'),
+    'om' => t('Oman'),
+    'pa' => t('Panama'),
+    'pe' => t('Peru'),
+    'pf' => t('French Polynesia'),
+    'pg' => t('Papua New Guinea'),
+    'ph' => t('Philippines'),
+    'pk' => t('Pakistan'),
+    'pl' => t('Poland'),
+    'pm' => t('Saint-Pierre and Miquelon'),
+    'pn' => t('Pitcairn Islands'),
+    'pr' => t('Puerto Rico'),
+    'ps' => t('Palestinian Territories (West Bank and Gaza Strip)'),
+    'pt' => t('Portugal'),
+    'pw' => t('Palau'),
+    'py' => t('Paraguay'),
+    'qa' => t('Qatar'),
+    're' => t('Reunion'),
+    'ro' => t('Romania'),
+    'ru' => t('Russia'),
+    'rw' => t('Rwanda'),
+    'sa' => t('Saudi Arabia'),
+    'sb' => t('Solomon Islands'),
+    'sc' => t('Seychelles'),
+    'sd' => t('Sudan'),
+    'se' => t('Sweden'),
+    'sg' => t('Singapore'),
+    'sh' => t('Saint Helena'),
+    'si' => t('Slovenia'),
+    'sj' => t('Svalbard and Jan Mayen Islands'),
+    'sk' => t('Slovakia'),
+    'sl' => t('Sierra Leone'),
+    'sm' => t('San Marino'),
+    'sn' => t('Senegal'),
+    'so' => t('Somalia'),
+    'sr' => t('Suriname'),
+    'st' => t('Sao Tome and Principe'),
+    'sv' => t('El Salvador'),
+    'sy' => t('Syria'),
+    'sz' => t('Swaziland'),
+    'tc' => t('Turks and Caicos Islands'),
+    'td' => t('Chad (Tchad)'),
+    'tf' => t('French Southern Territories'),
+    'tg' => t('Togo'),
+    'th' => t('Thailand'),
+    'tj' => t('Tajikistan'),
+    'tk' => t('Tokelau'),
+    'tl' => t('Timor-Leste (East Timor)'),
+    'tm' => t('Turkmenistan'),
+    'tn' => t('Tunisia'),
+    'to' => t('Tonga'),
+    'tr' => t('Turkey'),
+    'tt' => t('Trinidad and Tobago'),
+    'tv' => t('Tuvalu'),
+    'tw' => t('Taiwan'),
+    'tz' => t('Tanzania'),
+    'ua' => t('Ukraine'),
+    'ug' => t('Uganda'),
+    'uk' => t('United Kingdom'),
+    'um' => t('United States Minor Outlying Islands'),
+    'us' => t('United States'),
+    'uy' => t('Uruguay'),
+    'uz' => t('Uzbekistan'),
+    'va' => t('Vatican City'),
+    'vc' => t('Saint Vincent and the Grenadines'),
+    've' => t('Venezuela'),
+    'vg' => t('British Virgin Islands'),
+    'vi' => t('U.S. Virgin Islands'),
+    'vn' => t('Vietnam'),
+    'vu' => t('Vanuatu'),
+    'wf' => t('Wallis and Futuna'),
+    'ws' => t('Samoa'),
+    'ye' => t('Yemen'),
+    'yt' => t('Mayotte'),
+    'za' => t('South Africa'),
+    'zm' => t('Zambia'),
+    'zw' => t('Zimbabwe')
+    );
+    natcasesort($country);
+  }
+  return $country;
+}
+
+function store_build_states() {
+  static $states;
+  if (!$states) {
+    $states = array(
+      'AL' => 'Alabama',
+      'AK' => 'Alaska',
+      'AZ' => 'Arizona',
+      'AR' => 'Arkansas',
+      'CA' => 'California',
+      'CO' => 'Colorado',
+      'CT' => 'Connecticut',
+      'DE' => 'Delaware',
+      'DC' => 'District Of Columbia',
+      'FL' => 'Florida',
+      'GA' => 'Georgia',
+      'HI' => 'Hawaii',
+      'ID' => 'Idaho',
+      'IL' => 'Illinois',
+      'IN' => 'Indiana',
+      'IA' => 'Iowa',
+      'KS' => 'Kansas',
+      'KY' => 'Kentucky',
+      'LA' => 'Louisiana',
+      'ME' => 'Maine',
+      'MD' => 'Maryland',
+      'MA' => 'Massachusetts',
+      'MI' => 'Michigan',
+      'MN' => 'Minnesota',
+      'MS' => 'Mississippi',
+      'MO' => 'Missouri',
+      'MT' => 'Montana',
+      'NE' => 'Nebraska',
+      'NV' => 'Nevada',
+      'NH' => 'New Hampshire',
+      'NJ' => 'New Jersey',
+      'NM' => 'New Mexico',
+      'NY' => 'New York',
+      'NC' => 'North Carolina',
+      'ND' => 'North Dakota',
+      'OH' => 'Ohio',
+      'OK' => 'Oklahoma',
+      'OR' => 'Oregon',
+      'PA' => 'Pennsylvania',
+      'RI' => 'Rhode Island',
+      'SC' => 'South Carolina',
+      'SD' => 'South Dakota',
+      'TN' => 'Tennessee',
+      'TX' => 'Texas',
+      'UT' => 'Utah',
+      'VT' => 'Vermont',
+      'VA' => 'Virginia',
+      'WA' => 'Washington',
+      'WV' => 'West Virginia',
+      'WI' => 'Wisconsin',
+      'WY' => 'Wyoming',
+      'AS' => 'American Samoa',
+      'FM' => 'Federated States of Micronesia',
+      'GU' => 'Guam',
+      'MH' => 'Marshall Islands',
+      'MP' => 'Northern Mariana Islands',
+      'PW' => 'Palau',
+      'PR' => 'Puerto Rico',
+      'VI' => 'Virgin Islands'
+    );
+    natcasesort($states);
+    $states[1] = t('Outside U.S.');
+    //array_unshift($states, t('Please choose...'));
+  }
+  return $states;
+}

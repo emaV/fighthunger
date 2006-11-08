@@ -1,0 +1,206 @@
+<?php
+// $Id: role_discount.module,v 1.2.2.3 2006/10/02 00:33:20 gordon Exp $
+
+/**
+ * @file
+ * Enables role-based price adjustements.
+ *
+ * Allows store admins to gives each user role a discount (or price adjustment).
+ */
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of menu_hook()
+ */
+function role_discount_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'admin/store/settings/role_discount', 
+      'title' => t('role discount'),
+      'callback' => 'role_discount_form',
+      'access' => user_access('administer store')
+    );
+  }
+  return $items;
+}
+
+/**
+ * Implementation of help_hook()
+ */
+function role_discount_help($section = 'admin/help#payment') {
+  $output = '';
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Allows store admins to gives each user role a discount (or price adjustment).');
+    case 'admin/store/settings/role_discount':
+      return t("<p>You may define a price adjustment for each role. This adjustment can be a simple price addition, subtraction, or a percentage multiplier. For example, to add 5.00 to every price, enter +5.00. To multiply every price times 75%, enter 75%. If no operator is given, addition is assumed.</p>");
+  }
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+
+/** 
+ * Outputs html form that allows user to set role-based price adjustements.
+ * 
+ * Called from: admin/store/role_dicount. Allows admin to gives each
+ * user role a discount (or price adjustment)
+ * 
+ * @return
+ *  String HTML output of a form to display
+ */
+function role_discount_form() {
+  $result = db_query('SELECT * FROM {ec_role_discount}');
+  while ($data = db_fetch_object($result)) {
+    $adjust[$data->rid] = $data;
+  }
+  $form['roles'] = array('#tree' => TRUE);
+  foreach (user_roles() as $rid => $name) {
+    if ($adjust[$rid]) {
+      if ($adjust[$rid]->operator == '-' || $adjust[$rid]->operator == '+') {
+        $value = $adjust[$rid]->operator . $adjust[$rid]->operand;
+      }
+      else {
+        $value = $adjust[$rid]->operand . '%';
+      }
+    }
+    else {
+      $value = '';
+    }
+    $form['roles'][$rid]['name'] = array('#type' => 'value', '#value' => $name);
+    $form['roles'][$rid]['amount'] = array(
+      '#type' => 'textfield', 
+      '#default_value' => $value, 
+      '#size' => 10, 
+      '#maxlength' => 15 
+    );
+  }
+  $form['submit'] = array('#type' => 'submit', '#value' => t('Save price adjustments'));
+  return drupal_get_form('role_discount_form', $form);
+}
+
+/** 
+ * Theme role_discount_form.
+ */
+function theme_role_discount_form($form) {
+  $header = array(
+    array('data' => t('Role')),
+    array('data' => t('Amount'))
+  );
+  $rows = array();
+  foreach (element_children($form['roles']) as $rid) {
+    $rows[] = array(
+      array('data' => $form['roles'][$rid]['name']['#value']),
+      array('data' => form_render($form['roles'][$rid]['amount']))
+    );
+  }
+  $output = theme('table', $header, $rows);
+  $output .= form_render($form);
+  return $output;
+}
+
+/** 
+ * Validate contents of role_discount_form.
+ */
+function role_discount_form_validate($form_id, $edit) {
+  $error = FALSE;
+  foreach ($edit['roles'] as $key => $value) {
+    $amount = $value['amount'];    
+    if (!(is_numeric(rtrim($amount, '%')) || is_numeric(ltrim($amount, '-')) || is_numeric(ltrim($amount, '+'))) && $amount != '') {
+      form_set_error("roles][{$key}][amount", t($value['name'] .' contains non arithmetic information.'));
+    } 
+  }
+}
+
+/** 
+ * Save contents of role_discount_form.
+ */
+function role_discount_form_submit($form_id, $edit) {
+  foreach ($edit['roles'] as $key => $value) {
+    $amount = trim($value['amount']);
+    $pos1 = substr($amount, 0, 1);
+    if (strstr($pos1, '+')) {
+      $operator = '+';
+      $operand = (float) substr($amount, 1, strlen($amount));
+    }
+    elseif (strstr($pos1, '-')) {
+      $operator = '-';
+      $operand = (float) substr($amount, 1, strlen($amount));
+    }
+    elseif (substr($amount, strlen($amount) - 1) == '%') {
+      $operator = '*';
+      $operand = (float) substr($amount, 0, strlen($amount) - 1);
+    }
+    else {
+      $operator = '+'; //Default is addition
+      $operand = (float) $amount;
+    }
+    $operand = round($operand, 2);
+    db_query('DELETE FROM {ec_role_discount} WHERE rid = %d', $key);
+    if (!empty($amount)) {
+      db_query("INSERT INTO {ec_role_discount} (rid, operator, operand) VALUES (%d, '%s', %f)", $key, $operator, $operand);
+    }
+  }
+  drupal_set_message(t('Price adjustments have been updated.'));
+}
+
+/**
+ * Implementation of hook_product_specials().
+ * Calculate discount amount if necessary.
+ */
+function role_discount_product_specials($node, $specials, $txn = NULL) {
+  global $user;
+  static $adjust;
+
+  if ($txn) {
+    $account = user_load(array('uid' => $txn->uid));
+  }
+  else {
+    $account = $user;
+  }
+
+  $price = $node->price;
+  $has_adjustment = FALSE;
+  $on_payment_roles = array_flip((array) variable_get('on_payment_roles', ''));
+  
+  // User's already in the paid member role should not receive discounts on other
+  // subscriptions.
+  $role_discount = TRUE;
+  if ($node->is_recurring) {
+    foreach($account->roles as $rid => $rname) {
+      if (isset($on_payment_roles[$rid])) {
+        $role_discount = FALSE;
+      }
+    }
+  }
+  $discounts = 0;        
+  if ($role_discount) {
+    foreach ($account->roles as $rid => $role) {
+      if (!isset($adjust[$rid])) {
+        $adjust[$rid] = db_fetch_object(db_query('SELECT * FROM {ec_role_discount} WHERE rid = %d', $rid));
+      }
+      if ($adjust[$rid]) {
+        $has_adjustment = TRUE;
+        switch ($adjust[$rid]->operator) {
+          case '+':
+            $discounts += $adjust[$rid]->operand;
+            break;
+          case '-':
+            $discounts -= $adjust[$rid]->operand;
+            break;
+          case '*':
+            $discounts += ($node->price * ($adjust[$rid]->operand / 100)) - $node->price;
+            break;
+        }
+      }
+    }
+  }
+  if ($has_adjustment) {
+    return array('special' => $discounts);
+  }
+}

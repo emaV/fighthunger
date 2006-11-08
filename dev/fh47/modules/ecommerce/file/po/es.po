@@ -1,0 +1,159 @@
+# Spanish translation for file.module.
+# Copyright (C) 2005 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Carlos A. Paramio <carlosparamio@gmail.com>, 2005.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: es\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2005-09-13 09:26+0200\n"
+"PO-Revision-Date: 2005-09-13 10:15+0200\n"
+"Last-Translator: Carlos A. Paramio <carlosparamio@gmail.com>\n"
+"Language-Team: Spanish <es@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: file.module:14
+msgid "Creates a file product. Dependency: product.module"
+msgstr "Crea un producto fichero. Dependencia: product.module"
+
+#: file.module:37
+msgid "my files"
+msgstr "mis ficheros"
+
+#: file.module:41 file.module:215
+msgid "expired"
+msgstr "caducado"
+
+#: file.module:45
+msgid "download"
+msgstr "descargar"
+
+#: file.module:50
+msgid "product file quicklist"
+msgstr "lista rápida de productos fichero"
+
+#: file.module:80
+msgid "Please enter the path to the file."
+msgstr "Por favor, introduzca la ruta al fichero."
+
+#: file.module:85
+msgid "The file doesn't exist."
+msgstr "El fichero no existe."
+
+#: file.module:99
+msgid "file download"
+msgstr "descargar fichero"
+
+#: file.module:111
+msgid "File path"
+msgstr "Ruta del fichero"
+
+#: file.module:111
+#, php-format
+msgid ""
+"Enter the filesystem path to this file (not the URL). This path will be "
+"prefixed with <b>%file_path/</b> Here is a <a href=\"%file_quicklist\" "
+"onclick=\"window.open(this.href, '%file_quicklist', 'width=480,height=480,"
+"scrollbars=yes,status=yes'); return false\">list of files</a> in this "
+"directory. You may need to FTP your file to this directory before you can "
+"create the file product."
+msgstr ""
+"Introduzca la ruta del sistema de ficheros para este fichero (no la URL). Esta ruta será añadida como prefijo a <b>%file_path/</b>. Aquí hay una <a href=\"%file_quicklist\" onclick=\"window.open(this.href, '%file_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); return false\">lista de los ficheros</a> en este directorio. Puede que necesite subir el fichero a este directorio por FTP antes de poder crear el producto fichero."
+
+#: file.module:112
+msgid "File settings"
+msgstr "Opciones de fichero"
+
+#: file.module:142
+msgid "Number of days before file expires"
+msgstr "Número de días antes de que el fichero caduque"
+
+#: file.module:142
+msgid ""
+"The number of days an user has to login and download their files. This "
+"expiration date can be overridden on a per transaction basis when viewing "
+"individual transactions."
+msgstr ""
+"El número de días que un usuario tiene para identificarse y descargar sus ficheros. Esta fecha de caducidad puede ser sobreescrita en una base de la transacción cuando se visualicen transacciones individuales."
+
+#: file.module:145
+msgid "Directory does not exist, or is not writable."
+msgstr "El directorio no existe, o no tiene permisos de escritura."
+
+#: file.module:147
+msgid "File path for products"
+msgstr "Ruta de ficheros para productos"
+
+#: file.module:147
+msgid ""
+"A file system path where the product files are stored. This directory has to "
+"exist and be writable by Drupal. This directory should not be accessible "
+"over the web. Changing this location after the site has been in use will "
+"cause problems so only change this setting on an existing site if you know "
+"what you are doing."
+msgstr ""
+"Una ruta del sistema de ficheros donde los productos fichero serán almacenados. Este directorio tiene que existir y conceder permisos de escritura a Drupal. Este directorio no debería ser accesible vía web. Cambiar su localización después de que el sitio web esté en uso causará problemas, así que cambie esta configuración en un sitio web existente sólo si sabe lo que está haciendo."
+
+#: file.module:166
+msgid "name"
+msgstr "nombre"
+
+#: file.module:166 file.module:214
+msgid "size"
+msgstr "tamaño"
+
+#: file.module:166
+msgid "changed"
+msgstr "modificado"
+
+#: file.module:203
+#, php-format
+msgid "<p><a href=\"%files-uri\">Click here to view your files.</a></p>"
+msgstr "<p><a href=\"%files-uri\">Pulse aquí para ver sus ficheros.</a></p>"
+
+#: file.module:204
+#, php-format
+msgid "%username's expired files"
+msgstr "ficheros caducados de %username"
+
+#: file.module:207
+#, php-format
+msgid ""
+"<p><a href=\"%expired-files-uri\">Click here to view your expired files.</"
+"a></p>"
+msgstr ""
+"<p><a href=\"%expired-files-uri\">Pulse aquí para ver sus ficheros caducados.</a></p>"
+
+#: file.module:208
+#, php-format
+msgid "%username's files"
+msgstr "ficheros de %username"
+
+#: file.module:213
+msgid "filename"
+msgstr "nombre del fichero"
+
+#: file.module:215
+msgid "expires"
+msgstr "caduca"
+
+#: file.module:216
+msgid "operations"
+msgstr "operaciones"
+
+#: file.module:229 file.module:259
+#, php-format
+msgid "<a href=\"%file-download-uri\">download</a>"
+msgstr "<a href=\"%file-download-uri\">descargar</a>"
+
+#: file.module:233 file.module:263
+msgid "%interval ago"
+msgstr "hace %interval"
+
+#: file.module:274
+msgid "You have no files to download."
+msgstr "No tiene ficheros para descargar."

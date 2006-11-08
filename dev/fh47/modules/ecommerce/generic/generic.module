@@ -1,0 +1,49 @@
+<?php
+// $Id: generic.module,v 1.8.2.1 2006/10/02 00:33:20 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+function generic_help($section = 'admin/help#generic') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Creates a generic product. Dependency: product.module');
+    case 'node/add/product#generic':
+      return t('A non-shippable item has no inventory management. Examples are service based items.');
+  }
+}
+
+function generic_productapi(&$node, $op, $a3 = null, $a4 = null) {
+  switch ($op) {
+    case 'wizard_select':
+      return array('generic' => t('non-shippable product'));
+
+    case 'attributes':
+      return array('in_stock');
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function generic_perm() {
+  return array('create non-shippable products', 'edit own non-shippable products');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function generic_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('create non-shippable products');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own non-shippable products') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}

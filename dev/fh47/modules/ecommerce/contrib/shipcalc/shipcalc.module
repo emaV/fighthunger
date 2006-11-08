@@ -1,0 +1,295 @@
+<?php
+
+// $Id: shipcalc.module,v 1.5.2.2 2006/10/02 00:33:20 gordon Exp $
+
+/**
+ * @file
+ * Calculate shipping costs via third-party partner APIs.
+ */
+
+/*** Drupal hooks ***/
+
+/**
+ * Implementation of hook_help()
+ */
+function shipcalc_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Integrates the ecommerce package with third party partners (ie UPS, FedEX, USPS...) to provide live shipping calculation.');
+  }
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function shipcalc_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array(
+      'path'     => 'admin/store/settings/shipcalc',
+      'title'    => t('shipcalc'),
+      'callback' => 'shipcalc_settings_form',
+      'access'   => user_access('administer store')
+    );
+
+    $partners = _shipcalc_partners();
+    foreach ($partners as $partner) {
+      $items[] = array(
+        'path'     => 'admin/store/settings/shipcalc/'. $partner->name,
+        'title'    => t($partner->name),
+        'access'   => user_access('administer store')
+      );
+    }
+  }
+
+  return $items;
+}
+
+/*** ecommerce hooks ***/
+
+/**
+ * Invoke _shipping_methods hooks from shipping partner .inc files.
+ * 
+ * @return
+ *  An array of shipping methods.
+ */
+function shipcalc_shipping_methods() {
+  $methods = array();
+
+  $partners = _shipcalc_partners();
+  foreach ($partners as $partner) {
+    $shipping_methods = $partner->name .'_shipping_methods';
+    if (function_exists($shipping_methods)) {
+      $methods = array_merge($methods, $shipping_methods($form));
+    }
+  }
+
+  return $methods;
+}
+
+/**
+ * Invoke _product_form hooks from shipping partner .inc files.
+ *
+ * This hook is called by shipping_form_alter() to allow shipping modules
+ * to add shipping-specific fields to node forms.
+ *
+ * @param &$form
+ *   The form array.
+ * @param $methods
+ *   The subset of this module's shipping methods that are currently assigned
+ *   to the product type being edited.
+ */
+function shipcalc_shipping_product_attributes($form, $methods) {
+  $attributes = array();
+  // Determine if any of the product type's methods are defined by this module.
+  $module_methods = array_intersect(shipcalc_shipping_methods(), $methods);
+  if (count($module_methods)) {
+    foreach (array_keys($module_methods) as $partner) {
+      $get_form = $partner .'_product_attributes';
+      if (function_exists($get_form)) {
+        $attributes = array_merge($attributes, $get_form($form));
+      }
+    }
+  }
+  return $attributes;
+}
+
+/**
+ * Invoke _get_rates hooks from shipping partner .inc files.
+ *
+ * This hook is called by shipping_checkout_form() to allow shipping modules
+ * to pass shipping data to the shipping checkout screen.
+ *
+ * @param &$form
+ *   The form array.
+ * @param $methods
+ *   The subset of this module's shipping methods that are currently assigned
+ *   to the product type being edited.
+ */
+function shipcalc_shipping_checkout_rates($txn) {
+  $rates = array();
+
+  // Iterate through the transaction to find each item's shipping methods.
+  foreach ($txn->items as $nid => $item) {
+    if (is_array($item->shipping_methods)) {
+      // Determine if the item has any shipping methods defined by this module.
+      $module_methods = shipping_methods_filter(shipcalc_shipping_methods(), $item->shipping_methods);
+      if (count($module_methods)) {
+        foreach (array_keys($module_methods) as $partner) {
+          $get_rates = $partner .'_get_rates';
+          if (function_exists($get_rates)) {
+            $new_rates = $get_rates($txn);
+            if ((int)$new_rates < 0) {
+              drupal_set_message(t('%partner configuration error. Please notify the site administrator.', array('%partner' => $partner)));
+            }
+            else {
+              $rates = array_merge($rates, $new_rates);
+            }
+          }
+        }
+      }
+    }
+  }
+  return $rates;
+}
+
+/*** helper functions ***/
+
+/**
+ * Allow individual configuration of each shipping partner.
+ */
+function shipcalc_settings_form() {
+  $edit = $_POST['edit'];
+
+  $form = array();
+  $partners = _shipcalc_partners();
+
+  $form['shipcalc_partners'] = array(
+    '#type' => 'hidden',
+    '#value' => sizeof($partners)
+  );
+
+  $partner = arg(4);
+  if (isset($partner) && file_exists($partners[$partner]->filename)) {
+    $settings = $partners[$partner]->name .'_settings_form';
+    if (function_exists($settings)) {
+      $settings($form);
+    }
+ 
+    $form['shipping_partner'] = array(
+      '#type' => 'hidden',
+      '#value' => $partner
+    );
+
+    $form['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Save %partner settings', array('%partner' => $partner))
+    );
+
+    return drupal_get_form('shipcalc_settings_form', $form);
+  }
+  else {
+    drupal_set_title(t('Shipcalc configuration'));
+    $header = array(t('Shipping partner'), t('Operations'));
+    $rows = array();
+    foreach ($partners as $partner) {
+      $rows[] = array($partner->name, l(t('configure'), 'admin/store/settings/shipcalc/'. $partner->name));
+    }
+    $output = theme('table', $header, $rows);
+
+  }
+  return $output;
+}
+
+/**
+ * Invoke _settings_form_validate in shipping partner .inc files.
+ *
+ * @param &$form
+ */
+function shipcalc_settings_form_validate(&$form) {
+  $partners = _shipcalc_partners();
+  foreach ($partners as $partner) {
+    $settings_form_validate = $partner->name .'_settings_form_validate';
+    if (function_exists($settings_form_validate)) {
+      $settings_form_validate($form);
+    }
+  }
+}
+
+/**
+ * Invoke _settings_form_submit in shipping partner .inc files.
+ *
+ * @param &$form
+ *  Unused.  We get form info from the $form_values global.
+ */
+function shipcalc_settings_form_submit(&$form) {
+  $partners = _shipcalc_partners();
+  foreach ($partners as $partner) {
+    $settings_form_submit = $partner->name .'_settings_form_submit';
+    if (function_exists($settings_form_submit)) {
+      $settings_form_submit($form);
+    }
+  }
+}
+
+/**
+ * These form fields are displayed at administer >> store >> shipping when
+ * "shipping costs are received directly from the shipping partner during 
+ * checkout" is selected as the shipping method.
+ */
+function shipcalc_shipping_form($edit) {
+  $form = array();
+
+  if (!$edit['province']) {
+    $edit['province'] = $edit['state'];
+  }
+
+  $form['sender'] = array( 
+    '#type' => 'fieldset',
+    '#title' => t('Address of sender'));
+  $form['sender']['shipcalc_street'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Street address'));
+  $form['sender']['shipcalc_city'] = array( 
+    '#type' => 'textfield',
+    '#title' => t('City'));
+  $form['sender']['shipcalc_state'] = array(
+    '#type' => 'select',
+    '#title' => t('State'),
+    '#default_value' => $edit['shipcalc_state'],
+    '#options' => store_build_states(),
+    '#description' => t('Specify a state if the address is within the United States.'));
+  $form['sender']['shipcalc_province'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Province / Region'),
+    '#default_value' => $edit['shipcalc_province'],
+    '#size' => 30,
+    '#maxlength' => 64);
+  $form['sender']['shipcalc_zip'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Zipcode / Postal code'),
+    '#default_value' => $edit['shipcalc_zip'],
+    '#size' => 20,
+    '#maxlength' => 20);
+  $form['sender']['shipcalc_country'] = array(
+    '#type' => 'select',
+    '#title' => t('Country'),
+    '#default_value' => ($edit['country'] ? $edit['country'] : variable_get('ec_country', '')),
+    '#options' => store_build_countries(),
+    '#attributes' => array('onChange' => 'provORstate(this.options[this.selectedIndex].value)'));
+
+  return $form;
+}
+
+/**
+ * Returns an array of shipcalc partners.
+ */
+function _shipcalc_partners() {
+  // Locate the subdirectory holding partner include files.
+  $partner_dir = drupal_get_path('module', 'shipcalc');
+  // Locate all partner include files.
+  $files = file_scan_directory("$partner_dir", '\.inc$');
+
+  $partners = array();
+  foreach ($files as $partner) {
+    include_once($partner->filename);
+    $partners[$partner->name] = $partner;
+  }
+
+  return $partners;
+}
+
+/**
+ * A simple xml parsing function.
+ *
+ * @param  $xml        A text string that contains the xml to be parsed.
+ * @param  $open_tag   The opening xml tag to search for.
+ * @return string      The string between $open_tag and its close tag.
+ */
+function _parse_xml($xml, $open_tag) {
+  $close_tag = '</'. substr($open_tag, 1, strlen($open_tag));
+  $pos1 = strpos($xml, $open_tag);
+  $pos2 = strpos($xml, $close_tag);
+  return substr($xml, $pos1 + strlen($open_tag), $pos2 - ($pos1 + strlen($open_tag)));
+}

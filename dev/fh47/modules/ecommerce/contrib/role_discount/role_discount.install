@@ -1,0 +1,33 @@
+<?php
+// $Id: role_discount.install,v 1.2 2006/05/09 13:44:31 gordon Exp $
+
+/**
+ * E-Commerce role discount module schema
+ */
+function role_discount_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_role_discount} (
+        rid int(5) unsigned NOT NULL default '0',
+        operator enum('+','-','*') NOT NULL default '+',
+        operand decimal(10,2) unsigned NOT NULL default '0.00',
+        PRIMARY KEY  (rid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      if (db_num_rows(db_query("SHOW TABLES LIKE '{ec_payment_adjust}'")) > 0) {
+        if (db_query('INSERT INTO {ec_role_discount} (rid, operator, operand) SELECT rid, operator, operand FROM {ec_payment_adjust}')) {
+          db_query('DROP TABLE {ec_payment_adjust}');
+        }
+      }
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_role_discount} (
+        rid integer NOT NULL default '0',
+        operator varchar(1) check (operator in ('+','-','*')) NOT NULL default '+',
+        operand decimal(10,2) NOT NULL default '0.00',
+        PRIMARY KEY  (rid)
+      )");
+      break;
+  }
+}
+

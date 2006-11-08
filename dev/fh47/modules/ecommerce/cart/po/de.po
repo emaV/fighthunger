@@ -1,0 +1,168 @@
+# German translation of Drupal ecommerce-cart.module.
+# Generated from file: cart.module, v1.83 2006/02/07 05:14:02 gordon
+#
+# This file is distributed under the same license as the package.
+# Peter Santo <drupalde.20.ryzom@recursor.net>, Feb 2006
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: de\n"
+"POT-Creation-Date: 2006-02-12 18:13+0100\n"
+"PO-Revision-Date: 2006-02-13 10:04+0100\n"
+"Last-Translator: Peter Santo <drupalde.20.rzyom@recursor.net>\n"
+"Language-Team: German\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: German\n"
+"X-Poedit-Country: GERMANY\n"
+
+#: modules/ecommerce/cart/cart.module:13
+msgid "Shopping Cart"
+msgstr "Warenkorb"
+
+#: modules/ecommerce/cart/cart.module:26;71
+msgid "Shopping cart"
+msgstr "Warenkorb"
+
+#: modules/ecommerce/cart/cart.module:26
+msgid "View your cart items."
+msgstr "Inhalt des Warenkorbs"
+
+#: modules/ecommerce/cart/cart.module:33
+msgid "Hide block if cart is empty"
+msgstr "Block nicht anzeigen wenn Warenkorb leer ist"
+
+#: modules/ecommerce/cart/cart.module:56
+msgid "Ecommerce shopping cart."
+msgstr "E-Commerce Warenkorb"
+
+# formal
+#: modules/ecommerce/cart/cart.module:58
+msgid "This form is used to control the order the pages are viewed in the checkout process. Number the order you would like these screens to appear."
+msgstr "In diesem Formular kann festgelegt werden, in welcher Reihenfolge Seiten beim Bezahlvorgang angezeigt werden. Numerieren Sie sie in der Reihenfolge, in der sie diese Seiten erscheinen sollen."
+
+#: modules/ecommerce/cart/cart.module:129
+msgid "View your cart"
+msgstr "Warenkorb ansehen"
+
+#: modules/ecommerce/cart/cart.module:135
+msgid "item"
+msgstr "Artikel"
+
+# Setzt voraus, dass "your cart" schlicht in "Warenkorb" übersetzt wird.
+#: modules/ecommerce/cart/cart.module:137
+msgid "%item_count %item_suffix in %your_cart"
+msgstr "%item_count %item_suffix im %your_cart"
+
+#: modules/ecommerce/cart/cart.module:137
+msgid "your cart"
+msgstr "Warenkorb"
+
+#: modules/ecommerce/cart/cart.module:147
+msgid "Ready to <a href=\"%checkout-url\">checkout</a>?"
+msgstr "Zur <a href=\"%checkout-url\">Kasse</a> gehen?"
+
+#: modules/ecommerce/cart/cart.module:160
+msgid "Qty."
+msgstr "Menge"
+
+#: modules/ecommerce/cart/cart.module:179
+msgid "Remove"
+msgstr "Löschen"
+
+#: modules/ecommerce/cart/cart.module:183
+msgid "Subtotal:"
+msgstr "Zwischensumme:"
+
+#: modules/ecommerce/cart/cart.module:190
+msgid "Your shopping cart is empty. You may continue shopping from our %product-page."
+msgstr "Ihr Warenkorb ist leer. Sie können mit Ihrem Einkauf auf unserer %product-page fortfahren."
+
+#: modules/ecommerce/cart/cart.module:190
+msgid "product page"
+msgstr "Produktseite"
+
+#: modules/ecommerce/cart/cart.module:209;258
+msgid "Update quantity"
+msgstr "Menge aktualisieren"
+
+# formal
+#: modules/ecommerce/cart/cart.module:335
+msgid "Please review and submit your order"
+msgstr "Bitte kontrollieren Sie Ihre Bestellung und senden sie ab."
+
+# formal
+#: modules/ecommerce/cart/cart.module:356
+msgid "Login or <a href=\"%reg-link\">register</a> to continue the checkout process"
+msgstr "Melden Sie sich an oder <a href=\"%reg-link\">registrieren Sie sich</a>, um zur Kasse zu gehen."
+
+#: modules/ecommerce/cart/cart.module:369
+msgid "Your shopping cart"
+msgstr "Warenkorb"
+
+#: modules/ecommerce/cart/cart.module:407;441
+msgid "Update screen order"
+msgstr "Seitenreihenfolge aktualisieren"
+
+#: modules/ecommerce/cart/cart.module:410
+msgid "The screen order has been saved."
+msgstr "Die Seitenreihenfolge wurde gespeichert."
+
+#: modules/ecommerce/cart/cart.module:417;449
+msgid "Screen order"
+msgstr "Seitenreihenfolge"
+
+#: modules/ecommerce/cart/cart.module:449
+msgid "Module"
+msgstr "Modul"
+
+#: modules/ecommerce/cart/cart.module:561
+msgid "1 order"
+msgstr "1 Bestellung"
+
+#: modules/ecommerce/cart/cart.module:561
+msgid "%count orders"
+msgstr "%count Bestellungen"
+
+#: modules/ecommerce/cart/cart.module:567
+msgid "<strong>Subtotal</strong>: %subtotal<br />"
+msgstr "<strong>Zwischensumme</strong>: %subtotal<br />"
+
+#: modules/ecommerce/cart/cart.module:569
+msgid "<strong>Shipping cost</strong>: %shipping-cost<br />"
+msgstr "<strong>Versandkosten</strong>: %shipping-cost<br />"
+
+#: modules/ecommerce/cart/cart.module:571
+msgid "<strong>Total</strong>: %total<br />"
+msgstr "<strong>Summe</strong>: %total<br />"
+
+#: modules/ecommerce/cart/cart.module:573
+msgid "Order Summary"
+msgstr "Zusammenfassung der Bestellung"
+
+#: modules/ecommerce/cart/cart.module:626
+msgid "Your order has been submitted."
+msgstr "Ihre Bestellung wurde versandt."
+
+#: modules/ecommerce/cart/cart.module:670
+msgid "<strong>%product-title</strong> added to <a href=\"%cart_view\">your shopping cart</a>"
+msgstr "<strong>%product-title</strong> zum <a href=\"%cart_view\">Warenkorb</a> hinzugefügt."
+
+#: modules/ecommerce/cart/cart.module:707
+msgid "Can't find your item in the database"
+msgstr "Dieser Artikel konnte nicht gefunden werden."
+
+#: modules/ecommerce/cart/cart.module:732
+msgid "Your item(s) have been updated."
+msgstr "Ihre Artikel wurden aktualisiert."
+
+#: modules/ecommerce/cart/cart.module:759
+msgid "Your item has been removed."
+msgstr "Der Artikel wurde entfernt."
+
+#: modules/ecommerce/cart/cart.module:0
+msgid "cart"
+msgstr "Warenkorb"
+

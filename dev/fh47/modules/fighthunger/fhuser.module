@@ -506,7 +506,8 @@ function fhuser_check_post(){
 function fhuser_subform_user_display(){
   global $user;
 	$form['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
-	// If the user has no country, shows a drop down else the country
+	// Check for location fields. If the user has no country, shows a drop down else the country
+	fhuser_user_location($user);
   $country = isset($user->location) && isset($user->location['country']) ? $user->location['country'] : NULL;
 	if($country) {
 	  $form['country'] = array('#type' => 'value', '#value' => $country);
@@ -794,6 +795,20 @@ function fhuser_save_location($op, &$edit, &$account) {
      $edit['country'] = NULL;
   }
 }
+
+/**
+ * Get location data for a user
+ * Adds location to the object and returns the fields
+ */
+function fhuser_user_location(&$account) {
+  if (isset($account->location)) {
+    return $account->location;
+  } elseif (function_exists('location_user')) {
+    location_user('load', $account, $account);
+    return $account->location;
+  }
+}
+
 /**
  * Retrieves user categories without translated profile ones and civicrm ones
  */

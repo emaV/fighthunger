@@ -660,7 +660,7 @@ function fhuser_subform_validate($form_id, $form_values) {
     case 'register':
       // Build user name
       if ($name = fhuser_get_user_name($form_values)) {
-        drupal_set_message("DEBUG: got user name = $name");
+        drupal_set_message("Your user name is $name");
         $form_values['name'] = $name;
         $GLOBALS['form_values']['name'] = $name;
       } 
@@ -683,12 +683,21 @@ function fhuser_subform_submit($form_id, $form_values) {
     case 'register':
       $fhuser_enable = TRUE;
       // Only register fields should be passed so others are not saved along with the user
+      /* Quick fix 1
       foreach($form_values['_user_fields'] as $key) {
         $user_fields[$key] = $form_values[$key];
       }
+
       // Add user name which should have been filled during the validation
       $user_fields['name'] = $form_values['name'];
-      
+      */
+      $user_fields = array(); // Quick fix 1
+      foreach($form_values as $key => $value) {
+        if(is_string($value) || is_numeric($value)) {
+          $user_fields[$key] = $value;;
+        } 
+      }
+      //var_dump($user_fields);
       user_register_submit($form_id, $user_fields);
       $fhuser_enable = FALSE;
       // Set just registered user
@@ -919,7 +928,7 @@ function fhuser_update_profile(&$account, $data, &$edit) {
  * When creating a new user all data is not yet in account
  */
 function fhuser_update_crm_contact($account, $edit = array()) {
-  drupal_set_message("fhuser_update_crm_contact");
+  //drupal_set_message("fhuser_update_crm_contact");
   if (module_exist('civicrm')) {
     $values = array_merge((array)$account, $edit);
     $data = fhuser_mapping($values, _profile2civicrm());

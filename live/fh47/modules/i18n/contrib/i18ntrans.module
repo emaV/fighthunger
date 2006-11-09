@@ -7,7 +7,7 @@
  * - variables as defined in $i18n_variables.
  * - string (as in admin/locale/string) 
  * - nodes (as in /node/$nid/translation) 
- * REQUIRE i18n.module
+ * REQUIRE i18n.module, translation.module
  * 
  * GPL as usual emanuele_quinto@yahoo.it    
  */
@@ -21,7 +21,7 @@ function i18ntrans_help($section = 'admin/help#i18ntrans' ) {
       $output = t('<p>This module provides support for translatable variables. Maybe.</p>');
       break;
     case 'admin/modules#description' :
-      $output = t('Supports translatable variables, strings and nodes. <b>Requires i18n and locale module</b>' );
+      $output = t('Supports translatable variables, strings and nodes. <b>Requires i18n, translation, and locale module</b>' );
       break;
     case 'admin/i18ntrans/strings':
       if( _i18n_get_lang() == variable_get('translation_default_language','en') )
@@ -59,9 +59,6 @@ function i18ntrans_menu($may_cache) {
       'callback' => 'i18ntrans_page_variables',
       'type' => MENU_NORMAL_ITEM,
       'access' => $access);
-    $items[] = array('path' => 'admin/i18ntrans/variables', 
-      'title' => t('variables') . ' (i18n)',
-      'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
     $items[] = array('path' => 'admin/i18ntrans/settings', 
       'title' => t('settings') . ' (i18n)',
       'callback' => 'i18ntrans_page_settings',
@@ -76,7 +73,7 @@ function i18ntrans_menu($may_cache) {
       'access' => true);
     $items[] = array('path' => 'admin/i18ntrans/nodes', 
       'title' => t('nodes') . ' (i18n)',
-      'callback' => 'i18ntrans_page_nodes',
+      'callback' => 'i18ntrans_page_content',
       'type' => MENU_LOCAL_TASK,
       'weight' => 3,
       'access' => $access);
@@ -368,66 +365,17 @@ function i18ntrans_page_strings() {
   print theme('page', $output);
 }
 
-/***
- * Call back to generate
- * user interface for node translation.
+/**
+ * Menu callback: wrapper for content admin translations
  * 
- * similar to function
- *    translation_node_overview($node)
- * from translation.module  
+ * Source language is default language, destination is current language
  */
-function i18ntrans_page_nodes() {
-
-  $node_list = explode("\n", variable_get('translation_node_queue',''));
-  $lang_curr = _i18n_get_lang();
-  $lang_def = variable_get('translation_default_language','en');
- 
-  if(!($lang_curr==$lang_def)) {
-    $header = array(t('Node'), t('Title'), t('Options'));
-  } else {
-    $header = array(t('Node'), t('Title'));
-    foreach(i18n_supported_languages() as $lang => $name) {
-      if($lang<>$lang_def) $header[]= $name;
-    }    
-  }
-  $rows = array();
-  foreach($node_list as $nid) {
-    $nid = trim($nid);
-    $node = node_load($nid);
-    $trans_original =  l($node->title, "$lang_def/node/$nid");
-    $options = array();
-    if(!($lang_curr==$lang_def)) {
-      if(isset($node->translation[$lang_curr])){
-        $trnode = $node->translation[$lang_curr];
-        $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
-      } else {
-        $trans_options = l(t('create translation'), "node/add/$node->type", array(), "translation=$node->nid&language=$lang_curr");      
-        $trans_options .= ' | ' . l(t('select node'), "node/$node->nid/translation/select/$lang_curr");
-      }
-      $row = array( $nid, $trans_original, $trans_options);
-    } else {
-      $row = array( $nid, $trans_original);
-      foreach(i18n_supported_languages() as $lang => $name) {
-        if($lang<>$lang_def) {
-          if(isset($node->translation[$lang])){
-            $trnode = $node->translation[$lang];
-            $trans_options = t('edit') . ' -> ' . l($trnode->title, 'node/'.$trnode->nid);
-          } else {
-            $trans_options = l(t('create'), "node/add/$node->type", array(), "translation=$node->nid&language=$lang");      
-            $trans_options .= ' | ' . l(t('select'), "node/$node->nid/translation/select/$lang");
-          }
-          $row[] = $trans_options;
-        }
-      }
-    }
-    $rows[] = $row;
-
-  } 
-  $output .= theme('table', $header, $rows);
-
-  drupal_set_title(t('translate') . ' - ' .  t('nodes'));
-  print theme('page', $output);
-} 
+function i18ntrans_page_content() {
+  $output = '';
+  $defaults = array('source_language' => i18n_default_language(), 'translation_language' => i18n_get_lang(), 'source_status' => TRANSLATION_STATUS_SOURCE);
+	$output .=  translation_node_admin_form($defaults);
+  return $output;  
+}
 
 /**
  * Alter form for i18nprofile  && locale
@@ -602,14 +550,6 @@ function i18ntrans_settings() {
 	  '#default_value' => variable_get('translation_default_language','en'),
 	  '#options' => array_merge(array('' => ''), i18n_supported_languages()),
 	  '#description' => t('Langugage to be used as default in theme variable translation')
-  );
-  $form['translation_node_queue'] = array(
-    '#type' => 'textarea',
-    '#title' => t('node queue'),
-    '#default_value' => variable_get('translation_node_queue',''),
-    '#rows' => 5,
-    '#cols' => 10,
-    '#description' => t('List of node to be translated in ALL languages')
   );
 
   $menus = menu_get_root_menus();

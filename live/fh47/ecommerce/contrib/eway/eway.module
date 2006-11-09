@@ -1,0 +1,282 @@
+<?php
+/*
+ * $Id: eway.module,v 1.4.2.5 2006/11/03 11:19:49 sime Exp $
+ */
+define(EWAY_DEFAULT_PAYMENT_URL, 'store/payment/eway');
+define(EWAY_DEFAULT_THANKS_URL, 'store/history');
+
+function eway_help($section = '') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> E-Way payment processing.<br />Dependency: payment.module');
+      break;
+    case 'admin/store/settings/eway':
+      return t('Enter the required parameters that have been supplied during the signup process with eway.');
+      break;
+  }
+}
+
+function eway_menu($maycache) {
+  if ($maycache) {
+    $items[] = array(
+      'path' => EWAY_DEFAULT_PAYMENT_URL,
+      'title' => t('Enter Credit Card Details'),
+      'callback' => 'eway_enter_payment',
+      'access' => 1,
+      'type' => MENU_CALLBACK
+    );
+  }
+  return $items;
+}
+
+function eway_ec_settings() {
+  $form = array();
+  $form['eway_clientid'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('E-Way Client Id'), 
+    '#default_value' => variable_get('eway_clientid', ''), 
+    '#size' => 70, 
+    '#maxlength' => 70, 
+    '#desciption' => t('Client Id that was issued by E Way'),
+    '#required' => true
+   );
+  $form['eway_url'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Credit Card Payment Page'), 
+    '#default_value' => variable_get('eway_url', url(EWAY_DEFAULT_PAYMENT_URL, null, null, true)), 
+    '#size' => 70, 
+    '#maxlength' => 180, 
+    '#desciption' => t('URL to be directed to so that the payment can be received.'),
+    '#required' => true
+   );
+  $form['eway_thanks_url'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Thank you Page'), 
+    '#default_value' => variable_get('eway_thanks_url', url(EWAY_DEFAULT_THANKS_URL, null, null, true)), 
+    '#size' => 70, 
+    '#maxlength' => 180, 
+    '#desciption' => t('URL to be directed once the payment has been entered.'),
+    '#required' => true
+   );
+  return $form;
+}
+
+function eway_paymentapi(&$edit, $op, $arg = '') {
+  switch ($op) {
+    case 'display name':
+      return t('Credit Card');
+      break;
+    case 'payment page':
+      if ($edit->gross > 0) {
+        return payment_cc_goto($edit, variable_get('eway_url', url(EWAY_DEFAULT_PAYMENT_URL, null, null, true)));
+      }
+      break;
+  }
+}
+
+function eway_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  if ($txn->payment_method != 'eway') return NULL;
+
+  switch ($op) {
+    case 'load':
+      $txn->payment = db_fetch_object(db_query("SELECT * FROM {ec_credit_card} WHERE txnid = %d", $txn->txnid));
+      break;
+    case 'insert':
+    case 'update':
+      payment_cc_save($txn);
+      break;
+    case 'delete':
+      payment_cc_delete($txn);
+      break;
+  }
+}
+
+/*
+ * Internal Functions
+ */
+
+function eway_enter_payment() {
+  global $user, $t;
+
+  $txnid = $_GET['txnid'];
+
+  $t = store_transaction_load($txnid);
+  if (($user->uid != $t->uid && !user_access('administer store')) || $t->payment_status != 1) {
+    drupal_access_denied();
+    exit();
+  }
+  return eway_payment_form($t);
+}
+
+function eway_payment_form($t) {
+  $form['billing'] = array(
+    '#type' => 'credit_card',
+    '#required' => TRUE,
+    '#name' => $t->address['billing']->firstname . ' ' . $t->address['billing']->lastname
+  );
+  $form[] = array(
+    '#type' => 'submit',
+    '#value' => t('submit payment'),
+  );
+  $form['t'] = array(
+    '#type' => 'value',
+    '#value' => $t
+  );
+  return drupal_get_form('eway_payment_form', $form);
+}
+
+function eway_payment_form_validate($form_id, &$values) {
+  global $form_values; // use global value here so data from processing is available later
+  $t =& $form_values['t'];
+  if (!valid_credit_card($form_values) || !_eway_process($form_values)) {
+    store_transaction_save($t);
+    return payment_cc_goto($t, variable_get('eway_url', url(EWAY_DEFAULT_URL, null, null, true)));
+  }
+}
+
+function eway_payment_form_submit($form_id, &$form_values) {
+  $t =& $form_values['t'];
+  $t->payment_status = payment_get_status_id('completed');
+  $form_values['txnid'] = $t->txnid;
+
+  // check to see if there are any shippable items
+  $has_shippable = false;
+  foreach ($t->items as $p) {
+    if (product_is_shippable($p->nid)) {
+      $has_shippable = true;
+      break;
+    }
+  }
+  if (!$has_shippable) {
+    $t->workflow = 6;
+  }
+
+  store_transaction_save($t);
+  store_send_invoice_email($t->txnid);
+
+  $url = variable_get('eway_thanks_url', url(EWAY_DEFAULT_THANKS_URL, null, null, true));
+  drupal_set_message(t('your payment has been accepted, thank you'));
+ 
+  return $url;
+}
+
+/*
+ * Private functions
+ */
+
+function _eway_process(&$form_values) {
+  // set the correct URL
+  if (variable_get('payment_testing', TRUE)) {
+    /* eWAY Gateway Location (TESTING) */
+    if (empty($form_values['cvn']['number'])) {
+      $gateway_url = 'https://www.eway.com.au/gateway/xmltest/TestPage.asp';
+    } else {
+      $gateway_url = 'https://www.eway.com.au/gateway_cvn/xmltest/testpage.asp';
+    }
+  } else {
+    /* eWAY Gateway Location (LIVE) */
+    if (empty($form_values['cvn']['number'])) {
+      $gateway_url = 'https://www.eway.com.au/gateway/xmlpayment.asp';
+    } else {
+      $gateway_url = 'https://www.eway.com.au/gateway_cvn/xmlpayment.asp';
+    }
+  }
+  
+  $form_values['amount'] = str_replace('.', '', $form_values['t']->gross);
+  $form_values['clientid'] = variable_get('eway_clientid', '87654321');
+
+  // execute the payment and set values in $form_values accordingly
+  require_once (drupal_get_path('module', 'eway') .'/eway.inc');
+  return xml_payment($form_values, $gateway_url, 'eway_build_xml', 'eway_decode_xml_response');
+}
+
+function eway_build_xml(&$data) {
+  $xml_request = "
+<ewaygateway>
+  <ewayCustomerID>{$data['clientid']}</ewayCustomerID>
+  <ewayCustomerFirstName></ewayCustomerFirstName>
+  <ewayCustomerLastName></ewayCustomerLastName>
+  <ewayCustomerEmail></ewayCustomerEmail>
+  <ewayCustomerAddress></ewayCustomerAddress>
+  <ewayCustomerPostcode></ewayCustomerPostcode>
+  <ewayCustomerInvoiceDescription></ewayCustomerInvoiceDescription>
+  <ewayTotalAmount>{$data['amount']}</ewayTotalAmount>
+  <ewayCustomerInvoiceRef>{$data['t']->txnid}</ewayCustomerInvoiceRef>
+  <ewayCardHoldersName></ewayCardHoldersName>
+  <ewayCardNumber>{$data['cardnumber']}</ewayCardNumber>
+  <ewayCardExpiryMonth>{$data['expiry']['expmonth']}</ewayCardExpiryMonth>
+  <ewayCardExpiryYear>{$data['expiry']['expyear']}</ewayCardExpiryYear>
+  <ewayTrxnNumber></ewayTrxnNumber>
+  <ewayOption1>0</ewayOption1>
+  <ewayOption2>0</ewayOption2>
+  <ewayOption3>0</ewayOption3>
+";
+  if ($data['cvn']['number'] != '') {
+    $xml_request .= "  <ewayCVN>{$data['cvn']['number']}</ewayCVN>
+";
+  }
+  $xml_request .= "</ewaygateway>\n";
+
+  return $xml_request;
+}
+
+function eway_decode_xml_response(&$data, $response) {
+  $t =& $data['t'];
+  /* these left-hand side arguments must be filled in all payment
+   * modules to take advantage of the centralised code. */
+  if ($response['ewayTrxnStatus'] && $response['ewayAuthCode'] != '') {
+    $t->payment->cc_amount = $response['ewayReturnAmount'] / 100;
+    $t->payment->cc_refnum = $response['ewayTrxnNumber'];
+    $t->payment->cc_ordernum = $response['ewayAuthCode'];
+    $t->payment->cc_reason = $response['ewayTrxnError'];
+    if (empty($t->payment->cc_reason)) {
+      $t->payment->cc_reason = '00, TRANSACTION APPROVED';
+    }
+    return TRUE;
+  } else {
+    _eway_error($response['ewayTrxnError']);
+    $t->payment->cc_amount = '0.00';
+    $t->payment->cc_reason = $response['ewayTrxnError'];
+    $t->payment->cc_refnum = -1;
+    return FALSE;
+  }
+}
+
+/**
+ * Sets the form error appropriate for the message supplied by Eway.
+ *
+ * @param $error Message supplied by Eway.
+ * @return Message set in the form.
+ */
+function _eway_error($error, $suppress = FALSE) {
+  list($code, $message) = split(',', $error);
+  switch($code) {
+    case 'A9':
+      $msg = t('Payment attempted; Invalid card number');
+      $field = 'cardnumber';
+      break;
+    case 'AB':
+      $msg = t('Payment attempted; Invalid expiry date');
+      $field = 'expiry';
+      break;
+    case 'AA':
+      $msg = t('Invalid Client ID. Contact the System Administrator. No transactions will be processed until this is fixed.');
+      $field = 'clientid';
+      break;
+    case 'A8':
+      $msg = t('Payment attempted; Invalid amount supplied');
+      $field = 'amount';
+      break;
+    case '01':
+      $msg = t('Payment attempted; Invalid CVN provided');
+      $field = 'cvn';
+      break;
+    default:
+      $msg = $error;
+      $field = 'other';
+  }
+
+  form_set_error($field, $msg);
+
+  return $msg;
+}

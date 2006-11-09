@@ -1,0 +1,70 @@
+<?php
+// $Id: apparel.module,v 1.6.2.1 2006/10/02 00:33:19 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+function apparel_help($section = 'admin/help#apparel') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Creates an apparel product. Dependency: product.module, tangible.module, subproducts.module');
+    case 'node/add/product#apparel':
+      return t('Creates an apparel product.');
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function apparel_perm() {
+  return array('create apparel products', 'edit own apparel products');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function apparel_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('create apparel products');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own apparel products') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}
+
+
+/**
+ * Implementation of hook_productapi().
+ */
+function apparel_productapi(&$node, $op, $data = null, $a4 = null) {
+
+  switch ($op) {
+
+    case 'wizard_select':
+      return array('apparel' => t('apparel product'));
+
+    case 'subproduct_types':
+      return array('apparel');
+
+    case 'cart add item':
+      return subproducts_cart_set_subproduct_variation($node, $data);
+
+    case 'fields':
+    case 'validate':
+    case 'attributes':
+    case 'on payment completion':
+    case 'form':
+    case 'load':
+    case 'insert':
+    case 'update':
+    case 'delete':
+    default:
+      return module_invoke('tangible', 'productapi', $node, $op, $data, $a4);
+  }
+}

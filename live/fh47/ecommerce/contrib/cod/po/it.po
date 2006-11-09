@@ -1,0 +1,78 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Store module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2006-01-12 19:26+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: cod.module:15
+msgid "Process payments using cash on delivery."
+msgstr "Processa i pagamenti utilizzando il pagamento alla consegna."
+
+#: cod.module:23
+msgid "Title to use for COD"
+msgstr "Il titolo da utilizzare per il pagamento alla consegna"
+
+#: cod.module:24
+#: ;50
+msgid "COD"
+msgstr "Pagamento alla consegna (Cash On Delivery)"
+
+#: cod.module:25
+msgid "Description to show shoppers for this type of payment."
+msgstr "Descrizione da mostrare ai clienti per questo tipo di pagamento."
+
+#: cod.module:27
+msgid "Page to go to after payment"
+msgstr "La pagina dove indirizzare il cliente dopo il pagamento"
+
+#: cod.module:29
+msgid "Page to go to after payment is completed."
+msgstr "La pagina dove indirizzare il cliente dopo che il pagamento &egrave; stato completato."
+
+#: cod.module:31
+msgid "Mark transaction as paid?"
+msgstr "Segnare la transazione come pagata?"
+
+#: cod.module:33
+#: ;38
+msgid "No"
+msgstr "No"
+
+#: cod.module:33
+#: ;38
+msgid "Yes"
+msgstr "Si"
+
+#: cod.module:34
+msgid "Whether to mark transactions as paid immediately, or wait till the store admin marks them as paid"
+msgstr "Selezionate Si se volete che le transazioni siano automaticamente segnate come pagate, selezionate No se preferite che il pagamento delle transazioni sia validato manualmente dall'amministratore del negozio."
+
+#: cod.module:36
+msgid "Mark transaction workflow as completed?"
+msgstr "Segnare la transazione come completata?"
+
+#: cod.module:39
+msgid "Marks transactions that have no shippable items as completed in the workflow"
+msgstr "Permette di rendere complete le transazioni che contengono prodotti non consegnabili."
+
+#: cod.module:64
+msgid "Your purchase has been completed."
+msgstr "Il vostro ordine &egrave; concluso."
+
+#: cod.module:89
+msgid "Your purchase has been received."
+msgstr "Il vostro ordine &egrave stato ricevuto."
+
+#: cod.module:0
+msgid "cod"
+msgstr "pagamento alla consegna"
+

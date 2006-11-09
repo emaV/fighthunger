@@ -1,0 +1,392 @@
+<?php
+// $Id: paypal.module,v 1.37.2.4 2006/10/02 00:33:20 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook help().
+ */
+function paypal_help($section = 'admin/help#paypal') {
+
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Process payments using paypal.');
+
+    case 'admin/store/settings/paypal':
+      return t('<p>In order to use this module, you need to create an account with PayPal. Also, you can setup Instant Payment Notification (IPN) to track PayPal payments from your own website. The IPN URL of your site is:</p><p><strong> %ipn_url</strong></p>', array('%ipn_url' => url('paypal/ipn', NULL, NULL, TRUE)));
+  }
+}
+
+/**
+ * Implementation of menu_hook()
+ */
+function paypal_menu($may_cache) {
+
+  $items = array();
+  if ($may_cache) {
+    $items[] = array('path' => 'paypal/ipn', 'title' => t('PayPal IPN'),
+      'callback' => 'paypal_ipn', 'access' => true, 'type' => MENU_CALLBACK);
+  }
+  return $items;
+}
+
+function paypal_ec_settings() {
+
+  $form['paypal_receiver_email'] =  array( '#type' => 'textfield', '#title' => t('PayPal Receiver Email'),'#default_value' => variable_get('paypal_receiver_email', variable_get('site_mail', ini_get('sendmail_from'))), '#size' => 70, '#maxlength' => 180, '#description' => t('Primary email address of the payment recipent. This is also your main paypal email address.') );
+
+  $form['paypal_url'] =  array( '#type' => 'textfield', '#title' => t('PayPal processing URL'),'#default_value' => variable_get('paypal_url', 'https://www.paypal.com/xclick/'), '#size' => 70, '#maxlength' => 180, '#description' => t('URL of the secure payment page customers are sent to for payment processing.'));
+
+  $form['paypal_return_url'] =  array( '#type' => 'textfield', '#title' => t('Successful payment URL'), '#default_value' => variable_get('paypal_return_url', '%order-history'), '#size' => 70, '#maxlength' => 180, '#description' => t("This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'. You may also enter '%order-history' to link to the user's order history."));
+
+  $form['paypal_cancel_url'] =  array( '#type' => 'textfield', '#title' => t('Cancel payment URL'), '#default_value' => variable_get("paypal_cancel_url", "node"), '#size' => 70, '#maxlength' => 180, '#description' => t("This is the destination to which you would like to send your customers if they cancel their payment. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'.")  );
+  $form['paypal_ipnrb_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('PayPal IPN "request back" validation URL'),
+    '#default_value' => variable_get('paypal_ipnrb_url', 'http://www.paypal.com/cgi-bin/webscr'),
+    '#size' => 70,
+    '#maxlength' => 180,
+    '#description' => t('URL where IPN "request back" is posted to validate the transaction.'),
+  );  
+
+  $currency_codes = array('USD' => 'USD - U.S. Dollars', 'EUR' => 'EUR - Euros', 'AUD' => 'AUD - Australian Dollars', 'CAD' => 'CAD - Canadian Dollars', 'GBP'=> 'GBP - Pounds Sterling', 'JPY' => 'JPY - Yen');
+  
+  $form['paypal_currency_code'] =  array( '#type' => 'select', '#title' => t('Currency code'),'#default_value' => variable_get('paypal_currency_code', 'USD'), '#options' => $currency_codes, '#description' => t('The currecy code that PayPal should process the payment in.'));
+
+  $form['paypal_debug'] =  array( '#type' => 'radios', '#title' => t('Debug Instant Payment Notification (IPN)'), '#default_value' => variable_get('paypal_debug', 0), '#options' => array(t('Disabled'), t('Enabled')),  '#description' => t('If enabled, you\'ll receive an email whenever IPN is activated on your site.')	);
+
+  $form['paypal_min_amount'] =  array( '#type' => 'textfield', '#title' => t('Minimum purchase amount'),'#default_value' => variable_get('paypal_min_amount', '5.00'), '#size' => 10, '#maxlength' => 10, '#description' => t('What is the minimum amount an user must purchase for when checking out with Paypal?')	);
+
+  return $form;
+}
+
+function paypal_paymentapi(&$txn, $op, $arg = '') {
+  switch ($op) {
+    case 'display name':
+      return t('PayPal');
+
+    case 'on checkout':
+      paypal_verify_checkout($txn);
+      break;
+
+    case 'payment page':
+      if ($txn->gross > 0) {
+        return paypal_goto($txn);
+      }
+      break;
+    }
+}
+
+/**
+ * Implementation of hook_ec_transactionapi().
+ */
+function paypal_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  if ($txn->payment_method != 'paypal') return NULL;
+  switch ($op) {
+    case 'load':
+      $txn->payment = db_fetch_object(db_query("SELECT * FROM {ec_paypal} WHERE txnid = %d", $txn->txnid));
+      break;
+    case 'insert':
+    case 'update':
+      paypal_save($txn);
+      break;
+    case 'delete':
+      paypal_delete($txn);
+      break;
+  }
+}
+
+function paypal_verify_checkout($txn) {
+  $estimate = store_transaction_calc_gross($txn);
+  if (variable_get('paypal_min_amount', '5.00') > $estimate) {
+    form_set_error('gross', t('Your purchase total must be at least %min-purchase-amount for Paypal purchases.', array('%min-purchase-amount' => payment_format(variable_get('paypal_min_amount', '5.00')))));
+  }
+}
+
+function paypal_delete($txn) {
+  db_query('DELETE FROM {ec_paypal} WHERE txnid = %d', $txn->txnid);
+}
+
+function paypal_goto($txn) {
+
+  global $user;
+
+  // Earmark the item_number since we never know if the admin is using Paypal
+  // for other services.
+  if ($txn->txnid) {
+    $txnid = 'txnid_'. $txn->txnid;
+  }
+
+  global $base_url;
+  $return_url = (variable_get('paypal_return_url', '%order-history') == '%order-history') ?
+    url("store/history/$user->uid", NULL, NULL, TRUE):
+    url(variable_get('paypal_return_url', '%order-history'), NULL, NULL, TRUE);
+  $cancel_url = (strpos(variable_get('paypal_cancel_url', 'node'), 'http') !== 0) ?
+    url(variable_get('paypal_cancel_url', 'node'), NULL, NULL, TRUE) :
+    variable_get('paypal_cancel_url', 'node');
+
+  $item_name = ($user->uid) ? t("%site_name order #%txn_id for %user_name", array('%site_name'=>variable_get('site_name', 'drupal'),'%txn_id'=>$txn->txnid,'%user_name'=>$user->name)): t("%site_name order #%txn_id",array('%site_name'=>variable_get("site_name", "drupal"),'%txn_id'=>$txn->txnid));
+  $subtotal = store_transaction_calc_gross($txn);
+  $uri_array = array('business'       => variable_get('paypal_receiver_email', variable_get("site_mail", ini_get("sendmail_from"))),
+                     'item_name'      => $item_name,
+                     'item_number'    => $txnid,
+                     'shipping'       => $txn->shipping_cost,
+                     'no_shipping'    => 1,
+                     'return'         => $return_url,
+                     'cancel_return'  => $cancel_url,
+                     'currency_code'  => variable_get('paypal_currency_code', 'USD')
+                     );
+  if (($shipping = store_search_misc(array('type' => 'shipping'), $txn)) !==
+  FALSE) {
+    $uri_array['shipping'] = $txn->misc[$shipping]->price;
+    $subtotal-= $txn->misc[$shipping]->price;
+  }
+
+  if (($tax = store_search_misc(array('type' => 'tax'), $txn)) !== FALSE) {
+    $uri_array['tax'] = $txn->misc[$tax]->price;
+    $subtotal-= $txn->misc[$tax]->price;
+  }
+  if (($handling = store_search_misc(array('type' => 'handling'), $txn)) !== FALSE) {
+    $uri_array['handling'] = $txn->misc[$handling]->price;
+    $subtotal-= $txn->misc[$handling]->price;
+  }
+  $uri_array['amount'] = number_format($subtotal, 2);
+
+  foreach($uri_array as $key => $value) {
+
+    if (($key != 'business') && $value) {
+      $value = urlencode($value);
+    }
+
+    if ($key == 'return' || $key == 'cancel_return') {
+      $value = str_replace('%2F', '/', $value);
+      //$value = htmlentities(urlencode($value));
+    }
+    $uri .= "&$key=". $value;
+  }
+  $url = variable_get('paypal_url', "https://www.paypal.com/xclick/") . substr($uri, 1);
+
+  return $url;
+}
+
+function paypal_save($txn) {
+
+  if ($txn->txnid && $txn->ppid) {
+
+    if (db_result(db_query("SELECT COUNT(txnid) FROM {ec_paypal} WHERE txnid = '%s'", $txn->txnid))) {
+      db_query("UPDATE {ec_paypal} SET ppid = '%s', fee = '%s' WHERE txnid = '%d'", $txn->ppid, $txn->fee, $txn->txnid);
+    }
+    else {
+      db_query("INSERT INTO {ec_paypal} (txnid, ppid, fee) VALUES (%d, '%s', '%s')", $txn->txnid, $txn->ppid, $txn->fee);
+    }
+  }
+
+}
+
+function paypal_ipn() {
+
+  $has_txn_key = false;
+  $i = array();
+  $debug = "PayPal IPN Results\n";
+  $debug .= "==================\n";
+  /* Read the post from PayPal system and add 'cmd' */
+  $req = 'cmd=_notify-validate';
+
+  ksort($_POST); //easier for debugging
+  foreach ($_POST as $key => $value) {
+
+    $debug .= "$key = $value\n";
+
+    if (strstr($key, 'item_number')) {
+
+      if (strstr($value, 'txnid_')) {
+        $txnid = substr($value, strlen('txnid_'));
+        $has_txn_key = true;
+        $debug .= t("A Transaction ID exists and is #%key\n", array('%key' => $txnid));
+      }
+
+      $i[substr($key, strlen('item_number'))] = $txnid;
+    }
+    elseif (strstr($key, 'quantity')) {
+      $quantity[substr($key, strlen('quantity'))] = $value;
+    }
+    elseif (strstr($key, 'item_name')) {
+      $name[substr($key, strlen('item_name'))] = $value;
+    }
+
+    $value = urlencode(stripslashes($value));
+    $req .= "&$key=$value";
+  }
+
+  if ($txnid) {
+    watchdog('paypal', t('IPN hit for <a href="%txn-url">txn: %txnid</a>', array('%txnid' => theme('placeholder', $txnid), '%txn-url' => url('admin/store/search&txnid='. $txnid))));
+  }
+  else {
+    watchdog('paypal', t('IPN hit, no transaction ID given.'));
+  }
+
+  $has_shippable_item = false;
+  foreach($i as $key => $value) {
+    $pp_item = new StdClass();
+    $pp_item->nid = $value;
+    $pp_item->qty = $quantity[$key];
+    $pp_item->title = $name[$key];
+    $pp_item->price = null;
+
+    if (product_is_shippable($pp_item->nid)) {
+      $has_shippable_item = true;
+    }
+
+    $item[] = $pp_item;
+  }
+
+  /* Post back to PayPal system to validate */
+  $header = "POST /cgi-bin/webscr HTTP/1.0\r\n";
+  $ipnrb = parse_url(variable_get('paypal_ipnrb_url', 'http://www.paypal.com/cgi-bin/webscr'));
+  $header = "POST {$ipnrb['path']} HTTP/1.0\r\n";
+  $header .= "Content-Type: application/x-www-form-urlencoded\r\n";
+  $header .= "Content-Length: " . strlen($req) . "\r\n\r\n";
+  if ($ipnrb['scheme']=='http') {
+    $port= 80;
+    $host=$ipnrb['host'];
+  }
+  else {
+    $port= 443;
+    $host="ssl://{$ipnrb['host']}";
+  }
+  $fp = fsockopen($host, $port, $errno, $errstr, 30);
+
+  /* Assign posted variables to local variables */
+  $payment_status = $_POST['payment_status'];
+  $fee            = $_POST['payment_fee'];
+  $payment_amount = $_POST['mc_gross'];
+  $ppid           = $_POST['txn_id'];
+  $receiver_email = $_POST['receiver_email'];
+
+  if (!$fp) {
+    // HTTP ERROR
+    $debug .= t("An HTTP error occurred\n");
+  }
+  elseif ($ppid && $has_txn_key) { // We can't do much without a txn_id
+    fputs ($fp, $header . $req);
+    while (!feof($fp)) {
+      $res = fgets ($fp, 1024);
+      if (strcmp ($res, 'VERIFIED') == 0 && $receiver_email == variable_get('paypal_receiver_email', variable_get('site_mail', ini_get('sendmail_from')))) {
+
+        $debug .= t("PayPal has verified the transaction\n");
+
+        $data['gross']          = $payment_amount;
+        $data['fee']            = $fee;
+        $data['payment_method'] = 'paypal';
+        $data['payment_status'] = payment_get_status_id($payment_status);
+        $data['ppid']           = $ppid;
+
+        if ($has_txn_key) {
+          $data['txnid'] = $txnid;
+        }
+        else {
+          $data['billing_firstname']  = $_POST['address_first_name'];
+          $data['billing_lastname']   = $_POST['address_last_name'];
+          $data['billing_street1']    = $_POST['address_street'];
+          $data['billing_city']       = $_POST['address_city'];
+          $data['billing_state']      = $_POST['address_state'];
+          $data['billing_zip']        = $_POST['address_zip'];
+          $data['billing_country']    = store_get_country_id($_POST['address_country']);
+          $data['items']              = $item;
+          $data['uid']                = db_result(db_query("SELECT uid FROM {users} WHERE email = '%s'", $_POST['payer_email']));
+        }
+        ksort($data);
+        $debug .= "\nData being sent to store_transaction_save:\n===================================\n";
+        foreach ($data as $key => $value) {
+          $debug .= "$key = $value\n";
+        }
+        $debug .= "\n";
+
+        $is_new = (db_result(db_query('SELECT COUNT(txnid) FROM {ec_paypal} WHERE ppid = %d', $ppid))) ? false : true;
+
+        switch (strtoupper($payment_status)) {
+          /* if referring to an initial purchase, this means the payment has
+             been completed and the funds are successfully in your account
+             balance. If referring to a reversal (i.e. txn_type= reversal ),
+             then it means the reversal has been completed and funds have been
+             removed from your account and returned to the customer */
+          case 'COMPLETED':
+              $data['payment_status'] = payment_get_status_id('completed');
+              // If there are no shippable items, assume the transaction workflow is complete.
+              if (!$has_shippable_item) {
+                $data['workflow'] = 6;
+              }
+              $txnid = store_transaction_save($data);
+              if ($is_new && $txnid) {
+                /* Compose and send confirmation email to the user */
+                store_send_invoice_email($txnid);
+              }
+            break;
+
+          /* The payment is pending; the pending_reason variable will give you
+             more information. Note: You will receive another Instant Payment
+             Notification when the payment becomes "Completed", "Failed", or "Denied" */
+          case 'PENDING':
+            $data['payment_status'] = payment_get_status_id('pending');
+            $txnid = store_transaction_save($data);
+            break;
+
+          /* The payment has failed. This will only happen if the payment was
+             made from your customer's bank account */
+          case 'FAILED':
+            $data['payment_status'] = payment_get_status_id('failed');
+            $txnid = store_transaction_save($data);
+            break;
+
+          /* You, the merchant, denied the payment. This will only happen if the
+             payment was previously pending due to one of the pending reasons below */
+          case 'DENIED':
+            $data['payment_status'] = payment_get_status_id('denied');
+            $txnid = store_transaction_save($data);
+            break;
+
+          /* You, the merchant, refunded the payment. */
+          case 'REFUNDED':
+            $data['payment_status'] = payment_get_status_id('refunded');
+            $txnid = store_transaction_save($data);
+            break;
+
+          /* This means a reversal has been canceled (e.g. you, the merchant,
+             won a dispute with the customer and the funds for the transaction
+             that was reversed have been returned to you) */
+          case 'CANCELED':
+            $data['payment_status'] = payment_get_status_id('canceled');
+            $txnid = store_transaction_save($data);
+            break;
+
+          default:
+            /* Unkmown payment status */
+        }
+        $debug .= t("Transaction has been processed.\n");
+
+      }
+      else if (strcmp ($res, 'INVALID') == 0) {
+        /* log for manual investigation */
+        $debug .= t("The transaction has returned an invalid result from PayPal.\n");
+      }
+    }
+  }
+  fclose ($fp);
+
+  if (variable_get('paypal_debug', 0)) {
+    /*
+    $filename = 'pp.txt';
+    $handle = fopen($filename, 'a');
+    fwrite($handle, $debug);
+    close($handle);
+    */
+
+    $from       = variable_get('site_mail', ini_get('sendmail_from'));
+    $to         = $from;
+    $subject    = t('PayPal debug results for'). ' '. variable_get('site_name', 'drupal');
+    $body       = $debug;
+    $headers    = "From: $from\nReply-to: $from\nX-Mailer: PHP\nReturn-path: $from\nErrors-to: $from";
+    user_mail($to, $subject, $body, $headers);
+  }
+}

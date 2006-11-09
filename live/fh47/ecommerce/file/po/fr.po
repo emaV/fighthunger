@@ -1,0 +1,153 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - File Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-11-03 20:31+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: file.module:14
+msgid "Creates a file product. Dependency: product.module"
+msgstr "Crée un produit fichier à télécharger. Dépend du module product (product.module)"
+
+#: file.module:38
+msgid "file autocomplete"
+msgstr "remplissage automatique du nom de fichier"
+
+#: file.module:41
+msgid "my files"
+msgstr "mes fichiers"
+
+#: file.module:45
+msgid "download"
+msgstr "télécharger"
+
+#: file.module:50
+msgid "product file quicklist"
+msgstr "liste des produits fichiers"
+
+#: file.module:54
+#: ;231
+msgid "expired"
+msgstr "expiré"
+
+#: file.module:85
+msgid "Please enter the path to the file."
+msgstr "Merci d'indiquer le chemin du fichier."
+
+#: file.module:90
+msgid "The file doesn't exist."
+msgstr "Le fichier n'existe pas."
+
+#: file.module:104
+msgid "file download"
+msgstr "téléchargement de fichier"
+
+#: file.module:119
+msgid "File path"
+msgstr "Chemin du fichier"
+
+#: file.module:119
+msgid "Enter the filesystem path to this file (not the URL). This path will be prefixed with <b>%file_path/</b> Here is a <a href=\"%file_quicklist\" onclick=\"window.open(this.href, '%file_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); return false\">list of files</a> in this directory. You may need to FTP your file to this directory before you can create the file product."
+msgstr "Veuillez saisir l'emplacement disque (chemin) de ce fichier (pas l'URL). Le chemin aura pour préfixe <b>%file_path/</b>. Voici une <a href=\"%file_quicklist\" onclick=\"window.open(this.href, '%file_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); return false\">liste des fichiers</a> de ce répertoire. Vous devrez peut-être transférer au préalable votre fichier par FTP avant de pouvoir créer le produit associé."
+
+#: file.module:120
+msgid "File settings"
+msgstr "Paramètres fichier"
+
+#: file.module:150
+msgid "Ecommerce file download settings (%revision)"
+msgstr "Paramètres téléchargement de fichier E-Commerce (%revision)"
+
+#: file.module:151
+msgid "Number of days before file expires"
+msgstr "Nombre de jours restants avant l'expiration du fichier"
+
+#: file.module:151
+msgid "The number of days an user has to login and download their files. This expiration date can be overridden on a per transaction basis when viewing individual transactions."
+msgstr "Nombre de jours donnés aux utilisateurs pour se connecter et télécharger leurs fichiers. Cette date d'expiration peut être modifiée pour une transaction en particulier."
+
+#: file.module:153
+msgid "File path for products"
+msgstr "Chemin/emplacement des fichiers produits"
+
+#: file.module:153
+msgid "A file system path where the product files are stored. This directory has to exist and be writable by Drupal. This directory should not be accessible over the web. Changing this location after the site has been in use will cause problems so only change this setting on an existing site if you know what you are doing."
+msgstr "Un emplacement (chemin) où les produits fichiers sont stockés. Ce répertoire doit exister, être accessible en écriture pour Drupal. Ce répertoire ne devrait pas être accessible directement par le web. Modifier ce paramètre alors que le site est en fonctionnement peut causer des problèmes. Ne le modifier sur un site existant qu'en connaissance de cause."
+
+#: file.module:163
+msgid "History"
+msgstr "Historique"
+
+#: file.module:163
+msgid "Downloads"
+msgstr "Téléchargements"
+
+#: file.module:163
+msgid "View your downloads"
+msgstr "Voir vos téléchargements"
+
+#: file.module:182
+msgid "name"
+msgstr "nom"
+
+#: file.module:182
+#: ;230
+msgid "size"
+msgstr "taille"
+
+#: file.module:182
+msgid "changed"
+msgstr "modifié"
+
+#: file.module:219
+msgid "<p><a href=\"%files-uri\">Click here to view your files.</a></p>"
+msgstr "<p><a href=\"%files-uri\">Cliquez ici pour voir vos fichiers.</a></p>"
+
+#: file.module:220
+msgid "%username's expired files"
+msgstr "Fichiers expirés pour %username"
+
+#: file.module:223
+msgid "<p><a href=\"%expired-files-uri\">Click here to view your expired files.</a></p>"
+msgstr "<p><a href=\"%expired-files-uri\">Cliquez ici pour voir vos fichiers expirés.</a></p>"
+
+#: file.module:224
+msgid "%username's files"
+msgstr "Fichiers de %username"
+
+#: file.module:229
+msgid "filename"
+msgstr "nom de fichier"
+
+#: file.module:231
+msgid "expires"
+msgstr "expiration"
+
+#: file.module:232
+msgid "operations"
+msgstr "opérations"
+
+#: file.module:245
+#: ;275
+msgid "<a href=\"%file-download-uri\">download</a>"
+msgstr "<a href=\"%file-download-uri\">télécharger</a>"
+
+#: file.module:249
+#: ;279
+msgid "%interval ago"
+msgstr "il y à %interval"
+
+#: file.module:290
+msgid "You have no files to download."
+msgstr "Vous n'avez aucun fichier à télécharger."
+
+#: file.module:0
+msgid "file"
+msgstr "fichier"
+

@@ -1,0 +1,168 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Authorize.Net module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2006-01-15 17:29+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: authorize_net.module:16
+msgid "Credit Card Payment"
+msgstr "Pagamento con carta di credito"
+
+#: authorize_net.module:29
+msgid "Process payments using authorize.net."
+msgstr "Processa i pagamenti utilizzando Authorize.Net."
+
+#: authorize_net.module:32
+msgid "You need to have an authorize.net merchant account in order to use this module. See <a href=\"http://authorize.net/solutions/gettingstarted.php\">here</a> for more information."
+msgstr "Devi disporre di un account venditore authorize.net per utilizzare questo modulo. Authorize.Net supporta solamente transazioni con valuta in dollaro americano (US $). Il tuo negozio dovr&agrave; quindi utilizzare il dollaro come valuta predefinita. Per maggiori informazioni, <a href=\"http://authorize.net/solutions/gettingstarted.php\">visita il sito authorize.net</a>."
+
+#: authorize_net.module:35
+msgid "Do not submit this form twice, or you may be double billed!"
+msgstr "La validazione di questo form comporta la fatturazione effettiva. Fate dunque attenzione a non effettuare la validazione più (non utilizzate il tasto 'indietro'), altrimenti verrà; addebitato un importo maggiore del dovuto."
+
+#: authorize_net.module:40
+msgid "Explanation or submission guidelines"
+msgstr "Spiegazione o guida d'utilizzo"
+
+#: authorize_net.module:40
+msgid "This text will be displayed at the top of the credit card submission form."
+msgstr "Questo testo verr&agrave; visualizzato alla cima del form relativo alle informazioni sul pagamento tramite carta di credito."
+
+#: authorize_net.module:41
+msgid "Login ID"
+msgstr "Il tuo ID per la login"
+
+#: authorize_net.module:41
+msgid "Enter your merchant login ID."
+msgstr "Digita il tuo ID venditore."
+
+#: authorize_net.module:42
+msgid "Transaction key"
+msgstr "Chiave della transazione"
+
+#: authorize_net.module:42
+msgid "Enter your merchant transaction key."
+msgstr "Digita la tua chiave di transazione venditore."
+
+#: authorize_net.module:43
+msgid "Authorize.net processing URL"
+msgstr "URL Authorize.net per la validazione."
+
+#: authorize_net.module:43
+msgid "URL of the secure payment processing page."
+msgstr "l'URL della pagina sicura di pagamento."
+
+#: authorize_net.module:44
+msgid "Successful payment URL"
+msgstr "l'URL della pagina di pagamento avvenuto con successo"
+
+#: authorize_net.module:44
+msgid "This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'."
+msgstr "Questa &egrave; la destinazione alla quale vuoi indirizzare i tuoi clienti una volta che il pagamento &egrave; stato eseguito con successo. L'URL deve essere un indirizzo valido per Drupal. Se non stai utilizzando gli URL semplificati, inserisci la parte di indirizzo che segue '?q='. Se non sei sicuro, scrivi 'node'."
+
+#: authorize_net.module:45
+msgid "Authorize.net test mode"
+msgstr "Modalit&agrave; di test Authorize.Net"
+
+#: authorize_net.module:45
+#: ;46
+msgid "Disabled"
+msgstr "Disabilitato"
+
+#: authorize_net.module:45
+#: ;46
+msgid "Enabled"
+msgstr "Abilitato"
+
+#: authorize_net.module:45
+msgid "If enabled, transactions will be sent in test mode and cards will not be charged."
+msgstr "Se abilitato, le transazioni verranno effettuate in modalit&agrave; test, e non verr&agrave; effettuato alcun prelievo."
+
+#: authorize_net.module:46
+msgid "Email Authorize.net Reciept"
+msgstr "Invio tramite e-mail di una conferma di avvenuto pagamento da parte di Authorize.Net"
+
+#: authorize_net.module:46
+msgid "If enabled, the customer will recieve a payment confirmation email from Authorize.Net. Keep in mind the ecommerce package sends it own transaction summary as well. Enabling this option is recommended because it provides the customer with an accurate confirmation of the amount you have charged."
+msgstr "Se abilitato, il cliente ricever&agrave; una conferma di pagamento da Authorize.Net. Tieni presente che il pacchetto E-Commerce che stai utilizzando invia la sua notifica sullo stato della transazione.<br />&Egrave; consigliato abilitare questa opzione poich&egrave; fornisce al cliente un'accurata conferma circa l'ammontare che hai addebitato."
+
+#: authorize_net.module:59
+msgid "Pay with credit card"
+msgstr "Paga con carta di credito"
+
+#: authorize_net.module:115
+#: ;179
+msgid "Place your order"
+msgstr "Ordina"
+
+#: authorize_net.module:153
+msgid "%order of <b>%title</b> at %price each"
+msgstr "%order di <strong>%title</strong> al prezzo di %price ciascuno"
+
+#: authorize_net.module:157
+msgid "<div class=\"help\">%authorize_net_help</div>"
+msgstr "<div class=\"help\">%authorize_net_help</div>"
+
+#: authorize_net.module:159
+msgid "Your items"
+msgstr "I tuoi articoli"
+
+#: authorize_net.module:165
+msgid "Month"
+msgstr "Mese"
+
+#: authorize_net.module:166
+msgid "Year"
+msgstr "Anno"
+
+#: authorize_net.module:167
+msgid "Expiration Date"
+msgstr "Data di scadenza"
+
+#: authorize_net.module:170
+msgid "Cardholder's first name"
+msgstr "Nome del proprietario della carta"
+
+#: authorize_net.module:171
+msgid "Cardholder's last name"
+msgstr "Cognome del proprietario della carta"
+
+#: authorize_net.module:172
+msgid "Credit Card Number"
+msgstr "Numero di carta di credito"
+
+#: authorize_net.module:177
+msgid "Card details"
+msgstr "Dettagli della carta di credito"
+
+#: authorize_net.module:190
+msgid "You must enter a credit card number."
+msgstr "Devi inserire un numero di carta di credito."
+
+#: authorize_net.module:193
+msgid "Error in credit card number. Please make sure it is typed correctly."
+msgstr "Errore nel numero della carta di credito. Per favore verfica che sia scritto in maniera corretta."
+
+#: authorize_net.module:334
+msgid "%authorize_net_error"
+msgstr "%authorize_net_error"
+
+#: authorize_net.module:153
+msgid "1 order"
+msgid_plural "%count orders"
+msgstr[0] "1 ordine"
+msgstr[1] "%count ordini"
+
+#: authorize_net.module:0
+msgid "authorize_net"
+msgstr "authorize_net"
+

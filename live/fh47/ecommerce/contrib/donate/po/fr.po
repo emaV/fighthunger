@@ -1,0 +1,50 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Donate Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-10-24 00:46+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: donate.module:11
+msgid "Create donation products using the ecommerce package."
+msgstr "Crée des produits 'Dons' avec E-commerce."
+
+#: donate.module:22
+msgid "cart checkout"
+msgstr "vérification du panier"
+
+#: donate.module:35
+#: ;83
+msgid "add to cart"
+msgstr "ajouter au panier"
+
+#: donate.module:59
+msgid "donation"
+msgstr "don"
+
+#: donate.module:77
+msgid "<p>This item is in <a href=\"%cart_view\">your shopping cart</a>.</p>"
+msgstr "<p>Cet article est dans <a href=\"%cart_view\">votre panier</a>.</p>"
+
+#: donate.module:79
+msgid "Amount"
+msgstr "Montant"
+
+#: donate.module:79
+msgid "How much would you like to donate?"
+msgstr "Quel est le montant de votre don ?"
+
+#: donate.module:80
+msgid "Options"
+msgstr "Paramètres"
+
+#: donate.module:0
+msgid "donate"
+msgstr "don"
+

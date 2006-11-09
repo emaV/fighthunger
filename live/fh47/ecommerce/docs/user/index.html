@@ -1,0 +1,422 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<title>Drupal E-Commerce Module Documentation</title>
+</head>
+
+<body>
+<p>TODO:</p>
+<ul>
+  <li>Need to document all the configuration options under administer &gt;&gt; store</li>
+  <li>Need to write section on how to use the cart (where list of products is found, screens to show how the process &quot;steps through&quot;, etc.) </li>
+  <li>Case studies section </li>
+</ul>
+<h1>Introduction</h1>
+<p>This document will cover how to install and configure Drupal's E-Commerce package, which allows you to sell products, services and subscriptions through your website. It is made up of several components which are used together in order to provide a powerful framework for creating custom e-commerce solutions wrapped around the community-driven features of Drupal.</p>
+<h2>Features</h2>
+<p>The E-Commerce module contains a vast array of features out of the box, and is also designed so that additional functionality can be added easily.</p>
+<h3>Multiple Product Types</h3>
+<p>The E-Commerce module provides built-in support for a diverse array of product types, including <strong>shippable products</strong>, <strong>subscriptions</strong>, <strong>donations</strong>, <strong>file downloads</strong>, and <strong>collections of products</strong>.</p>
+<h3>Multiple Payment Methods </h3>
+<p>Several payment methods are included out of the box, including <strong>PayPal</strong>, <strong>Authorize.net</strong>, <strong>e-xact</strong>, or <strong>C.O.D. </strong>You can also develop your own custom payment modules to interface with additional systems.</p>
+<h3>Flexible Pricing Options</h3>
+<p>Items can be priced to either incur fees one time, in the case of product sales, or on a recurring basis for services such as memberships. Prices can also be adjusted for certain user groups, and applicable taxes can be configured by multiple locations. Shipping costs can be calculated on a per-item basis, based on quantity of items sold, or based on the total amount of items purchased. </p>
+<h3>Inventory Management</h3>
+<p>For your shippable products, track stock levels to ensure that you have the right products in stock at the right time. Customers can review their order history at any time.</p>
+<h3>Transaction Management</h3>
+<p>The system will generate invoices and shipping notifications automatically. Transaction reports are available which give sales summaries for your store. </p>
+<h3> Customization</h3>
+<p>The shopping cart and product 'look and feel' are themeable. Transaction and payment workflow is also customizable. You can completely customize e-mails customers receive about their order status. </p>
+<h2>Showcase Sites</h2>
+<p>To get an idea of its power, here are some showcase sites making use of Drupal and the E-Commerce module. </p>
+<p><strong>Figure x.x Fearless Living</strong></p>
+<p><img src="images/intro-fearlessliving.png" alt="Fearless Living website screenshot" width="510" height="336" /> </p>
+<p><a href="http://www.fearlessliving.com/">Fearless Living</a> uses the E-Commerce module for both tangible products (books, jewelry) as well as service-based products such as workshops and memberships.</p>
+<p><strong>Figure x.x Council of Writing Program Administrators </strong></p>
+<p><img src="images/intro-wpa.png" alt="Council of Writing Program Administrators website screenshot" width="510" height="282" /></p>
+<p> <a href="http://wpacouncil.org/">Council of Writing Program Administrators</a> sells memberships through Drupal with the E-Commerce module. </p>
+<p><strong>Figure x.x Snowboard Magazine</strong></p>
+<p><img src="images/intro-snowboard.png" alt="Snowboard Magazine website screenshot" width="510" height="300" /></p>
+<p><a href="http://www.snowboard-mag.com/">Snowboard Magazine</a> uses the E-Commerce module to sell magazine subscriptions and snowboard-related gear.</p>
+<h1>Installation</h1>
+<p>Note that these instructions assume that Drupal is installed and working. Please see the <a href="http://drupal.org/node/258">Installation and Upgrading handbook</a> for further information on how to install Drupal. </p>
+<h2>Downloading the module </h2>
+<p>Begin by downloading the latest release of the E-Commerce module from <a href="http://drupal.org/project/ecommerce">http://drupal.org/project/ecommerce</a>.</p>
+<p>The file will be a tar.gz archive, which you can extract using a tool like <code>tar</code> or WinZip. For example:</p>
+<p><code>wget http://drupal.org/files/projects/ecommerce-4.7.0.tar.gz<br />
+tar -zxvf ecommerce-4.7.0.tar.gz</code></p>
+<p>Or, in WinZip, simply right-click the file and choose <strong>Extract to here</strong>.</p>
+<p>This will place the contents of the E-Commerce module into a folder called <strong>ecommerce</strong>. Place the folder and its contents in your Drupal site's <strong>modules</strong> folder.</p>
+<h2>Updating the database </h2>
+<p>Next, import the necessary tables from <strong>ecommerce.mysql </strong>into your database.</p>
+<p>From the command line:</p>
+<p><code>mysql -h<strong><em>hostname</em></strong> -u<strong><em>username </em></strong>-p <strong><em>databasename </em></strong>&lt; ecommerce/ecommerce.mysql</code></p>
+<p>Enter your password when prompted.</p>
+<p>From PHPMyAdmin:</p>
+<ol>
+  <li>Choose the <strong>SQL</strong> tab.</li>
+  <li>Choose the <strong>Browse...</strong> button under &quot;Location of the text file:&quot; </li>
+  <li>Navigate to the <strong>ecommerce.mysql</strong> file and click <strong>Open</strong>.</li>
+  <li>Click the <strong>Go</strong> button in PHPMyAdmin to import the tables.</li>
+</ol>
+<p><strong>Figure x.x PHPMyAdmin SQL Queries Window </strong></p>
+<p><img src="images/install-phpmyadmin.png" alt="PHPMyAdmin SQL Queries Window" width="510" height="400" /></p>
+<h2>Enabling modules in Drupal</h2>
+<p>In Drupal, go to <strong>administer &gt;&gt; modules</strong>. Unlike most modules, where there is a single option to enable, the E-Commerce module is actually made up of several different modules. Note that (C) denotes a contributed module, located in <strong>ecommerce/contrib/<em>modulename</em></strong>. While these modules often provide useful functionality, they are not officially supported. Note that they may also require importing additional .mysql files. If present, these will be located in the module's folder (see the previous section for instructions). </p>
+<h3>Required</h3>
+<ul>
+  <li><strong>address</strong>: Allows users to keep a list of addresses associated with their 
+    profile for users to save shipping 
+  and billing addresses.</li>
+  <li><strong>cart</strong>: Adds shopping cart functionality to your web site.</li>
+  <li><strong>parcel</strong>: Allows you to create groups of ecommerce items that are sold as a whole. </li>
+  <li><strong>payment</strong>: An API that allows you to process payments for ecommerce items.</li>
+  <li><strong>product</strong>: Product API which allows for the creation of products.</li>
+  <li><strong>shipping</strong>: A shipping API for e-commerce stores, which can calculate shipping costs.</li>
+  <li><strong>store</strong>: The main store interface for the ecommerce modules, which handles report and invoice generation, adding and editing 
+  transactions, and e-mailing and printing of invoices. </li>
+</ul>
+<h3>Payment Gateways</h3>
+<ul>
+  <li><strong>authorize_net</strong>: (C) Accept payments using Authorize.net. </li>
+  <li><strong>cod</strong>: (C) Accept payments using a cash on delivery (C.O.D.) model.</li>
+  <li><strong>exact</strong>: (C) Accept payments using E-Xact payment processor.</li>
+  <li><strong>linkpoint_api</strong>: (C) Process payments using Linkpoint.com.</li>
+  <li><strong>paypal</strong>: Accept payments using PayPal.</li>
+  <li><strong>paypalpro</strong>: (C) Accept payments using PayPal Pro.</li>
+</ul>
+<h3>Product types</h3>
+<ul>
+  <li><strong>auction</strong>: (C) Create products that can be bid on by users.</li>
+  <li><strong>donate</strong>: (C) Create donation products.</li>
+  <li><strong>file</strong>: Creates file download products.</li>
+  <li><strong>generic</strong>: Creates a generic non-shippable 
+  item with no inventory management (such as a service). </li>
+  <li><strong>hosting</strong>: (C) Creates a hosting package type. </li>
+  <li><strong>service</strong>: (C) This modules allows selling a variable rate service.</li>
+  <li><strong>tangible</strong>: Creates shippable products.</li>
+</ul>
+<h3>Other</h3>
+<ul>
+  <li><strong>ecommailer</strong>: (C) Integrates e-commerce and massmailer (requires both).</li>
+  <li><strong>shipcalc</strong>: (C) This module adds shipping calculation to the ecommerce package (currently UPS only).</li>
+  <li><strong>stores</strong>: (C) Allows users to have their own storefront.</li>
+  <li><strong>submanage</strong>: (C) Interface to manage subscribers.</li>
+  <li><strong>tax</strong>: A tax API for ecommerce stores which allows the creation of tax rules that can be applied to products and customer 
+  locations.</li>
+</ul>
+<p>Select the <strong>Required </strong>modules, one or more <strong>Payment Gateways</strong>, one or more <strong>Product types</strong>, and any <strong>Other</strong> modules which you wish to use and click <strong>Save configuration</strong>.</p>
+<h1>Configuration</h1>
+<p>There are several places to go to configure the various modules which make up the E-Commerce module.</p>
+<h2>Address</h2>
+<p>The <strong>Address module</strong> enables users to save billing and shipping addresses. </p>
+<p>To configure its settings, go to <strong>administer &gt;&gt; settings &gt;&gt; address</strong>.</p>
+<p><strong>Figure x.x Address module settings screen</strong></p>
+<p><img src="images/config-address.png" alt="Address module settings screen" width="510" height="304" /> </p>
+<p>The only option available here is to configure a <strong>Default country</strong> for addresses. Select the country most of your customers are likely to come from, and choose <strong>Save configuration</strong>.</p>
+<h2>Payment</h2>
+<p>The <strong>Payment module</strong> dictates various payment options for your site.</p>
+<p>To configure its settings, go to <strong>administer &gt;&gt; settings &gt;&gt; payment </strong>. </p>
+<p><strong>Figure x.x Payment module settings screen</strong></p>
+<p><img src="images/config-payment.png" alt="Payment settings screen" width="510" height="394" /></p>
+<p>The following options can be configured from this screen:</p>
+<h3>Price Formatting</h3>
+<p>While by default, prices in the E-Commerce module are displayed in U.S. format ($10.00), this can be customized for international customers. </p>
+<table width="100%"  border="1">
+  <caption>
+  Price formatting options
+  </caption>
+  <tr>
+    <th scope="col">Option name </th>
+    <th scope="col">Description</th>
+  </tr>
+  <tr>
+    <td>Currency symbol </td>
+    <td>The symbol that will accompany the price on items. For example, $ or &euro;.</td>
+  </tr>
+  <tr>
+    <td>Position of currency symbol </td>
+    <td>Whether currency symbol should be placed to the left or right of the price. For example, $10.00 (left) or 10 &euro; (right).</td>
+  </tr>
+  <tr>
+    <td>Thousands separator </td>
+    <td>The symbol for the thousands separator in prices. For example, a comma or a period. </td>
+  </tr>
+  <tr>
+    <td>Decimal separator </td>
+    <td>The symbol which separates a number from its decimal. For example, a comma or a period. </td>
+  </tr>
+  <tr>
+    <td>Number of places after the decimal separator </td>
+    <td>Denotes the number of places after the decimal separator the price should indicate. For example, $10.00 (2) or 10 &euro; (0). </td>
+  </tr>
+</table>
+<h3>E-mail Notifications</h3>
+<p>This section allows you to specify notification messages that users will receive via e-mail. Note that each section can contain <strong>variables</strong> to fill in dynamic information about an order. See the table below for a list of variables. </p>
+<table width="100%"  border="1">
+  <caption>
+  E-mail notification options
+  </caption>
+  <tr>
+    <th scope="col">Option name </th>
+    <th scope="col">Description</th>
+  </tr>
+  <tr>
+    <td>Subject of invoice e-mail</td>
+    <td>The subject line of the e-mail customers will receive upon placing an order.</td>
+  </tr>
+  <tr>
+    <td>Customer invoice e-mail</td>
+    <td>The body of the e-mail customers will receive upon placing an order.</td>
+  </tr>
+  <tr>
+    <td>Subject of error e-mail</td>
+    <td>The subject line of the e-mail customers will receive upon an error occurring with the processing of their order.</td>
+  </tr>
+  <tr>
+    <td>Payment error e-mail</td>
+    <td>The body of the e-mail customers will receive upon an error occurring with the processing of their order.</td>
+  </tr>
+</table>
+<p>&nbsp;</p>
+<table width="100%"  border="1">
+  <caption>
+  Variables for use in e-mails
+  </caption>
+  <tr>
+    <th scope="col">Variable name </th>
+    <th scope="col">Description</th>
+  </tr>
+  <tr>
+    <td>%billing_name</td>
+    <td>The customer's first and last name. </td>
+  </tr>
+  <tr>
+    <td>%date</td>
+    <td>The current date </td>
+  </tr>
+  <tr>
+    <td>%email</td>
+    <td>The website's administrator E-mail address (taken from <strong>administer &gt;&gt; settings</strong>)</td>
+  </tr>
+  <tr>
+    <td>%items</td>
+    <td>The order details (quantity, product, and price) </td>
+  </tr>
+  <tr>
+    <td>%order_date</td>
+    <td>The date the order was placed.</td>
+  </tr>
+  <tr>
+    <td>%site</td>
+    <td>The website's
+        <label for="edit-site_name">Name</label>
+    (taken from <strong>administer &gt;&gt; settings</strong>) </td>
+  </tr>
+  <tr>
+    <td>%txnid</td>
+    <td>The customer's transaction ID.</td>
+  </tr>
+  <tr>
+    <td>%uri</td>
+    <td>The website's URL</td>
+  </tr>
+  <tr>
+    <td>%uri_brief</td>
+    <td>The website's URL without the http:// </td>
+  </tr>
+  <tr>
+    <td>%user_data</td>
+    <td>Customer's shipping and billing addresses. </td>
+  </tr>
+</table>
+<h3>Recurring Payments</h3>
+<p>Recurring payments are useful if you wish to charge for things such as membership or subscriptions, which expire after a certain time and need to be re-billed. You can customize roles to add a user to upon payment, and set up one or more &quot;reminder&quot; e-mails that flag the customer at a certain time when their subscription is near expiry. Note that e-mails related to recurring payments have slightly different variables which can be used.</p>
+<table width="100%"  border="1">
+  <caption>
+  Recurring payment options
+  </caption>
+  <tr>
+    <th scope="col">Option name </th>
+    <th scope="col">Description</th>
+  </tr>
+  <tr>
+    <td>Recurring payments </td>
+    <td>Whether recurring payments are enabled or disabled. </td>
+  </tr>
+  <tr>
+    <td>Role inheritance </td>
+    <td>Choose from a list of user groups to which a customer is added upon completion of an order. Useful for members-only sites, where users must first pay a registration fee in order to access content.</td>
+  </tr>
+  <tr>
+    <td>Subject of recurring payment notice e-mail</td>
+    <td>The subject line of the e-mail customers will receive to notify them that their subscription is near expiration. </td>
+  </tr>
+  <tr>
+    <td>Recurring payment notice e-mail</td>
+    <td>The body of the e-mail customers will receive to notify them that their subscription is near expiration. </td>
+  </tr>
+  <tr>
+    <td>Interval</td>
+    <td>How long before subscription expiration should a recurring notice be sent? Used in conjunction with Unit. For example, 1 week. </td>
+  </tr>
+  <tr>
+    <td><label for="edit-1_price_unit">Unit</label></td>
+    <td>How long before subscription expiration should a recurring notice be sent? Used in conjunction with Interval. For example, 1 week. </td>
+  </tr>
+  <tr>
+    <td>Subject of recurring payment expiration e-mail</td>
+    <td>The subject line of the e-mail customers will receive to notify them that their subscription has expired. </td>
+  </tr>
+  <tr>
+    <td>Recurring payment expiration e-mail</td>
+    <td>The body of the e-mail customers will receive to notify them that their subscription has expired. </td>
+  </tr>
+</table>
+<table width="100%"  border="1">
+  <caption>
+  Recurring payment variables
+  </caption>
+  <tr>
+    <th scope="col">Variable name </th>
+    <th scope="col">Description</th>
+  </tr>
+  <tr>
+    <td>%billing_firstname</td>
+    <td>Customer's first name.</td>
+  </tr>
+  <tr>
+    <td>%billing_lastname</td>
+    <td>Customer's last name. </td>
+  </tr>
+  <tr>
+    <td>%renewal_item</td>
+    <td>The name of the subscription and its transaction ID. </td>
+  </tr>
+  <tr>
+    <td>%renewal_link</td>
+    <td>The URL to renew the subscription (<strong>cart/renew/<em>PRODUCT_ID</em>/<em>TRANSACTION_ID</em></strong>).</td>
+  </tr>
+  <tr>
+    <td>%site</td>
+    <td>The website's
+        <label for="edit-site_name">Name</label>
+    (taken from <strong>administer &gt;&gt; settings</strong>).</td>
+  </tr>
+  <tr>
+    <td>%time_to_expire</td>
+    <td>The amount of time left until subscription expires. </td>
+  </tr>
+  <tr>
+    <td>%time_since_expired</td>
+    <td>The length of time that has passed since the subscription expired. </td>
+  </tr>
+  <tr>
+    <td>%uri</td>
+    <td>The website's URL.</td>
+  </tr>
+</table>
+<h2>Shipping</h2>
+<h3>Shipping notification</h3>
+<p>Go to <strong>administer &gt;&gt; settings &gt;&gt; shipping</strong> to configure the e-mail sent to customers upon a product being shipped. </p>
+<p><strong>Figure x.x Shipping module settings screen</strong></p>
+<p><img src="images/config-shipping.png" alt="Shipping notification screen" width="510" height="255" /> </p>
+<p>The two fields are merely the subject and body of the e-mail sent to a customer upon a product being shipped. The following is a list of variables you can use in the e-mail to customize it to a particular customer.</p>
+<table width="100%"  border="1">
+  <caption>
+  Shipping notification variables
+  </caption>
+  <tr>
+    <th scope="col">Variable name </th>
+    <th scope="col">Description</th>
+  </tr>
+  <tr>
+    <td>%billing_to</td>
+    <td>Customer's billing address. </td>
+  </tr>
+  <tr>
+    <td>%date</td>
+    <td>Today's date. </td>
+  </tr>
+  <tr>
+    <td>%email</td>
+    <td>The website's administrator E-mail address (taken from <strong>administer &gt;&gt; settings</strong>).</td>
+  </tr>
+  <tr>
+    <td>%first_name</td>
+    <td>Customer's first name.</td>
+  </tr>
+  <tr>
+    <td>%items</td>
+    <td>The order details (quantity, product, and price).</td>
+  </tr>
+  <tr>
+    <td>%order_date</td>
+    <td>Date that the order was placed.</td>
+  </tr>
+  <tr>
+    <td>%shipping_to</td>
+    <td>Customer's shipping address. </td>
+  </tr>
+  <tr>
+    <td>%site</td>
+    <td>The website's
+      <label for="edit-site_name">Name</label>
+(taken from <strong>administer &gt;&gt; settings</strong>).</td>
+  </tr>
+  <tr>
+    <td>%txnid</td>
+    <td>Order's Transaction ID. </td>
+  </tr>
+  <tr>
+    <td>%uri</td>
+    <td>The website's URL.</td>
+  </tr>
+  <tr>
+    <td>%uri_brief</td>
+    <td>The website's URL without the http://.</td>
+  </tr>
+</table>
+<h3>Shipping cost calculation </h3>
+<p>Go to <strong>administer &gt;&gt; store &gt;&gt; shipping</strong> to customize shipping options for your products.</p>
+<p><strong>Figure x.x Shipping calculation screen</strong></p>
+<p><img src="images/config-shipping-costs.png" alt="Shipping calculation screen" width="510" height="263" /> </p>
+<p>The options available here are:</p>
+<ul>
+  <li>Shipping costs are calculated on a <strong>per product</strong> basis.</li>
+  <li>Shipping costs are calculated based on the <strong>total quantity of items</strong> in the cart.</li>
+  <li>Shipping costs are calculated based on the <strong>total cost of items</strong> in the cart.</li>
+  <li>Do not calculate shipping costs.</li>
+</ul>
+<h4>Shipping costs are calculated on a <strong>per product</strong> basis</h4>
+<p>If this option is selected, each shippable product will contain an extra field <strong>Shipping charge</strong> where a value can be entered to cover shipping costs. </p>
+<h4>Shipping costs are calculated based on the <strong>total quantity of items</strong> in the cart.</h4>
+<p>If this option is selected, you are given the option to select a flat shipping rate based on quantity. For example, 1 item will cost $5.00 to ship, 2-4 items will cost $9.00 to ship.</p>
+<h4>Shipping costs are calculated based on the <strong>total cost of items</strong> in the cart</h4>
+<p>This option allows you to set shipping costs based on the amount of items purchased. For example, you can make orders over $30.00 have free shipping. </p>
+<h4>Do not calculate shipping costs</h4>
+<p>If this option is selected, no shipping costs are attached to any products.</p>
+<h2>Store</h2>
+<p>Go to <strong>administer &gt;&gt; settings &gt;&gt; store </strong>to configure general settings for your site's store.</p>
+<p><strong>Figure x.x Store settings screen</strong></p>
+<p><img src="images/config-store.png" alt="Store settings screen" width="510" height="264" /> </p>
+<p>This screen contains the following options:</p>
+<h4>Authenticated customers</h4>
+<p>Choose here whether or not customers must register in order to place an order.</p>
+<h4>Transaction notices</h4>
+<p>Enable this option to receive e-mail notification each time an order is placed.</p>
+<h4>Store module dependencies</h4>
+<p>This is not an option, but rather lists all of the required modules for the store to function. Ensure that all modules say <strong>Installed</strong>. If any are listed as Not found, your site could have errors when attempting to process an order.</p>
+<h4>Order history overview</h4>
+<p>A message to display to users when they view their order history.</p>
+<h1>Using the Store</h1>
+<p>// A basic guide to walk through the process of creating products, setting options, and how the site looks from a customer's POV </p>
+<h1>Case Studies</h1>
+<p>// Section with step-by-step &quot;how to&quot; on setting up each of the following types of sites</p>
+<h2>T-Shirt Store</h2>
+<h2>Paid Membership Site</h2>
+<h2>PayPal Donations</h2>
+<p>&nbsp; </p>
+</body>
+</html>

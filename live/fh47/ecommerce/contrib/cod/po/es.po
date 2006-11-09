@@ -1,0 +1,41 @@
+# Spanish translation for cod.module.
+# Copyright (C) 2005 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Carlos A. Paramio <carlosparamio@gmail.com>, 2005.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: es\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2005-09-13 09:18+0200\n"
+"PO-Revision-Date: 2005-09-13 10:00++0200\n"
+"Last-Translator: Carlos A. Paramio <carlosparamio@gmail.com>\n"
+"Language-Team: Spanish <es@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: cod.module:15
+msgid "Process payments using cash on delivery."
+msgstr "Procesa pagos usando contrarreembolso."
+
+#: cod.module:23
+msgid "Title to use for COD"
+msgstr "Título a usar para contrareembolso"
+
+#: cod.module:23 cod.module:35
+msgid "COD"
+msgstr "Contrareembolso"
+
+#: cod.module:23
+msgid "Description to show shoppers for this type of payment."
+msgstr "Descripción a mostrar a los compradores para este tipo de pago."
+
+#: cod.module:24
+msgid "Page to go to after payment"
+msgstr "Página a la que se redirigirá después del pago"
+
+#: cod.module:24
+msgid "Page to go to after payment is completed."
+msgstr "Página a la que se redirigirá al usuario una vez que el pago se haya completado."

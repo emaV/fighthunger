@@ -1,0 +1,846 @@
+<?php
+// $Id: ecivicrm.module,v 1.23.2.5 2006/10/02 00:33:20 gordon Exp $
+
+/**
+ * @file ecivicrm.module
+ *
+ * The ecivicrm module provides an interface between the Drupal e-commerce
+ * module and CiviCRM.
+ */
+
+/**
+ * Implementation of Drupal _help() hook.
+ *
+ * @param  $path    The current path.
+ * @return string   Help text appropriate for the current path.
+ */
+function ecivicrm_help($path = 'admin/help#ecivicrm') {
+  switch ($path) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Automatically syncronize data between Drupal\'s ecommerce module and CiviCRM.');
+      break;
+      
+    case 'user/'. arg(1) .'/eaddress':
+      return t('<p>Your address book is used to save addresses for billing and shipping of items from our store.</p>');
+      break; 
+  }
+}
+
+/**
+ * Implementation of Drupal _settings() hook.
+ *
+ * @return form   Form used to configure the ecivicrm module.
+ */
+function ecivicrm_ec_settings() {
+  civicrm_initialize(true);
+
+  $form['ecivicrm_activity_types'] = array(
+    '#type' => 'radios',
+    '#title' => t('Record activity types'),
+    '#default_value' => variable_get('ecivicrm_activity_types', 0),
+    '#options' => array(t('Donations only'), t('All transactions')),
+    '#description' => t('Select what type of activites should be recorded in the CiviCRM activity history.'),
+  );
+  $form['ecivicrm_country_state_abbreviation'] = array(
+    '#type' => 'select',
+    '#title' => t('Countries which use Abbreviations for States'),
+    '#default_value' => variable_get('ecivicrm_country_state_abbreviation', array(1013)),
+    '#options' => CRM_Core_PseudoConstant::country(),
+    '#description' => t('Some countries prefer the use of the Abreviation instead of the full name when displaying States.'),
+    '#multiple' => true,
+  );
+
+  $form['ecivicrm_require_email'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Require Billing location to have Email for Anonymous Users'),
+    '#default_value' => variable_get('ecivicrm_require_email', 1)
+  );
+  return $form;
+}
+
+/**
+ * Implementation of Drupal _menu() hook.
+ *
+ * @return array
+ */
+function ecivicrm_menu($may_cache) {
+
+  global $user;
+  $uid = $user->uid;
+  $items = array();
+
+  if (!$may_cache) {
+    if (arg(0) == 'user') {
+      if (user_access('administer users')) {
+        $uid = arg(1);
+      }
+    }
+    if ($uid) {
+      $items[] = array(
+        'path' => "user/$uid/eaddress", 'title' => t('address book'),
+        'callback' => 'ecivicrm_address_page',
+        'access' => TRUE, 'type' => MENU_LOCAL_TASK, 'weight' => 1
+      );
+      $items[] = array(
+        'path' => "user/$uid/eaddress/delete", 'title' => t('address book'),
+        'callback' => 'ecivicrm_address_page',
+        'callback arguments' => array('delete', arg(4)),
+        'access' => TRUE, 'type' => MENU_CALLBACK, 'weight' => 1
+      );
+      $items[] = array(
+        'path' => 'admin/store/ecivicrm/add',
+        'callback' => 'ecivicrm_admin_address_add',
+        'type' => MENU_CALLBACK,
+      );
+      $items[] = array(
+        'path' => 'admin/store/ecivicrm/edit',
+        'callback' => 'ecivicrm_admin_address_edit',
+        'type' => MENU_CALLBACK,
+      );
+    }
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_checkoutapi()
+ */
+function ecivicrm_checkoutapi(&$txn, $op) {
+  if ($txn == 'ecivicrm') return 'ecivicrm';
+
+  switch ($op) {
+    case 'form':
+      if ($txn->shippable) {
+        drupal_set_title(t('Choose a shipping and billing address'));
+      }
+      else {
+        drupal_set_title(t('Choose a billing address'));
+      }
+      $form = ecivicrm_checkout_form($txn);
+      $form[] = array('#type' => 'submit', '#default_value' => t('Continue'));
+      return $form;
+      break;
+
+    case 'validate':
+      if ($txn->uid > 0 || $txn->civicrm_cid) {
+        if ($txn->shippable && !$txn->shipping_address) {
+          form_set_error('shipping_address', t('You need to select a shipping address.'));        
+        }
+        if (!$txn->billing_address) {
+          form_set_error('billing_address', t('You need to select a billing address.'));
+        }
+        if (!$txn->uid && $txn->billing_address) { // Make sure the selected location has an email address for anonymous users.
+          civicrm_initialize(true);
+          $contact = $txn->civicrm_cid ? crm_get_contact(array('contact_id' => $txn->civicrm_cid)) : ecivicrm_get_contact($txn->uid);
+          $location = ecivicrm_address_load($contact, $txn->billing_address);
+          
+          if (variable_get('ecivicrm_require_email', 1) && (!$location->email || !$location->email[1]->email)) {
+            form_set_error('billing_address', t('You need to select a billing address which includes a valid email.'));
+          }
+        }
+      }
+      //anonymous users
+      else {
+        if (!valid_email_address($txn->mail)) {
+          form_set_error('mail', t('Please enter a valid email address'));
+        }
+      }
+      break;
+
+    case 'save':
+      if ($txn->uid > 0 || $txn->civicrm_cid) {
+        civicrm_initialize(true); 
+        $contact = $txn->civicrm_cid ? crm_get_contact(array('contact_id' => $txn->civicrm_cid)) : ecivicrm_get_contact($txn->uid);
+
+        if ($txn->shippable) {
+          $location = ecivicrm_address_load($contact, $txn->shipping_address);
+          $txn->address['shipping'] = ecivicrm_set_address($txn, $contact, $location);
+        }
+      
+        $location = ecivicrm_address_load($contact, $txn->billing_address);
+        $txn->address['billing'] = ecivicrm_set_address($txn, $contact, $location);
+        // Add primary E-Mail Address
+        foreach ($location->email as $email) {
+          if ($email->is_primary) {
+            $txn->mail = $email->email;
+            break;
+          }
+        }
+      }
+      else {
+        $txn->address['billing'] = (object)$txn->address['billing'];
+        if ($txn->address['shipping']) {
+          $txn->address['shipping'] = (object)$txn->address['shipping'];
+        }
+      }
+      $txn->screen++;
+      break;
+
+    case 'review':
+      $form['type'] = array(
+        '#type' => 'value',
+        '#value' => $txn->type
+      );
+      if ($txn->shippable) {
+        $form['title'] = array( '#value' => t('Shipping and billing address') );
+        $form['shipping_address'] = array( '#value' => store_format_address($txn,'shipping','html') );
+      }
+      else {
+        $form['title'] = array( '#value' => t('Billing address') );
+      }
+      $form['billing_address'] = array( '#value' =>  store_format_address($txn,'billing','html') );
+      return $form;
+      break;
+  }
+}
+
+function theme_ecivicrm_review_form(&$form) {
+  $output = '';
+  $type = $form['type']['#value'];
+  if ($type == 'cart') {
+    $screens = checkout_get_screens();
+    $screen = array_search('ecivicrm', $screens);
+  }
+  if (isset($form['mail'])) {
+    $output .= '<div id="anonymous-email">' . t('E-mail address: ') . form_render($form['mail']) . '</div>';
+  }
+  if (isset($form['shipping_address'])) {
+    $output .= '<div class="address-shipping"><strong>' . t('Ship to:') . '</strong> ' 
+      . ($type == 'cart' ? l(t('(change)'), 'cart/checkout', array(), "op={$screen}&". drupal_get_destination()) : '') . '<br />' . form_render($form['shipping_address']) . '</div>';
+  }
+  $output .= '<div class="address-billing"><strong>' . t('Billing to:') . '</strong> ' 
+    . ($type == 'cart' ? l(t('(change)'), 'cart/checkout', array(), "op={$screen}&". drupal_get_destination()) : '') . '<br />' . form_render($form['billing_address']) . '</div>';
+
+  return theme('box', form_render($form['title']), $output);
+}
+
+function ecivicrm_checkout_form($txn) {
+  global $user;
+  if ($txn->uid > 0 || $txn->civicrm_cid) {
+    civicrm_initialize(true);
+
+    $contact = $txn->civicrm_cid ? crm_get_contact(array('contact_id' => $txn->civicrm_cid)) : ecivicrm_get_contact($txn->uid);
+    if ($txn->uid) {
+      $add_new = "user/{$txn->uid}/eaddress/add";
+      $edit_new = "user/{$txn->uid}/eaddress/edit";
+    }
+    else {
+      $add_new = "admin/store/ecivicrm/add/{$txn->civicrm_cid}";
+      $edit_new = "admin/store/ecivicrm/edit/{$txn->civicrm_cid}";
+    }
+
+    if (!$txn->civicrm_cid) {
+      $form['civicrm_cid'] = array(
+        '#type' => 'value',
+        '#value' => $contact->id,
+      );
+    }
+
+    $locations = crm_get_locations($contact);
+
+    if (!$locations) {
+      drupal_set_message(t('There are no addresses in your addressbook.  Please add a shipping/delivery address now.'));
+      drupal_goto($add_new, drupal_get_destination());
+    }
+    elseif (count($locations) == 1 && !$locations[1]->address) {
+      drupal_set_message(t('There are no addresses in your addressbook.  Please add a shipping/delivery address now.'));
+      drupal_goto("{$edit_new}/{$locations[1]->id}", drupal_get_destination());
+    }
+    
+    $options = array();
+    foreach ($locations as $location) {
+      if ($location->name) {
+        $name = trim($location->name);
+      }
+      else {
+        $name = trim($contact->display_name);
+      }
+      $options[$location->id] = "{$name}, {$location->address->street_address} in {$location->address->city}";
+    }
+
+    if ($txn->shippable) {
+      $form['shipping_address'] = array(
+        '#type' => 'select', 
+        '#title' => t('Shipping to'), 
+        '#default_value' => $txn->shipping_address, 
+        '#options' => $options, 
+        '#description' => t('Please choose where you would like the items to be delivered. You can also %add_address.', array('%add_address' => l(t('add an address'), $add_new, array(), drupal_get_destination(). urlencode("?op={$txn->screen}"))))
+      );
+    }
+    $form['billing_address'] = array(
+      '#type' => 'select', 
+      '#title' => t('Billing to'), 
+      '#default_value' => $txn->billing_address, 
+      '#options' => $options, 
+      '#description' => t('Please choose where you would like the invoice to be sent. You can also %add_address.', array('%add_address' => l(t('add an address'), $add_new, array(), drupal_get_destination(). urlencode("?op={$txn->screen}"))))
+    );
+    $form['civicrm_cid'] = array(
+      '#type' => 'value',
+      '#value' => $contact->id,
+    );
+  }
+  else {
+    /* Don't use the addressbook if the user can buy anonymously */
+    $form['mail'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('E-mail address'), 
+      '#default_value' => $edit['mail'], 
+      '#size' => 30, 
+      '#maxlength' => 64, 
+      '#description' => t('Please double-check to make sure you email address is correct.')
+    );
+    $form['address']['billing'] = store_address_form($txn->address['billing']);
+    $form['address']['billing']['firstname']['#required'] = TRUE;
+    $form['address']['billing']['lastname']['#required'] = TRUE;
+    if ($txn->shippable) {
+      $form['address']['billing']['#type'] = 'fieldset';
+      $form['address']['billing']['#title'] = t('Billing address');
+      $form['address']['shipping'] = store_address_form($txn->address['shipping']);
+      $form['address']['shipping']['#type'] = 'fieldset';
+      $form['address']['shipping']['#title'] = t('Shipping address');
+    }
+  }
+  return $form;
+}
+
+/**
+ * ecivicrm_set_address()
+ * 
+ * Add Address to the invoice. 
+ */
+function ecivicrm_set_address(&$txn, $contact, $location) {
+  if (in_array($location->address->country_id, variable_get('ecivicrm_country_state_abbreviation', array(1013)))) {
+    $province = ecivicrm_get_province_id($location->address->state_province_id);
+  }
+  else {
+    $province = false;
+  }
+  $addr = new StdClass;
+  $addr->location_id = $location->id;
+  if ($location->name) {
+    if (preg_match('/(.*)\s(.*)/', trim($location->name), $match)) {
+      $addr->firstname = $match[1];
+      $addr->lastname = $match[2];
+    }
+    else {
+      $addr->firstname = trim($location->name);
+      $addr->lastname = ' ';
+    }
+  }
+  elseif ($contact->type == 'Individual') {
+    $addr->firstname = trim($contact->first_name);
+    $addr->lastname = trim($contact->last_name);
+  }
+  else {
+    if (preg_match('/(.*)\s(.*)/', trim($contact->display_name), $match)) {
+      $addr->firstname = $match[1];
+      $addr->lastname = $match[2];
+    }
+    else {
+      $addr->firstname = trim($contact->display_name);
+      $addr->lastname = ' ';
+    }
+  }
+  $addr->street1 = $location->address->street_address;
+  $addr->street2 = $location->address->supplemental_address_1;
+  $addr->city = $location->address->city;
+  $addr->zip = $location->address->postal_code .($location->address->postal_code_suffix ? '-'. $location->address->postal_code_suffix : '');
+  $addr->state = $province ? $province->abbreviation : $location->address->state;
+  $addr->country = store_get_country_id($location->address->country);
+
+  return $addr;
+}
+
+/**
+ * Format an address for review in the checkout procedure.
+ */
+function theme_ecivicrm_address_review($txn) {
+  global $user;
+  $output = '';
+  $screens = checkout_get_screens();
+  $screen = array_search('ecivicrm', $screens);
+  if ($txn->shippable) {
+    $shipping_view = store_format_address($txn,'shipping','html');
+  }
+  $billing_view = store_format_address($txn,'billing','html');
+  $output .= "<div>E-mail address: " . ($txn->mail ? $txn->mail : $user->mail) . "</div><br />";
+
+  if ($shipping_view) {
+    $output .= "<div class=\"address-shipping\"><strong>Ship to:</strong> " 
+      . ($txn->type == 'cart' ? l(t('(change)'), "cart/checkout", array(), "op={$screen}&". drupal_get_destination()) : '') . "<br />$shipping_view</div>";
+  }
+  
+  $output .= "<div class=\"address-billing\"><strong>Billing to:</strong> " 
+    . ($txn->type == 'cart' ? l(t('(change)'), "cart/checkout", array(), "op={$screen}&". drupal_get_destination()) : '') . "<br />$billing_view</div>";
+  return $output;
+}
+
+/**
+ * Implementation of hook_ec_transactionapi()
+ */
+function ecivicrm_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'load':
+      if ($extra = db_fetch_array(db_query('SELECT * FROM {ec_transaction_ecivicrm} WHERE txnid = %d', $txn->txnid))) {
+        return $extra;
+      }
+      break;
+
+    case 'update': // TODO: Maybe there should be special handling for this
+    case 'insert':
+      // store the civicrm id into the transaction.
+      if (isset($txn->civicrm_cid)) {
+        if (db_result(db_query('SELECT COUNT(*) FROM {ec_transaction_ecivicrm} WHERE txnid = %d', $txn->txnid))) {
+          db_query('UPDATE {ec_transaction_ecivicrm} SET civicrm_cid=%d WHERE txnid = %d', $txn->civicrm_cid, $txn->txnid);
+        }
+        else {
+          db_query('INSERT INTO {ec_transaction_ecivicrm} (txnid, civicrm_cid) VALUES (%d, %d)', $txn->txnid, $txn->civicrm_cid);
+        }
+      }
+      break;
+
+    case 'delete':
+      db_query('DELETE FROM {ec_transaction_ecivicrm} WHERE txnid = %d', $txn->txnid);
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_ecommerceapi()
+ */
+function ecivicrm_ecommerceapi($txn, $op) {
+  switch ($op) {
+    case 'on payment completion':
+      $txn = (object)$txn;
+      // nothing to log if no items are defined
+      if (!isset($txn->items)) {
+        break;
+      }
+      // make sure the civicrm system is initialized
+      civicrm_initialize(true);
+      $civicrm_cid = $txn->civicrm_cid;
+
+      // build messages for activity history
+      $donation = '';
+      $transaction = '';
+      foreach ($txn->items as $item) {
+        if ($item->ptype == 'donate') {
+          $donate = 1;
+          break;
+        }
+      }
+      // write donation entry in activity history
+      if ($donation) {
+        if (count($txn->items) > 1) {
+          $donation = t('Donation and Purchase of %gross', array('%gross' => payment_format($txn->gross)));
+        }
+        else {
+          $donation = t('Donation of %gross', array('%gross' => payment_format($txn->gross)));
+        }
+        $params = array('entity_table'     => 'civicrm_contact',
+                        'entity_id'        => $civicrm_cid,
+                        'activity_type'    => 'Donation',
+                        'module'           => 'E-commerce',
+                        'activity_id'      => $txn->txnid,
+                        'activity_summary' => $donation,
+                        'activity_date'    => date('YmdHis'),
+                        'callback'         => 'ecivicrm_activity_callback',
+                        );
+        if ( is_a($activity =& crm_create_activity_history($params), 'CRM_Core_Error' ) ) {
+          drupal_set_message('Failed to add to activity history.', 'error');
+          return false;
+        }
+      } elseif (variable_get('ecivicrm_activity_types', 0)) {
+        $transaction = t('Purchase of %gross', array('%gross' => payment_format($txn->gross)));
+        $params = array('entity_table'     => 'civicrm_contact',
+                        'entity_id'        => $civicrm_cid,
+                        'activity_type'    => 'Transaction',
+                        'module'           => 'E-commerce',
+                        'activity_id'      => $txn->txnid,
+                        'activity_summary' => $transaction,
+                        'activity_date'    => date('YmdHis'),
+                        'callback'         => 'ecivicrm_activity_callback',
+                        );
+        if ( is_a($activity =& crm_create_activity_history($params), 'CRM_Core_Error' ) ) {
+          drupal_set_message('Failed to add to activity history.', 'error');
+          return false;
+        }
+      }
+  }
+}
+
+function ecivicrm_address_page($action = NULL, $location_id = NULL) {
+  global $user;
+  $uid = $user->uid;
+  if (user_access('administer users')) {
+    $uid = arg(1);
+  }
+
+  // make sure the civicrm system is initialized
+  civicrm_initialize(true);
+
+  $contact = ecivicrm_get_contact($uid);
+
+  // display a friendly title
+  $name = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $uid));
+  drupal_set_title(t('%username\'s address book', array('%username' => $name)));
+
+
+  switch ($action) {
+    case 'add':
+    case 'edit':
+      if (isset($location_id)) {
+        $location = ecivicrm_address_load($contact, $location_id);
+      }
+      $form = ecivicrm_address_form($location);
+      $form['contact'] = array(
+        '#type' => 'value',
+        '#value' => $contact
+      );
+      if ($location) {
+        $form['location'] = array(
+          '#type' => 'value',
+          '#value' => $location,
+        );
+      }
+      $output.= drupal_get_form('ecivicrm_address_form', $form);
+      break;
+
+    case 'delete':
+      $form['contact'] = array('#type' => 'value', '#value' => $contact);
+      $form['location_id'] = array('#type' => 'value', '#value' => $location_id);
+      $form['uid'] = array('#type' => 'value', '#value' => $uid);
+      $output.= confirm_form('ecivicrm_address_delete_form', $form, 
+        t('Are you sure you want to delete this address'),
+        $_GET['destination'] ? $_GET['destination'] : "user/$uid/eaddress",
+        t('This action cannot be undone'),
+        t('Delete'), t('Cancel')
+      );
+      break;
+
+    default:
+      $output .= ecivicrm_address_overview($uid, $contact);
+  }
+
+  return $output;
+}
+
+function ecivicrm_admin_address_add($contact_id) {
+  civicrm_initialize(TRUE);
+
+  $params = array('contact_id' => $contact_id);
+  $contact = crm_get_contact($params);
+
+  if (is_a($contact, 'CRM_Contact_BAO_Contact')) {
+    drupal_set_title(t('%username\'s address book', array('%username' => $contact->display_name)));
+    $form = ecivicrm_address_form();
+    $form['contact'] = array(
+      '#type' => 'value',
+      '#value' => $contact
+    );
+    return drupal_get_form('ecivicrm_address_form', $form);
+  }
+  else {
+    drupal_set_message(t('Problems load contact %id', array('%id' => $contact_id)), 'error');
+    drupal_goto();
+  }
+}
+
+function ecivicrm_admin_address_edit($contact_id, $location_id) {
+  civicrm_initialize(TRUE);
+
+  $params = array('contact_id' => $contact_id);
+  $contact = crm_get_contact($params);
+  $location = ecivicrm_address_load($contact, $location_id);
+
+  if (is_a($contact, 'CRM_Contact_BAO_Contact')) {
+    drupal_set_title(t('%username\'s address book', array('%username' => $contact->display_name)));
+    $form = ecivicrm_address_form($location);
+    $form['contact'] = array(
+      '#type' => 'value',
+      '#value' => $contact
+    );
+    $form['location'] = array(
+      '#type' => 'value',
+      '#value' => $location,
+    );
+    return drupal_get_form('ecivicrm_address_form', $form);
+  }
+  else {
+    drupal_set_message(t('Problems load contact %id', array('%id' => $contact_id)), 'error');
+    drupal_goto();
+  }
+}
+
+function ecivicrm_address_delete_form_submit($form_id, $form_values) {
+  if ($form_values['confirm']) {
+    crm_delete_location($form_values['contact'], $form_values['location_id']);
+  }
+  return "user/{$form_values['uid']}/eaddress";
+}
+
+function ecivicrm_address_edit($contact, $edit, $action) {
+  $phone =& new CRM_Core_DAO_Phone();
+  $phone->phone = $edit['phone']; 
+  $phone->phone_type = 'Phone';
+
+  $params = array(
+    'name'                    => $edit['location_name'],
+    'street_address'          => $edit['street_address'],
+    'supplemental_address_1'  => $edit['supplemental_address_1'],
+    'city'                    => $edit['city'],
+    'phone'                   => array($phone),
+    'postal_code'             => $edit['postal_code'],
+    'country_id'              => $edit['country']
+  );
+  if ($edit['state']) {
+    $params['state_province_id'] = $edit['state'];
+  }
+  elseif ($edit['state_province']) {
+    $params['state_province'] = $edit['state_province'];
+  }
+  if ($edit['location']->id) {
+    $params['location_id'] = $edit['location']->id;
+  }
+
+  if ($action == 'create') {
+    $newLocation =& crm_create_location($contact, $params);
+    /* if (!is_a($newLocation, 'CRM_Core_BOA_Location')) {
+      $class = get_class($newLocation);
+      drupal_set_message("Looks wrong: '$class'", 'error');
+    } */
+  }
+  else {
+    $newLocation =& crm_update_location($contact, $edit['location']->id, $params);
+    /* if (!is_a($newLocation, 'CRM_Core_BOA_Location')) {
+      $class = get_class($newLocation);
+      drupal_set_message("Looks wrong: '$class'", 'error');
+    } */
+  }
+}
+
+function ecivicrm_get_contact($uid) {
+  // load contact from CiviCRM
+  if (is_a($civicrm_cid = crm_uf_get_match_id($uid), 'CRM_Core_error')) {
+    drupal_set_message('User ID not found in CiviCRM.', 'error');
+    return false;
+  };
+  if (is_a($contact = crm_get_contact(array('contact_id' => $civicrm_cid)), 'CRM_Core_error')) {
+    drupal_set_message('Contact not found in CiviCRM.', 'error');
+    return false;
+  };
+  return $contact;
+}
+
+function ecivicrm_address_load(&$contact, $location_id) {
+  $locations = crm_get_locations($contact);
+  foreach ($locations as $location) {
+    if ($location->id == $location_id) {
+      return $location;
+    }
+  }
+  drupal_set_message('Failed to load the specified address.', 'error');
+  return NULL;
+}
+
+function ecivicrm_get_location_type($id) {
+  return CRM_Core_DAO_LocationType::getFieldValue('CRM_Core_DAO_LocationType', $id);
+}
+
+function ecivicrm_get_country_id($iso_code = null) {
+  if (!$iso_code) {
+    $config =& CRM_Core_Config::singleton( );
+    $iso_code = $config->defaultContactCountry;
+  }
+  $param = array('iso_code' => $iso_code);
+  $default_country = & CRM_Core_DAO_Country::commonRetrieve('CRM_Core_DAO_Country', $param, $defaults);
+
+  return $default_country->id;
+}
+
+function ecivicrm_get_province($state_province, $country) {
+  static $cache = array();
+
+  if (!$cache[$country][$state_province]) {
+    $param = array('name' => $state_province, 'country_id' => $country);
+    if (!($province = CRM_Core_DAO_StateProvince::commonRetrieve('CRM_Core_DAO_StateProvince',$param, $defaults))) {
+      $param = array('abbreviation' => $state_province, 'country_id' => $country);
+      $province = CRM_Core_DAO_StateProvince::commonRetrieve('CRM_Core_DAO_StateProvince',$param, $defaults);
+    }
+    $cache[$country][$state_province] = $province;
+  }
+  return $cache[$country][$state_province];
+}
+
+function ecivicrm_get_province_id($id) {
+  $province =& new CRM_Core_DAO_StateProvince();
+  $province->id = $id;
+  $province->find(true);
+  return $province;
+}
+
+function ecivicrm_address_overview($uid, $contact) {
+
+  $output = '<p>'. l(t('Click here to add a new address'), "user/$uid/eaddress/add") .'.</p>';
+
+  // load addresses from CiviCRM
+  if (is_a($locations = crm_get_locations($contact), 'CRM_Core_error')) {
+    drupal_set_message('Failed to load addresses from CiviCRM.', 'error');
+    return;
+  };
+
+  $header = array(t('address'), t('options'));
+
+  foreach ($locations as $location) {
+    $address = $location->address;
+    if (in_array($address->country_id, variable_get('ecivicrm_country_state_abbreviation', array(1013)))) {
+      $province = ecivicrm_get_province_id($address->state_province_id);
+    }
+    else {
+      $province = false;
+    }
+    $addr = array();
+    $addr[] = check_plain($location->name);
+    $addr[] = check_plain($address->street_address);
+    $addr[] = ($address->supplemental_address_1 ? check_plain($address->supplemental_address_1) : '');
+    $addr[] = ($address->supplemental_address_2 ? check_plain($address->supplemental_address_2) : '');
+    $addr[] = check_plain($address->city). ', '. check_plain($province ? $province->abbreviation : $address->state). ' '. check_plain($address->postal_code);
+    $addr[] = check_plain($address->country);
+    foreach ($addr as $k => $v) {
+      if (!$v) unset($addr[$k]);
+    }
+    $row[] = array(implode('<br />', $addr), l(t('edit'), "user/$uid/eaddress/edit/$location->id"). ' / '. l(t('delete'), "user/$uid/eaddress/delete/$location->id"));
+  }
+
+/*
+echo 'addresses: <pre>';
+print_r($addresses);
+echo '</pre>';
+*/
+  return $output . theme('table', $header, $row);
+}
+
+function ecivicrm_address_form($location = null) {
+  $form = ecivicrm_address_form_fields($location);
+  $form[] = array(
+    '#type' => 'submit',
+    '#value' => $location ? t('Update address') : t('Create new address'),
+  );
+
+  return $form;
+}
+
+function ecivicrm_address_form_fields($location) {
+  $form['location_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#default_value' => $location->name,
+    '#size' => 50,
+    '#maxlength' => 75,
+    '#required' => TRUE,
+  );
+  $form['street_address'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Street Address'),
+    '#default_value' => $location->address->street_address,
+    '#size' => 50,
+    '#maxlength' => 75,
+    '#required' => TRUE,
+  );
+  $form['supplemental_address_1'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Addt\'l Address 1'),
+    '#default_value' => $location->address->supplemental_address_1,
+    '#size' => 50,
+    '#maxlength' => 75,
+  );
+  $form['city'] = array(
+    '#type' => 'textfield',
+    '#title' => t('City'),
+    '#default_value' => $location->address->city,
+    '#size' => 30,
+    '#maxlength' => 64,
+    '#required' => TRUE,
+  );
+  $states[] = t('Please select your state...');
+  $states+= CRM_Core_PseudoConstant::stateProvince();
+  $form['state'] = array(
+    '#type' => 'select',
+    '#title' => t('State'),
+    '#default_value' => $location->address->state_province_id,
+    '#options' => $states,
+  );
+  $form['state_province'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Province / Region'),
+    '#default_value' => $location->address->state_province,
+    '#size' => 30,
+    '#maxlength' => 64,
+  ); 
+  $form['postal_code'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Zip / Postal Code'),
+    '#default_value' => $location->address->postal_code,
+    '#size' => 20,
+    '#maxlength' => 20,
+    '#required' => TRUE,
+  );
+  $countries[] = t('Please select your country...');
+  $countries+= CRM_Core_PseudoConstant::country();
+  $form['country'] = array(
+    '#type' => 'select',
+    '#title' => t('Country'),
+    '#default_value' => $location && is_numeric($location->address->country_id) ? $location->address->country_id : ecivicrm_get_country_id($location->address->country_id),
+    '#options' => $countries,
+    '#required' => TRUE,
+  );
+
+  if ($edit['location_id']) {
+    $form['location_id'] = array(
+      '#type' => 'value',
+      '#value' => $location->address->location_id,
+    );
+  }
+  return $form;
+}
+
+function ecivicrm_address_form_validate($form_id, $form_values) {
+  $errors = array();
+
+  if (!$form_values['country']) {
+    form_set_error('country', t('Please select a country.'));
+  }
+  elseif ($form_values['state']) {
+    // This should be ok, so we don't really need to do any more checking.
+  }
+  elseif ($form_values['state_province']) {
+    if (!ecivicrm_get_province($form_values['state_province'], $form_values['country'])) {
+      form_set_error('state_province', t('State or Provice must be a valid name or abbreviation'));
+    }
+  }
+  else {
+    form_set_error('state_province', t('State or Province is required'));
+    form_set_error('state', '');
+  }
+}
+
+function ecivicrm_address_form_submit($form_id, $form_values) {
+  if ($form_values['state_province'] && !$form_values['state']) {
+    $province = ecivicrm_get_province($form_values['state_province'], $form_values['country']);
+    $form_values['state'] = $province->id;
+  }
+  ecivicrm_address_edit($form_values['contact'], $form_values, $form_values['location'] ? 'update' : 'create');
+  if ($form_values['contact']) {
+    $contact =& $form_values['contact'];
+
+    $uid = crm_uf_get_uf_id($contact->id);
+  }
+  if ($uid) {
+    return "user/{$uid}/eaddress";
+  }
+}
+
+function ecivicrm_activity_callback($id, $activity_id) {
+  return url("store/transaction/view/{$id}");
+}

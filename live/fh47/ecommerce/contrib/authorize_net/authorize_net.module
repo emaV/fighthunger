@@ -1,0 +1,461 @@
+<?php
+// $Id: authorize_net.module,v 1.27.2.5 2006/10/02 00:33:19 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_menu().
+ */
+function authorize_net_menu($may_cache) {
+
+  $items = array();
+
+  if ($may_cache) {
+   $items[] = array('path' => 'authorize_net/form', 'title' => t('Credit Card Payment'),
+      'callback' => 'authorize_net_form', 'access' => true, 'type' => MENU_CALLBACK);
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function authorize_net_help($section = 'admin/help#authorize_net') {
+
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Process payments using authorize.net.');
+
+    case 'admin/settings/authorize_net':
+      return t("You need to have an authorize.net merchant account in order to use this module. See <a href=\"http://authorize.net/solutions/gettingstarted.php\">here</a> for more information.");
+
+    case 'authorize_net/form_submit_guidlines':
+      return t("Do not submit this form twice, or you may be double billed!");
+  }
+}
+
+function authorize_net_ec_settings() {
+  $form['authorize_net_help'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Explanation or submission guidelines'),
+    '#default_value' => variable_get('authorize_net_help', authorize_net_help('authorize_net/form_submit_guidlines')),
+    '#cols' => 70,
+    '#rows' => 5,
+    '#description' => t('This text will be displayed at the top of the credit card submission form.'),
+  );
+
+
+  $form['authorize_net_login'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Login ID'),
+    '#default_value' => variable_get('authorize_net_login', ''),
+    '#size' => 70,
+    '#maxlength' => 180,
+    '#description' => t("Enter your merchant login ID."),
+  );
+
+  $form['authorize_net_tran_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Transaction key'),
+    '#default_value' => variable_get('authorize_net_tran_key', ''),
+    '#size' => 70,
+    '#maxlength' => 180,
+    '#description' => t("Enter your merchant transaction key."),
+  );
+
+  $form['authorize_net_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Authorize.net processing URL'),
+    '#default_value' => variable_get('authorize_net_url', 'https://secure.authorize.net/gateway/transact.dll'),
+    '#size' => 70,
+    '#maxlength' => 180,
+    '#description' => t('URL of the secure payment processing page.'),
+  );
+
+  $form['authorize_net_success_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Successful payment URL'),
+    '#default_value' => variable_get('authorize_net_success_url', 'node'),
+    '#size' => 70,
+    '#maxlength' => 180,
+    '#description' => t("This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'."),
+  );
+
+  $form['authorize_net_debug'] = array(
+    '#type' => 'radios',
+    '#title' => t('Authorize.net test mode'),
+    '#default_value' => variable_get('authorize_net_debug', 0),
+    '#options' => array(t('Disabled'), t('Enabled')),
+    '#description' => t('If enabled, transactions will be sent in test mode and cards will not be charged.'),
+  );
+
+  $form['authorize_net_email_customer'] = array(
+    '#type' => 'radios',
+    '#title' => t('Email Authorize.net Reciept'),
+    '#default_value' => variable_get('authorize_net_email_customer', 1),
+    '#options' => array(t('Disabled'), t('Enabled')),
+    '#description' => t('If enabled, the customer will recieve a payment confirmation email from Authorize.Net. Keep in mind the ecommerce package sends it own transaction summary as well. Enabling this option is recommended because it provides the customer with an accurate confirmation of the amount you have charged.'),
+  );
+
+  return $form;
+}
+
+/**
+ * Implementation of hook_paymentapi().
+ */
+function authorize_net_paymentapi(&$txn, $op) {
+
+  switch ($op) {
+
+    case 'display name':
+      return t('Pay with credit card');
+
+    case 'payment page':
+      return authorize_net_goto($txn);
+
+  }
+}
+
+/**
+ * Implementation of hook_ec_transactionapi().
+ */
+function authorize_net_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  if ($txn->payment_method != 'authorize_net') return NULL;
+
+  switch ($op) {
+    case 'load':
+      $txn->payment = db_fetch_object(db_query("SELECT * FROM {ec_authorize_net} WHERE txnid = %d", $txn->txnid));
+      break;
+    case 'insert':
+    case 'update':
+      authorize_net_save($txn);
+      break;
+    case 'delete':
+      authorize_net_delete($txn);
+      break;
+  }
+}
+
+function authorize_net_delete($txn) {
+  db_query('DELETE FROM {ec_authorize_net} WHERE txnid = %d', $txn->txnid);
+}
+
+/**
+ * Called immediately after the user has clicked the checkout button.
+ *
+ * Redirect the user to the secure server to collect credit card information.
+ */
+function authorize_net_goto($txn) {
+
+  global $base_url;
+  $payment_url = str_replace('http://', 'https://', url('authorize_net/form/'. $txn->txnid, NULL, NULL, TRUE));
+
+  drupal_goto($payment_url);
+  exit();
+}
+
+
+/**
+ * Build the credit card form.
+ */
+function authorize_net_form($txnid) {
+  global $user, $base_url;
+
+  $t = store_transaction_load($txnid);
+
+  // Make sure the user owns the transaction or is an admin.
+  if ($user->uid != $t->uid && $user->uid != 1  && !user_access('administer store')) {
+    return drupal_access_denied();
+  }
+
+  // Make sure the user is connected via SSL
+  if (!$_SERVER['HTTPS']) {
+    drupal_access_denied();
+    return;
+  }
+
+  if ($t->items) {
+    foreach ($t->items as $p) {
+      $product = product_load($p);
+      $subtotal += $p->qty * $p->price;
+      $items[] = t('%order of <b>%title</b> at %price each', array('%order' => format_plural($p->qty, '1 order', '%count orders'), '%title' => $p->title, '%price' => payment_format($product->price))). "\n";
+    }
+  }
+
+  $form['help'] = array('#value' => t('<div class="help">%authorize_net_help</div>', array('%authorize_net_help' => variable_get('authorize_net_help', authorize_net_help('authorize_net/form_submit_guidlines')))));
+
+  $form['items'] = array('#value' => theme('item_list', $items, t('Your items')). '</p>');
+
+  // Prepare the values of the form fields.
+  $years  = drupal_map_assoc(range(2004, 2020));
+  $months = drupal_map_assoc(array('01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'));
+
+  $form['expiry_date'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Expiration Date'),
+  );
+  $form['expiry_date']['cc_month'] = array(
+    '#type' => 'select',
+    '#title' => t('Month'),
+    '#default_value' => ($month ? $month : date('m')),
+    '#options' => $months,
+    '#description' => null,
+    '#extra' => 0,
+    '#multiple' => false,
+    '#required' => true,
+  );
+  $form['expiry_date']['cc_year'] = array(
+    '#type' => 'select',
+    '#title' => t('Year'),
+    '#default_value' => ($year ? $year : date('Y')),
+    '#options' => $years,
+    '#description' => null,
+    '#extra' => 0,
+    '#multiple' => false,
+    '#required' => true,
+  );
+
+
+  $form['details'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Card details'),
+  );
+
+  $form['details']['cc_firstname'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Cardholder\'s first name'),
+    '#default_value' => $t->address['billing']->firstname,
+    '#size' => 50,
+    '#maxlength' => 50,
+  );
+
+  $form['details']['cc_lastname'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Cardholder\'s last name'),
+    '#default_value' => $t->address['billing']->lastname,
+    '#size' => 50,
+    '#maxlength' => 50,
+  );
+
+  $form['details']['cc_number'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Credit Card Number'),
+    '#default_value' => '',
+    '#size' => 21,
+    '#maxlength' => 21,
+    '#description' => null,
+    '#attributes' => null,
+    '#required' => true,
+  );
+
+  
+  // According to the Readme.txt file, Authorize.net does not currently support the ccv field, 
+  // and using it might cause your transaction to fail. Uncomment at your own peril. - Adrian.
+  /*
+  $form['details']['ccv'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('CCV Security Code'),
+    '#description' => t('Three digit number on back of card'), 
+    '#size' => 3, 
+    '#maxlength' => 3, 
+    '#required' => true, 
+  );
+   */
+
+  $form['txnid'] = array(
+    '#type' => 'value',
+    '#value' => $txnid,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Place your order'),
+  );
+
+  $form['#method'] = 'POST';
+  $form['#action'] = str_replace('http://', 'https://', url("authorize_net/form/$txnid", NULL, NULL, TRUE));
+  return drupal_get_form('authorize_net_process', $form);
+}
+
+/**
+ * Ensure the integrity of the user-submitted data.
+ */
+function authorize_net_process_validate($form_id, $edit) {
+  $errors = array();
+  if (!$edit['cc_number']) {
+    $errors['cc_number'] = t('You must enter a credit card number.');
+  }
+  elseif (!is_numeric($edit['cc_number'])) {
+    $errors['cc_number'] = t('Error in credit card number. Please make sure it is typed correctly.');
+  }
+
+  foreach ($errors as $name => $message) {
+    form_set_error($name, $message);
+  }
+
+  return count($errors) == 0;
+}
+
+function authorize_net_save($txn) {
+  if (is_numeric($txn->txnid) && is_numeric($txn->anid)) {
+
+    if (db_result(db_query("SELECT COUNT(txnid) FROM {ec_authorize_net} WHERE txnid = '%s'", $txn->txnid))) {
+      db_query("UPDATE {ec_authorize_net} SET anid = '%s', amount = '%f' WHERE txnid = %d", $txn->anid, $txn->amount, $txn->txnid);
+    }
+    else {
+      db_query("INSERT INTO {ec_authorize_net} (txnid, anid, amount) VALUES (%d, '%s', '%f')", $txn->txnid, $txn->anid, $txn->amount);
+    }
+  }
+
+}
+
+/**
+ * Send the HTTPS POST request and process the returned data.
+ */
+function authorize_net_process_submit($form_id, $edit) {
+  $t = store_transaction_load($edit['txnid']);
+  global $user;
+  // Make sure the user owns the transaction or is an admin.
+  if ($user->uid != $t->uid && $user->uid != 1 && !user_access('administer store')) {
+    return drupal_access_denied();
+  }
+
+  // Make sure the user is connected via SSL
+  if (!$_SERVER['HTTPS']) {
+    drupal_access_denied();
+    return;
+  }
+
+  $d['x_login'] = variable_get('authorize_net_login', '');
+  $d['x_tran_key'] = variable_get('authorize_net_tran_key', '');
+  $d['x_version'] = 3.1;
+  if (variable_get('authorize_net_debug', 0)) {
+    $d['x_test_request'] = 'TRUE';
+  }
+
+  $d['x_delim_data'] = 'TRUE';
+  $d['x_delim_char'] = ',';
+  $d['x_encap_char'] = '';
+  $d['x_relay_response'] = 'FALSE';
+
+  $d['x_first_name'] = $edit['cc_firstname'] ? $edit['cc_firstname'] : $t->address['billing']->firstname;
+  $d['x_last_name'] = $edit['cc_lastname'] ? $edit['cc_lastname'] :$t->address['billing']->lastname;
+  $d['x_address'] = $t->address['billing']->street1;
+  $d['x_city'] = $t->address['billing']->city;
+  $d['x_state'] = $t->address['billing']->state;
+  $d['x_zip'] = $t->address['billing']->zip;
+  $d['x_country'] = store_get_country($t->address['billing']->country);
+  //$d['x_phone'] = $edit['phone'];
+
+  $d['x_customer_ip'] = $_SERVER['REMOTE_ADDR'];
+
+  $d['x_email'] = $t->mail ? $t->mail : $user->mail;
+  if(variable_get('authorize_net_email_customer',0)) {
+    $d['x_email_customer'] = 'TRUE';
+  }
+  else {
+    $d['x_email_customer'] = 'FALSE';
+  }
+  $d['x_merchant_email'] = variable_get('site_mail', ini_get('sendmail_from'));
+
+  $d['x_invoice_num'] = $edit['txnid'];
+
+  if ($t->items) {
+    $item_cnt=1;
+    foreach ($t->items as $key => $item) {
+      $price = store_adjust_misc($t, $item);
+      $d["x_line_item_{$item_cnt}"] = $item->nid .'<|>'. substr($item->title, 0, 31) .'<|><|>'. $item->qty .'<|>'. $price .'<|>';
+      $item_cnt++;
+      if ($item_cnt > 30) {
+        break;
+      }
+    }
+  }
+
+  if ($t->shippable) {
+    $d['x_ship_to_first_name'] = $t->address['shipping']->firstname;
+    $d['x_ship_to_last_name'] = $t->address['shipping']->lastname;
+    $d['x_ship_to_address'] = $t->address['shipping']->street1.' '.$t->address['shipping']->street2;
+    $d['x_ship_to_city'] = $t->address['shipping']->city;
+    $d['x_ship_to_state'] = $t->address['shipping']->state;
+    $d['x_ship_to_zip'] = $t->address['shipping']->zip;
+  }
+
+  $d['x_amount'] = store_transaction_calc_gross($t);
+  $d['x_method'] = 'CC';
+  $d['x_type'] = 'AUTH_CAPTURE';
+  $d['x_card_num'] = $edit['cc_number'];
+  $d['x_exp_date'] = $edit['cc_month'] . $edit['cc_year'];
+  // $d['x_card_code'] = $edit['ccv'];
+
+  if (($tax = store_search_misc(array('type' => 'tax'), $txn)) !== FALSE) {
+    $d['x_tax'] = "{$t->misc[$tax]->type}<|>{$t->misc[$txn]->description}<|>{$t->misc[$tax]->price}";
+  }
+  if (($shipping = store_search_misc(array('type' => 'shipping'), $txn)) !== FALSE) {
+    $d['x_frieght'] = "{$t->misc[$shipping]->type}<|>{$t->misc[$shipping]->description}<|>{$t->misc[$shipping]->price}";
+  }
+  
+  $uri = '';
+  foreach ($d as $k => $v) {
+    $uri .= '&'. $k. '='. urlencode($v);
+  }
+  $uri = trim($uri, '&');
+
+  $uri = preg_replace('/&?x_line_item_\d+=/i', '&x_line_item=', $uri);
+
+  global $base_url;
+  $payment_url = str_replace('http://', 'https://', url('authorize_net/form/'. $edit['txnid'], NULL, NULL, TRUE));
+
+  $agent = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)";
+
+  // Start CURL session
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, variable_get('authorize_net_url', 'https://secure.authorize.net/gateway/transact.dll'));
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+  curl_setopt($ch, CURLOPT_NOPROGRESS, 1);
+  curl_setopt($ch, CURLOPT_VERBOSE, 0);
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION,0);
+  curl_setopt($ch, CURLOPT_POST, 1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $uri);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+  curl_setopt($ch, CURLOPT_USERAGENT, $agent);
+  curl_setopt($ch, CURLOPT_REFERER, $payment_url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+  $buffer = curl_exec($ch);
+  curl_close($ch);
+
+  $return = preg_split("/[,]+/", "$buffer");
+
+  switch ($return[0]) {
+
+    case 1: // Credit card successfully charged
+      $txn = array(
+        'txnid'           => $edit['txnid'],
+        'anid'            => $return[6],
+        'amount'          => $return[8],
+        'payment_status'  => payment_get_status_id('completed'),
+        'payment_method'  => 'authorize_net',
+      );
+
+      $is_new = (db_result(db_query('SELECT COUNT(txnid) FROM {ec_authorize_net} WHERE txnid = %d', $txn['txnid']))) ? false : true;
+      $txnid = store_transaction_save($txn);
+
+      if ($is_new && $txnid) {
+        // Compose and send confirmation email to the user
+        store_send_invoice_email($txnid);
+      }
+
+      // We want to go to a http, not https.
+      //$goto = str_replace('https://', 'http://', $base_url);
+      drupal_goto(variable_get('authorize_net_success_url', 'node'));
+      break;
+
+    default: // Credit card error: card was not charged.
+      drupal_set_message($return[3], 'error');
+      drupal_goto($payment_url);
+      break;
+  }
+}

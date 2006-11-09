@@ -1,0 +1,253 @@
+# Spanish translation of cart.module.
+# Copyright (C) 2005 THE 'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the  package.
+# Carlos A. Paramio <carlosparamio@gmail.com>, 2005.
+# , fuzzy
+# 
+# 
+msgid ""
+msgstr ""
+"Project-Id-Version:  es\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2005-09-13 08:42+0200\n"
+"PO-Revision-Date: 2005-09-13 09:01+0200\n"
+"Last-Translator: Carlos A. Paramio <carlosparamio@gmail.com>\n"
+"Language-Team: Spanish/Spain <es@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit"
+
+#: cart.module:13
+msgid "Shopping Cart"
+msgstr "Cesta de la compra"
+
+#: cart.module:25 cart.module:68
+msgid "Shopping cart"
+msgstr "Cesta de la compra"
+
+#: cart.module:25
+msgid "View your cart items."
+msgstr "Ver artículos de la cesta"
+
+#: cart.module:32
+msgid "Hide block if cart is empty"
+msgstr "Ocultar bloque si la cesta está vacía"
+
+#: cart.module:55
+msgid "Ecommerce shopping cart."
+msgstr "Cesta de la compra de Ecommerce"
+
+#: cart.module:120
+msgid "View your cart"
+msgstr "Ver cesta"
+
+#: cart.module:126
+msgid "item"
+msgstr "artículo"
+
+#: cart.module:126
+msgid "items"
+msgstr "artículos"
+
+#: cart.module:128
+msgid "%item_count %item_suffix in %your_cart"
+msgstr "%item_count %item_suffix en %your_cart"
+
+#: cart.module:128
+msgid "your cart"
+msgstr "su cesta"
+
+#: cart.module:138
+#, php-format
+msgid "Ready to <a href=\"%checkout-url\">checkout</a>?"
+msgstr "¿Listo para <a href=\"%checkout-url\">confirmar</a>?"
+
+#: cart.module:152
+msgid "Items"
+msgstr "Artículos"
+
+#: cart.module:152
+msgid "Qty."
+msgstr "Cantidad"
+
+#: cart.module:167
+msgid "Remove"
+msgstr "Eliminar"
+
+#: cart.module:171
+msgid "Subtotal:"
+msgstr "Subtotal:"
+
+#: cart.module:172
+msgid "Update quantity"
+msgstr "Actualizar cantidad"
+
+#: cart.module:172
+msgid "Checkout"
+msgstr "Confirmar"
+
+#: cart.module:178
+msgid ""
+"Your shopping cart is empty. You may continue shopping from our %product-"
+"page."
+msgstr "Su cesta de la compra está vacía. Debe elegir algún artículo de la %product-page."
+
+#: cart.module:178
+msgid "product page"
+msgstr "página de productos"
+
+#: cart.module:218 cart.module:372
+msgid "Create new address"
+msgstr "Crear nueva dirección"
+
+#: cart.module:240
+msgid "Order Summary"
+msgstr "Resumen de la orden"
+
+#: cart.module:257
+msgid "Your shopping cart"
+msgstr "Su cesta de la compra"
+
+#: cart.module:277
+msgid "Please choose a payment method."
+msgstr "Por favor, seleccione un método de pago"
+
+#: cart.module:328
+msgid "Your order has been submitted."
+msgstr "Su pedido ha sido enviado."
+
+#: cart.module:381
+msgid ""
+"<p>There are no addresses in your addressbook.  Please add a shipping/"
+"delivery address now.</p>"
+msgstr "<p>No tiene ninguna dirección en su libreta de direcciones. Por favor, añada una dirección de entrega.</p>"
+
+#: cart.module:393
+msgid "Shipping to"
+msgstr "Enviar a"
+
+#: cart.module:393
+msgid ""
+"Please choose where you would like the items to be delivered. You can also %"
+"add_address."
+msgstr "Porfavor, seleccione dónde le gustaría recibir sus artículos. También puede %add_address."
+
+#: cart.module:393 cart.module:395
+msgid "add an address"
+msgstr "añadir una dirección"
+
+#: cart.module:395
+msgid "Billing to"
+msgstr "Facturar a"
+
+#: cart.module:395
+msgid ""
+"Please choose where you would like the invoice to be sent. You can also %"
+"add_address."
+msgstr "Por favor, elija dónde desea recibir la factura. También puede %add_address."
+
+#: cart.module:410
+msgid "E-mail address"
+msgstr "Dirección de correo electrónico"
+
+#: cart.module:410
+msgid "Please double-check to make sure you email address is correct."
+msgstr "Por favor, asegúrese de que la dirección de correo electrónico es correcta."
+
+#: cart.module:424
+msgid ""
+"<p>Note: You may skip the billing address if it's the same as the shipping "
+"address.</p>"
+msgstr "<p>Nota: Puede saltarse la selección de la dirección de facturación si es la misma que la dirección de envío.</p>"
+
+#: cart.module:436
+msgid "The following items are in your order"
+msgstr "Los siguientes artículos están en su pedido"
+
+#: cart.module:441
+msgid "%order of <b>%title</b> at %price each"
+msgstr "%order de <b>%title</b> a %price cada uno"
+
+#: cart.module:441
+msgid "1 order"
+msgstr "1 pedido"
+
+#: cart.module:441
+#, php-format
+msgid "%count orders"
+msgstr "%count pedidos"
+
+#: cart.module:441
+msgid "Update or delete?"
+msgstr "¿Actualizar o eliminar?"
+
+#: cart.module:446
+msgid "Shipping"
+msgstr "Envío"
+
+#: cart.module:452
+msgid "Total"
+msgstr "Total"
+
+#: cart.module:467
+msgid "Sign in or Create new account"
+msgstr "Identificarse o Crear una cuenta nueva"
+
+#: cart.module:469
+msgid ""
+"Login if you already have an account or create a new account below to "
+"continue the checkout process."
+msgstr "Identifíquese si ya posee una cuenta o cree una nueva usando el formulario inferior para continuar el proceso de confirmación."
+
+#: cart.module:527
+msgid ""
+"<strong>%product-title</strong> added to <a href=\"%cart_view\">your "
+"shopping cart</a>"
+msgstr "<strong>%product-title</strong> "
+
+#: cart.module:562
+msgid "Can't find your item in the database"
+msgstr "No pude encontrar su artículo en la base de datos"
+
+#: cart.module:587
+msgid "Your item(s) have been updated."
+msgstr "Su(s) artículo(s) han sido actualizados."
+
+#: cart.module:614
+msgid "Your item has been removed."
+msgstr "Su artículo ha sido eliminado."
+
+#: cart.module:694
+#, php-format
+msgid "The name \"%s\" has been denied access."
+msgstr "A \"%s\" le ha sido denegado el acceso."
+
+#: cart.module:717 cart.module:720
+msgid "Username"
+msgstr "Nombre de usuario"
+
+#: cart.module:717
+msgid "Enter your %s username, or an ID from one of our affiliates: %a."
+msgstr "Introduzca su %s nombre de usuario, o un ID de alguno de nuestros afiliados: %a."
+
+#: cart.module:720
+#, php-format
+msgid "Enter your %s username."
+msgstr "Introduzca su %s nombre de usuario."
+
+#: cart.module:722
+msgid "Password"
+msgstr "Contraseña"
+
+#: cart.module:722
+msgid "Enter the password that accompanies your username."
+msgstr "Introduzca la contraseña que acompaña a su nombre de usuario."
+
+#: cart.module:723
+msgid "Log in"
+msgstr "Identificarse"
+
+#: cart.module:725
+msgid "User login"
+msgstr "Identificación de usuario"
+

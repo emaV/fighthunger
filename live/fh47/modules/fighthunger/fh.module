@@ -174,3 +174,23 @@ function fh_crm_contact2array($contact) {
   $addressdata = (array)($contact->location[1]->address);
   return array_merge($contactdata, $addressdata);
 }
+
+/**
+ * Alter form for webform_client (video contest)
+ */ 
+function fh_form_alter($form_id, &$form) {
+  if( ($form_id == 'webform_client') && 
+      ($form['details']['nid']['#value'] == 2357) ) {
+   $form['#validate'] = array('_fh_webformcontest_validate' => array()) + (array)$form['#validate'];
+  }
+}
+
+/**
+ *  custom webform_client validation (video contest)
+ */ 
+function _fh_webformcontest_validate($form_id, $form_values) {
+global $user;
+  if (!($user->uid)) {
+    form_set_error('',t('You have to register before submitting your clip'));
+  }
+}

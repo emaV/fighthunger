@@ -598,26 +598,31 @@ function fhuser_subform_user_register() {
   $extra = _user_forms($null, $null, $null, 'register');
   $_GET['q'] = $q;
   
+  // Keep track of user fields to be saved later
+  $user_fields = array('mail', 'name');
+
   // Merge all collected required fields. Flatten fieldsets but keep categories for rewriting
   foreach($extra as $category => $fieldset) {
   	foreach(element_children($fieldset) as $name) {
   		if ($fieldset[$name]['#required']) {
   			$form[$category][$name] = $fieldset[$name];
+            $user_fields[] = $name;
   		}
   	}
   }
-
+  // Sp?cial handling for country
   $form['country'] = array('#type' => 'select',
     '#title' => t("Country"),
     '#options' => fh_get_country_list(), 
     '#required' => TRUE);  
 
+  // keep track of the fields to use for registering
+  $form['_user_fields'] = array('#type' => 'value', '#value' => $user_fields);
+
   // This have to run for the profile fields to be translated
   fhuser_subform_complete('user_register', $form);
-  
 
-  // keep track of the fields to use for registering
-  $form['_user_fields'] = array('#type' => 'value', '#value' => _fhuser_form_get_fields($form));
+
   return $form;  
 }
 
@@ -660,7 +665,7 @@ function fhuser_subform_validate($form_id, $form_values) {
     case 'register':
       // Build user name
       if ($name = fhuser_get_user_name($form_values)) {
-        drupal_set_message("Your user name is $name");
+        // drupal_set_message(t("Your user name is %name", array('%name' => $name)));
         $form_values['name'] = $name;
         $GLOBALS['form_values']['name'] = $name;
       } 
@@ -682,24 +687,16 @@ function fhuser_subform_submit($form_id, $form_values) {
   switch($form_values['fhuser_form_id']) {
     case 'register':
       $fhuser_enable = TRUE;
-      // Only register fields should be passed so others are not saved along with the user
-      /* Quick fix 1
-      foreach($form_values['_user_fields'] as $key) {
-        $user_fields[$key] = $form_values[$key];
-      }
-
-      // Add user name which should have been filled during the validation
-      $user_fields['name'] = $form_values['name'];
-      */
-      $user_fields = array(); // Quick fix 1
-      foreach($form_values as $key => $value) {
-        if(is_string($value) || is_numeric($value)) {
-          $user_fields[$key] = $value;;
-        } 
-      }
-      //var_dump($user_fields);
+      // Prepare fields to be saved
+      $user_fields = array();
+      // Remove some data
+      foreach($form_values['_user_fields'] as $field) {
+        $user_fields[$field] = $form_values[$field];
+      };
+      // Special country field
+      $user_fields['location']['country'] = $form_values['country'];
       user_register_submit($form_id, $user_fields);
-      $fhuser_enable = FALSE;
+
       // Set just registered user
       $account = fhuser_get_user();
       $GLOBALS['form_values']['uid'] = $account->uid;
@@ -732,7 +729,7 @@ function fhuser_get_user_name($values) {
   // Check duplicates in advance so we can fix it now
   for($i=0; $i < 100 ; $i++) {
   	$tempname = $i ? $name.' '.$i : $name;
-    if (!db_num_rows(db_query_range("SELECT uid FROM {users} WHERE LOWER(name) = LOWER('%s')", 0, 1, $tempname))) {
+    if (!db_num_rows(db_query_range("SELECT uid FROM {users} WHERE LOWER(name) = LOWER('%s')", $tempname, 0, 1))) {
       return $tempname;
     }
   }

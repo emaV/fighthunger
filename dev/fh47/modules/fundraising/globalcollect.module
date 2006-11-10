@@ -89,7 +89,7 @@ function globalcollect_proceed($donation){
   $request = globalcollect_prepare_request('INSERT_ORDER', $params);
   $result = globalcollect_request($request);
   // DEBUG: Log all messages
-  // watchdog('globalcollect', 'GlobalCollect response<br/>'.debug_xml($result, 'Returned XML'));
+  watchdog('globalcollect', 'GlobalCollect response<br/>'.debug_xml($result, 'Returned XML'));
   // Process response
   if( $response = globalcollect_response($result) ){
     // We have a valid response. Check returned parameters
@@ -403,8 +403,7 @@ function globalcollect_create_order($donation){
   $order->IPADDRESSCUSTOMER = $_SERVER['REMOTE_ADDR'];
   $order->COUNTRYCODE = strtoupper($donation->country);
   // Additional user data
-  global $user;
-  $order->EMAIL = $user->mail;
+  $order->EMAIL = $donation->mail;
   return $order;
 }
 

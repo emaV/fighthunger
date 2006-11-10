@@ -505,9 +505,10 @@ function fhuser_check_post(){
  */
 function fhuser_subform_user_display(){
   global $user;
-	$form['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
-	// Check for location fields. If the user has no country, shows a drop down else the country
-	fhuser_user_location($user);
+
+  $form['email'] = array('#type' => 'item', '#title' => t("EMail"), '#value' => $user->mail);
+  // Check for location fields. If the user has no country, shows a drop down else the country
+  fhuser_user_location($user);
   $country = isset($user->location) && isset($user->location['country']) ? $user->location['country'] : NULL;
 	if($country) {
 	  $form['country'] = array('#type' => 'value', '#value' => $country);
@@ -515,6 +516,7 @@ function fhuser_subform_user_display(){
 	} else {
 	  $form['country'] = array('#type' => 'select', '#title' => t("Country"), '#options' => fh_get_country_list(), '#required' => TRUE);
 	}
+  $form['_user_account'] = array('#type' => 'value', '#value' => $user);
   return $form;
 }
 
@@ -699,7 +701,7 @@ function fhuser_subform_submit($form_id, $form_values) {
 
       // Set just registered user
       $account = fhuser_get_user();
-      $GLOBALS['form_values']['uid'] = $account->uid;
+      $GLOBALS['form_values']['_user_account'] = $account;
       break;
     case 'password':
       user_pass_submit($form_id, $form_values);

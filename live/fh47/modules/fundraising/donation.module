@@ -497,6 +497,7 @@ function donation_checkout($donation) {
  * JE > GB 
  */
 function _donation_fix_countrycode($code){
+  $code = strtoupper($code);
   switch($code) {
     case 'UK':
     case 'GG':
@@ -629,9 +630,12 @@ function donation_form_submit($form_id, $form_values){
   //$user = module_invoke('fhuser', 'get_user');
   // Build donation object
   $donation = $form_values['data'];
+  $account = $form_values['_user_account'];
   // uid, country should be set by fhuser module  
-  $donation->uid = $form_values['uid'];
+  $donation->uid = $account->uid;
+  $donation->mail = $account->mail;
   $donation->country = $form_values['country'];
+
   if(!$donation->fixed) {
     $donation->amount = $form_values['amount'];
     $donation->currency = $form_values['currency'];

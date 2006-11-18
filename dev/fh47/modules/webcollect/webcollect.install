@@ -1,0 +1,28 @@
+<?php
+// $Id: webcollect.install,v 1.5.2.1 2006/08/05 15:19:41 jareyero Exp $
+
+/**
+ * Create database tables
+ */
+function webcollect_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_webcollect} (
+  `txnid` int(11) NOT NULL default '0',
+  `error_message` varchar(255) NOT NULL default '',
+  `statusid` int(10) unsigned NOT NULL default '0',
+  `error_code` int(10) unsigned NOT NULL default '0',
+  `ref` varchar(255) NOT NULL default '',
+  `mac` varchar(255) NOT NULL default '',
+  `checked` int(10) unsigned NOT NULL default '0',
+  PRIMARY KEY  (`txnid`)
+) ;");
+     break;
+   
+    case 'pgsql':
+			drupal_set_message(t('PostgreSQL not supported yet in webcollect installer');
+  }
+ 
+}
+?>

@@ -68,13 +68,6 @@ function globalcollect_settings(){
   $form['globalcollect_cron'] = array('#type' => 'textfield', '#title' => t('Process step on cron'), '#default_value' => variable_get('globalcollect_cron', 10), '#size' => 10, '#maxlength' => 10, '#description' =>t("Number of transactions to process on each cron execution. Zero to disable."));
   $form['globalcollect_payment_timeout'] = array('#type' => 'textfield', '#title' => t('Payment timeout'), '#default_value' => variable_get('globalcollect_payment_timeout', 0), '#size' => 10, '#maxlength' => 10, '#description' =>t("Time, in seconds, after which pending donations will be checked again."));
   $form['globalcollect_local_ip'] = array('#type' => 'textfield', '#title' => t('Local IP address'), '#default_value' => variable_get('globalcollect_local_ip', ''), '#size' => 20, '#maxlength' => 20, '#description' =>t("Local IP address to be sent to Globalcollect server. This server's IP is %ip_address", array('%ip_address' => $_SERVER['SERVER_ADDR'])));
-  /*
-  $form .= form_textfield(t('Merchant Id'), 'globalcollect_merchantid', variable_get('globalcollect_merchantid', ''), 10, 10);
-  $form .= form_textfield(t('Payment server URL'), 'globalcollect_paymentserver_url', variable_get('globalcollect_paymentserver_url', 'https://paymentserver.globalcollect.nl/hpp/hpp'), 100, 100);
-  $form .= form_textfield(t('Process step on cron'), 'globalcollect_cron', variable_get('globalcollect_cron', 10), 10, 10, t("Number of transactions to process on each cron execution. Zero to disable."));
-  $form .= form_textfield(t('Payment timeout'), 'globalcollect_payment_timeout', variable_get('globalcollect_payment_timeout', 0), 10, 10, t("Time, in seconds, after which pending donations will be checked again."));
-  $form .= form_textfield(t('Local IP address'), 'globalcollect_local_ip', variable_get('globalcollect_local_ip', $_SERVER['SERVER_ADDR']), 20, 20, t("Local IP address to be sent to Globalcollect server."));
-	*/
   return $form;
 }
 

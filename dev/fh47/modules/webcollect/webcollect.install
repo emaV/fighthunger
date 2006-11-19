@@ -21,7 +21,7 @@ function webcollect_install() {
      break;
    
     case 'pgsql':
-			drupal_set_message(t('PostgreSQL not supported yet in webcollect installer');
+			drupal_set_message(t('PostgreSQL not supported yet in webcollect installer'));
   }
  
 }

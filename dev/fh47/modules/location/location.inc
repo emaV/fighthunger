@@ -149,7 +149,7 @@ function theme_location($location = array(), $hide = array()) {
     }
     
     if (!empty($location['country']) && !in_array('country', $hide)) {
-      $countries = _location_get_iso3166_list();
+      $countries = location_get_iso3166_list();
       $output .= '<dd>'. $countries[$location['country']] . '</dd>';
     }
     
@@ -1220,7 +1220,7 @@ function location_configured_countries() {
  */
 function _location_supported_countries() {
   // '<ISO two-letter code>' => '<English name for country>'
-  $iso_list = _location_get_iso3166_list();
+  $iso_list = location_get_iso3166_list();
   $iso_keys = array_keys($iso_list);
   $supported_countries = array();
   if (is_dir(LOCATION_PATH.'/supported') && $handle = opendir(LOCATION_PATH.'/supported')) {
@@ -1278,7 +1278,7 @@ function _location_country_select_options($value = '', $required = FALSE, $funct
     $countrycodes = array_merge(array('' => ''), $countrycodes);
   }
   else {
-    $countrycodes = array_merge(array('' => '', 'xx' => 'NOT LISTED'), _location_get_iso3166_list());
+    $countrycodes = array_merge(array('' => '', 'xx' => 'NOT LISTED'), location_get_iso3166_list());
   }
   return array(
       '#type' => 'select',
@@ -1430,8 +1430,11 @@ function location_address2singleline($location = array()) {
   return $address;
 }
 
+// Jose: Added sorting
 function location_get_iso3166_list() {
-  return _location_get_iso3166_list();
+  $countries = _location_get_iso3166_list();
+  asort($countries);
+  return $countries;
 }
 
 // The following is an array of all countrycode => country-name pairs as layed out in

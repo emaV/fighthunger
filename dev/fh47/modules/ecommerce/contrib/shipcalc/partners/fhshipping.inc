@@ -81,22 +81,25 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
 
   // Company depending on country
   $method = db_fetch_object(db_query("SELECT * FROM {fh_country_shipping} WHERE countrycode = '%s'", $country));
-  // DEBUG
-  drupal_set_message("Company=$method->company zone=$method->zone");
+
   // Get price for weight
   $result = db_query_range("SELECT * FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s' AND weight >= %d ORDER BY weight", $method->company, $method->zone, $weight, 0, 1);
-  $price = db_fetch_object($result);
+  $shipping_price = db_fetch_object($result);
+  // Prices are stored in Euros, but USD are used instead, so we apply some exchange rate
+  $price = floatval($shipping_price->price) * floatval(variable_get('fhcommerce_euro2usd', 1));
+  // DEBUG
+  drupal_set_message("Company=$method->company zone=$method->zone price=$price");  
   $rates[] = array(
         '#service' => 'fhshipping',
         '#key' => 'percountry',
-        '#cost' => $price->price,
+        '#cost' => $price,
         '#currency' => FHSHIPPING_CURRENCY,
         '#method' => t('Pricing based on weight and destination')
   );
   $rates[] = array(
         '#service' => 'fhshipping',
         '#key' => 'testing',
-        '#cost' => 2 * $price->price,
+        '#cost' => 2 * $price,
         '#currency' => FHSHIPPING_CURRENCY,
         '#method' => t('Just for testing')
   );

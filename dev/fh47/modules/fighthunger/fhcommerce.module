@@ -43,4 +43,21 @@ function fhcommerce_form_alter($form_id, &$form) {
   }
 }
 
+/**
+ * Implementation of hook_settings().
+ */
+function fhcommerce_settings() {
+  $form['fhcommerce_euro2usd'] = array('#type' => 'textfield', '#title' => t('Exchange rate from Euro to USD.'),
+    '#default_value' => variable_get('fhcommerce_euro2usd', 1),
+    '#size' => 10, 
+    '#maxlength' => 10, 
+    '#description' => t('Euro/Dollar exchange rate. This will be used to convert shipping costs which are stored in Euros.')
+  );
+  $form['shipcalc_units'] = array('#type' => 'radios', '#title' => t('Unit for product weights'),
+    '#default_value' => variable_get('shipcalc_units', 'LBS'),
+    '#options' => array('LBS' => t('pounds'), '' => t('kilograms'))
+  );
+  return $form;
+}
+
 ?>

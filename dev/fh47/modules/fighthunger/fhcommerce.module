@@ -28,16 +28,21 @@ function fhcommerce_help($section) {
 function fhcommerce_form_alter($form_id, &$form) {
   // Add default address for e-commerce module. Administrator can create addresses for other users
   if ($form_id == 'address' && $form['submit']['#value'] == t('Create new address') && $uid = $form['uid']['#value']) {
-  	$account = user_load(array('uid' => $uid));
+    $account = user_load(array('uid' => $uid));
     // Set personal information
     $form['firstname']['#default_value'] = $account->first_name;
     $form['lastname']['#default_value'] = $account->last_name;
     if ($location = $account->location) {
-    	$form['country']['#default_value'] = $location['country'];
+        $form['country']['#default_value'] = $location['country'];
       $form['street1']['#default_value'] = $location['street'];
       $form['street2']['#default_value'] = $location['additional'];
       $form['city']['#default_value'] = $location['city'];
-      $form['state']['#default_value'] = $location['province'];
+      // Fill in state for US, get province code for ROW
+      if($location['country'] == 'us') {
+        $form['state']['#default_value'] = $location['province'];
+      } else {
+        $form['province']['#default_value'] = fhcommerce_state_location2address($location['province'], $location['country']);
+      }
       $form['zip']['#default_value'] = $location['postal_code'];
     }
   }
@@ -239,5 +244,18 @@ function fhcommerce_product_page_edit() {
 */
 }
 
+/**
+ * Convert location's state to ecommerce's address
+ */
+function fhcommerce_state_location2address($state, $country) {
+    $province_listing_function = 'location_province_list_'. $country;
+  if($state && $country && function_exists($province_listing_function)) {
+    // Get list from location module
+        $province_list = $province_listing_function();
+    return array_key_exists($state, $province_list) ? $province_list[$state] : 'no';
+    } else {
+        return '';
+    }
+}
 
 ?>

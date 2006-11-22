@@ -103,10 +103,14 @@ function fhcommerce_product_page($tid = NULL) {
     // Get products
     $tids = array($tid);
     $operator = 'or';
-    $order = 'n.sticky DESC, n.created DESC';
+    $order = 'n.created DESC';
     $depth = 1; // Make bigger if it's suppossed to pick sub categories
-    $result = taxonomy_select_nodes($tids, $operator, $depth, TRUE, $order);
+    // Promoted products
+    $result = fhcommerce_select_products($tids, $operator, $depth, FALSE, 1, $order);
     $output .= theme('store_product_table', $result);
+    // Rest of them, with paging
+    $result = fhcommerce_select_products($tids, $operator, $depth, TRUE, 0, $order);
+    $output .= theme('store_product_list', $result);
   } else {
   	drupal_not_found();
   }
@@ -115,23 +119,85 @@ function fhcommerce_product_page($tid = NULL) {
 }
 
 /**
+ * Finds all products that match selected taxonomy conditions.
+ *
+ * @param $tids
+ *   An array of term IDs to match.
+ * @param $operator
+ *   How to interpret multiple IDs in the array. Can be "or" or "and".
+ * @param $depth
+ *   How many levels deep to traverse the taxonomy tree. Can be a nonnegative
+ *   integer or "all".
+ * @param $pager
+ *   Whether the nodes are to be used with a pager (the case on most Drupal
+ *   pages) or not (in an XML feed, for example).
+ * @param $order
+ *   The order clause for the query that retrieve the nodes.
+ * @return
+ *   A resource identifier pointing to the query results.
+ */
+function fhcommerce_select_products($tids = array(), $operator = 'or', $depth = 0, $pager = TRUE, $sticky = 0, $order = 'n.created DESC') {
+  if (count($tids) > 0) {
+    // For each term ID, generate an array of descendant term IDs to the right depth.
+    $descendant_tids = array();
+    if ($depth === 'all') {
+      $depth = NULL;
+    }
+    foreach ($tids as $index => $tid) {
+      $term = taxonomy_get_term($tid);
+      $tree = taxonomy_get_tree($term->vid, $tid, -1, $depth);
+      $descendant_tids[] = array_merge(array($tid), array_map('_taxonomy_get_tid_from_term', $tree));
+    }
+    // INNER JOIN {ec_product} p ON n.vid = p.vid WHERE n.status = 1 AND p.pparent = 0
+    if ($operator == 'or') {
+      $str_tids = implode(',', call_user_func_array('array_merge', $descendant_tids));
+      $sql = 'SELECT DISTINCT(n.nid), n.sticky, n.title, n.created FROM {node} n INNER JOIN {ec_product} p ON n.vid = p.vid INNER JOIN {term_node} tn ON n.nid = tn.nid WHERE p.pparent = 0 AND tn.tid IN ('. $str_tids .') AND n.status = 1 AND n.sticky ='.$sticky.' ORDER BY '. $order;
+      $sql_count = 'SELECT COUNT(DISTINCT(n.nid)) FROM {node} n INNER JOIN {ec_product} p ON n.vid = p.vid INNER JOIN {term_node} tn ON n.nid = tn.nid WHERE p.pparent = 0 AND tn.tid IN ('. $str_tids .') AND n.status = 1 AND n.sticky = '.$sticky.' ';
+    }
+    else {
+      $joins = '';
+      $wheres = '';
+      foreach ($descendant_tids as $index => $tids) {
+        $joins .= ' INNER JOIN {term_node} tn'. $index .' ON n.nid = tn'. $index .'.nid';
+        $wheres .= ' AND tn'. $index .'.tid IN ('. implode(',', $tids) .')';
+      }
+      $sql = 'SELECT DISTINCT(n.nid), n.sticky, n.title, n.created FROM {node} n INNER JOIN {ec_product} p ON n.vid = p.vid '. $joins .' WHERE n.status = 1 AND n.sticky = '.$sticky.' AND p.pparent = 0 AND '. $wheres .' ORDER BY '. $order;
+      $sql_count = 'SELECT COUNT(DISTINCT(n.nid)) FROM {node} n INNER JOIN {ec_product} p ON n.vid = p.vid '. $joins .' WHERE n.status = 1 AND n.sticky = '.$sticky.' AND p.pparent = 0 AND ' . $wheres;
+    }
+    $sql = db_rewrite_sql($sql);
+    $sql_count = db_rewrite_sql($sql_count);
+    if ($pager) {
+      $result = pager_query($sql, variable_get('default_nodes_main', 10), 0, $sql_count);
+    }
+    else {
+      $result = db_query_range($sql, 0, variable_get('feed_default_items', 10));
+    }
+  }
+
+  return $result;
+}
+
+/**
  * Themeable product table
  */
 function theme_store_product_table($result){
-  if (db_num_rows($result) > 0) {
+	$number = db_num_rows($result);
+  if ( $number > 0) {
   	$output = '<table class="product-table">';
     $column = 0; // Columns 0, 1
-    $sticky = 0;
+    $count = 0;
     while ($node = db_fetch_object($result)) {
-      if($sticky && !$node->sticky && $column) {
+    	$count++;
+      // Check if latest, for cell colspan
+      if($count == $number && !$column) {
       	// New row anyway
-      	$output .= '<td>&nbsp</td></tr><tr><td>';
-        $column = 0;
+      	$output .= '<tr><td colspan="2">';
+        $column = 1;
       } else {
         $output .= $column  ? "<td>" : "<tr><td>";
       }             
-      // If sticky, full view
-    	$output .= node_view(node_load($node->nid), !$node->sticky);
+      // Full view
+    	$output .= node_view(node_load($node->nid), FALSE);
       if($column) {
       	$output .= "</td>\n</tr>\n";
         $column = 0;
@@ -139,18 +205,30 @@ function theme_store_product_table($result){
       	$output .= "</td>\n";
         $column = 1;
       }
-      $sticky = $node->sticky;
     }
 
-    $output .= $column ? "</table>\n" : "<td>&nbsp</td></tr></table>\n";
-    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10), 0);    
-  }
-  else {
-    $output .= t('There are currently no products in this store.');
+    $output .= "</table>\n";
   }
   
   return $output;	
 }
+
+/**
+ * Themeable plain product list
+ */
+function theme_store_product_list($result) {
+	$output = '<div class="product-list">';
+  if (db_num_rows($result)) {
+    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10), 0);  
+    while ($node = db_fetch_object($result)) {
+      $output .= node_view(node_load($node->nid), 1);
+    }
+    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10));
+  }
+  $output .= "</div>\n";
+  return $output;
+}
+
 /**
  * Convert location's state to ecommerce's address
  */

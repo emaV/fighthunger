@@ -37,12 +37,7 @@ function fhcommerce_form_alter($form_id, &$form) {
       $form['street1']['#default_value'] = $location['street'];
       $form['street2']['#default_value'] = $location['additional'];
       $form['city']['#default_value'] = $location['city'];
-      // Fill in state for US, get province code for ROW
-      if($location['country'] == 'us') {
-      	$form['state']['#default_value'] = $location['province'];
-      } else {
-        $form['province']['#default_value'] = fhcommerce_state_location2address($location['province'], $location['country']);
-      }
+      $form['state']['#default_value'] = $location['province'];
       $form['zip']['#default_value'] = $location['postal_code'];
     }
   }
@@ -66,16 +61,183 @@ function fhcommerce_settings() {
 }
 
 /**
- * Convert location's state to ecommerce's address
+ * Implementation of hook_node_info().
  */
-function fhcommerce_state_location2address($state, $country) {
-	$province_listing_function = 'location_province_list_'. $country;
-  if($state && $country && function_exists($province_listing_function)) {
-    // Get list from location module
-		$province_list = $province_listing_function();
-    return array_key_exists($state, $province_list) ? $province_list[$state] : 'no';
-	} else {
-		return '';
-	}
+function fhcommerce_node_info() {
+  return array('fhcommerce' => array('name' => t('fhcommerce'), 'base' => 'fhcommerce'));
 }
+
+
+/**
+ * Implementation of hook_menu()
+ */
+function fhcommerce_menu($may_cache) {
+
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'products' ,
+      'title' => t('content'),
+      'callback' => 'fhcommerce_product_page',
+      'access' => user_access('access content'),
+      'type' => MENU_CALLBACK,
+    );
+    $items[] = array(
+      'path' => "products/view",
+      'title' => t('view'),
+      'callback' => 'fhcommerce_product_page',
+      'access' => user_access('access content'),
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+      'weight' => -10,
+    );
+    $items[] = array(
+      'path' => "products/edit",
+      'title' => t('edit product page'),
+      'callback' => 'fhcommerce_product_page_edit',
+      'access' => user_access('administer products'),
+      'type' => MENU_LOCAL_TASK, 
+      'weight' => -5,
+    );
+  } else {
+    if (arg(0) == 'products' && is_numeric(arg(1))) {
+      $tid = arg(1);
+/* TODO check if allowed $tid for products !!!! */
+      $items[] = array(
+        'path' => "products/$tid",
+        'title' => t('view'),
+        'callback' => 'fhcommerce_product_page',
+        'access' => user_access('access content'),
+        'type' => MENU_CALLBACK,
+      );
+      $items[] = array(
+        'path' => "products/$tid/view",
+        'title' => t('view'),
+        'callback' => 'fhcommerce_product_page',
+        'access' => user_access('access content'),
+        'type' => MENU_DEFAULT_LOCAL_TASK,
+        'weight' => -10,
+      );
+      $items[] = array(
+        'path' => "products/$tid/edit",
+        'title' => t('edit product page'),
+        'callback' => 'fhcommerce_product_page_edit',
+        'access' => user_access('administer products'),
+        'type' => MENU_LOCAL_TASK, 
+        'weight' => -5,
+      );
+    }
+  }
+  return $items;
+}
+
+/**
+ * Front overview products callback 
+ */
+
+function fhcommerce_product_page_overview() {
+  drupal_set_title("general store");
+  $output = "store generic";
+  return $output;
+}
+
+/**
+ * Generic callback for product pages
+ */
+function fhcommerce_product_page() {
+
+  $tid = arg(1);
+// Take description from taxonomy term
+  $sql = 'SELECT * FROM {term_data} WHERE tid = %d';
+  $term = db_fetch_array(db_query($sql, $tid));
+
+  drupal_set_title(t('Welcome to ' . $term['name'] . ' Online Shop!'));
+
+  $output .= $term['description'];
+
+// Take sticky products with variations
+  $sql = "SELECT n.nid, n.created FROM {node} n 
+    INNER JOIN {term_node} t ON n.nid = t.nid 
+    WHERE t.tid = %d AND n.status = 1 AND n.sticky  = 1 
+    ORDER BY n.created DESC";
+  $result = db_query($sql, $tid);
+   
+// Output table as in theme_product_view_collection of sticky products
+  $columns = 2;
+  $output .= '<table class="product-table">';
+  for ($i = 0; $node = db_fetch_object($result); $i++) {
+
+    if ($i % $columns == 0) {
+      $output .= '<tr>';
+    }
+
+    $node = node_load($node->nid);
+    $teaser = true;
+    $page   = false;
+
+    $node->body = str_replace('<!--break-->', '', $node->body);
+    if (node_hook($node, 'view')) {
+      node_invoke($node, 'view', $teaser, $page);
+    } else {
+      $node = node_prepare($node, $teaser);
+    }
+    node_invoke_nodeapi($node, 'view', $teaser, $page);
+
+    $output .= '<td id="nid_'. $node->nid .'">' . 
+      '<h3>'. l($node->title, "node/$node->nid") . '</h3>' .
+      "<div>$node->body</div></td>\n";
+
+    if ($i % $columns == $columns - 1) {
+      $output .= "</tr>\n";
+    }
+  }
+
+  if ($i % $columns != 0) {
+    $output .= "</tr>\n";
+  }
+  $output .= '</table>';
+
+// Output other products paged
+  $sql = "SELECT n.nid FROM {node} n 
+    INNER JOIN {ec_product} p ON n.vid = p.vid 
+    INNER JOIN term_node ON n.nid = term_node.nid 
+    WHERE term_node.tid = $tid AND n.status = 1 
+      AND p.pparent = 0 AND n.sticky  = 0
+    ORDER BY n.created DESC";
+
+  $listlength = 10;
+  $result = pager_query(db_rewrite_sql($sql), $listlength);
+  while ($node = db_fetch_object($result)) {
+  $output .= print_r($node, true);
+  
+    $node->body = str_replace('<!--break-->', '', $node->body);
+    if (node_hook($node, 'view')) {
+      node_invoke($node, 'view', $teaser, $page);
+    } else {
+      $node = node_prepare($node, $teaser);
+    }
+    node_invoke_nodeapi($node, 'view', $teaser, $page);
+    $output .= '<h3>'. l($node->title, "node/$node->nid") . '</h3>' .
+      "<div>$node->body</div>\n";
+
+  }
+  $output .= $sql;
+  
+  return $output;
+}
+
+function fhcommerce_product_page_edit() {
+/*
+  if (is_numeric(arg(1))) {
+    drupal_set_title(check_plain("EDIT store: " . arg(1)));
+    $output = "store: " . arg(1);
+  } else {
+    drupal_set_title(check_plain("EDIT general store: "));
+    $output = "store generic:";
+  }
+  return $output;
+*/
+}
+
+
 ?>

@@ -119,15 +119,36 @@ function fhcommerce_product_page($tid = NULL) {
  */
 function theme_store_product_table($result){
   if (db_num_rows($result) > 0) {
+  	$output = '<table class="product-table">';
+    $column = 0; // Columns 0, 1
+    $sticky = 0;
     while ($node = db_fetch_object($result)) {
+      if($sticky && !$node->sticky && $column) {
+      	// New row anyway
+      	$output .= '<td>&nbsp</td></tr><tr><td>';
+        $column = 0;
+      } else {
+        $output .= $column  ? "<td>" : "<tr><td>";
+      }             
       // If sticky, full view
-    	$output .= node_view(node_load($node->nid), !$node->sticky); 
+    	$output .= node_view(node_load($node->nid), !$node->sticky);
+      if($column) {
+      	$output .= "</td>\n</tr>\n";
+        $column = 0;
+      } else {
+      	$output .= "</td>\n";
+        $column = 1;
+      }
+      $sticky = $node->sticky;
     }
-    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10), 0);
+
+    $output .= $column ? "</table>\n" : "<td>&nbsp</td></tr></table>\n";
+    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10), 0);    
   }
   else {
-    $output .= t('There are currently no posts in this category.');
+    $output .= t('There are currently no products in this store.');
   }
+  
   return $output;	
 }
 /**

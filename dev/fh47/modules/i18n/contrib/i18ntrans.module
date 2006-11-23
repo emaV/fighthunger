@@ -478,8 +478,8 @@ function i18ntrans_menu_overview_tree_rows($pid = 0, $depth = 0, $lang_curr='en'
       $trans_test = true;
       foreach($languages as $key => $name) 
         $trans_test &= ($languages[$key] == $locales[$key]);
-      $class = ($trans_test) ? 'menu-disabled' : 'menu-enabled';
-      $operation = l((($trans_test) ?  t('edit') : t('add')), "admin/locale/string/edit/$lid");
+      $class = ($trans_test) ?  'menu-enabled' : 'menu-disabled';
+      $operation = l((($trans_test) ?  t('add') : t('edit')), "admin/locale/string/edit/$lid");
 
       // Shows only enabled items
       if ($item['type'] & (MENU_VISIBLE_IN_TREE | MENU_VISIBLE_IF_HAS_CHILDREN)) {

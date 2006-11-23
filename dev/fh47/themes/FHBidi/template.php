@@ -496,4 +496,30 @@ function phptemplate_aggregator_block_item($item, $feed = 0) {
   return $output; 
 }
 
+/**
+ * Theme function to render product node.
+ */
+function phptemplate_node_product($node, $teaser = 0, $page = 0) {
+  $theme = 'product_'. $node->ptype . '_view';
+  if (theme_get_function($theme)) {
+    $node = theme($theme, $node, $teaser, $page);
+  } else {
+    $price_string = '<div class="price"><strong>'. t('Price') .'</strong>: ' . module_invoke('payment', 'format', product_adjust_price($node)+product_get_specials($node, true)) . '</div>';
+    if ($node->is_recurring) {
+      $price_string .= '<div class="recurring-details">'. product_recurring_nice_string($node) . '</div>';
+    }
+    $node->teaser .= $price_string;
+    $node->body .= $price_string;
+  }
+
+  foreach ($node->taxonomy as $term) {
+    if( $term->vid == variable_get('fhcommerce_store_vocabulary',5) ) {
+      $node->store  = $term->tid;
+      $node->store_link = l($term->name, 'store/' . $node->store, array('rel' => 'tag', 'title' => strip_tags($term->description)));
+    }
+  }
+
+  return $node;
+}
+
 ?>

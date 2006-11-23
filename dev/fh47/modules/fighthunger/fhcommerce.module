@@ -130,6 +130,31 @@ function fhcommerce_product_page($tid = NULL) {
 }
 
 /**
+ * Implementation of hook_nodeapi().
+ * 
+ * Add product list to store node type
+ */
+function fhcommerce_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'view':
+      drupal_set_message("");
+      if ($node->type == 'store' && !$a3) {
+        $output = "";
+        $substores = taxonomy_get_children(0, variable_get('fhcommerce_store_vocabulary', 5));
+        foreach($substores as $store) {
+          $result = $result = fhcommerce_select_products(array($store->tid), 'or', 1, FALSE, 1);
+        	
+          if (db_num_rows($result)) {
+          	$output .= '<h2>'.$store->name.'</h2>';
+            $output .= theme('store_product_table', $result);
+          }
+        }
+        $node->body .= $output;
+      }
+      break;
+  }
+} 
+/**
  * Finds all products that match selected taxonomy conditions.
  *
  * @param $tids

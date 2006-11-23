@@ -1,0 +1,63 @@
+<?php
+// $Id: fhcommerce.module $
+
+/**
+ * @file
+ * Fighthunger common API
+ * 
+ * Some e-commerce customizations for Fighthuger
+ *  
+ * Developed by Jose A. Reyero,  http://www.reyero.net
+ * for FightHunger.org
+ */
+
+
+/**
+ * Implementation of hook_help().
+ */
+function fhcommerce_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Fighthunger e-commerce customization.');
+  }
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function fhcommerce_form_alter($form_id, &$form) {
+  // Add default address for e-commerce module. Administrator can create addresses for other users
+  if ($form_id == 'address' && $form['submit']['#value'] == t('Create new address') && $uid = $form['uid']['#value']) {
+  	$account = user_load(array('uid' => $uid));
+    // Set personal information
+    $form['firstname']['#default_value'] = $account->first_name;
+    $form['lastname']['#default_value'] = $account->last_name;
+    if ($location = $account->location) {
+    	$form['country']['#default_value'] = $location['country'];
+      $form['street1']['#default_value'] = $location['street'];
+      $form['street2']['#default_value'] = $location['additional'];
+      $form['city']['#default_value'] = $location['city'];
+      $form['state']['#default_value'] = $location['province'];
+      $form['zip']['#default_value'] = $location['postal_code'];
+    }
+  }
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function fhcommerce_settings() {
+  $form['fhcommerce_euro2usd'] = array('#type' => 'textfield', '#title' => t('Exchange rate from Euro to USD.'),
+    '#default_value' => variable_get('fhcommerce_euro2usd', 1),
+    '#size' => 10, 
+    '#maxlength' => 10, 
+    '#description' => t('Euro/Dollar exchange rate. This will be used to convert shipping costs which are stored in Euros.')
+  );
+  $form['shipcalc_units'] = array('#type' => 'radios', '#title' => t('Unit for product weights'),
+    '#default_value' => variable_get('shipcalc_units', 'LBS'),
+    '#options' => array('LBS' => t('pounds'), '' => t('kilograms'))
+  );
+  return $form;
+}
+
+?>

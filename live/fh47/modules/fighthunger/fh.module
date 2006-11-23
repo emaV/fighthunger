@@ -32,7 +32,7 @@ function fh_help($section) {
  *   Array of countries indexed by two-letter ISO code
  */
 function fh_get_country_list() {
-  return array('' => '--') + location_configured_countries();
+  return array('' => '--') + location_get_iso3166_list();
 } 
 
 /**

@@ -5,8 +5,8 @@
  * @file
  * webcollect payment system for e-commerce package
  * 
- * Developed by Jose A. Reyero for FightHunger.org
- * http://www.reyero.net
+ * Developed by Jose A. Reyero. http://www.reyero.net
+ *  for FightHunger.org, http://www.fighthunger.org
  * 
  */
 
@@ -138,16 +138,39 @@ function webcollect_menu($may_cache) {
  * Implementation of hook_settings()
  */
 function webcollect_settings(){
-  $form = '';
-  $form .= form_textfield(t('Currency code'), 'webcollect_currency_code', variable_get('webcollect_currency_code', 'USD'), 10, 10, t('The currecy code for all transactions.'));
-
+  // As ecommerce desn't use currency code, we need to set one for this module
+  $form['webcollect_currency_code']= array('#type' => 'textfield', '#title' => t('Currency code'), 
+    '#default_value' => variable_get('webcollect_currency_code', 'USD'),
+    '#size' => 10, 
+    '#maxlength' => 10, 
+    '#description' => t('The currecy code for all transactions.')
+  );
   // Note: default is test server
-  $form .= form_textfield(t('Merchant Id'), 'webcollect_merchantid', variable_get('webcollect_merchantid', ''), 10, 10);
-  $form .= form_textfield(t('Payment server URL'), 'webcollect_paymentserver_url', variable_get('webcollect_paymentserver_url', 'https://paymentserver.webcollect.nl/hpp/hpp'), 100, 100);
-  $form .= form_textfield(t('Process step on cron'), 'webcollect_cron', variable_get('webcollect_cron', 10), 10, 10, t("Number of transactions to process on each cron execution. Zero to disable."));
-  $form .= form_textfield(t('Payment timeout'), 'webcollect_payment_timeout', variable_get('webcollect_payment_timeout', 0), 10, 10, t("Time, in seconds, after which pending donations will be checked again."));
-  $form .= form_textfield(t('Local IP address'), 'webcollect_local_ip', variable_get('webcollect_local_ip', $_SERVER['SERVER_ADDR']), 20, 20, t("Local IP address to be sent to webcollect server."));
- 
+  $form['webcollect_merchantid'] = array('#type' => 'textfield', '#title' => t('Merchant Id'), 
+    '#default_value' => variable_get('webcollect_merchantid', ''), 
+    '#size' => 10, '#maxlength' => 10
+  );
+  $form['webcollect_paymentserver_url'] = array('#type' => 'textfield', '#title' => t('Payment server URL'), 
+    '#default_value' => variable_get('webcollect_paymentserver_url', 'https://ps.gcsip.nl/hpp/hpp'), 
+    '#size' => 100, '#maxlength' => 100, 
+    '#description' => t("Webcollect Customer Link. It should be <strong>https://ps.gcsip.com/hpp/hpp</strong> for Production and <strong>https://ps.gcsip.nl/hpp/hpp</strong> for Testing. Default is testing.")
+  );
+  $form['webcollect_cron'] = array('#type' => 'textfield', '#title' => t('Process step on cron'), 
+    '#default_value' => variable_get('webcollect_cron', 10), 
+    '#size' => 10, '#maxlength' => 10, 
+    '#description' =>t("Number of transactions to process on each cron execution. Zero to disable.")
+  );
+  $form['webcollect_payment_timeout'] = array('#type' => 'textfield', '#title' => t('Payment timeout'), 
+    '#default_value' => variable_get('webcollect_payment_timeout', 0), 
+    '#size' => 10, '#maxlength' => 10, 
+    '#description' =>t("Time, in seconds, after which pending donations will be checked again.")
+  );
+  $form['webcollect_local_ip'] = array('#type' => 'textfield', '#title' => t('Local IP address'), 
+    '#default_value' => variable_get('webcollect_local_ip', ''), 
+    '#size' => 20, '#maxlength' => 20, 
+    '#description' => t("Local IP address to be sent to Webcollect server. This server's IP is %ip_address", array('%ip_address' => $_SERVER['SERVER_ADDR']))
+  );
+
   return $form;
 }
 
@@ -582,7 +605,7 @@ function webcollect_admin($txnid = NULL, $op = 'view') {
 }
 
 /**
- * Administration: Paged list of donations
+ * Administration: Paged list of transactions
  * 
  * Transaction link: admin/store/transaction/edit/[txnid]&section=overview
  */
@@ -623,24 +646,31 @@ function webcollect_admin_transaction($txn, $op) {
     $output .= xml_debug_xml($payment->request, "XML Request");
     
   } else {
+    drupal_set_title(t('Payment transaction detail'));
     $payment = $txn->payment;
-    $output .= '<h2>'.t("Payment Data")."</h2>\n";
-    $output .= form_item(t("Transaction"), $txn->txnid);
-    $output .= form_item(t("Payment status"), $payment->statusid . '= '._webcollect_status($payment->statusid));
-    $output .= form_item(t("Last checked"), format_date($payment->checked, 'small'));    
-    if($payment->error_message){
-     $output .= form_item(t("Error message"), $payment->error_message);
-    }
+    
+    $form['txn'] = array('#type' => 'fieldset', '#title' => t('Transaction'), '#weight' => 1);
+    $form['txn']['txnid'] = array('#type' => 'item', '#title' => t("Transaction Id"), '#value' => $txn->txnid, '#weight' => 1);
     if($txn->uid) {
       $user = user_load(array('uid' => $txn->uid));
-      $output .= form_item(t("User"), format_name($user));
+      $form['txn']['user'] = array('#type' => 'item', '#title' => t("User"), '#value' => theme('username', $user), '#weight' => 10);
     }
-    $output .= form_item(t("Amount"), $txn->gross);
-    //$output .= form_item(t("Currency"), $donation->currency);
-    $output .= form_item(t("Created"), format_date($txn->created, 'small'));
-    $output .= form_item(t("Updated"), format_date($txn->changed, 'small'));
-    $output .= form_item(t("MAC"), $payment->mac);
-    $output .= form_item(t("REF"), $payment->ref);
+
+    $form['ps'] = array('#type' => 'fieldset', '#title' => t('Payment status'), '#weight' => 3);    
+    $form['ps']['status'] = array('#type' => 'item', '#title' => t("Status"), '#value' => _webcollect_status($payment->statusid), '#weight' => 3);
+    $form['ps']['checked'] = array('#type' => 'item', '#title' => t("Last checked"), '#value' => format_date($payment->checked, 'small'), '#weight' => 20);
+  
+    if($payment->error_message){
+     $form['ps']['error'] = array('#type' => 'item', '#title' => t("Error message"), '#value' => $payment->error_message);
+    }
+    
+    $form['pay'] = array('#type' => 'fieldset', '#title' => t('Payment details'), '#weight' => 5);
+    $form['pay']['created'] = array('#type' => 'item', '#title' => t("Created"), '#value' => format_date($txn->created, 'small'), '#weight' => 22);
+    $form['pay']['changed'] = array('#type' => 'item', '#title' => t("Updated"), '#value' => format_date($txn->changed, 'small'), '#weight' => 23);
+    $form['pay']['MAC'] = array('#type' => 'item', '#title' => t("MAC"), '#value' =>  $payment->mac, '#weight' => 22);
+    $form['pay']['REF'] = array('#type' => 'item', '#title' => t("REF"), '#value' => $payment->ref, '#weight' => 23);
+    
+    $output .= form_render($form);
   
   }
 
@@ -656,6 +686,7 @@ function webcollect_admin_transaction($txn, $op) {
  * JE > GB 
  */
 function _webcollect_fix_countrycode($code){
+  $code = strtoupper($code);
   switch($code) {
     case 'UK':
     case 'GG':

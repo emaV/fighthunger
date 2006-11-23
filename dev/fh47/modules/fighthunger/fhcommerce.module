@@ -6,7 +6,10 @@
  * Fighthunger common API
  * 
  * Some e-commerce customizations for Fighthuger
- *  
+ *  - Customizable options for shipcalc: weight unit and Exchange rate
+ *  - Produces store pages, taxonomy based
+ *  - Adds product list below store content type
+ * 
  * Developed by Jose A. Reyero,  http://www.reyero.net
  * for FightHunger.org
  */
@@ -137,7 +140,6 @@ function fhcommerce_product_page($tid = NULL) {
 function fhcommerce_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   switch ($op) {
     case 'view':
-      drupal_set_message("");
       if ($node->type == 'store' && !$a3) {
         $output = "";
         $substores = taxonomy_get_children(0, variable_get('fhcommerce_store_vocabulary', 5));
@@ -145,8 +147,8 @@ function fhcommerce_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
           $result = $result = fhcommerce_select_products(array($store->tid), 'or', 1, FALSE, 1);
         	
           if (db_num_rows($result)) {
-          	$output .= '<h2>'.$store->name.'</h2>';
-            $output .= theme('store_product_table', $result);
+          	$output .= '<h3>'.l($store->name, "store/$store->tid").'</h3>';
+            $output .= theme('store_product_list', $result);
           }
         }
         $node->body .= $output;
@@ -167,6 +169,8 @@ function fhcommerce_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
  * @param $pager
  *   Whether the nodes are to be used with a pager (the case on most Drupal
  *   pages) or not (in an XML feed, for example).
+ * @param $sticky
+ *   Select only sticky or not sticky product nodes
  * @param $order
  *   The order clause for the query that retrieve the nodes.
  * @return

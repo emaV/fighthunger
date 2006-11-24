@@ -28,8 +28,8 @@ function donation_help($section) {
 
 /**
  * Implementation of hook_link()
- * TO-DO: Do we really need this?
  */
+/*
 function donation_link($type, $node = NULL, $teaser = FALSE) {
   $links = array();
 
@@ -56,7 +56,7 @@ function donation_link($type, $node = NULL, $teaser = FALSE) {
 
   return $links;
 }
- 
+*/
 /**
  * Implementation of hook_menu().
  */

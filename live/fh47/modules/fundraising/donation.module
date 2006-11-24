@@ -28,8 +28,8 @@ function donation_help($section) {
 
 /**
  * Implementation of hook_link()
- * TO-DO: Do we really need this?
  */
+/*
 function donation_link($type, $node = NULL, $teaser = FALSE) {
   $links = array();
 
@@ -56,7 +56,7 @@ function donation_link($type, $node = NULL, $teaser = FALSE) {
 
   return $links;
 }
- 
+*/
 /**
  * Implementation of hook_menu().
  */
@@ -83,44 +83,15 @@ function donation_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
   $settings = is_array($settings) ? $settings : array();
   if ($op == 'settings' || count($settings)) {
 	  switch ($op) {
-      /* Implemented by form alter
-	    case 'settings':
-        // Note: Unchecked ones will have a default value of '0'
- 	      return form_checkboxes(t('Donation types'), "donation_settings_$node->type", $settings, _donation_types(), t('Check the donation options allowed for this content type'));
-	      break;
-	    */
+
 	    case 'load':
 	      $node->donation = db_fetch_object(db_query('SELECT * FROM {donation_node} WHERE nid=%d', $node->nid));
 	      $node->donation->active = true;
 	      break;
-			/*
-	    case 'form post':
-	      if( user_access('set up donations')) {
-	        $alltypes = _donation_types();
-	        $allowed_types = array('' => t('None'));
-	         foreach($settings as $type) {
-	          $allowed_types[$type] = $alltypes[$type];
-	        }
-	        $form = form_radios('','donation][type', $node->donation->type, $allowed_types);
-	        $form .= form_textfield(t('Amount'), 'donation][amount', $node->donation->amount, 10, 10);
-	        $form .= form_select(t('Currency'), 'donation][currency', $node->donation->currency, _donation_currencies());
-	        return form_group(t('Donations'), $form);
-	        //return donation_node_form($node);
-	      }
-	      break;
-			*/
+
       case 'validate':
         $node->donation = (object)$node->donation;
-/*
-        if($node->donation->type != 'fee' ){
-//           $node->donation->amount = NULL;
-//           $node->donation->currency = NULL;
-        } elseif(!is_numeric($node->donation->amount) || $node->donation->amount <= 0 || !$node->donation->currency) {
-          form_set_error('donation][amount', t('You must enter an amount and currency for this type of donation'));
-        }
-*/
-
-        if( ($node->donation->amount <>'') && (!is_numeric($node->donation->amount) || $node->donation->amount < 0 || !$node->donation->currency) ) {
+        if( ($node->donation->amount != '') && (!is_numeric($node->donation->amount) || $node->donation->amount < 0 || !$node->donation->currency) ) {
           form_set_error('donation][amount', t('You must enter an amount and currency for this type of donation'));
         }
         break;
@@ -128,15 +99,17 @@ function donation_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
 	      db_query("DELETE FROM {donation_node} WHERE nid=%d", $node->nid);
           // No break
       case 'insert':
-        if ($node->donation->type<>'') 
+        $node->donation = (object)$node->donation;
+        if (isset($node->donation->type) && $node->donation->type) 
           db_query("INSERT INTO {donation_node} (nid, type, amount, currency) VALUES(%d, '%s', %d, '%s')", $node->nid, $node->donation->type, $node->donation->amount, $node->donation->currency);
 	      break;
 	    case 'delete':
 	      db_query("DELETE FROM {donation_node} WHERE nid=%d", $node->nid);
 	      break;
       case 'view':
-        $node->donation->active = $node->donation->active && ($node->donation->type<>'');
-			  if ($page && $node->donation &&  $node->donation->active) {
+        $node->donation = (object)$node->donation;
+        // $node->donation->active = $node->donation->active && ($node->donation->type != '');
+			  if ($page && isset($node->donation) &&  $node->donation->type) {
           $dl['type'] = $node->donation->type;
           $dl['amount'] = ($node->donation->amount > 0) ? $node->donation->amount : '';
           $dl['currency'] = ($node->donation->currency <> '') ? $node->donation->currency : '';
@@ -188,7 +161,7 @@ function donation_form_alter($form_id, &$form) {
     // Content type administration form
     if ($form['type']['#value'] .'_node_settings' == $form_id) {
  	    //return form_checkboxes(t('Donation types'), "donation_settings_$node->type", $settings, _donation_types(), t('Check the donation options allowed for this content type'));
-      $form['workflow']['donation_'. $form['type']['#value']] = array(
+      $form['workflow']['donation_settings_'. $form['type']['#value']] = array(
       	'#type' => 'checkboxes', '#title' => t('Donation types'), 
       	'#default_value' => variable_get('donation_'. $form['type']['#value'], array()), 
       	'#options' => _donation_types(), 
@@ -301,7 +274,6 @@ function donation_prepare($nid) {
     	// Check for user access to node
       if($node && node_access('view', $node) && isset($node->donation) && $node->donation){
         $donation = $node->donation;
-  //      $donation->presentation = node_view($node);
         $donation->presentation = node_view($node, TRUE, TRUE);
       } else {
         return NULL;
@@ -588,6 +560,11 @@ function donation_form($donation) {
   } else {
     $form['donation']['amount'] = array('#type' => 'textfield', '#title' => t('Amount'), '#size' => 10);
     $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency'), '#options' => _donation_currencies(array('' => '--')));
+    // There may be recommended values, though not fixed
+    if($donation->amount && $donation->currency) {
+    	$form['donation']['amount']['#default_value'] = $donation->amount;
+      $form['donation']['currency']['#default_value'] = $donation->currency;
+    }
   }
   
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));

@@ -671,3 +671,8 @@ ul.block_menu li {
    margin-top: 0.2em;
    list-style: none;
 }
+
+.product-table td {
+  width: 50%;
+  padding: 10px;
+}

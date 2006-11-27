@@ -15,6 +15,12 @@ function fhproduct_help($section = 'admin/help#fhproduct') {
       return t('FH Product: Cap.');
     case 'node/add/product#fhproduct_pen':
       return t('FH Product: Pen.');      
+    case 'node/add/product#fhproduct_plain':
+      return t('FH Product: Plain product.');      
+    case 'node/add/product#fhproduct_tshirt':
+      return t('FH Product: Plain product.');      
+    case 'node/add/product#fhproduct_tshirtMF':
+      return t('FH Product: Plain product.');      
   }
 }
 
@@ -73,10 +79,22 @@ function fhproduct_cap_productapi(&$node, $op, $data = null, $a4 = null) {
 function fhproduct_pen_productapi(&$node, $op, $data = null, $a4 = null) {
     return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_pen');
 }
+function fhproduct_plain_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_plain');
+}
+function fhproduct_tshirt_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_tshirt');
+}
+function fhproduct_tshirtMF_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_tshirtMF');
+}
 
 function fhproduct_product_list($prefix = '') {
 	return array(
     'fhproduct_cap'=> t('Cap'),
-    'fhproduct_pen' => t('Pen') 
+    'fhproduct_pen' => t('Pen'), 
+    'fhproduct_plain' => t('Plain'),      
+    'fhproduct_tshirt' => t('tshirt'),      
+    'fhproduct_tshirtMF' => t('tshirt M/F'),      
   );
 }

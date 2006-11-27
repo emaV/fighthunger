@@ -676,3 +676,44 @@ ul.block_menu li {
   width: 50%;
   padding: 10px;
 }
+
+.product-table .sticky  {
+  font-size: 0.8em;
+}
+
+#subproducts_add_to_cart fieldset {
+   background-color:#e8e8e8;
+}
+#subproducts_add_to_cart legend {
+   background-color:#fff;
+}
+#subproducts_add_to_cart label {
+  display: inline;
+}
+#subproducts_add_to_cart select {
+  display: inline;
+}
+#subproducts_add_to_cart div.description {
+  display: inline;
+}
+#subproducts_add_to_cart .form-submit {
+  background-color:#ff6600;
+  color:#fff;
+  float: right;
+}
+
+#fhproducts_add_to_cart fieldset {
+   background-color:#e8e8e8;
+}
+#fhproducts_add_to_cart legend {
+   background-color:#fff;
+}
+#fhproducts_add_to_cart .form-submit {
+  background-color:#ff6600;
+  color:#fff;
+  float: right;
+}
+
+.product-list div.price {
+  display: inline;
+}

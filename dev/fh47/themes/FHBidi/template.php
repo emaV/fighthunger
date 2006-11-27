@@ -522,4 +522,36 @@ function phptemplate_node_product($node, $teaser = 0, $page = 0) {
   return $node;
 }
 
+
+function phptemplate_store_product_table($result) {
+	$number = db_num_rows($result);
+	if ($number>0)
+    $output = "<div class='product-table'>"; 
+    while ($node = db_fetch_object($result)) {
+      	$output .= "<div class='product'>" . node_view(node_load($node->nid), FALSE) . '</div>';
+    }
+    $output .= "</div>"; 
+  return $output;	
+}
+
+function phptemplate_store_product_list($result) {
+  if (db_num_rows($result)) {
+    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10), 0);  
+    $output .= "<div class='product-list'><ul>";
+    while ($res = db_fetch_object($result)) {
+      $node = node_load($res->nid);
+      if ($node->is_recurring) {
+        $price_string .= '<div class="recurring-details">'. product_recurring_nice_string($node) . '</div>';
+      } else {
+        $price = module_invoke('payment', 'format', product_adjust_price($node)+product_get_specials($node, true));
+        $price_string = "<div class='price'>$price</div>";
+      }
+      $output .= '<li>' . l($node->title, 'node/' . $node->nid) . " - $price_string</li>";
+    }
+    $output .= "\n</ul></div>\n";
+    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10));
+  }
+  return $output;
+}
+
 ?>

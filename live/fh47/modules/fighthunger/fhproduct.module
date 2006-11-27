@@ -1,0 +1,100 @@
+<?php
+/**
+ * @file
+ *   Custom product types with variations for Fighthunger
+ */
+
+/**
+ * Implementation of hook_help()
+ */
+function fhproduct_help($section = 'admin/help#fhproduct') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>FH:</b> Creates Fighthunger product types. Dependency: product.module, tangible.module, subproducts.module');
+    case 'node/add/product#fhproduct_cap':
+      return t('FH Product: Cap.');
+    case 'node/add/product#fhproduct_pen':
+      return t('FH Product: Pen.');      
+    case 'node/add/product#fhproduct_plain':
+      return t('FH Product: Plain product.');      
+    case 'node/add/product#fhproduct_tshirt':
+      return t('FH Product: Plain product.');      
+    case 'node/add/product#fhproduct_tshirtMF':
+      return t('FH Product: Plain product.');      
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function fhproduct_perm() {
+  return array('create fhproduct products', 'edit own fhproduct products');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function fhproduct_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('create fhproduct products');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own fhproduct products') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}
+
+
+/**
+ * Implementation of hook_productapi().
+ */
+function fhproduct_productapi(&$node, $op, $data = null, $a4 = null, $type = '') {
+
+  switch ($op) {
+
+    case 'wizard_select':
+        return fhproduct_product_list();
+
+    case 'subproduct_types':
+      return $type ? array($type) : array();
+
+    case 'cart add item':
+      return subproducts_cart_set_subproduct_variation($node, $data);
+
+    default:
+      return module_invoke('tangible', 'productapi', $node, $op, $data, $a4);
+  }
+}
+
+/**
+ * Subproduct definition
+ */
+function fhproduct_cap_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_cap');
+}
+function fhproduct_pen_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_pen');
+}
+function fhproduct_plain_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_plain');
+}
+function fhproduct_tshirt_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_tshirt');
+}
+function fhproduct_tshirtMF_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_tshirtMF');
+}
+
+function fhproduct_product_list($prefix = '') {
+	return array(
+    'fhproduct_cap'=> t('Cap'),
+    'fhproduct_pen' => t('Pen'), 
+    'fhproduct_plain' => t('Plain'),      
+    'fhproduct_tshirt' => t('tshirt'),      
+    'fhproduct_tshirtMF' => t('tshirt M/F'),      
+  );
+}

@@ -18,9 +18,9 @@ function fhproduct_help($section = 'admin/help#fhproduct') {
     case 'node/add/product#fhproduct_plain':
       return t('FH Product: Plain product.');      
     case 'node/add/product#fhproduct_tshirt':
-      return t('FH Product: Plain product.');      
+      return t('FH Product: tshirt.');      
     case 'node/add/product#fhproduct_tshirtMF':
-      return t('FH Product: Plain product.');      
+      return t('FH Product: tshirt M/F.');      
   }
 }
 

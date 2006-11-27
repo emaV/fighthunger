@@ -98,3 +98,43 @@ function fhproduct_product_list($prefix = '') {
     'fhproduct_tshirtMF' => t('tshirt M/F'),      
   );
 }
+
+/**
+ * Theme to show add to cart form, useful when displaying 
+ * fhproduct  without variations
+ * @ingroup subproducts_themes
+ * @return
+ *   Formatted HTML
+ */
+function theme_fhproducts_add_to_cart($form) {
+  return theme('fieldset', array('#title' => t('Add to cart'), '#children' => form_render($form)));
+}
+
+/***
+ * Implementation of _nodeapi hook.
+ *
+ * Add plain form with submit for product without variations.
+ * 
+ */
+function fhproduct_nodeapi(&$node, $op, $arg) {
+  // Only act on nodes with product type set.
+  if(!((isset($node->ptype)) && isset($node->nid))) {
+    return;
+  }
+  // Provide variations functionality.
+  if (!(subproducts_get_variations($node->ptype))) {
+    switch ($op) {
+      case 'view':
+        $form['#method'] = 'post';
+        $form['#action'] = url("cart/add/$node->nid", "destination=node/$node->nid");
+        $form['#tree'] = TRUE;
+        $form['add_to_cart'] = array(
+          '#type' => 'submit',
+          '#value' => t('add to cart')
+        );
+        $node->body .= drupal_get_form('fhproducts_add_to_cart', $form);
+        return;
+    }
+  }
+}
+

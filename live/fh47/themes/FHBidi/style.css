@@ -682,10 +682,11 @@ ul.block_menu li {
 }
 
 #subproducts_add_to_cart fieldset {
-   background-color:#e8e8e8;
+  background-color:#e8e8e8;
+  clear: both;
 }
 #subproducts_add_to_cart legend {
-   background-color:#fff;
+  background-color:#fff;
 }
 #subproducts_add_to_cart label {
   display: inline;
@@ -703,10 +704,11 @@ ul.block_menu li {
 }
 
 #fhproducts_add_to_cart fieldset {
-   background-color:#e8e8e8;
+  background-color:#e8e8e8;
+  clear: both;
 }
 #fhproducts_add_to_cart legend {
-   background-color:#fff;
+  background-color:#fff;
 }
 #fhproducts_add_to_cart .form-submit {
   background-color:#ff6600;

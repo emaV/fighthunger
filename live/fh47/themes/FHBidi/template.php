@@ -554,4 +554,8 @@ function phptemplate_store_product_list($result) {
   return $output;
 }
 
+function phptemplate_subproducts_in_cart($table) {
+  return;
+}
+
 ?>

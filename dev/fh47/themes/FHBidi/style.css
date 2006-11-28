@@ -683,6 +683,7 @@ ul.block_menu li {
 
 #subproducts_add_to_cart fieldset {
   background-color:#e8e8e8;
+  font-size: 0.8em;
   clear: both;
 }
 #subproducts_add_to_cart legend {
@@ -692,6 +693,7 @@ ul.block_menu li {
   display: inline;
 }
 #subproducts_add_to_cart select {
+  font-size: 0.8em;
   display: inline;
 }
 #subproducts_add_to_cart div.description {
@@ -705,6 +707,7 @@ ul.block_menu li {
 
 #fhproducts_add_to_cart fieldset {
   background-color:#e8e8e8;
+  font-size: 0.8em;
   clear: both;
 }
 #fhproducts_add_to_cart legend {

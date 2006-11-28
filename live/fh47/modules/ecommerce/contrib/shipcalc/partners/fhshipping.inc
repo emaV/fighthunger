@@ -25,9 +25,11 @@ function fhshipping_shipping_methods($type = 'domestic') {
   $methods['fhshipping']['percountry'] = array(
     '#title' => t('Per country company selection'),
   );
+  /*
   $methods['fhshipping']['testing'] = array(
     '#title' => t('Just for testing'),
   );
+  */
   return $methods;
 }
  
@@ -92,10 +94,11 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
   $price = db_result(db_query_range("SELECT price FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s' AND weight >= %d ORDER BY weight", $method->company, $method->zone, $weight, 0, 1));
   if (!$price) {
   	// Weight is out of range
-    $weight = db_result(db_query("SELECT MAX(weight) FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s'", $method->company, $method->zone, $weight, 0, 1));
+    $maxweight = db_result(db_query("SELECT MAX(weight) FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s'", $method->company, $method->zone, $weight, 0, 1));
+    $maxweight = $maxweight ? $maxweight : 'undefined';
     // No localized message
     watchdog('shipping', "Shipping weight out of range: weight=$weight, country=$country, company=$method->company", WATCHDOG_WARNING);
-    drupal_set_message(t('Maximum shipping weight allowed is %weight %unit. Please review your shopping cart.', array('%weight' => $weight, '%unit' => (variable_get('shipcalc_units', 'LBS') ? t('pounds') : t('kilograms')))), 'error');
+    drupal_set_message(t('Total weight is %weight, but maximum shipping weight allowed is %maxweight %unit. Please review your shopping cart.', array('%weight' => $weight, '%maxweight' => $maxweight, '%unit' => (variable_get('shipcalc_units', 'LBS') ? t('pounds') : t('kilograms')))), 'error');
     drupal_goto('cart/view');
   }
 

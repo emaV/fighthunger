@@ -586,11 +586,13 @@ function donation_form_validate($form_id, $form_values){
     form_set_error('country', t('You must select a country'));
   }
   // Check amount and currency
-  if(!$form_values['amount'] || !is_numeric($form_values['amount']) || !($form_values['amount'] > 0) || $form_values['amount'] > DONATION_AMOUNT_MAX) {
-    form_set_error('amount', t('Amount must be a number'));
-  }
-  if(!$form_values['currency'] || !_donation_currency_name($form_values['currency'])) {
-    form_set_error('currency', t('You have to select a valid currency'));
+  if(!$donation->fixed) {
+      if(!$form_values['amount'] || !is_numeric($form_values['amount']) || !($form_values['amount'] > 0) || $form_values['amount'] > DONATION_AMOUNT_MAX) {
+        form_set_error('amount', t('Amount must be a number'));
+      }
+      if(!$form_values['currency'] || !_donation_currency_name($form_values['currency'])) {
+        form_set_error('currency', t('You have to select a valid currency'));
+      }
   }
   // Check affiliation
   if($form_values['partnerid'] && !array_key_exists($form_values['partnerid'], $donation->affiliation)) {

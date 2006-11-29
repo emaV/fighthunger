@@ -1,0 +1,223 @@
+<?php
+// $Id: fhbat.modue, v 3.0.1 2006-11-29 14:26:00 ema Exp $
+
+/**
+ * @file
+ * Enables the creation of bats.
+ * 
+ * Developed by Emanuele Quinto for fighthunger.orgh
+ * Based on fh_bat by echoditto
+ * Released under the GNU General Public License
+ * http://www.gnu.org/licenses/gpl.txt  
+ * 
+ * Depends on:
+ * - partners.module
+ * 
+ *   NOTE: change to partners_partners table
+ *         ALTER TABLE `partners_partners` ADD `data` VARCHAR(128) NOT NULL ;  
+ *   
+ * 
+ * WORKFLOW
+ * 1) User click the link on the block <- _fh_bat_block_get_block($bid)
+ * 2) Processed by fh_bat_page_submit
+ * 3) Redirected 
+ *
+ * TODO
+ * - invite
+ * - multiple bat
+ * - custom bat page 
+ */
+ 
+/**
+ * Implementation of hook_help().
+ */
+function fhbat_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enables the creation of bats.');
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function fhbat_perm() {
+  return array('administer fhbat');
+}
+
+/**
+ * After click action
+ */
+function fhbat_page_submit($form_id, $form_values) {
+global $base_url;
+global $user;
+
+  $server = $_SERVER;
+
+  $bid = $form_values['bid'];
+  $validation_type = $form_values['validation_type'];
+  $data = ($user) ? $user->mail : ''; 
+  $userip = $_SERVER['REMOTE_ADDR'];
+  
+  $from = $_SERVER[HTTP_REFERER];
+  $bat_value  = $form_values['bat_value'];
+  
+  db_query( "INSERT INTO {wtw_bat_clicks}  
+               (bid, timestamp, validation_type, data, IP)
+             VALUES 
+               (%d, UNIX_TIMESTAMP(NOW()), '%s', '%s', '%s')",
+             $bid, $validation_type, $data, $userip);
+
+  $message = variable_get('fhbat_thanks', 'Thanks for visiting our site and clicking to feed a child.'); 
+  $redirect = variable_get('fhbat_redirect', '');
+
+  drupal_get_messages();
+  drupal_set_message($message);
+  drupal_goto($redirect);
+}  
+
+/*
+ * Setting page
+ */
+ 
+function fhbat_settings() {
+
+  $form['fhbat_thanks'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Thanks message'),
+    '#default_value' => variable_get('fhbat_thanks', 'Thanks for visiting our site and clicking to feed a child.'), 
+    '#cols' => 70,
+    '#rows' => 5,
+    '#description' => t('This text will be displayed as thanks message.')
+  );
+
+  $form['fhbat_redirect'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Redirect Path'),
+    '#size' => 25,
+    '#maxlength' => 50,
+    '#default_value' => variable_get('fhbat_redirect', 'node'),
+    '#description' => t('Redirect Path'),
+    '#weight' => -10
+  );
+
+  $form['fhbat_fluff'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Fluff Factor'),
+    '#size' => 25,
+    '#maxlength' => 50,
+    '#default_value' => variable_get('fhbat_fluff', 0),
+    '#description' => t('Amount to "fluff" by'),
+    '#weight' => -10
+  );
+  
+  $fhbat_block_default = "<CENTER><img src='/files/emptybowlgif.gif'></CENTER><br />\n " .
+        "<div style='font-size: 8pt'>So far %%VALUE%% children have been fed through this site.<br />\n " .
+        "<strong>Click to make it %%NEXT%%!</strong></div><br />";
+  $form['fhbat_block'] = array(
+    '#type' => 'textarea',
+    '#title' => t('HTML bat block'),
+    '#size' => 25,
+    '#maxlength' => 50,
+    '#default_value' => variable_get('fhbat_block', $fhbat_block_default),
+    '#description' => t('Enter HTML bat block, use %%VALUE%% for current bat value and %%NEXT%% for value increased by one'),
+    '#weight' => -10,
+  );
+/*  
+  $vocabulary_options = array();
+  $vocabularies = taxonomy_get_vocabularies('banner');
+  foreach($vocabularies as $voc) {
+    $vocabulary_options[$voc->vid] = $voc->name;
+  }  
+  $form['fhbat_vocabulary'] = array(
+    '#type' => 'radios', '
+     #title' => t('fhbat default vocabulary'),
+    '#default_value' => variable_get('fhbat_vocabulary', 0),
+    '#options' => $vocabulary_options
+  );
+*/  
+  return $form;
+}
+
+/**
+ * Get plot value.
+ */
+
+function fhbat_get_plot_value ($bid) {
+  $plot_value = db_result(db_query('SELECT COUNT(cid) FROM {wtw_bat_clicks} WHERE bid = %s', $bid)); 
+  $plot_value += variable_get('fhbat_fluff', 0); 
+  return $plot_value;   
+}
+
+/**
+ * Implementation of block helpers funtions.
+ */
+
+function _fhbat_block_get_blocks() {
+  $blocks[2]['info'] = t('Bat block');
+  return $blocks;
+}
+
+function _fhbat_block_get_block($delta) {
+
+  global $base_url;
+  global $partners;
+  global $user;
+
+// Setting HTML block
+  $bid = $delta;
+  $bat_plot_value = fhbat_get_plot_value($bid); 
+//  $bat_plot_value = 57; 
+
+  $bat_replace['VALUE'] = number_format($bat_plot_value, 0, '', '');
+  $bat_replace['NEXT'] = number_format(($bat_plot_value + 1), 0, '', '');
+  $form_html = variable_get('fhbat_block', '');
+
+  foreach($bat_replace as $key => $value) {
+    $form_html = preg_replace("/%%" . $key . "%%/" , $value, $form_html);
+  }
+
+
+// Setting form
+  $form['html'] = array( '#value' => $form_html);
+  $form['bid'] = array(
+    '#type' => 'hidden',
+    '#value' => $bid
+  );
+  $form['validation_type'] = array(
+    '#type' => 'hidden',
+    '#value' => 'none'
+  );
+  $form['bat_value'] = array(
+    '#type' => 'hidden',
+    '#value' => $bat_plot_value
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Click to Feed a Child')
+  );
+  $out_form = drupal_get_form('fhbat_page', $form);
+
+  $block['subject'] = '';
+  $block['content'] = $out_form;
+
+//  return $output;
+  return $block;
+}
+  
+/**
+ * Implementation of hook_block.
+ */
+function fhbat_block($op = 'list', $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'list':
+      return _fhbat_block_get_blocks();
+      break;
+    case 'view':
+      return _fhbat_block_get_block($delta);
+      break;
+  }
+}
+
+
+

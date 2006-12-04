@@ -49,6 +49,15 @@ function fhcommerce_form_alter($form_id, &$form) {
       $form['zip']['#default_value'] = $location['postal_code'];
     }
   }
+  // Subproducts add-to-cart form
+  elseif ($form_id == 'subproducts_add_to_cart' && is_array($form['variations'])) {
+  	// Remove variations with no options from the form
+    foreach(array_keys($form['variations']) as $id) {
+    	if(!count($form['variations'][$id]['#options'])) {
+    		unset($form['variations'][$id]);
+    	}
+    }
+  }
 }
 
 /**

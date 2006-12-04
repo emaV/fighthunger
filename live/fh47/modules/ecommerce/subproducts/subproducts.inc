@@ -158,9 +158,11 @@ function subproducts_generate_wizard2($node) {
       }
     }
   }
+  /*
   if(count($options) < count($variations)) {
     return t('Error.  You must select at least one option from each of the variations.');
   }
+  */
   $permutations = subproducts_permute($options);
   foreach ($permutations as $permutation) {
     // Check if this permutation already exists.  If so, skip.

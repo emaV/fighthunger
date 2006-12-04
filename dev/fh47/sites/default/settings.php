@@ -171,3 +171,9 @@ $conf['i18n_variables'] = array(
   'donation_presentation_teaser',
   'donation_user_message',
 );
+
+/**
+ * Settings for api module. Development only
+ */
+$conf['api_files_per_cron'] = 100;
+$conf['api_directory_noscan'] = array('development', 'civicrm', 'phpmailer', 'location', 'ecommerce');

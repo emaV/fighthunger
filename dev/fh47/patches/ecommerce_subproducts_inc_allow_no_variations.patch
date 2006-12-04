@@ -1,0 +1,16 @@
+Index: /home/workspace/fh47live/modules/ecommerce/subproducts/subproducts.inc
+===================================================================
+--- /home/workspace/fh47live/modules/ecommerce/subproducts/subproducts.inc	(revision 220)
++++ /home/workspace/fh47live/modules/ecommerce/subproducts/subproducts.inc	(working copy)
+@@ -158,9 +158,11 @@
+       }
+     }
+   }
++  /*
+   if(count($options) < count($variations)) {
+     return t('Error.  You must select at least one option from each of the variations.');
+   }
++  */
+   $permutations = subproducts_permute($options);
+   foreach ($permutations as $permutation) {
+     // Check if this permutation already exists.  If so, skip.

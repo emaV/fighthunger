@@ -46,7 +46,113 @@ function fhbat_perm() {
 }
 
 /**
+ * Get random banner 
+ *
+ * @param $tid
+ *   Which banner category.  
+ * 
+ * @return
+ *   nid of the banner.
+ */ 
+function  fhbat_banner_get($tid) {
+  $sql = 'SELECT b.* FROM {node} n ' .
+    'INNER JOIN {term_node} tn ON n.nid = tn.nid ' .
+    'INNER JOIN {banner} b ON n.vid = b.vid ' .
+    'WHERE tn.tid = %d AND b.workflow = 1';
+  $result = db_query($sql, $tid);
+
+  // build ballot
+  $ballot = array();
+  $banners = array();
+  while ($banner = db_fetch_object($result)) {
+    for ($i = 0; $i < $banner->chance; $i++) {
+      $ballot[] = $banner->nid;
+    }
+    $banners[$banner->nid] = $banner;
+  }
+  
+  // choose random banner
+  $max = count($ballot) - 1;
+  if ($max > 0) {
+    $random = mt_rand(0, $max);
+  }
+  else {
+    $random = 0;
+  }
+  $nid = $ballot[$random];
+/*  
+  // get banner and remove it from the ballot
+  $banner = $banners[$nid];
+  
+  // update view statistics, admin and owner views are not counted
+  db_query('UPDATE {banner} SET views = views + 1, views_day = views_day + 1, views_week = views_week + 1 WHERE vid = %d', $banner->vid);
+
+
+  // change banner status?
+  if ($banner->views_max > 0 && $banner->views >= $banner->views_max) {
+    // limit reached
+    db_query('UPDATE {banner} SET workflow = 5 WHERE vid = %d', $banner->vid);
+  }
+  else if ($banner->views_day_max > 0 && $banner->views_day >= $banner->views_day_max) {
+    // day limit reached
+    db_query('UPDATE {banner} SET workflow = 2 WHERE vid = %d', $banner->vid);
+  }
+  else if ($banner->views_week_max > 0 && $banner->views_week >= $banner->views_week_max) {
+    // week limit reached
+    db_query('UPDATE {banner} SET workflow = 3 WHERE vid = %d', $banner->vid);
+  }
+*/  
+  return $nid;
+}
+
+function theme_fhbat_banner_view($node) {
+  $output = '<center><b>One child has been fed by:</b><br />';
+  $output .= theme('banner_view_upload', $node) . '</center>';
+  return $output;
+}
+
+function theme_fhbat_banner_list($tid, $banner_exclude = 0) {
+  $output = '<center><b>Our click-to-feed sponsors:</b><br />';
+
+  $sql = 'SELECT b.*, n.nid FROM {node} n ' .
+    'INNER JOIN {term_node} tn ON n.nid = tn.nid ' .
+    'INNER JOIN {banner} b ON n.vid = b.vid ' .
+    'WHERE tn.tid = %d AND b.workflow = 1';
+  $result = db_query($sql, $tid);
+
+  while ($banner = db_fetch_object($result)) {
+    if($banner->nid <> $banner_exclude) {
+      $node = node_load($banner->nid);
+  
+      // get first attached file
+      if ($node->files) {
+        foreach ($node->files as $key => $file) {
+          $file = (object)$file;
+          if ($file->list && !$file->remove) {
+            break; // we only need the first listed file
+          }
+        }
+      }
+      $img_attr = array(
+        'width'  => $node->width,
+        'height' => $node->height,
+        'alt'    => $node->title,
+      );
+  
+      $url_attr = array('title' => $node->url);
+      if ($node->target != '_none') {
+        $url_attr['target'] = $node->target;
+      }
+      $banner_item = theme('banner_image', file_create_url($file->filepath), $img_attr) . '<br />' . $node->title;
+      $output .= '<p>' . l( $banner_item, 'node/'. $node->nid, $url_attr, NULL, NULL, FALSE, TRUE) . '</p>';
+    }
+  }
+  return $output;
+}
+
+/**
  * After click action
+ * redirect to banner/nid 
  */
 function fhbat_page_submit($form_id, $form_values) {
 global $base_url;
@@ -70,6 +176,17 @@ global $user;
 
   $message = variable_get('fhbat_thanks', 'Thanks for visiting our site and clicking to feed a child.'); 
   $redirect = variable_get('fhbat_redirect', '');
+  
+// get random banner
+  $fhbat_category = variable_get('fhbat_category', 0);
+  $banner_nid = fhbat_banner_get($fhbat_category);
+  
+// redirect using banner system
+  $redirect = "banner/$banner_nid";
+
+  $message .= theme('fhbat_banner_view', node_load($banner_nid));
+
+//  $message .= theme('fhbat_banner_list', $fhbat_category);
 
   drupal_get_messages();
   drupal_set_message($message);
@@ -123,19 +240,23 @@ function fhbat_settings() {
     '#description' => t('Enter HTML bat block, use %%VALUE%% for current bat value and %%NEXT%% for value increased by one'),
     '#weight' => -10,
   );
-/*  
+  
   $vocabulary_options = array();
   $vocabularies = taxonomy_get_vocabularies('banner');
   foreach($vocabularies as $voc) {
-    $vocabulary_options[$voc->vid] = $voc->name;
-  }  
-  $form['fhbat_vocabulary'] = array(
-    '#type' => 'radios', '
-     #title' => t('fhbat default vocabulary'),
-    '#default_value' => variable_get('fhbat_vocabulary', 0),
+    $tree = taxonomy_get_tree($voc->vid);
+    if ($tree) {
+      foreach ($tree as $term) {
+        $vocabulary_options[$term->tid] = $voc->name . " - " . $term->name;
+      }
+    }
+  }
+  $form['fhbat_category'] = array(
+    '#type' => 'select',
+    '#title' => t('fhbat banner category'),
+    '#default_value' => variable_get('fhbat_category', 0),
     '#options' => $vocabulary_options
   );
-*/  
   return $form;
 }
 

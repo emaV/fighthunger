@@ -176,4 +176,4 @@ $conf['i18n_variables'] = array(
  * Settings for api module. Development only
  */
 $conf['api_files_per_cron'] = 100;
-$conf['api_directory_noscan'] = array('development', 'civicrm', 'phpmailer', 'location', 'ecommerce');
+$conf['api_directory_noscan'] = array('files', 'development', 'civicrm', 'phpmailer', 'location', 'ecommerce');

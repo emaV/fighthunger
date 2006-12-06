@@ -30,8 +30,6 @@ function webcollect_help($section) {
  * Implementation of hook_ec_paymentapi()
  */
 function webcollect_paymentapi(&$txn, $op, $arg = '') {
-  // DEBUG:
-  //drupal_set_message("webcollect_paymentapi op=$op");
   switch ($op) {
     case 'display name':
       return t('Webcollect');
@@ -547,18 +545,22 @@ function webcollect_create_order_lines($txn){
   
   // Add shipping cost as an order line
   // TO-DO: See whether there's a specific place to add shipping costs ??
-  if($txn->shipping_cost){
+  //var_dump($txn);
+  if($txn->ship && $txn->ship['cost'] && $methods = module_invoke('shipping', 'get_methods')){
+    $description =  $methods[$txn->ship['service']][$txn->ship['method']]['#title'];
     $list[] = (object)array(
-    	'price' => $txn->shipping_cost,
+      'price' => $txn->ship['cost'],
       'qty' => 1,
-      'description' => t('Shipping cost')
+      'description' => t('Shipping:').' '.$description
     );
   }
   // Build orderlines as array of objects
   foreach($list as $item){
+    // Round price
+    $item->price = round($item->price, 2);
     $line = new StdClass();
     $line->LINENUMBER = $linenumber++;
-    $line->AMOUNTSIGN = '+';
+    // $line->AMOUNTSIGN = '+';
     // TO-DO: Do we need to apply price adjustments here??                                                                                
     $line->LINEAMOUNT = 100 * $item->price * $item->qty;
     // Build item description

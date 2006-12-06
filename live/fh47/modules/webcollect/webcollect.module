@@ -511,7 +511,11 @@ function webcollect_create_order_params($txn) {
   return $params;
 }
 
+/**
+ * Create order object from transaction
+ */
 function webcollect_create_order($txn){
+
   $order = new StdClass();
   $order->ORDERID = $txn->txnid;
   $order->ORDERTYPE = 1;
@@ -520,7 +524,9 @@ function webcollect_create_order($txn){
   // Mapping with transaction data
   $order->AMOUNT = 100 * $txn->gross; // Only numbers
   $order->CURRENCYCODE = variable_get('webcollect_currency_code', 'USD');
-  $order->COUNTRYCODE = _webcollect_fix_countrycode($txn->billing_country);
+  // Get country code from billing address
+  $billing = $txn->address['billing'];
+  $order->COUNTRYCODE = _webcollect_fix_countrycode($billing->country);
   // Additional user data
   global $user;
   $order->EMAIL = $user->mail;

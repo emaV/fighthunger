@@ -13,16 +13,8 @@ function fhproduct_help($section = 'admin/help#fhproduct') {
       return t('<b>FH:</b> Creates Fighthunger product types. Dependency: product.module, tangible.module, subproducts.module');
     case 'node/add/product#fhproduct_colour':
       return t('Shippable product with colour variations.');    
-    case 'node/add/product#fhproduct_cap':
-      return t('FH Product: Cap.');
-    case 'node/add/product#fhproduct_pen':
-      return t('FH Product: Pen.');      
-    case 'node/add/product#fhproduct_plain':
-      return t('FH Product: Plain product.');      
-    case 'node/add/product#fhproduct_tshirt':
-      return t('FH Product: tshirt.');      
-    case 'node/add/product#fhproduct_tshirtMF':
-      return t('FH Product: tshirt M/F.');      
+    case 'node/add/product#fhproduct_size':
+      return t('Shippable product with size variations.');   
   }
 }
 
@@ -73,35 +65,20 @@ function fhproduct_productapi(&$node, $op, $data = null, $a4 = null, $type = '')
 /**
  * Subproduct definition
  */
+function fhproduct_product_list($prefix = '') {
+  return array(
+    'fhproduct_colour' => t('multicolour product'),
+    'fhproduct_size' => t('multisize product')
+  );
+}
 function fhproduct_colour_productapi(&$node, $op, $data = null, $a4 = null) {
     return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_colour');
 }
-function fhproduct_cap_productapi(&$node, $op, $data = null, $a4 = null) {
-    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_cap');
-}
-function fhproduct_pen_productapi(&$node, $op, $data = null, $a4 = null) {
-    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_pen');
-}
-function fhproduct_plain_productapi(&$node, $op, $data = null, $a4 = null) {
-    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_plain');
-}
-function fhproduct_tshirt_productapi(&$node, $op, $data = null, $a4 = null) {
-    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_tshirt');
-}
-function fhproduct_tshirtMF_productapi(&$node, $op, $data = null, $a4 = null) {
-    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_tshirtMF');
+function fhproduct_size_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_size');
 }
 
-function fhproduct_product_list($prefix = '') {
-	return array(
-    'fhproduct_colour'=> t('colour product'),
-    'fhproduct_cap'=> t('Cap'),
-    'fhproduct_pen' => t('Pen'), 
-    'fhproduct_plain' => t('Plain'),      
-    'fhproduct_tshirt' => t('tshirt'),      
-    'fhproduct_tshirtMF' => t('tshirt M/F'),      
-  );
-}
+
 
 /**
  * Theme to show add to cart form, useful when displaying 

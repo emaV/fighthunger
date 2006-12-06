@@ -11,6 +11,8 @@ function fhproduct_help($section = 'admin/help#fhproduct') {
   switch ($section) {
     case 'admin/modules#description':
       return t('<b>FH:</b> Creates Fighthunger product types. Dependency: product.module, tangible.module, subproducts.module');
+    case 'node/add/product#fhproduct_colour':
+      return t('Shippable product with colour variations.');    
     case 'node/add/product#fhproduct_cap':
       return t('FH Product: Cap.');
     case 'node/add/product#fhproduct_pen':
@@ -53,11 +55,9 @@ function fhproduct_access($op, $node) {
  * Implementation of hook_productapi().
  */
 function fhproduct_productapi(&$node, $op, $data = null, $a4 = null, $type = '') {
-
   switch ($op) {
-
     case 'wizard_select':
-        return fhproduct_product_list();
+      return fhproduct_product_list();
 
     case 'subproduct_types':
       return $type ? array($type) : array();
@@ -73,6 +73,9 @@ function fhproduct_productapi(&$node, $op, $data = null, $a4 = null, $type = '')
 /**
  * Subproduct definition
  */
+function fhproduct_colour_productapi(&$node, $op, $data = null, $a4 = null) {
+    return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_colour');
+}
 function fhproduct_cap_productapi(&$node, $op, $data = null, $a4 = null) {
     return fhproduct_productapi($node, $op, $data, $a4, 'fhproduct_cap');
 }
@@ -91,6 +94,7 @@ function fhproduct_tshirtMF_productapi(&$node, $op, $data = null, $a4 = null) {
 
 function fhproduct_product_list($prefix = '') {
 	return array(
+    'fhproduct_colour'=> t('colour product'),
     'fhproduct_cap'=> t('Cap'),
     'fhproduct_pen' => t('Pen'), 
     'fhproduct_plain' => t('Plain'),      

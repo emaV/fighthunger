@@ -187,8 +187,8 @@ function webcollect_insert(&$txn){
   $response = webcollect_response($result);
   if(_webcollect_response_ok($response)){
     // We have a valid response. Store returned parameters
-    watchdog('webcollect', 'DEBUG: Webcollect response OK<br/>'.xml_debug_xml($response, 'Returned XML'));
-    $txn->payment_status = payment_get_status_id('pending');
+    watchdog('webcollect', 'DEBUG: Webcollect response OK<br/>'.xml_debug_xml($result, 'Returned XML'));
+    //$txn->payment_status = payment_get_status_id('pending');
     $txn->payment = $response->row[0];
     // Save data
     webcollect_save($txn);

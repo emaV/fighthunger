@@ -65,7 +65,7 @@ function webcollect_error_page($txn){
       // DEBUG
       $output .= xml_debug_xml($payment->response);
   } else { // Failed request
-      $output = t('<p>Please try again later.</p>');
+      $output = t('<p>Payment failed. Please try again later.</p>');
   }
   print theme('page', $output);
 }
@@ -73,8 +73,6 @@ function webcollect_error_page($txn){
  * Implementation of hook_ec_transactionapi().
  */
 function webcollect_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
-  // DEBUG:
-  // drupal_set_message("webcollect_transactionapi op=$op");
   if ($txn->payment_method != 'webcollect') return NULL;
   switch ($op) {
     case 'load':
@@ -185,13 +183,12 @@ function webcollect_insert(&$txn){
   $params = webcollect_create_order_params($txn);
   $request = webcollect_prepare_request('INSERT_ORDER', $params);
   $result = webcollect_request($request);
-  // DEBUG:
-  // print theme('page', xml_debug_xml($request, 'Request')); exit();
   // Process response
   $response = webcollect_response($result);
   if(_webcollect_response_ok($response)){
     // We have a valid response. Store returned parameters
-    // $txn->payment_status = payment_get_status_id('pending');
+    watchdog('webcollect', 'DEBUG: Webcollect response OK<br/>'.xml_debug_xml($response, 'Returned XML'));
+    $txn->payment_status = payment_get_status_id('pending');
     $txn->payment = $response->row[0];
     // Save data
     webcollect_save($txn);

@@ -47,6 +47,8 @@ function webcollect_paymentapi(&$txn, $op, $arg = '') {
 			*/
       break;
     case 'payment page':
+      webcollect_insert($txn);
+      watchdog('webcollect', 'paymentapi, paymentpage, store transaction data<br/>'.xml_debug_array($txn, 'transaction'));
       if($txn->payment_status == payment_get_status_id('pending')) {
         return webcollect_goto($txn);
       } else {
@@ -63,7 +65,7 @@ function webcollect_error_page($txn){
   if($payment->response) { // This was a transaction error
       $output .= t("<p>Please, contact the site administrator.</p>");
       // DEBUG
-      $output .= xml_debug_xml($payment->response);
+      //$output .= xml_debug_xml($payment->response);
   } else { // Failed request
       $output = t('<p>Payment failed. Please try again later.</p>');
   }
@@ -79,7 +81,7 @@ function webcollect_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
       $txn->payment = db_fetch_object(db_query("SELECT * FROM {ec_webcollect} WHERE txnid = %d", $txn->txnid));
       break;
     case 'insert': // Before paymentapi:page
-      webcollect_insert($txn);
+      //webcollect_insert($txn);
       break;
     case 'update':
       webcollect_save($txn);
@@ -188,7 +190,7 @@ function webcollect_insert(&$txn){
   if(_webcollect_response_ok($response)){
     // We have a valid response. Store returned parameters
     watchdog('webcollect', 'DEBUG: Webcollect response OK<br/>'.xml_debug_xml($result, 'Returned XML'));
-    //$txn->payment_status = payment_get_status_id('pending');
+    $txn->payment_status = payment_get_status_id('pending');
     $txn->payment = $response->row[0];
     // Save data
     webcollect_save($txn);

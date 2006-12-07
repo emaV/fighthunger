@@ -47,8 +47,12 @@ function webcollect_paymentapi(&$txn, $op, $arg = '') {
 			*/
       break;
     case 'payment page':
-      return webcollect_goto($txn);
-
+      if($txn->payment_status == payment_get_status_id('pending')) {
+        return webcollect_goto($txn);
+      } else {
+        return webcollect_error_page($txn);
+      }
+      break;
     }
 }
 
@@ -179,14 +183,12 @@ function webcollect_insert(&$txn){
   $params = webcollect_create_order_params($txn);
   $request = webcollect_prepare_request('INSERT_ORDER', $params);
   $result = webcollect_request($request);
-  // DEBUG:
-  // print theme('page', xml_debug_xml($request, 'Request')); exit();
   // Process response
   $response = webcollect_response($result);
   if(_webcollect_response_ok($response)){
     // We have a valid response. Store returned parameters
     watchdog('webcollect', 'DEBUG: Webcollect response OK<br/>'.xml_debug_xml($response, 'Returned XML'));
-    // $txn->payment_status = payment_get_status_id('pending');
+    $txn->payment_status = payment_get_status_id('pending');
     $txn->payment = $response->row[0];
     // Save data
     webcollect_save($txn);

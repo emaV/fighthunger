@@ -5,7 +5,10 @@
  * @file
  * Shipcalc plugin for Fighthunger.org, http://www.fighthunger.org
  *
- * Created by Jose A. Reyero, http://www.reyero.net
+ * This plug-in calculates shipping price for available companies 
+ * depending on country, weight
+ * 
+ * Jose A. Reyero, 2006
  */
 
 define('FHSHIPPING_CURRENCY', 'USD');
@@ -22,12 +25,21 @@ function fhshipping_shipping_methods($type = 'domestic') {
     '#title' => t('Fighthunger custom'),
     '#description' => t('FH Custom shipping.')
   );
-  $methods['fhshipping']['percountry'] = array(
-    '#title' => t('Per country company selection'),
+  $methods['fhshipping']['SDA'] = array(
+    '#title' => t('Courier: SDA'),
   );
+  $methods['fhshipping']['DHL'] = array(
+    '#title' => t('Courier: DHL'),
+  );
+  $methods['fhshipping']['Posteitaliane'] = array(
+    '#title' => t('Courier: Posteitaliane'),
+  );
+  $methods['fhshipping']['EasyMail'] = array(
+    '#title' => t('Postal Service: Easy Mail'),
+  );     
   /*
-  $methods['fhshipping']['testing'] = array(
-    '#title' => t('Just for testing'),
+  $methods['fhshipping']['easymail'] = array(
+    '#title' =>  t('Easy mail.')
   );
   */
   return $methods;
@@ -79,52 +91,59 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
   // Get country from transaction
   $country = $txn->address['shipping']->country;
   // DEBUG
-  // drupal_set_message("Shipping parameters: weight=$weight country=$country");
+  //drupal_set_message("Shipping parameters: weight=$weight country=$country");
 
-  // Select company, zone  depending on country
-  $method = db_fetch_object(db_query("SELECT * FROM {fh_country_shipping} WHERE countrycode = '%s'", $country));
-  if (!$method->company || !$method->zone) {
-  	drupal_set_message(t('No shipping method available for this country. Please contact site administrator.'), 'error');
-    // No localized message
-    watchdog('shipping', "No shipping method for countrycode=$country", WATCHDOG_WARNING);
-    drupal_goto('cart/checkout');
+  // Select companies, zone  depending on country
+  $result = db_query("SELECT * FROM {fh_country_shipping} WHERE countrycode = '%s'", $country);
+  $shipping = array();
+  $maxweight = 0;
+  while ($method = db_fetch_object($result)) {
+    if($method->company && $method->zone) {
+      // Prices are stored in Euros, but USD are used instead, so we apply some exchange rate
+      $price = db_result(db_query_range("SELECT price FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s' AND weight >= %d ORDER BY weight", $method->company, $method->zone, $weight, 0, 1));
+      if($price) {
+        $method->price = fhshipping_price_currency($price);
+        $shipping[$method->company] = $method;
+      } else {
+        $maxweight = max($maxweight, db_result(db_query("SELECT MAX(weight) FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s'", $method->company, $method->zone, $weight, 0, 1)));
+      }
+    }
+  }
+  // Did we find company, zone ?
+  if (!count($shipping)) {
+    if($maxweight) {
+      // No localized message
+      watchdog('shipping', "Shipping weight out of range: weight=$weight, country=$country", WATCHDOG_WARNING);
+      drupal_set_message(t('Total weight is %weight %unit, but maximum shipping weight allowed is %maxweight %unit. Please review your shopping cart.', array('%weight' => $weight, '%maxweight' => $maxweight, '%unit' => (variable_get('shipcalc_units', 'LBS') ? t('pounds') : t('kilograms')))), 'error');
+      drupal_goto('cart/view');
+    } else {
+      // No localized message
+      drupal_set_message(t('No shipping method available for this country. Please contact site administrator.'), 'error');
+      watchdog('shipping', "No shipping method for countrycode=$country", WATCHDOG_WARNING);
+      drupal_goto('cart/checkout');
+    }
   }
   
-  // Get price for weight
-  $price = db_result(db_query_range("SELECT price FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s' AND weight >= %d ORDER BY weight", $method->company, $method->zone, $weight, 0, 1));
-  if (!$price) {
-  	// Weight is out of range
-    $maxweight = db_result(db_query("SELECT MAX(weight) FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s'", $method->company, $method->zone, $weight, 0, 1));
-    $maxweight = $maxweight ? $maxweight : 'undefined';
-    // No localized message
-    watchdog('shipping', "Shipping weight out of range: weight=$weight, country=$country, company=$method->company", WATCHDOG_WARNING);
-    drupal_set_message(t('Total weight is %weight, but maximum shipping weight allowed is %maxweight %unit. Please review your shopping cart.', array('%weight' => $weight, '%maxweight' => $maxweight, '%unit' => (variable_get('shipcalc_units', 'LBS') ? t('pounds') : t('kilograms')))), 'error');
-    drupal_goto('cart/view');
-  }
+  // Build array with different options
+  
+  $description = fhshipping_shipping_methods();
+  foreach ($shipping as $method) {
+    $rates[] = array(
+        '#service' => 'fhshipping',
+        '#key' => $method->company,
+        '#cost' => $method->price,
+        '#currency' => FHSHIPPING_CURRENCY,
+        '#method' => $description['fhshipping'][$method->company]['#title'],
+    );
+ }
 
-  // Prices are stored in Euros, but USD are used instead, so we apply some exchange rate
-  $price = floatval($price) * floatval(variable_get('fhcommerce_euro2usd', 1));
-  
-  // Debug message
-  watchdog('shipping', "Successful calculation: country=$country ,price=$price USD, Company=$method->company, zone=$method->zone");  
-  
-  $rates[] = array(
-        '#service' => 'fhshipping',
-        '#key' => 'percountry',
-        '#cost' => $price,
-        '#currency' => FHSHIPPING_CURRENCY,
-        '#method' => t('Pricing based on weight and destination')
-  );
-  /* This was for testing
-  $rates[] = array(
-        '#service' => 'fhshipping',
-        '#key' => 'testing',
-        '#cost' => 2 * $price,
-        '#currency' => FHSHIPPING_CURRENCY,
-        '#method' => t('Just for testing')
-  );
-  */
   return $rates;
 }
 
+/**
+ * Convert prices to USD and round to 2 decimal digits
+ */
+function fhshipping_price_currency($price) {
+  return round(floatval($price) * floatval(variable_get('fhcommerce_euro2usd', 1)), 2);
+}
 ?>

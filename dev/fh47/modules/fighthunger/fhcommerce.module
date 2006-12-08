@@ -84,6 +84,21 @@ function fhcommerce_settings() {
     '#default_value' => variable_get('fhcommerce_store_vocabulary', 5),
     '#options' => $vocabulary_options
   );
+
+  $form['fhcommerce_table_items'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Product items in table view (sticky).'),
+    '#default_value' => variable_get('fhcommerce_table_items', 10),
+    '#size' => 10, 
+    '#maxlength' => 10, 
+  );
+  $form['fhcommerce_list_items'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Product items in list view (not sticky and with pager).'),
+    '#default_value' => variable_get('fhcommerce_list_items', 10),
+    '#size' => 10, 
+    '#maxlength' => 10, 
+  );
   
   return $form;
 }
@@ -216,10 +231,10 @@ function fhcommerce_select_products($tids = array(), $operator = 'or', $depth = 
     $sql = db_rewrite_sql($sql);
     $sql_count = db_rewrite_sql($sql_count);
     if ($pager) {
-      $result = pager_query($sql, variable_get('default_nodes_main', 10), 0, $sql_count);
+      $result = pager_query($sql, variable_get('fhcommerce_list_items', 10), 0, $sql_count);
     }
     else {
-      $result = db_query_range($sql, 0, variable_get('feed_default_items', 10));
+      $result = db_query_range($sql, 0, variable_get('fhcommerce_table_items', 10));
     }
   }
 
@@ -292,5 +307,7 @@ function fhcommerce_state_location2address($state, $country) {
         return '';
     }
 }
+
+
 
 ?>

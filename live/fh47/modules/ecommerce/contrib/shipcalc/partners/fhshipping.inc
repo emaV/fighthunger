@@ -135,7 +135,14 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
         '#currency' => FHSHIPPING_CURRENCY,
         '#method' => $description['fhshipping'][$method->company]['#title'],
     );
- }
+  }
+  $rates[] = array(
+      '#service' => 'fhshipping',
+      '#key' => 'WFP direct',
+      '#cost' => 0,
+      '#currency' => FHSHIPPING_CURRENCY,
+      '#method' => t("Pick up items up from WFP HQ (St Martins 4S) - <a href='/shop/WFPhqpickup' target='nwin'>more info</a>"),
+  );
 
   return $rates;
 }

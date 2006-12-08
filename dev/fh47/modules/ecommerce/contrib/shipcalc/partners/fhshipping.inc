@@ -141,7 +141,7 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
       '#key' => 'WFP direct',
       '#cost' => 0,
       '#currency' => FHSHIPPING_CURRENCY,
-      '#method' => t("WFP HQ direct pickup - NO shipping (<a href='/shop/directpickup'>info</a>"),
+      '#method' => t("Pick up items up from WFP HQ (St Martins 4S) - <a href='/shop/directpickup'>more info</a>"),
   );
 
   return $rates;

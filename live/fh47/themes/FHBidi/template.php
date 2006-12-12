@@ -558,4 +558,226 @@ function phptemplate_subproducts_in_cart($table) {
   return;
 }
 
+/**
+ * Theme uploaded banner (image/swf)
+ *
+ * @param $node
+ *   Node object
+ * @return
+ *   Themed banner
+ */
+function phptemplate_banner_view_upload($node) {
+  $output = '';
+
+  // get first attached file
+  if ($node->files) {
+    foreach ($node->files as $key => $file) {
+      $file = (object)$file;
+      if ($file->list && !$file->remove) {
+        break; // we only need the first listed file
+      }
+    }
+  }
+
+  switch (_banner_type($file->filemime)) {
+    case 'image':
+      $img_attr = array(
+        'width'  => $node->width,
+        'height' => $node->height,
+        'alt'    => '',
+      );
+
+      $url_attr = array('title' => $node->url);
+      if ($node->target != '_none') {
+        $url_attr['target'] = $node->target;
+      }
+      $output = l(theme('banner_image', file_create_url($file->filepath), $img_attr), 'node/'. $node->nid, $url_attr, NULL, NULL, FALSE, TRUE);
+      break;
+    case 'swf':
+      $url = check_url(file_create_url($file->filepath));
+      $output = <<<EOD
+        <object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=6,0,29,0" width="$node->width" height="$node->height">
+          <param name="movie" value="$url">
+          <param name="quality" value="high">
+          <embed src="$url" quality="high" pluginspage="http://www.macromedia.com/go/getflashplayer" type="application/x-shockwave-flash" width="$node->width" height="$node->height"></embed>
+        </object>
+EOD;
+      break;
+    case 'text':
+      // FIXME: used a couple of places, move to separate function?
+      $path = file_create_path($file->filepath);
+      if ($content = file_get_contents($path)) {
+        if (strpos($content, '%url')) {
+          // %url present in content, replace with banner link
+          $output .= strtr($content, array('%url' => check_url(url('node/'. $node->nid))));
+        }
+        else {
+          // no %url in content, add link at the end
+          $output .= $content;
+          $output .= ' '. l(t('&raquo;'), 'node/'. $node->nid, array(), NULL, NULL, FALSE, TRUE);
+        }
+      }
+  }
+
+  return $output;
+}
+
+/********************************************************************
+ * Themeable Functions
+ ********************************************************************/
+
+function phptemplate_store_invoice($txn, $print_mode = TRUE, $trial = FALSE) {
+  global $base_url;
+
+  $header = array();
+  $row    = array();
+
+  if (empty($txn->mail) && $txn->uid > 0) {
+    $txn->mail = db_result(db_query('SELECT mail FROM {users} WHERE uid = %d', $txn->uid));
+  }
+
+  if ($txn->items) {
+    $header = array(t('Quantity'), t('Item'), t('Price'));
+
+    $shippable = FALSE;
+    foreach ($txn->items as $p) {
+      $prod = product_load($p);
+      if (product_is_shippable($p->vid)) $shippable = TRUE;
+
+      $price = store_adjust_misc($txn, $p);
+
+      $subtotal += (product_has_quantity($p) ? $p->qty * $price : $price);
+      $details = '';
+      if (is_array($p->data)) {
+        foreach ($p->data as $key => $value) {
+          if ($value) {
+            $items[] = '<strong>'. check_plain($key). ': </strong>'. check_plain($value);
+          }
+        }
+        if ($items) {
+          $details = theme('item_list', $items);
+        }
+      }
+
+      $row[] = array(array('data' => $p->qty, 'align' => 'center', 'valign' => 'top'), '<em>'. check_plain($p->title). '</em> '. (($prod->sku != '') ? "[". check_plain($prod->sku) ."]" : ''). '<br />'. $details, array('data' => payment_format($price), 'valign' => 'top'));
+    }
+
+    if (is_array($txn->misc)) {
+      foreach ($txn->misc as $misc) {
+        if (!$misc->seen) {
+          $row[] = array(array('data' => t("<strong>{$misc->description}</strong>: %price", array('%price' => payment_format($misc->price))), 'colspan' => 3, 'align' => 'right'));
+        }
+      }
+    }
+
+    $row[] = array(array('data' => '<hr size="1" noshade="noshade" />', 'colspan' => 3, 'align' => 'right'));
+    $row[] = array(array('data' => t('<strong>Total:</strong> %total', array('%total' => payment_format(store_transaction_calc_gross($txn)))), 'colspan' => 3, 'align' => 'right'));
+  }
+
+  $payment_info  = t('<div><strong>Ordered On:</strong> %order-date</div>', array('%order-date' => format_date($txn->created)));
+  if ($txn->duedate) {
+    $payment_info.= t('<div><strong>Due Date:</strong> %due-date</div>', array('%due-date' => format_date($txn->duedate)));
+  }
+  $payment_info .= t('<div><strong>Transaction ID:</strong> %txnid</div>', array('%txnid' => $trial ? t('Trial Invoice - Not Yet Posted') : $txn->txnid));
+
+  $css        = base_path(). drupal_get_path('module', 'store') .'/invoice.css';
+  $site_name  = t('%site-name Invoice', array('%site-name' => variable_get("site_name", "drupal")));
+
+  if ($shipping_to = store_format_address($txn, 'shipping', 'html')) {
+    $shipping_label = t('Shipping to');
+  }
+
+  if ($billing_to = store_format_address($txn, 'billing', 'html')) {
+    $billing_label = t('Billing to');
+  }
+
+  if ($txn->ship) {
+    $shipping_method_label = t('Shipping method:');
+    $shipping_method = store_format_shipping_method($txn);
+  }
+  $email_label = t('E-mail:');
+  $items_label = t('Items ordered');
+  $items_view = theme('table', $header, $row, array('cellpadding' => 3, 'cellspacing' => 3));
+
+  $payment_label = t('Payment Info');
+
+  if ($print_mode) {
+    $output .= <<<EOD
+<html>
+  <head>
+    <style type="text/css" media="all">@import url('$css');</style>
+  </head>
+  <body>    
+EOD;
+  }
+
+$logo = theme_get_setting('logo');
+$site_slogan = variable_get('site_slogan', ''); 
+$site_mission = variable_get('site_mission', '');
+$banner = base_path() . theme_get_setting('banner_path');
+$output .= <<<EOD
+
+<table border="0" width='100%'>
+  <tr>
+    <td width='180'>
+<img src="$logo" alt="logo" title="Index Page" />
+    </td>
+    <td>
+<img src="$banner" alt="banner" title="banner" />
+    </td>
+    <td align="center" cellpadding='5'>
+<span id="site-mission">$site_mission</span>
+    </td>
+  </tr>
+  <tr>
+    <td>&nbsp;</td>
+    <td colspan=3>
+<span id="site-slogan">$site_slogan</span>
+    </td>
+  </tr>
+  <tr>
+    <td colspan=3  align="center">
+WFP, Via Cesare Giulio Viola, 68/70, Parco de'Medici, 00148, Rome, Italy<br/>
+www.FightHunger.org - team@fighthunger.org
+    </td>
+  </tr>
+</table>
+
+    <h1>$site_name</h1>
+
+    <table cellspacing="5">
+      <tr>
+        <th align="left">$shipping_label</th>
+        <th align="left">$billing_label</th>
+      </tr>
+      <tr>
+        <td>$shipping_to</td>
+        <td>$billing_to</td>
+      </tr>
+    </table>
+
+    <p><strong>$shipping_method_label</strong> $shipping_method</p>
+    <p><strong>$email_label</strong> $txn->mail</p>
+
+    <h2>$items_label</h2>
+    $items_view
+
+    <h2>$payment_label</h2>
+    $payment_info
+EOD;
+
+if ($print_mode) {
+  $output .= <<<EOD
+    </body>
+  </html>
+EOD;
+}
+
+  if (!$print_mode) {  
+    return $output;
+  }
+  print $output;
+}
+
+
 ?>

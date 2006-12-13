@@ -314,25 +314,7 @@ function fhcommerce_state_location2address($state, $country) {
 }
 
 /**
- * Send an ecommerce email message.
- * 
- * Wrapper for sending email process, this allow us
- * to change the default delivering mechanism through
- * hook_store_email_send.
- * 
- * @param $from
- *  The email address to be used as sender.
- * @param $to
- *  The recipient where to send this email.
- * @param $subject
- *  The subject of this email message.
- * @param $body
- *  The full message body string.
- * @param $headers
- *  Optional email headers to be added to the email.
- * @return
- *  Boolean TRUE indicating that the message was sucessful delivered
- *  or FALSE if an error occurred while delivering the message
+ * Implementation of hook_store_email_send
  */
 function fhcommerce_store_email_send($from, $to, $subject, $body, $headers = NULL) {
   // Override from header. Using store_mail instead of site_mail, double fallback

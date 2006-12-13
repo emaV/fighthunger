@@ -78,8 +78,8 @@ function store_cron() {
       $output .= t("Want more reports? Visit %base_url/admin/store\n", array('%base_url' => $base_url));
 
       $subject    = t('%site-name transaction summary', array('%site-name' => variable_get('site_name', 'Drupal')));
-      $to         = variable_get("site_mail", ini_get("sendmail_from"));
-      $from       = variable_get("site_mail", ini_get("sendmail_from"));
+      $to         = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
+      $from       = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
       $headers    = "From: $from\nReply-to: $from\nX-Mailer: PHP\nReturn-path: $from\nErrors-to: $from";
 
       user_mail($to, $subject, $output, $headers);
@@ -206,8 +206,8 @@ function store_ec_settings() {
     '#options' => $options,
     '#description' => t('There are several advantages in having customers create accounts. When they shop, the items in their cart will be remembered from visit to visit, and they can store their shipping and billing addresses in an address book at this site.')
   );
-
-  $site_mail = variable_get('site_mail', ini_get('sendmail_from'));
+  // Using store_mail instead of site_mail, double fallback
+  $site_mail = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
   if (!$site_mail) {
     $site_mail = 'no e-mail address found';
   }
@@ -1125,7 +1125,7 @@ function store_send_invoice_email($txnid, $preview = null) {
 
   $t = store_transaction_load($txnid);
   $variables  = store_email_get_transaction_variables($t);
-  $from = variable_get("site_mail", ini_get("sendmail_from"));
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
   if ($t->mail && valid_email_address($t->mail)) {
     $to = $t->mail;
@@ -1156,7 +1156,7 @@ function store_send_invoice_email($txnid, $preview = null) {
 function store_send_error_email($txnid, $preview = null) {
   $t = store_transaction_load($txnid);
   $variables  = store_email_get_transaction_variables($t);
-  $from = variable_get("site_mail", ini_get("sendmail_from"));
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
   if ($t->mail && valid_email_address($t->mail)) {
     $to = $t->mail;
@@ -1187,7 +1187,7 @@ function store_send_error_email($txnid, $preview = null) {
 function store_transaction_ask_customer() {
   $t = store_transaction_load(arg(4));
   $variables  = store_email_get_transaction_variables($t);
-  $from = variable_get("site_mail", ini_get("sendmail_from"));
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
   if ($t->mail && valid_email_address($t->mail)) {
     $to = $t->mail;
@@ -1242,7 +1242,7 @@ function store_transaction_ask_customer_submit($form_id, $edit) {
 function store_transaction_cancel() {
   $t = store_transaction_load(arg(4));
   $variables  = store_email_get_transaction_variables($t);
-  $from = variable_get("site_mail", ini_get("sendmail_from"));
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
   if ($t->mail && valid_email_address($t->mail)) {
     $to = $t->mail;
@@ -2491,7 +2491,7 @@ function store_email_get_transaction_variables($transaction) {
     '%shipping_method' => $shipping_method,
     '%user_data' => $shipping_to . $billing_to . $shipping_method,
     '%items' => $items,
-    '%email' => variable_get('site_mail', ini_get('sendmail_from')),
+    '%email' => variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from'))),
     '%site' => variable_get('site_name', 'drupal'),
     '%uri' => $base_url,
     '%uri_brief' => substr($base_url, strlen("http://")),

@@ -685,7 +685,8 @@ function shipping_email($action) {
 function shipping_shipping_notification() {
   $t = store_transaction_load(arg(4));
   $variables  = store_email_get_transaction_variables($t);
-  $from = variable_get("site_mail", ini_get("sendmail_from"));
+  // Using store_mail instead of site_mail, double fallback
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
   if ($t->mail && valid_email_address($t->mail)) {
     $to = $t->mail;

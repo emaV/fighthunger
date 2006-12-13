@@ -64,6 +64,11 @@ function fhcommerce_form_alter($form_id, &$form) {
  * Implementation of hook_settings().
  */
 function fhcommerce_settings() {
+  $form['store_mail'] = array(
+    '#type' => 'textfield', '#title' => t('E-mail address'), '#default_value' => variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from'))),
+    '#description' => t('A valid e-mail address for this store, will be used for e-commerce e-mails.')
+  );
+
   $form['fhcommerce_euro2usd'] = array('#type' => 'textfield', '#title' => t('Exchange rate from Euro to USD.'),
     '#default_value' => variable_get('fhcommerce_euro2usd', 1),
     '#size' => 10, 

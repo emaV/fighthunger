@@ -1138,7 +1138,8 @@ function product_send_recurring_payment_notifications($debug = '') {
     $now = time();
     $variables['%site'] = variable_get('site_name', 'drupal');
     $variables['%uri'] = url('', NULL, NULL, TRUE);
-    $from = variable_get('site_mail', ini_get('sendmail_from'));
+    // Using store_mail instead of site_mail, double fallback
+    $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
     foreach($payments as $p) {
       //Build the variable list that can be expanded in the email msg.

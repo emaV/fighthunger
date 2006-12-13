@@ -1156,7 +1156,7 @@ function store_send_invoice_email($txnid, $preview = null) {
 function store_send_error_email($txnid, $preview = null) {
   $t = store_transaction_load($txnid);
   $variables  = store_email_get_transaction_variables($t);
-  $from = variable_get("site_mail", ini_get("sendmail_from"));
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
   if ($t->mail && valid_email_address($t->mail)) {
     $to = $t->mail;
@@ -1187,7 +1187,7 @@ function store_send_error_email($txnid, $preview = null) {
 function store_transaction_ask_customer() {
   $t = store_transaction_load(arg(4));
   $variables  = store_email_get_transaction_variables($t);
-  $from = variable_get("site_mail", ini_get("sendmail_from"));
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
   if ($t->mail && valid_email_address($t->mail)) {
     $to = $t->mail;
@@ -1242,7 +1242,7 @@ function store_transaction_ask_customer_submit($form_id, $edit) {
 function store_transaction_cancel() {
   $t = store_transaction_load(arg(4));
   $variables  = store_email_get_transaction_variables($t);
-  $from = variable_get("site_mail", ini_get("sendmail_from"));
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
 
   if ($t->mail && valid_email_address($t->mail)) {
     $to = $t->mail;

@@ -53,8 +53,10 @@ function apparel_productapi(&$node, $op, $data = null, $a4 = null) {
       return array('apparel');
 
     case 'cart add item':
-      return subproducts_cart_set_subproduct_variation($node, $data);
-
+      if (!subproducts_cart_set_subproduct_variation($node, $data)) {
+        return FALSE;
+      }
+      // No break;
     case 'fields':
     case 'validate':
     case 'attributes':

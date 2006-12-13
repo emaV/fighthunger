@@ -55,7 +55,10 @@ function fhproduct_productapi(&$node, $op, $data = null, $a4 = null, $type = '')
       return $type ? array($type) : array();
 
     case 'cart add item':
-      return subproducts_cart_set_subproduct_variation($node, $data);
+      if (!subproducts_cart_set_subproduct_variation($node, $data)) {
+        return FALSE;
+      }
+      // No break;
 
     default:
       return module_invoke('tangible', 'productapi', $node, $op, $data, $a4);

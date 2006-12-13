@@ -64,6 +64,11 @@ function fhcommerce_form_alter($form_id, &$form) {
  * Implementation of hook_settings().
  */
 function fhcommerce_settings() {
+  $form['store_mail'] = array(
+    '#type' => 'textfield', '#title' => t('E-mail address'), '#default_value' => variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from'))),
+    '#description' => t('A valid e-mail address for this store, will be used for e-commerce e-mails.')
+  );
+
   $form['fhcommerce_euro2usd'] = array('#type' => 'textfield', '#title' => t('Exchange rate from Euro to USD.'),
     '#default_value' => variable_get('fhcommerce_euro2usd', 1),
     '#size' => 10, 
@@ -308,6 +313,13 @@ function fhcommerce_state_location2address($state, $country) {
     }
 }
 
-
-
+/**
+ * Implementation of hook_store_email_send
+ */
+function fhcommerce_store_email_send($from, $to, $subject, $body, $headers = NULL) {
+  // Override from header. Using store_mail instead of site_mail, double fallback
+  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
+  $headers = "From: $from\nReply-to: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from" . $headers;
+  return user_mail($to, $subject, $body, $headers);
+}
 ?>

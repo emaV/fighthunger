@@ -122,11 +122,13 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
     }
   }
   // Log data
+  /*
   drupal_set_message(t("Shipping parameters: weight=%weight %unit country=%country", array(
     '%weight' => $weight,
     '%unit' => (variable_get('shipcalc_units', 'LBS') ? t('pounds') : t('kilograms')),
     '%country' => module_invoke('fh', 'get_country_name', $country)
-  )));  
+  ))); 
+  */
   // Build array with different options
   
   $description = fhshipping_shipping_methods();

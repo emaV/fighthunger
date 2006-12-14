@@ -90,8 +90,6 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
   }
   // Get country from transaction
   $country = $txn->address['shipping']->country;
-  // DEBUG
-  //drupal_set_message("Shipping parameters: weight=$weight country=$country");
 
   // Select companies, zone  depending on country
   $result = db_query("SELECT * FROM {fh_country_shipping} WHERE countrycode = '%s'", $country);
@@ -100,12 +98,12 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
   while ($method = db_fetch_object($result)) {
     if($method->company && $method->zone) {
       // Prices are stored in Euros, but USD are used instead, so we apply some exchange rate
-      $price = db_result(db_query_range("SELECT price FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s' AND weight >= %d ORDER BY weight", $method->company, $method->zone, $weight, 0, 1));
+      $price = db_result(db_query_range("SELECT price FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s' AND weight >= %s ORDER BY weight", $method->company, $method->zone, $weight, 0, 1));
       if($price) {
         $method->price = fhshipping_price_currency($price);
         $shipping[$method->company] = $method;
       } else {
-        $maxweight = max($maxweight, db_result(db_query("SELECT MAX(weight) FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s'", $method->company, $method->zone, $weight, 0, 1)));
+        $maxweight = max($maxweight, db_result(db_query("SELECT MAX(weight) FROM {fh_shipping_price} WHERE company = '%s' AND zone = '%s'", $method->company, $method->zone, 0, 1)));
       }
     }
   }
@@ -123,7 +121,12 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
       drupal_goto('cart/checkout');
     }
   }
-  
+  // Log data
+  drupal_set_message(t("Shipping parameters: weight=%weight %unit country=%country", array(
+    '%weight' => $weight,
+    '%unit' => (variable_get('shipcalc_units', 'LBS') ? t('pounds') : t('kilograms')),
+    '%country' => module_invoke('fh', 'get_country_name', $country)
+  )));  
   // Build array with different options
   
   $description = fhshipping_shipping_methods();

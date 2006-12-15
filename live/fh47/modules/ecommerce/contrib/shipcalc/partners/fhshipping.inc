@@ -135,13 +135,15 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
   
   $description = fhshipping_shipping_methods();
   foreach ($shipping as $method) {
-    $rates[] = array(
-        '#service' => 'fhshipping',
-        '#key' => $method->company,
-        '#cost' => $method->price,
-        '#currency' => FHSHIPPING_CURRENCY,
-        '#method' => $description['fhshipping'][$method->company]['#title'],
-    );
+    if($description['fhshipping'][$method->company]) {
+      $rates[] = array(
+          '#service' => 'fhshipping',
+          '#key' => $method->company,
+          '#cost' => $method->price,
+          '#currency' => FHSHIPPING_CURRENCY,
+          '#method' => $description['fhshipping'][$method->company]['#title'],
+      );
+    }
   }
   $rates[] = array(
       '#service' => 'fhshipping',

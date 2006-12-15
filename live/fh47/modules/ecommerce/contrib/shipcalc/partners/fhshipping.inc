@@ -25,9 +25,11 @@ function fhshipping_shipping_methods($type = 'domestic') {
     '#title' => t('Fighthunger custom'),
     '#description' => t('FH Custom shipping.')
   );
+/*  DEACTIVATE due legal issue (20061215)
   $methods['fhshipping']['SDA'] = array(
     '#title' => t('Courier: SDA'),
   );
+*/
   $methods['fhshipping']['DHL'] = array(
     '#title' => t('Courier: DHL'),
   );
@@ -127,7 +129,7 @@ function fhshipping_get_rates($txn, $url = 'DEFAULT', $testing = FALSE) {
     '%weight' => $weight,
     '%unit' => (variable_get('shipcalc_units', 'LBS') ? t('pounds') : t('kilograms')),
     '%country' => module_invoke('fh', 'get_country_name', $country)
-  ))); 
+  )));
   */
   // Build array with different options
   

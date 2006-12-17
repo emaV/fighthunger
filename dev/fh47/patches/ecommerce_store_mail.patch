@@ -1,7 +1,7 @@
-Index: /home/workspace/fh47/modules/ecommerce/product/product.module
+Index: /home/workspace/fh47live/modules/ecommerce/product/product.module
 ===================================================================
---- /home/workspace/fh47/modules/ecommerce/product/product.module	(revision 298)
-+++ /home/workspace/fh47/modules/ecommerce/product/product.module	(working copy)
+--- /home/workspace/fh47live/modules/ecommerce/product/product.module	(revision 220)
++++ /home/workspace/fh47live/modules/ecommerce/product/product.module	(working copy)
 @@ -1138,7 +1138,8 @@
      $now = time();
      $variables['%site'] = variable_get('site_name', 'drupal');
@@ -12,10 +12,10 @@ Index: /home/workspace/fh47/modules/ecommerce/product/product.module
  
      foreach($payments as $p) {
        //Build the variable list that can be expanded in the email msg.
-Index: /home/workspace/fh47/modules/ecommerce/shipping/shipping.module
+Index: /home/workspace/fh47live/modules/ecommerce/shipping/shipping.module
 ===================================================================
---- /home/workspace/fh47/modules/ecommerce/shipping/shipping.module	(revision 298)
-+++ /home/workspace/fh47/modules/ecommerce/shipping/shipping.module	(working copy)
+--- /home/workspace/fh47live/modules/ecommerce/shipping/shipping.module	(revision 220)
++++ /home/workspace/fh47live/modules/ecommerce/shipping/shipping.module	(working copy)
 @@ -685,7 +685,8 @@
  function shipping_shipping_notification() {
    $t = store_transaction_load(arg(4));
@@ -26,10 +26,10 @@ Index: /home/workspace/fh47/modules/ecommerce/shipping/shipping.module
  
    if ($t->mail && valid_email_address($t->mail)) {
      $to = $t->mail;
-Index: /home/workspace/fh47/modules/ecommerce/store/store.module
+Index: /home/workspace/fh47live/modules/ecommerce/store/store.module
 ===================================================================
---- /home/workspace/fh47/modules/ecommerce/store/store.module	(revision 298)
-+++ /home/workspace/fh47/modules/ecommerce/store/store.module	(working copy)
+--- /home/workspace/fh47live/modules/ecommerce/store/store.module	(revision 220)
++++ /home/workspace/fh47live/modules/ecommerce/store/store.module	(working copy)
 @@ -78,8 +78,8 @@
        $output .= t("Want more reports? Visit %base_url/admin/store\n", array('%base_url' => $base_url));
  
@@ -55,6 +55,33 @@ Index: /home/workspace/fh47/modules/ecommerce/store/store.module
 @@ -1125,7 +1125,7 @@
  
    $t = store_transaction_load($txnid);
+   $variables  = store_email_get_transaction_variables($t);
+-  $from = variable_get("site_mail", ini_get("sendmail_from"));
++  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
+ 
+   if ($t->mail && valid_email_address($t->mail)) {
+     $to = $t->mail;
+@@ -1156,7 +1156,7 @@
+ function store_send_error_email($txnid, $preview = null) {
+   $t = store_transaction_load($txnid);
+   $variables  = store_email_get_transaction_variables($t);
+-  $from = variable_get("site_mail", ini_get("sendmail_from"));
++  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
+ 
+   if ($t->mail && valid_email_address($t->mail)) {
+     $to = $t->mail;
+@@ -1187,7 +1187,7 @@
+ function store_transaction_ask_customer() {
+   $t = store_transaction_load(arg(4));
+   $variables  = store_email_get_transaction_variables($t);
+-  $from = variable_get("site_mail", ini_get("sendmail_from"));
++  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));
+ 
+   if ($t->mail && valid_email_address($t->mail)) {
+     $to = $t->mail;
+@@ -1242,7 +1242,7 @@
+ function store_transaction_cancel() {
+   $t = store_transaction_load(arg(4));
    $variables  = store_email_get_transaction_variables($t);
 -  $from = variable_get("site_mail", ini_get("sendmail_from"));
 +  $from = variable_get('store_mail', variable_get('site_mail', ini_get('sendmail_from')));

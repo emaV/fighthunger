@@ -13,6 +13,9 @@
  * for FightHunger.org
  */
 
+// Define file name and content type
+define('REPORTS_FILE_NAME', 'report.csv');
+define('REPORTS_CONTENT_TYPE', 'text/csv');
 
 /**
  * Implementation of hook_help().
@@ -49,12 +52,16 @@ function fhreports_menu($may_cache) {
 function fhreports_form_alter($form_id, &$form) {
   switch($form_id) {
     case 'transactions_search_form':
+      $form['reports'] = array('#type' => 'fieldset', '#title' => t('Reports'));
       if ($query_string = fhreports_query_string()) {
-        $form['reports'] = array('#type' => 'fieldset', '#title' => t('Reports'));
-        $form['reports']['csv'] = array(
-          '#value' => l(t('Download in CSV format'), 'admin/store/reports/file.csv', array(), $query_string)
-        );
+       $form['reports']['csv'] = array(
+       '#value' => l(t('Download data'), 'admin/store/reports/'.REPORTS_FILE_NAME, array(), $query_string),
+       '#suffix' => "<br/>"
+       );
       }
+      $form['reports']['more'] = array(
+       '#value' => l(t('See more reports'), 'admin/store/reports')
+      );
   }
 }
 /**
@@ -62,8 +69,8 @@ function fhreports_form_alter($form_id, &$form) {
  */
 function fhreports_ecommerce($type = NULL) {
   switch($type) {
-    case 'file.csv':
-      return fhreports_ecommerce_csv();
+    case REPORTS_FILE_NAME:
+      return fhreports_ecommerce_textfile();
     default:
       return fhreports_ecommerce_overview();
   }
@@ -73,8 +80,8 @@ function fhreports_ecommerce($type = NULL) {
  * Overview of e-Commerce reports
  */
 function fhreports_ecommerce_overview() {
-  drupal_set_title(t('download csv reports'));
-  $base = 'admin/store/reports/file.csv';
+  drupal_set_title(t('download reports'));
+  $base = 'admin/store/reports/'.REPORTS_FILE_NAME;
   
   $num_total    = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction}"));
   $num_pending    = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE (payment_status = '%d' OR payment_status = '%d') AND (workflow = '%d' OR workflow = '%d' OR workflow = '%d' OR workflow = '%d')", payment_get_status_id('pending'), payment_get_status_id('payment received'), transaction_get_workflow_id("transaction received"), transaction_get_workflow_id("invoiced"), transaction_get_workflow_id("shipped"), transaction_get_workflow_id("awaiting customer response")));
@@ -129,14 +136,16 @@ function fhreports_ecommerce_overview() {
 }
 
 /**
- * Produces csv file
+ * Produces output file
+ * 
+ * If the search returns no data, redirects to search form
  */
-function fhreports_ecommerce_csv() {
+function fhreports_ecommerce_textfile() {
   // Prepare parameters
   $query = fhreports_ecommerce_search_query();
   list($header, $rows) = fhreports_ecommerce_data($query);
   if($header && count($header) && $rows && count($rows)) {
-    fhreports_csv_file( $header, $rows);
+    fhreports_output_textfile($header, $rows);
   } else {
     drupal_set_message(t('Your search returned no data.'), 'error');
     drupal_goto('admin/store/search', fhreports_query_string());
@@ -146,18 +155,60 @@ function fhreports_ecommerce_csv() {
 /**
  * Produces text in csv format
  */
-function fhreports_csv_file($header, $rows, $newline = "\n") {
-  drupal_set_header('Content-type:text/csv');
+function fhreports_output_csv($header, $rows) {
+  fhreports_output_file($header, $rows);
+}
+
+/**
+ * Produces text in tab separated format
+ */
+function fhreports_output_textfile($header, $rows) {
+  fhreports_output_file($header, $rows, "\t", "\n", REPORTS_CONTENT_TYPE);
+}
+
+/**
+ * Produces output file
+ */
+function fhreports_output_file($header, $rows, $fieldseparator = ',', $newline = "\n", $contenttype = 'text/csv') {
+  drupal_set_header('Content-type:'.$contenttype);
   if($header) {
-    print implode(',', $header).$newline;
+    print implode($fieldseparator, $header).$newline;
   }
   foreach ($rows as $row) {
-    print implode(',', $row).$newline;
+    $row = array_map('fhreports_output_format', $row);
+    print implode($fieldseparator, $row).$newline;
   }
 }
 
 /**
- * Returns raw data for ecommerce query
+ * Formats single data cells
+ */
+function fhreports_output_format($data) {
+  // Replaces decimal points
+  $data = str_replace('.', ',', $data);
+  return $data;
+}
+/**
+ * Util: rebuild query string
+ * 
+ * Builds a query string taking values from both query string and search form
+ * 
+ * @return
+ *   query string to be added to URL
+ */
+function fhreports_query_string() {
+  $query = fhreports_ecommerce_search_query();
+  $params = fhreports_ecommerce_search_query_string($query);
+  return count($params) ? implode('&', $params) : NULL;
+}
+
+/**
+ * Returns raw data from ecommerce query
+ * 
+ * @param $query
+ *   object with query parameters
+ * @return
+ *   list($header, $rows), both arrays of text data
  */
 function fhreports_ecommerce_data($query) {
   $show_details = TRUE;
@@ -342,15 +393,15 @@ function fhreports_ecommerce_data($query) {
 
     // Now that we know the tables, apply the correct column display map.
     $column_map = array(
-      'users'          => array('u.uid' => t('user')),
+      'users'          => array('u.uid' => t('User')),
       'ec_transaction' => array(
-        'st.txnid' => t('txnid'), 
-        'st.uid' => t('user'), 
-        'st.payment_status' => t('payment status'), 
-        'st.workflow' => t('workflow'), 
-        'st.gross' => t('gross'),  
-        'st.created' => t('created'), 
-        'st.changed' => t('changed'))
+        'st.txnid' => t('Transaction'), 
+        'st.uid' => t('User'), 
+        'st.payment_status' => t('Payment status'), 
+        'st.workflow' => t('Workflow'), 
+        'st.gross' => t('Amount'),  
+        'st.created' => t('Created'), 
+        'st.changed' => t('Changed'))
     );
 
     // Expand all query parts.
@@ -371,7 +422,7 @@ function fhreports_ecommerce_data($query) {
     }
     $columns = array_unique($columns);
     $header = $table;
-    $header[] = t('items ordered');
+    $header[] = t('Items ordered');
 
     // Get Data
     $sql_orderby = '';
@@ -412,7 +463,7 @@ function fhreports_ecommerce_data($query) {
           // invoiced = 2, shipped = 3
           $row[] = transaction_get_workflow($data->$col);
         } elseif ($col == 'gross') {
-          $row[] =  payment_format($data->$col);
+          $row[] =  $data->$col; // Do not format for currency
         }
         else {
           $row[] = $data->$col;
@@ -434,7 +485,12 @@ function fhreports_ecommerce_data($query) {
 }
 
 /**
- * Gets search parameters
+ * Gets search parameters 
+ * 
+ * Combinines parameters in $_POST and $_GET
+ * 
+ * @return
+ *   Object with query parameters
  */
 function fhreports_ecommerce_search_query() {
   // List the available items to search for.
@@ -452,6 +508,7 @@ function fhreports_ecommerce_search_query() {
   unset($_POST['edit']); // Again, an all too famous tablesort issue.
 
   /* Grab the values we need from the $_REQUEST object. */
+  $query = new StdClass();
   foreach($fields as $field) {
     $value = $_REQUEST[$field];
     if (array_key_exists($field, $_REQUEST) === true && $value != "") {
@@ -463,7 +520,11 @@ function fhreports_ecommerce_search_query() {
 
 /**
  * Converts the query criteria to query string
- * @return Array of criteria for query string
+ * 
+ * @param $query
+ *   Object with query parameters
+ * @return 
+ *   Array of criteria for query string
  */
 function fhreports_ecommerce_search_query_string($query) {
   // If we have a valid query object, let's hit the database.
@@ -514,12 +575,3 @@ function fhreports_ecommerce_search_query_string($query) {
   }
 }
 
-/**
- * Util: rebuild query string
- * Builds a query string taking values from both query string and search form
- */
-function fhreports_query_string() {
-  $query = fhreports_ecommerce_search_query();
-  $params = fhreports_ecommerce_search_query_string($query);
-  return count($params) ? implode('&', $params) : NULL;
-}

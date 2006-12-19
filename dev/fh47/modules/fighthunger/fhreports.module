@@ -14,7 +14,7 @@
  */
 
 // Define file name and content type
-define('REPORTS_FILE_NAME', 'report.csv');
+define('REPORTS_FILE_EXTENSION', 'csv');
 define('REPORTS_CONTENT_TYPE', 'text/csv');
 
 /**
@@ -54,10 +54,14 @@ function fhreports_form_alter($form_id, &$form) {
     case 'transactions_search_form':
       $form['reports'] = array('#type' => 'fieldset', '#title' => t('Reports'));
       if ($query_string = fhreports_query_string()) {
-       $form['reports']['csv'] = array(
-       '#value' => l(t('Download data'), 'admin/store/reports/'.REPORTS_FILE_NAME, array(), $query_string),
+       $form['reports']['transaction'] = array(
+       '#value' => l(t('Download transaction data'), 'admin/store/reports/transaction.'.REPORTS_FILE_EXTENSION, array(), $query_string),
        '#suffix' => "<br/>"
        );
+       $form['reports']['items'] = array(
+       '#value' => l(t('Download items data'), 'admin/store/reports/items.'.REPORTS_FILE_EXTENSION, array(), $query_string),
+       '#suffix' => "<br/>"
+       );       
       }
       $form['reports']['more'] = array(
        '#value' => l(t('See more reports'), 'admin/store/reports')
@@ -69,8 +73,10 @@ function fhreports_form_alter($form_id, &$form) {
  */
 function fhreports_ecommerce($type = NULL) {
   switch($type) {
-    case REPORTS_FILE_NAME:
-      return fhreports_ecommerce_textfile();
+    case 'transaction.'.REPORTS_FILE_EXTENSION:
+      return fhreports_ecommerce_textfile('transaction');
+    case 'items.'.REPORTS_FILE_EXTENSION:
+      return fhreports_ecommerce_textfile('items');
     default:
       return fhreports_ecommerce_overview();
   }
@@ -81,8 +87,8 @@ function fhreports_ecommerce($type = NULL) {
  */
 function fhreports_ecommerce_overview() {
   drupal_set_title(t('download reports'));
-  $base = 'admin/store/reports/'.REPORTS_FILE_NAME;
-  
+  $base_path = 'admin/store/reports';
+  $output = '';
   $num_total    = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction}"));
   $num_pending    = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE (payment_status = '%d' OR payment_status = '%d') AND (workflow = '%d' OR workflow = '%d' OR workflow = '%d' OR workflow = '%d')", payment_get_status_id('pending'), payment_get_status_id('payment received'), transaction_get_workflow_id("transaction received"), transaction_get_workflow_id("invoiced"), transaction_get_workflow_id("shipped"), transaction_get_workflow_id("awaiting customer response")));
   $num_processing = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE payment_status = '%d' AND (workflow = '%d' OR workflow = '%d' OR workflow = '%d' OR workflow = '%d')", payment_get_status_id('completed'), transaction_get_workflow_id("transaction received"), transaction_get_workflow_id("invoiced"), transaction_get_workflow_id("shipped"), transaction_get_workflow_id("awaiting customer response")));
@@ -90,27 +96,35 @@ function fhreports_ecommerce_overview() {
 
   /* Counter the new table width: 100% in drupal.css */
   $style = array('style' => 'width:auto;');
-
-  $header = array(array("data" => t('Orders'), 'colspan' => 2));
+  
+  $base = $base_path.'/transaction.'.REPORTS_FILE_EXTENSION;
+  $header = array();
   $row[] = array(array("data" => l(t("all orders"), $base, array(), "workflow=1,2,3,4,5,6"), 'align' => 'right', 'title' => t('All orders')), $num_total);
   $row[] = array(array("data" => l(t("payments pending"), $base, array(), "status=1,7&workflow=1,2,3,4"), 'align' => 'right', 'title' => t('payment status: Pending, workflow: Not Complete')), $num_pending);
   $row[] = array(array("data" => l(t("orders needing action"), $base, array(), "status=2&workflow=1,2,3,4"), 'align' => 'right', 'title' => t('payment status: Complete, workflow: Not Complete')), $num_processing);
   $row[] = array(array("data" => l(t("completed"), $base, array(), "workflow=6"), "align" => "right"), $num_completed);
 
-  $output = theme("table", $header, $row, $style) . '<br />';
+  $output .= theme('box', t('Transactions'), theme("table", $header, $row, $style));
   $row = null;
 
+  $base = $base_path.'/items.'.REPORTS_FILE_EXTENSION;
+  $header = array();
+  $row[] = array(array("data" => l(t("all orders"), $base, array(), "workflow=1,2,3,4,5,6"), 'align' => 'right', 'title' => t('All orders')), $num_total);
+  $row[] = array(array("data" => l(t("completed"), $base, array(), "workflow=6"), "align" => "right"), $num_completed);
+  $output .= theme('box', t('Items'), theme("table", $header, $row, $style));
+  $row = null;
+  
   $beg_month   = mktime(0, 0, 0, date('m'), 1, date('Y'));
   $num_orders  = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month));
   $mon_sales   = payment_format(db_result(db_query("SELECT SUM(gross) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month)));
 
-  $header = array(array("data" => t('Monthly figures'), 'colspan' => 2));
+  $base = $base_path.'/transaction.'.REPORTS_FILE_EXTENSION;
+
   $row[] = array(array("data" => l(t("monthly orders"), $base, array(), "date=>". date('m/d/Y', $beg_month)), "align" => "right"), $num_orders);
   $row[] = array(array("data" => t('monthly sales'), "align" => "right"), $mon_sales);
-
-  $output .= theme("table", $header, $row, $style) . '<br />';
+  $output .= theme('box', t('Monthly figures'), theme("table", $header, $row, $style) );
   $row = null;
-
+  /*
   if (variable_get('payment_recurring', 0)) {
     $num_orders  = db_result(db_query("SELECT COUNT(st.txnid) FROM {ec_transaction} AS st, {ec_product} AS p, {ec_transaction_product} AS stp WHERE p.nid = stp.nid AND st.txnid = stp.txnid AND stp.expires > %d AND payment_status = 2 AND workflow = 6", time()));
     $header = array(array("data" => t('Recurring Payments'), "colspan" => 2));
@@ -118,6 +132,7 @@ function fhreports_ecommerce_overview() {
     $output .= theme("table", $header, $row, $style) . '<br />';
     $row = null;
   }
+  */
   /*
   $beg_year       = mktime(0, 0, 0, 1, 1, date('Y'));
   $num_customers  = db_result(db_query("SELECT COUNT(DISTINCT uid) FROM {ec_transaction}"));
@@ -140,10 +155,13 @@ function fhreports_ecommerce_overview() {
  * 
  * If the search returns no data, redirects to search form
  */
-function fhreports_ecommerce_textfile() {
+function fhreports_ecommerce_textfile($type = 'transaction') {
   // Prepare parameters
   $query = fhreports_ecommerce_search_query();
-  list($header, $rows) = fhreports_ecommerce_data($query);
+
+  // Fetch data for this type of report
+  list($header, $rows) = fhreports_ecommerce_data($query, $type);
+  // Output data
   if($header && count($header) && $rows && count($rows)) {
     fhreports_output_textfile($header, $rows);
   } else {
@@ -210,7 +228,7 @@ function fhreports_query_string() {
  * @return
  *   list($header, $rows), both arrays of text data
  */
-function fhreports_ecommerce_data($query) {
+function fhreports_ecommerce_data($query, $type) {
   $show_details = TRUE;
   $show_permlink = TRUE;  
   // If we have a valid query object, let's hit the database.
@@ -219,7 +237,8 @@ function fhreports_ecommerce_data($query) {
     $select = array();
     $from   = array();
     $where  = array();
-
+    $join = array();
+    
     foreach ($query as $criterion => $criterion_value) {
       $data = array();
       $operator = null;
@@ -257,7 +276,7 @@ function fhreports_ecommerce_data($query) {
 
       $select[] = "st.*";
       $from[]   = "{ec_transaction} AS st";
-
+      
       switch ($criterion) {
         case "text":
           $from[]   = "{node} AS n";
@@ -391,95 +410,153 @@ function fhreports_ecommerce_data($query) {
       $get[] = _store_transactions_search_uri($criterion, $data);
     } //The end of a really really long for loop.
 
+    // Join Shipping data
+    $select[] = "sh.service";
+    $select[] = "sh.method";
+    $select[] = "sh.cost";
+    //$join[] = "LEFT JOIN {ec_shipping_transaction} AS sh ON st.txnid = sh.txnid";
+    $from[] = "{ec_shipping_transaction} AS sh";
+    $where[] = "AND st.txnid = sh.txnid";
+    
     // Now that we know the tables, apply the correct column display map.
-    $column_map = array(
-      'users'          => array('u.uid' => t('User')),
-      'ec_transaction' => array(
-        'st.txnid' => t('Transaction'), 
-        'st.uid' => t('User'), 
-        'st.payment_status' => t('Payment status'), 
-        'st.workflow' => t('Workflow'), 
-        'st.gross' => t('Amount'),  
-        'st.created' => t('Created'), 
-        'st.changed' => t('Changed'))
+    $column_map['user'] = array('uid' => t('User'));
+    $column_map['transaction'] = array(
+        'txnid' => t('Transaction'), 
+        'uid' => t('User'), 
+        'payment_status' => t('Payment status'), 
+        'workflow' => t('Workflow'), 
+        'created' => t('Created'), 
+        'changed' => t('Changed')
     );
-
+    $column_map['shipping'] = array(
+        'items' => t('Items ordered'),
+        'country' => t('Shipping country'),
+        //'service' => t('Service'),
+        'method' => t('Method'),
+        'cost' => t('Shipping cost'),
+        'items_cost' => t('Items cost'),
+        'gross' => t('Gross'), 
+    );
+    $column_map['items'] = array(
+        'country' => t('Shipping country'),
+        'method' => t('Method'),    
+        'nid' => t('Product Id'),
+        'title' => t('Product name'),
+        'qty' => t('Qty'),
+        'price' => t('Item price'),
+        'total' => t('Total price')
+    );
+    
+    // Depending on report type...
+    switch ($type) {
+      case 'items':
+        $select[] = 'stp.nid';
+        $select[] = 'stp.price';
+        $select[] = 'stp.qty';
+        $select[] = 'n.title';
+      
+        $from[]   = "{node} AS n";
+        $from[]   = "{ec_transaction_product} AS stp";
+        $where[]  = "AND n.vid = stp.vid";
+        $where[]  = "AND st.txnid = stp.txnid";
+        unset($column_map['shipping']);
+        break;
+      case 'transaction':
+        unset($column_map['items']);
+        break;    
+    }
+    
     // Expand all query parts.
     $sql_select = implode(', ', array_unique($select));
     $sql_from = implode(', ', array_unique($from));
+    $sql_join = implode(' ', $join);
     $sql_where = preg_replace('/^(and|or)/i', '', implode(' ', array_unique($where)));
 
     // Merge all table columns that exist in the current query into an array.
     $table = array();
-    foreach (_store_extract_tablenames($sql_from) as $key) {
-      if (array_key_exists($key, $column_map)) {
-        $table = array_merge($table, $column_map[$key]);
-
-        foreach ($column_map[$key] as $field => $value) {
-          $columns[]  = substr($field, strpos($field, '.') + 1);
-        }
-      }
+    foreach ($column_map as $key => $fields) {
+      $table = array_merge($table, $fields);
     }
-    $columns = array_unique($columns);
+    $columns = array_keys($table);
     $header = $table;
-    $header[] = t('Items ordered');
 
     // Get Data
     $sql_orderby = '';
 
-    $result = db_query("SELECT DISTINCT $sql_select FROM $sql_from ". ($sql_where ? "WHERE $sql_where" : '') ." $sql_orderby");
-    // Format output
+    $result = db_query("SELECT DISTINCT $sql_select FROM $sql_from $sql_join ". ($sql_where ? "WHERE $sql_where" : '') ." $sql_orderby");
     
+    // Build table
+    $no_data = '--';
     while ($data = db_fetch_object($result)) {
 
       // Before we hand over the table row to the table() function, some
       // fields need special formatting.
       foreach ($columns as $col) {
-
-        if (($col == 'created' || $col == 'changed' || $col == 'expires') && $data->$col != 0) {
-          $row[] = format_date($data->$col, 'small');
-        }
-        elseif ($col == 'uid') {
-          $username = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $data->$col));
-          if ($billing_address = db_fetch_object(db_query("SELECT * FROM {ec_transaction_address} WHERE txnid = %d AND type = 'billing'", $data->txnid))) {
-            $data->address['billing'] = $billing_address;
-          }
-          if ($data->address['billing']->firstname && $data->address['billing']->lastname) {
-            $name = $data->address['billing']->firstname . ' ' . $data->address['billing']->lastname;
-            $username = $data->$col ? $username : variable_get('anonymous', 'Anonymous');
-            if ($username) {
-              $name .= '('. $username .')';
+        switch($col) {
+          case 'created':
+          case 'changed':
+          case 'expires':
+            $row[] = $data->$col != 0 ? format_date($data->$col, 'small') : $no_data;
+            break;
+            
+          case 'uid':
+            $username = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $data->$col));
+            if ($billing_address = db_fetch_object(db_query("SELECT * FROM {ec_transaction_address} WHERE txnid = %d AND type = 'billing'", $data->txnid))) {
+              $data->address['billing'] = $billing_address;
             }
-          }
-          else {
-            $name = $username;
-          }
-          $row[] = $name;
-        }
-        elseif ($col == 'payment_status') {
-          $row[] = payment_get_status($data->$col);
-        }
-        elseif ($col == 'workflow') {
-          // invoiced = 2, shipped = 3
-          $row[] = transaction_get_workflow($data->$col);
-        } elseif ($col == 'gross') {
-          $row[] =  $data->$col; // Do not format for currency
-        }
-        else {
-          $row[] = $data->$col;
+            if ($data->address['billing']->firstname && $data->address['billing']->lastname) {
+              $name = $data->address['billing']->firstname . ' ' . $data->address['billing']->lastname;
+              $username = $data->$col ? $username : variable_get('anonymous', 'Anonymous');
+              if ($username) {
+                $name .= '('. $username .')';
+              }
+            }
+            else {
+              $name = $username;
+            }
+            $row[] = $name;
+            break;
+          
+          case 'payment_status':
+            $row[] = payment_get_status($data->$col);
+            break;
+            
+          case 'workflow':
+            // invoiced = 2, shipped = 3
+            $row[] = transaction_get_workflow($data->$col);
+            break;
+            
+          case 'country':
+            if ($shipping_address = db_fetch_object(db_query("SELECT * FROM {ec_transaction_address} WHERE txnid = %d AND type = 'shipping'", $data->txnid))) {
+              $data->address['shipping'] = $billing_address;
+            }
+            $row[] = fh_get_country_name($shipping_address->country);
+            break;
+            
+          case 'items':
+            // Count the number of items in this transaction
+            $row[] = db_result(db_query("SELECT SUM(qty) as items FROM {ec_transaction_product} WHERE txnid = %d", $data->txnid));
+            break;
+          case 'total':
+            $row[] = $data->qty * $data->price;
+            break;
+          case 'items_cost':
+            $row[] = $data->gross - $data->cost;
+            break;
+          default:
+            $row[] = $data->$col;
+            break;
         }
       }
-
-      // Count the number of items in this transaction
-      $num_items = db_result(db_query("SELECT SUM(qty) as items FROM {ec_transaction_product} WHERE txnid = %d", $data->txnid));
-      $row[] = format_plural($num_items, '1 item', '%count items');
-
+      
       $rows[] = $row;
       $row = null;
     }
 
     return array($header, $rows);
+    
   } else {
+    // No conditions. Should be show all ?
     return array(NULL, NULL);
   }
 }

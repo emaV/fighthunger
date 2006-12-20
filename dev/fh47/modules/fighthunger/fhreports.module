@@ -14,8 +14,8 @@
  */
 
 // Define file name and content type
-define('REPORTS_FILE_EXTENSION', 'csv');
-define('REPORTS_CONTENT_TYPE', 'text/csv');
+define('REPORTS_FILE_EXTENSION', 'xls');
+define('REPORTS_CONTENT_TYPE', 'application/vnd.ms-excel');
 
 /**
  * Implementation of hook_help().
@@ -163,7 +163,7 @@ function fhreports_ecommerce_textfile($type = 'transaction') {
   list($header, $rows) = fhreports_ecommerce_data($query, $type);
   // Output data
   if($header && count($header) && $rows && count($rows)) {
-    fhreports_output_textfile($header, $rows);
+    fhreports_output_tabfile($header, $rows);
   } else {
     drupal_set_message(t('Your search returned no data.'), 'error');
     drupal_goto('admin/store/search', fhreports_query_string());
@@ -180,14 +180,16 @@ function fhreports_output_csv($header, $rows) {
 /**
  * Produces text in tab separated format
  */
-function fhreports_output_textfile($header, $rows) {
-  fhreports_output_file($header, $rows, "\t", "\n", REPORTS_CONTENT_TYPE);
+function fhreports_output_tabfile($header, $rows) {
+  fhreports_output_file($header, $rows, "\t", "\n");
 }
 
 /**
  * Produces output file
  */
-function fhreports_output_file($header, $rows, $fieldseparator = ',', $newline = "\n", $contenttype = 'text/csv') {
+function fhreports_output_file($header, $rows, $fieldseparator = ',', $newline = "\n", $contenttype = REPORTS_CONTENT_TYPE) {
+  //drupal_set_header("Content-Disposition: attachment; filename=\"$filename\""); 
+  //header("Content-Type: application/vnd.ms-excel");  
   drupal_set_header('Content-type:'.$contenttype);
   if($header) {
     print implode($fieldseparator, $header).$newline;
@@ -203,7 +205,13 @@ function fhreports_output_file($header, $rows, $fieldseparator = ',', $newline =
  */
 function fhreports_output_format($data) {
   // Replaces decimal points
-  $data = str_replace('.', ',', $data);
+  if(is_numeric($data)) {
+    $data = str_replace('.', ',', $data);
+  } else {
+    // Replace tabs and line endings
+    $data = preg_replace("/\t/", "  ", $data);
+    $data = preg_replace("/\n/", "\\n", $data);
+  }
   return $data;
 }
 /**

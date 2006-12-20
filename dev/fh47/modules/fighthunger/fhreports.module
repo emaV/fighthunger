@@ -52,20 +52,14 @@ function fhreports_menu($may_cache) {
 function fhreports_form_alter($form_id, &$form) {
   switch($form_id) {
     case 'transactions_search_form':
-      $form['reports'] = array('#type' => 'fieldset', '#title' => t('Reports'));
+
       if ($query_string = fhreports_query_string()) {
-       $form['reports']['transaction'] = array(
-       '#value' => l(t('Download transaction data'), 'admin/store/reports/transaction.'.REPORTS_FILE_EXTENSION, array(), $query_string),
-       '#suffix' => "<br/>"
-       );
-       $form['reports']['items'] = array(
-       '#value' => l(t('Download items data'), 'admin/store/reports/items.'.REPORTS_FILE_EXTENSION, array(), $query_string),
-       '#suffix' => "<br/>"
-       );       
+        $links[] = l(t('Download transaction data'), 'admin/store/reports/transaction.'.REPORTS_FILE_EXTENSION, array(), $query_string);
+        $links[] = l(t('Download items data'), 'admin/store/reports/items.'.REPORTS_FILE_EXTENSION, array(), $query_string);
+  
       }
-      $form['reports']['more'] = array(
-       '#value' => l(t('See more reports'), 'admin/store/reports')
-      );
+      $links[] = l(t('See more reports'), 'admin/store/reports');
+      $form['reports'] = array('#type' => 'fieldset', '#title' => t('Reports'), '#value' => theme('item_list', $links));
   }
 }
 /**
@@ -214,6 +208,7 @@ function fhreports_output_format($data) {
   }
   return $data;
 }
+
 /**
  * Util: rebuild query string
  * 

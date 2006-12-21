@@ -9,6 +9,7 @@
  *  - Customizable options for shipcalc: weight unit and Exchange rate
  *  - Produces store pages, taxonomy based
  *  - Adds product list below store content type
+ *  - Extra inventory control plus inventory list
  * 
  * Developed by Jose A. Reyero,  http://www.reyero.net
  * for FightHunger.org
@@ -57,6 +58,17 @@ function fhcommerce_form_alter($form_id, &$form) {
     		unset($form['variations'][$id]);
     	}
     }
+  }
+  elseif($form_id == 'cart_view' && $_POST['op'] != t('Update Cart')) {
+    if(!fhcommerce_validate_cart()) {
+      // Prevent redirection
+      unset($_GET['destination']);
+      // Remove submit button in this case
+      unset($form['checkout']);
+    }
+  }
+  elseif (preg_match("|.*_checkout_form$|", $form_id) && !fhcommerce_validate_cart(FALSE)) {
+    drupal_goto('cart/view');
   }
 }
 
@@ -123,6 +135,12 @@ function fhcommerce_menu($may_cache) {
       'access' => user_access('access content'),
       'type' => MENU_CALLBACK,
     );
+    $items[] = array(
+      'path' => 'admin/store/inventory',
+      'title' => t('inventory'),
+      'callback' => 'fhcommerce_admin_inventory',
+      'access' => user_access('administer store')
+    );    
   } 
 
   return $items;
@@ -322,4 +340,71 @@ function fhcommerce_store_email_send($from, $to, $subject, $body, $headers = NUL
   $headers = "From: $from\nReply-to: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from" . $headers;
   return user_mail($to, $subject, $body, $headers);
 }
-?>
+
+/**
+ * Menu callback - Inventory page
+ * 
+ * Display all products in a table format with inventory information.
+ */
+function fhcommerce_admin_inventory() {
+  $header = array(
+    array('data' => t('nid'), 'field' => 'p.nid'),
+    array('data' => t('sku'), 'field' => 'p.sku'),
+    array('data' => t('title'), 'field' => 'n.title'),
+    array('data' => t('price'), 'field' => 'p.price'),
+    array('data' => t('type'), 'field' => 'p.ptype'),
+    array('data' => t('stock'), 'field' => 't.stock', 'sort' => 'asc'),
+  );
+  $sql = 'SELECT n.nid, n.title, p.*, t.stock, t.manage_stock, t.availability FROM {node} as n INNER JOIN {ec_product} as p ON n.vid = p.vid INNER JOIN {ec_product_tangible} t ON n.vid = t.vid WHERE t.manage_stock = 1 AND n.status = 1'. tablesort_sql($header);
+  $result = pager_query(db_rewrite_sql($sql), 50);
+
+  while ($data = db_fetch_object($result)) {
+    $rows[] = array($data->nid, $data->sku, l($data->title, "node/$data->nid"), product_adjust_price($data)+product_get_specials($data, true), $data->ptype, $data->stock);
+  }
+
+  $pager = theme('pager', NULL, 50, 0);
+  if (!empty($pager)) {
+    $rows[] = array(array('data' => $pager, 'colspan' => 6));
+  }
+
+  if ($rows) {
+    $output = theme('table', $header, $rows);
+  }
+  else {
+    $output =  t('<p>There are no products to view.');
+  }
+
+  return $output;
+}  
+
+/**
+ * Implementation of hook_productapi().
+ */
+function fhcommerce_productapi(&$node, $op, $data = null, $a4 = null, $type = '') {
+  switch($op) {
+    // Extra inventory control
+    case 'allowed in cart':
+      $cart = cart_get_items();
+      if(isset($cart[$node->nid]) && $node->manage_stock && $cart[$node->nid]->qty >= $node->stock) {
+        drupal_set_message(t('Out of stock for %name', array('%name' => $node->title)), 'error');
+      }
+      return FALSE;
+  }
+}
+
+/**
+ * Validate cart, extra inventory control
+ * @param $form_errors
+ *   Whether to set form errors
+ */
+function fhcommerce_validate_cart($form_errors = TRUE) {
+  $cart = cart_get_items();
+  $validate = TRUE;
+  foreach($cart as $item) {
+    if($item->manage_stock && $item->qty > $item->stock) {
+      if ($form_errors) form_set_error("items][$item->nid][qty", t('Out of stock, only %number %name remaining.', array('%number' => $item->stock, '%name' => $item->title)));
+      $validate = FALSE;
+    }
+  }
+  return $validate;
+}

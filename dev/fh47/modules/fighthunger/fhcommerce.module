@@ -387,8 +387,9 @@ function fhcommerce_productapi(&$node, $op, $data = null, $a4 = null, $type = ''
       $cart = cart_get_items();
       if(isset($cart[$node->nid]) && $node->manage_stock && $cart[$node->nid]->qty >= $node->stock) {
         drupal_set_message(t('Out of stock for %name', array('%name' => $node->title)), 'error');
+        return FALSE;
       }
-      return FALSE;
+      break;
   }
 }
 

@@ -478,6 +478,21 @@ function _print_cat($cat) {
 }
 
 /**
+ * Theme fhbat banner
+ *
+ * @param $node
+ *   Node object
+ * @return
+ *   Themed banner
+ */
+function phptemplate_fhbat_banner_view($node) {
+  $output = '<b>One child has been fed by:</b><br />';
+  $output .= theme('banner_view_upload', $node) . '<br />';
+  $output .= $node->content;
+  return "<center>$output</center>";
+}
+
+/**
  * Theme functions for aggregator block:
  * @ingroup themeable
  */

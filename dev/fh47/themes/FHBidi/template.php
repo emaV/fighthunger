@@ -573,69 +573,6 @@ function phptemplate_subproducts_in_cart($table) {
   return;
 }
 
-/**
- * Theme uploaded banner (image/swf)
- *
- * @param $node
- *   Node object
- * @return
- *   Themed banner
- */
-function phptemplate_banner_view_upload($node) {
-  $output = '';
-
-  // get first attached file
-  if ($node->files) {
-    foreach ($node->files as $key => $file) {
-      $file = (object)$file;
-      if ($file->list && !$file->remove) {
-        break; // we only need the first listed file
-      }
-    }
-  }
-
-  switch (_banner_type($file->filemime)) {
-    case 'image':
-      $img_attr = array(
-        'width'  => $node->width,
-        'height' => $node->height,
-        'alt'    => '',
-      );
-
-      $url_attr = array('title' => $node->url);
-      if ($node->target != '_none') {
-        $url_attr['target'] = $node->target;
-      }
-      $output = l(theme('banner_image', file_create_url($file->filepath), $img_attr), 'node/'. $node->nid, $url_attr, NULL, NULL, FALSE, TRUE);
-      break;
-    case 'swf':
-      $url = check_url(file_create_url($file->filepath));
-      $output = <<<EOD
-        <object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=6,0,29,0" width="$node->width" height="$node->height">
-          <param name="movie" value="$url">
-          <param name="quality" value="high">
-          <embed src="$url" quality="high" pluginspage="http://www.macromedia.com/go/getflashplayer" type="application/x-shockwave-flash" width="$node->width" height="$node->height"></embed>
-        </object>
-EOD;
-      break;
-    case 'text':
-      // FIXME: used a couple of places, move to separate function?
-      $path = file_create_path($file->filepath);
-      if ($content = file_get_contents($path)) {
-        if (strpos($content, '%url')) {
-          // %url present in content, replace with banner link
-          $output .= strtr($content, array('%url' => check_url(url('node/'. $node->nid))));
-        }
-        else {
-          // no %url in content, add link at the end
-          $output .= $content;
-          $output .= ' '. l(t('&raquo;'), 'node/'. $node->nid, array(), NULL, NULL, FALSE, TRUE);
-        }
-      }
-  }
-
-  return $output;
-}
 
 /********************************************************************
  * Themeable Functions
@@ -793,6 +730,5 @@ EOD;
   }
   print $output;
 }
-
 
 ?>

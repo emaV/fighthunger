@@ -182,7 +182,7 @@ global $user;
   $banner_nid = fhbat_banner_get($fhbat_category);
   
 // redirect using banner system
-  $redirect = "banner/$banner_nid";
+//  $redirect = "banner/$banner_nid";
 
   $message .= theme('fhbat_banner_view', node_load($banner_nid));
 

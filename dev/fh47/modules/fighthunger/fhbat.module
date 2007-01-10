@@ -160,6 +160,7 @@ global $user;
 
   $server = $_SERVER;
 
+// Update data on custom table 
   $bid = $form_values['bid'];
   $validation_type = $form_values['validation_type'];
   $data = ($user) ? $user->mail : ''; 
@@ -180,6 +181,23 @@ global $user;
 // get random banner
   $fhbat_category = variable_get('fhbat_category', 0);
   $banner_nid = fhbat_banner_get($fhbat_category);
+  $banner = node_load($banner_nid);
+  
+// Update banner statistics and redirect user to target URL
+  if ($banner) {
+    // don't update banner stats for site admin or banner owner
+    if ($user->uid != 1 && $user->uid != $banner->uid) {
+      db_query('UPDATE {banner} SET clicks = clicks + 1, clicks_day = clicks_day + 1, clicks_week = clicks_week + 1 WHERE nid = %d', arg(1));
+    }
+
+    if ($banner->clicks_max > 0 && ($banner->clicks + 1) == $banner->clicks_max) {
+      watchdog('special', t("banner: '%banner' %status, reached max of %clicks clicks.", array('%banner' => l($banner->title, 'node/'. $banner->id, NULL, NULL, FALSE, TRUE), '%status' => _banner_workflow(BANNER_BLOCKED), '%clicks' => $banner->max_clicks)));
+      db_query('UPDATE {banner} SET workflow = %d WHERE vid = %d', BANNER_BLOCKED, $banner->vid);
+//      _banner_refresh_cache(); // FIXME
+    }
+  }
+
+
   
 // redirect using banner system
 //  $redirect = "banner/$banner_nid";

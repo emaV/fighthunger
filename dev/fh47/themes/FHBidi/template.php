@@ -478,6 +478,43 @@ function _print_cat($cat) {
 }
 
 /**
+ * Theme uploaded banner (image/swf)
+ *
+ * @param $node
+ *   Node object
+ * @return
+ *   Themed banner
+ */
+function phptemplate_banner_view_upload($node) {
+  $output = '';
+
+  // get first attached file
+  if ($node->files) {
+    foreach ($node->files as $key => $file) {
+      $file = (object)$file;
+      if ($file->list && !$file->remove) {
+        break; // we only need the first listed file
+      }
+    }
+  }
+
+  $img_attr = array(
+    'width'  => $node->width,
+    'height' => $node->height,
+    'alt'    => '',
+  );
+
+  $url_attr = array('title' => $node->url);
+  if ($node->target != '_none') {
+    $url_attr['target'] = $node->target;
+  }
+  $output = l(theme('banner_image', file_create_url($file->filepath), $img_attr), $node->url, $url_attr, NULL, NULL, FALSE, TRUE);
+
+  return $output;
+}
+
+
+/**
  * Theme fhbat banner
  *
  * @param $node

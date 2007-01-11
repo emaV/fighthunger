@@ -125,6 +125,7 @@ function globalcollect_proceed($donation){
 function globalcollect_check_status($donation, $cancel = FALSE){
   // DEBUG
   //print "<br/> DEBUG: Checking status for donation $donation->trid..";
+  $oldstatus = $donation->status;
   // Request
   $order = array('ORDERID' => $donation->trid);
   $params = array('ORDER' => $order);
@@ -158,7 +159,19 @@ function globalcollect_check_status($donation, $cancel = FALSE){
     //print debug_xml($fullresponse, "RESPONSE ERROR");
     //print debug_array($response, "Response object");
   }
-  return $status;
+  // Send notification if status changed
+  if($donation->status != $oldstatus) {
+      switch($donation->status) {
+        case 'accepted':
+        case 'cleared':
+          module_invoke('donation', 'transaction', $donation, TRUE);
+          break;
+        case 'timeout':
+        case 'error':
+          module_invoke('donation', 'transaction', $donation, FALSE);
+      }
+  }
+  return $donation->status;
 }
 
 // Translates globalcollect status into our transaction status

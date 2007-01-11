@@ -198,6 +198,15 @@ function donation_settings() {
   $form['donation_presentation'] = array('#type' => 'textarea', '#title' => t('Presentation'), '#default_value' => variable_get('donation_presentation', ''), '#rows' => 10, '#description' => t('Presentation text for plain donations. This may contain HTML markup.'));
   $form['donation_presentation_teaser'] = array('#type' => 'textarea', '#title' => t('Short Presentation'), '#default_value' => variable_get('donation_presentation_teaser', ''), '#rows' => 10, '#description' => t('Short presentation text for user forms. This may contain HTML markup.'));
   $form['donation_user_message'] = array('#type' => 'textfield', '#title' => t('User message'), '#default_value' => variable_get('donation_user_message', t('Make a donation')), '#description' => t('Donation message for user profile page.'));
+  
+  $form['email_success'] = array('#type' => 'fieldset', '#title' => t('Success e-mail'), '#description' => t('E-mail to send to the user uppon successful donation.'));
+  $form['email_success']['donation_success_subject'] = array('#type' => 'textfield', '#title' => t('Subject'), '#default_value' => variable_get('donation_success_subject', t('Thanks for your donation')));
+  $form['email_success']['donation_success_body'] = array('#type' => 'textarea', '#title' => t('Content'), '#default_value' => variable_get('donation_success_body', ''), '#rows' => 10);
+
+  $form['email_fail'] = array('#type' => 'fieldset', '#title' => t('Failed donation e-mail'), '#description' => t('E-mail to send to the user after failed donation attempts.'));
+  $form['email_fail']['donation_fail_subject'] = array('#type' => 'textfield', '#title' => t('Subject'), '#default_value' => variable_get('donation_fail_subject', t('Thanks for your donation')));
+  $form['email_fail']['donation_fail_body'] = array('#type' => 'textarea', '#title' => t('Content'), '#default_value' => variable_get('donation_fail_body', ''), '#rows' => 10);
+  
   return $form;
 }
 
@@ -624,6 +633,21 @@ function donation_form_submit($form_id, $form_values){
   // Check out this donation
   $donation->validated = TRUE;
   donation_checkout($donation); // This should not return
+}
+
+/**
+ * Callback for donation transaction
+ * 
+ * Sends e-mail depending on success / failure
+ */
+function donation_transaction($donation, $success) {
+  $account = user_load(array('uid' => $donation->uid));
+  $subject = $success ? variable_get('donation_success_subject', t('Thanks for your donation')) : variable_get('donation_fail_subject', t('Thanks for your donation'));  
+  $body = $success ? variable_get('donation_success_body', t('Thanks for your donation')) : variable_get('donation_fail_body', '');  
+  $from = variable_get('site_mail', ini_get('sendmail_from'));
+  if($account->mail && $subject & $body ) {
+    user_mail($account->mail, $subject, $body, "From: $from\nReply-to: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from");
+  }
 }
 
 /**

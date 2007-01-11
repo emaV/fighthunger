@@ -478,6 +478,18 @@ function _print_cat($cat) {
 }
 
 /**
+ * Theming forward form
+ *
+ * @param $form
+ *   form array
+ */
+function phptemplate_forward_form($form) {
+  $form['message']['#title'] = t('Tell a friend about FightHunger.org');
+  $form['message']['#collapsed'] = FALSE;
+  return form_render($form);
+}
+
+/**
  * Format email forward
  *
  * @param vars

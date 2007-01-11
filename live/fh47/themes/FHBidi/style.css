@@ -718,3 +718,8 @@ ul.block_menu li {
 .product-list div.price {
   display: inline;
 }
+
+#fhbat_page .form-submit {
+  background-color:#ff6600;
+  color:#fff;
+}

@@ -695,7 +695,7 @@ function phptemplate_store_invoice($txn, $print_mode = TRUE, $trial = FALSE) {
   }
 
   if ($txn->items) {
-    $header = array(t('Quantity'), t('Item'), t('Price'));
+    $header = array(t('Quantity'), t('Item'), t('Unit Price'), t('Total Price'));
 
     $shippable = FALSE;
     foreach ($txn->items as $p) {
@@ -703,8 +703,9 @@ function phptemplate_store_invoice($txn, $print_mode = TRUE, $trial = FALSE) {
       if (product_is_shippable($p->vid)) $shippable = TRUE;
 
       $price = store_adjust_misc($txn, $p);
+      $price_total = product_has_quantity($p) ? $p->qty * $price : $price;
 
-      $subtotal += (product_has_quantity($p) ? $p->qty * $price : $price);
+      $subtotal += $price_total;
       $details = '';
       if (is_array($p->data)) {
         foreach ($p->data as $key => $value) {
@@ -717,19 +718,25 @@ function phptemplate_store_invoice($txn, $print_mode = TRUE, $trial = FALSE) {
         }
       }
 
-      $row[] = array(array('data' => $p->qty, 'align' => 'center', 'valign' => 'top'), '<em>'. check_plain($p->title). '</em> '. (($prod->sku != '') ? "[". check_plain($prod->sku) ."]" : ''). '<br />'. $details, array('data' => payment_format($price), 'valign' => 'top'));
+      $row[] = array(array('data' => $p->qty, 
+                           'align' => 'center', 
+                           'valign' => 'top'), 
+                           '<em>'. check_plain($p->title). '</em> '. (($prod->sku != '') ? "[". check_plain($prod->sku) ."]" : ''). '<br />'. $details, 
+                     array('data' => payment_format($price), 'valign' => 'top', 'align' => 'right'),
+                     array('data' => payment_format($price_total), 'valign' => 'top', 'align' => 'right')
+                     );
     }
 
     if (is_array($txn->misc)) {
       foreach ($txn->misc as $misc) {
         if (!$misc->seen) {
-          $row[] = array(array('data' => t("<strong>{$misc->description}</strong>: %price", array('%price' => payment_format($misc->price))), 'colspan' => 3, 'align' => 'right'));
+          $row[] = array(array('data' => t("<strong>{$misc->description}</strong>: %price", array('%price' => payment_format($misc->price))), 'colspan' => 4, 'align' => 'right'));
         }
       }
     }
 
-    $row[] = array(array('data' => '<hr size="1" noshade="noshade" />', 'colspan' => 3, 'align' => 'right'));
-    $row[] = array(array('data' => t('<strong>Total:</strong> %total', array('%total' => payment_format(store_transaction_calc_gross($txn)))), 'colspan' => 3, 'align' => 'right'));
+    $row[] = array(array('data' => '<hr size="1" noshade="noshade" />', 'colspan' => 4, 'align' => 'right'));
+    $row[] = array(array('data' => t('<strong>Total:</strong> %total', array('%total' => payment_format(store_transaction_calc_gross($txn)))), 'colspan' => 4, 'align' => 'right'));
   }
 
   $payment_info  = t('<div><strong>Ordered On:</strong> %order-date</div>', array('%order-date' => format_date($txn->created)));

@@ -1,0 +1,372 @@
+<?php
+// $Id: fhwalk.module,v 0.1 2007/01/09 09:02:48 ema Exp $
+
+/**
+ * @file
+ * Enables users to manage fh wtw events .
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function fhwalk_help($section) {
+  switch ($section) {
+    case 'admin/help#fhwalk':
+      return '<p>'. t('The fhwalk module is used to manage walk events') .'</p>';
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Allows managing walk events.');
+    case 'node/add#fhwalk':
+      return t('Create walk events.');
+  }
+}
+
+/**
+ * Implementation of hook_node_info().
+ */
+function fhwalk_node_info() {
+  return array('fhwalk' => array('name' => 'fhwalk', 'base' => 'fhwalk'));
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function fhwalk_perm() {
+  return array('admin fhwalk', 'create fhwalk');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function fhwalk_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('create fhwalk');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('admin fhwalk')) {
+      return TRUE;
+    }
+  }
+
+  if ($op == 'view') {
+    return TRUE;
+  }
+
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function fhwalk_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'node/add/fhwalk', 
+      'title' => t('fhwalk event'),
+//      'access' => user_access('create wtw events')
+      'access' => TRUE
+    );
+  } else {
+  
+    if (variable_get('fhwalk_vocabulary', 0)<>0) {
+      $terms = taxonomy_get_tree(variable_get('fhwalk_vocabulary', 0));
+      foreach($terms as $term) {
+        $synonyms = taxonomy_get_synonyms($term->tid);
+        $synonym = $synonyms[0];
+        $items[] = array(
+          'path' => $synonym,
+          'callback' => 'fhwalk_overview',
+          'callback arguments' => array($synonym, $term->tid),
+          'type' => MENU_CALLBACK,
+          'access' => TRUE
+        );
+      }
+    }
+
+/*
+        $items[] = array(
+          'path' => 'wtw04',
+          'title' => t('wtw04'),
+          'callback' => 'fhwalk_overview',
+                       'type' => MENU_CALLBACK,
+          'callback arguments' => '26',
+          'access' => TRUE
+        );
+        $items[] = array(
+          'path' => 'wtw07',
+          'title' => t('wtw07'),
+          'callback' => 'fhwalk_overview',
+          'callback arguments' => '27',
+          'access' => TRUE
+        );
+
+        $items[] = array(
+          'path' => 'pippo',
+          'title' => t('pippo'),
+                       'type' => MENU_CALLBACK,
+          'callback' => 'fhwalk_overview',
+          'callback arguments' => '#pippo',
+          'access' => TRUE);
+*/
+  }
+
+  return $items;
+}
+
+
+/**
+ * Implementation of hook_settings().
+ */
+function fhwalk_settings() {
+  
+  $term_options = array();
+  $vocabularies = taxonomy_get_vocabularies('fhwalk');
+
+  foreach($vocabularies as $voc) {
+    $voc_options[$voc->vid] = "$voc->name";
+  }  
+  $form['fhwalk_vocabulary'] = array(
+    '#type' => 'radios', 
+    '#title' => t('fhwalk vocabulary'),
+    '#default_value' => variable_get('fhwalk_vocabulary', 0),
+    '#options' => $voc_options
+  );
+  
+  return $form;
+}
+
+/**
+ * Implementation of hook_form().
+ */
+function fhwalk_form(&$node) {
+  // general settings
+  $form['title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Title'),
+    '#required' => TRUE,
+    '#default_value' => $node->title,
+    '#description' => t("Name of this walk."),
+    '#required' => TRUE,
+    '#weight' => -9,
+  );
+  $form['body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Basic Information'),
+    '#default_value' => $node->body,
+    '#rows' => 5,
+    '#description' => t('Enter basic information for the walk.'),
+    '#weight' => -8,
+  );
+  $form['format'] = filter_form($node->format);
+  $form['format']['#weight'] = -7;
+
+// add forms for partner settings
+
+  return $form;
+}
+
+
+
+/**
+ * Custom edit form
+ */
+function fhwalk_form_alter($form_id, &$form) {
+//  if ($form_id == 'fhwtw_event_node_form') {
+  if ($form_id == 'fhwalk_node_form') {
+  
+// set proper taxonomy choices
+    if (isset($form['taxonomy'])) {
+      $tid = variable_get('fhwalk_vocabulary', 0);
+    }
+
+// change location form
+  if (isset($form['location'])) {
+    $form['location']['name']['#title'] = t('Start Location');  
+    $form['location']['street']['#title'] = t('Street Address');  
+    $form['location']['street']['#required'] = 1;  
+    $form['location']['additional']['#title'] = t('Route');  
+    $form['location']['additional']['#type'] = 'textarea';
+    unset($form['location']['additional']['#size']);
+    unset($form['location']['additional']['#maxlength']);
+  }
+
+
+/*  
+// modify date
+    if (isset($form['event_start'])) {
+
+      $form['fhevent'] = array(
+        '#type'   => 'fieldset',
+        '#title'  => 'Event date',
+        '#weight' => 10);
+              
+//      $form['fhevent']['date'] =  array('#value' => t('Date'));
+      $form['fhevent']['date']['start_day'] = $form['event_start']['date']['start_day'];
+      $form['fhevent']['date']['start_month'] = $form['event_start']['date']['start_month'];
+      $form['fhevent']['date']['start_year'] = $form['event_start']['date']['start_year'];
+
+      unset( $form['event_start']['date']['start_hour']['#prefix'] );
+//      $form['fhevent']['start'] =  array('#value' => t('Start Time'));
+      $form['fhevent']['start']['start_hour']   = $form['event_start']['date']['start_hour'];
+      $form['fhevent']['start']['start_minute'] = $form['event_start']['date']['start_minute'];
+ //     unset($form['event_start']);       
+    };
+    if (isset($form['event_end'])) {
+      unset( $form['event_end']['date']['end_hour']['#prefix'] );
+ //     $form['fhevent']['end'] =  array('#value' => '<label>' . t('End Time') . '</label>') ;
+//     $form['fhevent']['end']['#prefix'] =  '<label>' . t('End Time') . '</label>' ;
+      $form['fhevent']['end']['end_hour']   = $form['event_end']['date']['end_hour'];
+      $form['fhevent']['end']['end_minute'] = $form['event_end']['date']['end_minute'];
+ //     unset($form['event_end']);       
+    }
+*/      
+    if (isset($form['timezone'])) unset($form['timezone']);
+ 
+// delete product form
+    if (isset($form['product_transform'])) unset($form['product_transform']);
+    
+// delete og form
+    if (isset($form['og_nodeapi'])) unset($form['og_nodeapi']);
+  
+// reorder
+//    if (isset($form['fhevent']))    $form['fhevent']['#weight'] = 1;
+    if (isset($form['event_start'])) $form['event_start']['#weight'] = 1;
+    if (isset($form['event_end']))   $form['event_end']['#weight'] = 2;
+    if (isset($form['location']))    $form['location']['#weight'] = 3;
+    if (isset($form['donation']))    $form['donation']['#weight'] = 4;
+
+    if (variable_get('fhwalk_vocabulary', 0)<>0) {
+      $terms = taxonomy_get_tree(variable_get('fhwalk_vocabulary', 0));
+      foreach($terms as $term) {
+        $synonyms = taxonomy_get_synonyms($term->tid);
+        $synonym = $synonyms[0];
+        
+        $output .= "<h4>$term->name - $synonym</h4>" . print_r($term, true);
+      }
+      $output .= "<hr />";
+    }
+
+
+
+    foreach ($form as $category => $items) {
+      if (is_array($items)) {
+        $output .= "<h4>$category - weigth:" . $items['#weight'] . "</h4>";
+      }
+      $output .= print_r($items, true);
+    }
+    $form['dumpq'] = array('#type' => 'markup', '#value' => $output,  '#weight' => 15);
+
+  }
+
+  return $form;
+}
+
+function theme_fhwalk_overview() {}
+
+function theme_fhwalk_walklist($walk_list) {
+  $countrywithstate = array('us', 'au', 'br', 'ca');
+  if($walk_list) {
+    $out  = '<h4>' . t('events in your country:') . "</h4>\n";
+    $out .= "<ul>\n";
+    foreach($walk_list as $walk) {
+      $location = $walk['city'];    
+      if( in_array( $walk['country'], $countrywithstate ) && ($walk['province']<>'') ) {
+        $location .= ' [' . $walk['province'] . ']';
+      }    
+      $url = l($walk['title'], 'node/' . $walk['nid']);
+      $out  .= "<li>$location: $url</li>\n"; 
+    }
+    $out  .= "</ul>\n";
+  }
+  return $out;
+}
+
+
+function fhwalk_overview_submit($form_id, $form_values) {
+  $msg = print_r($form_values, true);
+  drupal_set_message("pippo dice: $msg");
+  return $form_values['synonym'] . '/' . $form_values['country'];  
+}
+
+function _fhwalk_getwalks($tid, $country='%') {
+  $sql = "SELECT n.nid, n.title, l.city, l.province, l.country FROM {node} n " .
+          "LEFT JOIN {location} l ON n.nid = l.oid " . 
+          "LEFT JOIN {term_node} tn ON n.nid= tn.nid " . 
+          "WHERE tn.tid = %d AND l.country='%s' " . 
+          "ORDER BY l.city"; 
+  $rs = db_query($sql, $tid, $country);
+  $walk_list = array();
+  while ($walk_data = db_fetch_array($rs)) {
+    $walk_list[$walk_data['nid']] =  $walk_data;
+  }
+  return $walk_list;
+}
+
+function fhwalk_overview($synonym, $tid, $country='-' ) {
+
+  $term = taxonomy_get_term($tid);
+  drupal_set_title($term->name);
+  
+// Map
+  $gmap_string = "[gmap |id=map |center=40, 0 |zoom=3 |width=500px |height=400px |control=Small |type=Map| |feed=blue::/taxonomy/term/$tid/0/feed ]";
+  $gmap_array = gmap_parse_macro($gmap_string);
+
+
+//Overview
+  $fhwalk_overview['term'] = $term;
+
+// Country selection
+  $form['tid'] = array('#type' => 'hidden', '#value' => $tid);
+  $form['synonym'] = array('#type' => 'hidden', '#value' => $synonym);
+  $form['country'] = array(
+    '#type' => 'select',
+    '#title' => t('Select a country'),
+    '#options' => fh_get_country_list(),
+    '#default_value' => $country,
+    '#attributes' => array('onchange' => 'submit()'),
+  );
+  $form['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Submit'), 
+    '#attributes' => array( 'style' => 'visibility:hidden' ) //trick to use fhwalk_overview_submit
+  );
+  $country_search =  drupal_get_form('fhwalk_overview', $form);
+  
+// Walk list
+  if( $country <> '-') {
+    $walk_list = _fhwalk_getwalks($tid, $country);
+  }
+
+
+// print node
+  $out .= gmap_draw_map($gmap_array);
+  $out .= $term->description;
+  $out .= $country_search;
+  $out .= theme('fhwalk_walklist', $walk_list);
+      
+    
+// debug
+  $out .= '<hr />' . print_r($term, true);
+  $out .= '<hr />' . "tid: $tid";
+  $out .= '<hr />' . "country: $country";
+  $out .= '<hr />' . "walk_list: " . print_r($walk_list, true);
+  
+  return $out;
+}
+
+/*
+INSERT INTO `term_node` SELECT nid, 32 AS tid
+FROM `node`
+WHERE `type` = 'gathering-2'
+*/
+
+/* gmap key
+dev.fighthunger.org 
+ABQIAAAAbfOVykIDfWkLXGy0_OSL9BT-NiS1gmUMH_veYwnhh1Z0wNDNpBRzS1akGbaMeYKibiyI1jmmBu83RA
+
+www.fighthunger.org 
+ABQIAAAAbfOVykIDfWkLXGy0_OSL9BRgf3C9hf3-9QMTBHhlaRzlk7IiGRSANts4wuV54Vxca7J9SJp4BcALeQ
+*/

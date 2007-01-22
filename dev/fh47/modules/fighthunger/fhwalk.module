@@ -698,8 +698,8 @@ function theme_fhwalk_walklist($walk_list) {
 }
 
 function fhwalk_overview_submit($form_id, $form_values) {
-  $msg = print_r($form_values, true);
-  drupal_set_message("pippo dice: $msg");
+//  $msg = print_r($form_values, true);
+//  drupal_set_message("pippo dice: $msg");
   return $form_values['synonym'] . '/' . $form_values['country'];  
 }
 
@@ -783,7 +783,7 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
   );
   $fhwalk_overview['country'] = $country;
   $fhwalk_overview['country_search_form'] = $form;
-  $fhwalk_overview['country_search'] = drupal_get_form('fhwalk_overview_form', $form);
+  $fhwalk_overview['country_search'] = drupal_get_form('fhwalk_overview', $form);
     
 // Walk list
   if( $country <> '-') {

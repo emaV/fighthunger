@@ -31,7 +31,10 @@ function fhwalk_node_info() {
  * Implementation of hook_perm().
  */
 function fhwalk_perm() {
-  return array('admin fhwalk', 'create fhwalk');
+  $out = array('admin fhwalk',
+               'create fhwalk',
+               'team fhwalk');
+  return $out;
 }
 
 /**
@@ -69,6 +72,12 @@ function fhwalk_menu($may_cache) {
 //      'access' => user_access('create wtw events')
       'access' => TRUE
     );
+    $items[] = array(
+      'title' => t('fhwalk'),
+      'path' => 'admin/fhwalk', 
+      'access' => user_access('admin fhwalk'),
+      'callback' => 'fhwalk_admin',
+    );    
   } else {
   
     if (variable_get('fhwalk_vocabulary', 0)<>0) {
@@ -139,9 +148,62 @@ function fhwalk_settings() {
 }
 
 /**
+ * Implementation of hook_load().
+ */ 
+function fhwalk_load($node) {
+
+
+
+  $fields = "signup_status, signup_count, signup_pad, signup_show";
+  $sql = "SELECT $fields FROM {gathering_node} WHERE nid = %d";
+  $additions = db_fetch_object(db_query($sql, $node->nid));
+  return $additions;
+}
+
+/**
+ * Implementation of hook_insert().
+ */ 
+
+function fhwalk_insert($node) {
+  $fields = "signup_status, signup_count, signup_pad, signup_show";
+  $sql = "INSERT INTO {gathering_node} (nid, $fields) VALUES (%d, %d, %d, %d, %d)";
+  db_query($sql, $node->nid, $node->signup_status, $node->signup_count, $node->signup_pad, $node->signup_show); 
+}
+
+/**
+ * Implementation of hook_update().
+ */ 
+function fhwalk_update($node) {
+  $fields = "signup_status = %d, signup_count = %d, signup_pad = %d, signup_show = %d";
+  $sql = "UPDATE {gathering_node} SET $fields WHERE nid = %d";
+  db_query($sql, $node->signup_status, $node->signup_count, $node->signup_pad, $node->signup_show, $node->nid); 
+} 
+
+/**
+ * Implementation of hook_submit().
+ */ 
+function fhwalk_submit($node) {
+// recover end date
+  $node->end_day  =  $node->start_day;
+  $node->end_month = $node->start_month;
+  $node->end_year =  $node->start_year;
+  
+  $msg = print_r($node, true);
+  drupal_set_message($msg);
+}
+
+
+/**
  * Implementation of hook_form().
  */
 function fhwalk_form(&$node) {
+
+// callback parameters
+  if(arg(1)=='add') {
+    $form['H_tid'] = array('#type' => 'hidden', '#value' => (arg(3) ? arg(3) : 0) );
+    $form['H_country'] = array('#type' => 'hidden', '#value' => (arg(4) ? arg(4) : '-') );
+  }
+
   // general settings
   $form['title'] = array(
     '#type' => 'textfield',
@@ -154,7 +216,7 @@ function fhwalk_form(&$node) {
   );
   $form['body'] = array(
     '#type' => 'textarea',
-    '#title' => t('Basic Information'),
+    '#title' => t('Additional Information'),
     '#default_value' => $node->body,
     '#rows' => 5,
     '#description' => t('Enter basic information for the walk.'),
@@ -163,81 +225,258 @@ function fhwalk_form(&$node) {
   $form['format'] = filter_form($node->format);
   $form['format']['#weight'] = -7;
 
+// signup form
+  $form['signup'] = array(
+    '#type'   => 'fieldset',
+    '#title'  => t('Signup settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#weight' => 5,
+  );
+  $options = array(0 => t('no approvation required'),
+                   1 => t('approvation required'),
+                   2 => t('only invitation'),
+                   3 => t('closed event'));
+  $form['signup']['signup_status'] = array(
+    '#type' => 'select',
+    '#title' => t('Signup Allowance'),
+    '#default_value' => $node->signup_status,
+    '#options' => $options,
+    '#description' => t('Select event partecipation mode.'),
+  );
+  $form['signup']['signup_pad'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Signup Padding'),
+    '#default_value' => $node->signup_pad,
+    '#size' => 4,
+    '#maxlength' => 4,
+    '#description' => t('Set max number of signup; set to -1 to exclude any check (i.e. not max subscribers)'),
+  );
+  $form['signup']['signup_show'] = array(
+    '#type' => 'select',
+    '#title' => t('Show signups'),
+    '#default_value' => $node->signup_show,
+    '#options' => array(TRUE => t('yes'), FALSE => t('no')),
+    '#description' => t('Show signup on walk page.'),
+  );
+
+
+/*
+    $form4 .= form_select(t("Allow Signups"),"signup_status",$node->signup_status,array(0=>"No",1=>"Yes"));
+    $form4 .= form_textfield(t("Signup Padding"),"signup_pad",$node->signup_pad,30,10);
+    $form4 .= form_select(t("Show Signups"),"signup_show",$node->signup_show,array(0=>"No",1=>"Yes"));
+    $output .= form_group("Signup settings",$form4);
+
+  $sform .= form_textfield(t("My guests"),"guests","",5,5,"I am bringing this many others to walk with me.");
+  $sform .= form_textarea(t("Comment (optional)"),"comment","",40,5,"Feel free to leave a comment for the other attendees.");
+  $sform .= form_checkbox(t("Show my comment in the attendee list."),"opencomment",1,"")."<br/>";
+  $sform .= form_checkbox(t("I would like to volunteer to help organize this event."),"volunteer",1,"");
+  $sform = theme("form_group","Signup Information",$sform);
+*/
+
 // add forms for partner settings
 
   return $form;
 }
 
-
+function _fhwalk_countryprovinces($country='zzz') {
+  $province_listing_function = 'location_province_list_'. $country;
+  // Trying to return options in case of only 1 country is configured into system or if $country != null
+  if (function_exists($province_listing_function)) {
+    $province_list = $province_listing_function();
+    if (count($province_list)) {
+      $options_list[$country .'000'] = '[ ----- '. t('MAKE A SELECTION') .' ----- ]';
+      foreach ($province_list as $province_code => $province_name) {
+        $options_list[$country . '-' . $province_code] = $province_name;
+      }
+    }
+  }
+  return $options_list;
+}
 
 /**
  * Custom edit form
  */
 function fhwalk_form_alter($form_id, &$form) {
+global $user;
+
 //  if ($form_id == 'fhwtw_event_node_form') {
-  if ($form_id == 'fhwalk_node_form') {
+  switch ($form_id) {
   
+    case 'fhwalk_node_form': 
+/*
+    $form['taxdump1'] = array('#value' => '<hr/>' . print_r($form['taxonomy'] , true).'<hr/>');  
+*/  
+
 // set proper taxonomy choices
-    if (isset($form['taxonomy'])) {
-      $tid = variable_get('fhwalk_vocabulary', 0);
-    }
+      $vid = variable_get('fhwalk_vocabulary', 0);
+// recover $tid and reset $form['taxonomy'][$vid]
+      if(isset($form['H_tid'])) {
+        $tid = $form['H_tid']['#value'];
+        list($day, $month, $year) = explode("/", variable_get("fhwalk_date_$tid", '13/05/2007'));
+        $form['event_start']['date']['start_day']['#default_value']   = $day;
+        $form['event_start']['date']['start_month']['#default_value'] = $month;
+        $form['event_start']['date']['start_year']['#default_value']  = $year;
+        unset($form['H_tid']);
+      } else {
+        $tid = $form['taxonomy'][$vid]['#default_value'][0];
+      }
+      $tid_form = array(
+        '#type'  => 'hidden', 
+        '#value' => $tid,
+      );
+// check for other vocabularies
+      unset($form['taxonomy'][$vid]);
+      $i = 0;
+      foreach($form['taxonomy'] as $key => $value) if(is_numeric($key)) $i++;
+  
+      if ($i==0) {
+// only $vid      
+        unset($form['taxonomy']);
+        $form['taxonomy'] = array(
+          '#type' => 'hidden',
+          '#tree' => TRUE,
+        );
+      }
+      $form['taxonomy'][$vid] = $tid_form;
+    
+
+/*
+    $form['taxdump2'] = array('#value' => '<hr/>' .  print_r($form['taxonomy'], true) . '<hr/>');  
+    $form['taxdump3'] = array('#value' => "i = $i<hr/>");  
+*/
+
 
 // change location form
-  if (isset($form['location'])) {
-    $form['location']['name']['#title'] = t('Start Location');  
-    $form['location']['street']['#title'] = t('Street Address');  
-    $form['location']['street']['#required'] = 1;  
-    $form['location']['additional']['#title'] = t('Route');  
-    $form['location']['additional']['#type'] = 'textarea';
-    unset($form['location']['additional']['#size']);
-    unset($form['location']['additional']['#maxlength']);
-  }
+      $form['location']['name']['#title'] = t('Start Location');  
+      $form['location']['street']['#title'] = t('Street Address');  
+      $form['location']['street']['#required'] = 1;  
+      $form['location']['additional']['#title'] = t('Route');  
+      $form['location']['additional']['#type'] = 'textarea';
+      unset($form['location']['additional']['#size']);
+      unset($form['location']['additional']['#maxlength']);
+      if(isset($form['H_country'])) {
+        $form['location']['country']['#default_value'] = $form['H_country']['#value'];
+      }
+      if( $form['location']['country']['#default_value']<>'' ) {
+        $form['location']['province']['#options'] = _fhwalk_countryprovinces($form['location']['country']['#default_value']);
+      }
 
-
-/*  
-// modify date
-    if (isset($form['event_start'])) {
-
-      $form['fhevent'] = array(
-        '#type'   => 'fieldset',
-        '#title'  => 'Event date',
-        '#weight' => 10);
-              
-//      $form['fhevent']['date'] =  array('#value' => t('Date'));
-      $form['fhevent']['date']['start_day'] = $form['event_start']['date']['start_day'];
-      $form['fhevent']['date']['start_month'] = $form['event_start']['date']['start_month'];
-      $form['fhevent']['date']['start_year'] = $form['event_start']['date']['start_year'];
-
+      
+// modify date form
+/*
+  $form[$prefix .'_day'] = array(
+    '#prefix' => '<div class="container-inline"><div class="day">',
+  $form[$prefix .'_hour'] = array(
+    '#prefix' => '</div>&#8212;<div class="time">',
+  $form[$prefix .'_close'] = array(
+    '#type' => 'markup',
+    '#value' => '</div></div>');
+*/
       unset( $form['event_start']['date']['start_hour']['#prefix'] );
-//      $form['fhevent']['start'] =  array('#value' => t('Start Time'));
-      $form['fhevent']['start']['start_hour']   = $form['event_start']['date']['start_hour'];
-      $form['fhevent']['start']['start_minute'] = $form['event_start']['date']['start_minute'];
- //     unset($form['event_start']);       
-    };
-    if (isset($form['event_end'])) {
+      unset( $form['event_start']['date']['start_day']['#prefix'] );
       unset( $form['event_end']['date']['end_hour']['#prefix'] );
- //     $form['fhevent']['end'] =  array('#value' => '<label>' . t('End Time') . '</label>') ;
-//     $form['fhevent']['end']['#prefix'] =  '<label>' . t('End Time') . '</label>' ;
-      $form['fhevent']['end']['end_hour']   = $form['event_end']['date']['end_hour'];
-      $form['fhevent']['end']['end_minute'] = $form['event_end']['date']['end_minute'];
- //     unset($form['event_end']);       
-    }
-*/      
-    if (isset($form['timezone'])) unset($form['timezone']);
+      unset( $form['event_end']['date']['end_day']['#prefix'] );
+
+  // ...minutes options (with leading 0s)
+      for ($i = 0; $i <= 59; $i += 5) $minutes[$i] = $i < 10 ? "0$i" : $i;
+
+
+// reorder form element
+      $form['basic'] = array(
+        '#type'   => 'fieldset',
+        '#title'  => t('Basic Information'),
+        '#collapsible' => TRUE,
+        '#collapsed' => FALSE,
+        '#weight' => 1
+      );
+      $form['basic']['location']['city']     = $form['location']['city'];
+      $form['basic']['location']['province'] = $form['location']['province'];
+      $form['basic']['location']['country']  = $form['location']['country'];
+      $form['basic']['location']['#tree'] = true;
+  
+      $form['whenwhere'] = array(
+        '#type'   => 'fieldset',
+        '#title'  => t('When & Where') . " - " . $node->event_start,
+        '#collapsible' => TRUE,
+        '#collapsed' => FALSE,
+        '#weight' => 2
+      );
+
+// day form
+      if(user_access('team fhwalk') || user_access('admin fhwalk')) {
+        $form['whenwhere']['start_day']   = $form['event_start']['date']['start_day'];
+        $form['whenwhere']['start_month'] = $form['event_start']['date']['start_month'];
+        $form['whenwhere']['start_year']  = $form['event_start']['date']['start_year'];
+        $form['whenwhere']['start_day']['#prefix'] = '<div class="container-inline"><div class="day"><h4>' . t('Day') . ':</h4>';
+        $form['whenwhere']['close_day'] = array('#type' => 'markup','#value' => '</div></div>');
+      } else {
+        list($day, $month, $year) = explode("/", variable_get("fhwalk_date_$tid", '13/05/2007'));
+        
+        $form['whenwhere']['start_day']   = array('#type' => 'hidden', '#value' => $day );
+        $form['whenwhere']['start_month'] = array('#type' => 'hidden', '#value' => $month );
+        $form['whenwhere']['start_year']  = array('#type' => 'hidden', '#value' => $year );
+        $form['whenwhere']['day'] = array('#type' => 'markup', 
+            '#value' => '<div class="container-inline"><div class="day"><h4>' . t('Day') . ":</h4>\n" .
+            '<strong>' . variable_get("fhwalk_date_$tid", '13/05/2007') . "</strong>\n" .
+            '</div></div>');
+      }
+
+// start time form
+      $form['whenwhere']['start_hour']   = $form['event_start']['date']['start_hour'];
+      $form['whenwhere']['start_minute'] = $form['event_start']['date']['start_minute'];
+      $form['whenwhere']['start_hour']['#prefix'] = '<div class="container-inline"><div class="time"><h4>' . t('Start Time') . ':</h4>';
+      $form['whenwhere']['start_minute']['#options'] = $minutes;
+      $form['whenwhere']['start_minute']['#description'] = t('local time');
+      $form['whenwhere']['close_start'] = array('#type' => 'markup','#value' => '</div></div>');
+
+// end time form
+      $form['whenwhere']['end_hour']   = $form['event_end']['date']['end_hour'];
+      $form['whenwhere']['end_minute'] = $form['event_end']['date']['end_minute'];
+      $form['whenwhere']['end_hour']['#prefix'] = '<div class="container-inline"><div class="time"><h4>' . t('End Time') . ':</h4>';
+      $form['whenwhere']['end_minute']['#options'] = $minutes;
+      $form['whenwhere']['end_minute']['#description'] = t('local time');
+      $form['whenwhere']['close_end'] = array('#type' => 'markup','#value' => '</div></div>');
+
+// other location info
+      $form['whenwhere']['location']['#tree'] = true;
+      $form['whenwhere']['location']['name'] = $form['location']['name'];
+      $form['whenwhere']['location']['street'] = $form['location']['street'];  
+      $form['whenwhere']['location']['additional'] = $form['location']['additional'];  
+
+// fhpartners
+      $form['fhpartners']['#weight'] = 4;
+
+// fhpartners
+//    $form['signup']['#weight'] = 5;
+
+
+//  if (isset($form['event_end'])) $form['event_end']['#weight'] = 22;
+     
+
+// unset event.module forms
+      unset($form['event_start']);
+      unset($form['event_end']);
+      unset($form['timezone']);
+      unset($form['location']);
  
 // delete product form
-    if (isset($form['product_transform'])) unset($form['product_transform']);
+      if (isset($form['product_transform'])) unset($form['product_transform']);
     
 // delete og form
-    if (isset($form['og_nodeapi'])) unset($form['og_nodeapi']);
+      if (isset($form['og_nodeapi'])) unset($form['og_nodeapi']);
   
-// reorder
-//    if (isset($form['fhevent']))    $form['fhevent']['#weight'] = 1;
-    if (isset($form['event_start'])) $form['event_start']['#weight'] = 1;
-    if (isset($form['event_end']))   $form['event_end']['#weight'] = 2;
-    if (isset($form['location']))    $form['location']['#weight'] = 3;
-    if (isset($form['donation']))    $form['donation']['#weight'] = 4;
+    
 
+
+
+//    if (isset($form['fhevent']))    $form['fhevent']['#weight'] = 1;
+      if (isset($form['event_start'])) $form['event_start']['#weight'] = 21;
+      if (isset($form['event_end']))   $form['event_end']['#weight'] = 22;
+      if (isset($form['location']))    $form['location']['#weight'] = 23;
+      if (isset($form['donation']))    $form['donation']['#weight'] = 24;
+
+/*
     if (variable_get('fhwalk_vocabulary', 0)<>0) {
       $terms = taxonomy_get_tree(variable_get('fhwalk_vocabulary', 0));
       foreach($terms as $term) {
@@ -248,9 +487,9 @@ function fhwalk_form_alter($form_id, &$form) {
       }
       $output .= "<hr />";
     }
+*/
 
-
-
+/*
     foreach ($form as $category => $items) {
       if (is_array($items)) {
         $output .= "<h4>$category - weigth:" . $items['#weight'] . "</h4>";
@@ -258,13 +497,222 @@ function fhwalk_form_alter($form_id, &$form) {
       $output .= print_r($items, true);
     }
     $form['dumpq'] = array('#type' => 'markup', '#value' => $output,  '#weight' => 15);
+*/
+      break;
+
+    case 'forward_form':
+      $form['message']['#title'] = t('Spread about this event');
+      break;
 
   }
 
   return $form;
 }
 
-function theme_fhwalk_overview() {}
+function theme_fhwalk_btn_create($uri) {
+  $out  = "<a href='".$uri."'>\n";
+  $out .= "<img src='/files/event_create.png' width='79' height='80' class='event_create'/>";
+  $out .= "</a>";
+  return $out;
+}
+
+/*
+function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) { 
+  $node->body = print_r($node, true);
+}
+*/
+
+function theme_fhwalk_overview($fhwalk_overview) {
+
+// Map
+//  $out .= gmap_draw_map($gmap_array);
+
+// Presentation
+  $out .= $fhwalk_overview['term']->description;
+
+// Country search
+  $out .= $fhwalk_overview['country_search'];
+  
+// Country event list
+  $out .= theme('fhwalk_walklist', $fhwalk_overview['walk_list']);
+
+// Create event
+  if($fhwalk_overview['status']==2) {
+    $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
+    if($fhwalk_overview['country']<>'-') {
+      $uri .= '/' . $fhwalk_overview['country'];
+      if($fhwalk_overview['walk_list']) {
+        $create_msg = t("Don't see an event near you?"). "&nbsp;";
+      } else {
+        $create_msg = t("Don't see an event in this country?"). "&nbsp;";
+      }
+    } else {
+      $create_msg = t("Create an event!"). "&nbsp;";
+    }
+    $create_link = l(t('Click here to start your own!'),$uri);
+    $out .= $create_msg . $create_link;
+    $out .= theme("fhwalk_btn_create",$uri);
+  }
+
+  return $out;  
+}
+
+function _fhwalk_signup_login() {
+  $form['signup'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Signup'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+  $msg = 'To signup to this event you have to login.<br/>' . 
+    'If you have already an account please Login with your username and password <br/>' .
+    'Otherwise Register for a new account';
+  $form['signup']['info']['#value'] = t($msg);
+  
+//    $form = array('#type' => 'fieldset', '#title' => t('Login'));
+/*
+  $form_login = fhuser_subform_user_login();
+  $form_login['#collapsible'] = TRUE;
+  $form_login['#collapsed'] = TRUE;
+  $form_login['#validate'] = array('fhuser_subform_validate' => array()) + $form['#validate'];
+  $form_login['#submit'] = array('fhuser_subform_submit' => array()) + $form['#submit'];
+  $form['signup']['login']['#value'] = drupal_get_form('tmp1',  $form_login);
+*/
+
+/*
+  $form_register = fhuser_subform_user_register();
+  $form_register['#collapsible'] = TRUE;
+  $form_register['#collapsed'] = TRUE;
+  $form_register['#validate'] = array('fhuser_subform_validate' => array()) + $form['#validate'];
+  $form_register['#submit'] = array('fhuser_subform_submit' => array()) + $form['#submit'];
+  $form['signup']['register']['#value'] = drupal_get_form('tmp2',  $form_register);
+*/  
+  $form['signup']['login']['#value'] = "<ul>\n" .
+      "<li>" . l(t('login'),'user') . "</li>\n" . 
+      "<li>" . l(t('register'),'user/register') . "</li>\n" . 
+      "</ul>\n";
+
+
+  $output =  drupal_get_form('',  $form);
+  return $output;
+  
+/*  
+  $output =  drupal_get_form('user_register',  _fhwalk_signup_form($node));
+    }
+  } else {
+    $output = drupal_get_form('user_login', _fhwalk_signup_login());
+*/  
+  
+}
+
+
+function _fhwalk_signup_form($node) {
+global $user;
+
+  $form['signup'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Signup'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+  $form['signup']['comment'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Signup comment'),
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t("Comment (optional)"),
+  ); 
+  $form['signup']['guests'] = array(
+    '#type' => 'textfield',
+    '#title' => t('My guests'),
+    '#size' => 5,
+    '#maxlength' => 4,
+    '#description' => t('I am bringing this many others to walk with me.'),
+  );
+  $form['signup']['opencomment'] = array(
+    '#type' => 'checkbox',
+    '#title' => t("Show my comment in the attendee list."),
+  );
+  $form['signup']['volunteer'] = array(
+    '#type' => 'checkbox',
+    '#title' => t("I would like to volunteer to help organize this event."),
+  );
+  $form['signup']['nid'] = array(
+    '#type' => 'hidden',
+    '#value' => $node->nid,
+  );
+  $form['signup']['uid'] = array(
+    '#type' => 'hidden',
+    '#value' => $user->uid,
+  );
+  $form['signup']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Signup'),
+  );
+  $output =  drupal_get_form('fhwalk_signup', $form);
+  return $output;
+}
+
+function _fhwalk_signup_checkuser($nid, $uid) {
+  $sql = 'SELECT * from {gathering_signup} WHERE wid=%d AND uid=%d;';
+  return (db_num_rows(db_query($sql,$nid, $uid))>0);
+}
+
+function _fhwalk_signup_nodeapi($node) {
+global $user;
+
+// Check if user logged
+  if($user->uid) {
+    // Check if user already signed
+    if( _fhwalk_signup_checkuser($node->nid, $user->uid) ) {
+      $output = 'You already signed';
+    } else {
+      $output = _fhwalk_signup_form($node);
+    }
+  } else {
+    $output = _fhwalk_signup_login();
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_view().
+ */ 
+function fhwalk_view($node, $teaser = FALSE, $page = FALSE) { 
+  $node = (object)$node;
+
+  $node = node_prepare($node, $teaser);
+
+  $node->body_plain = $node->body;
+//  $node->body_hooked = $node->body;
+  $node->body = '';
+
+  foreach (module_implements('nodeapi') as $name) {
+    $function = $name .'_nodeapi';
+    $result = $function($node, 'view', $teaser, $page);
+    $node->hook_view[$name] = $node->body;
+
+// drupal_set_message("$name - > $node->body -> $node->body_hooked");
+
+    $node->body_hooked .= $node->body;
+    $node->body = '';
+  }
+  $node->hook_view_array = $return;
+  $node->body = $node->body_plain;
+
+//  $node->body = $node->body_hooked;
+/*
+ * Signup form (from gathering.module)
+
+  $sform .= form_textfield(t("My guests"),"guests","",5,5,"I am bringing this many others to walk with me.");
+  $sform .= form_textarea(t("Comment (optional)"),"comment","",40,5,"Feel free to leave a comment for the other attendees.");
+  $sform .= form_checkbox(t("Show my comment in the attendee list."),"opencomment",1,"")."<br/>";
+  $sform .= form_checkbox(t("I would like to volunteer to help organize this event."),"volunteer",1,"");
+*/
+
+  $node->hook_view['signup'] = _fhwalk_signup_nodeapi($node);
+
+}
 
 function theme_fhwalk_walklist($walk_list) {
   $countrywithstate = array('us', 'au', 'br', 'ca');
@@ -283,7 +731,6 @@ function theme_fhwalk_walklist($walk_list) {
   }
   return $out;
 }
-
 
 function fhwalk_overview_submit($form_id, $form_values) {
   $msg = print_r($form_values, true);
@@ -313,9 +760,9 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
 // Map
   $gmap_string = "[gmap |id=map |center=40, 0 |zoom=3 |width=500px |height=400px |control=Small |type=Map| |feed=blue::/taxonomy/term/$tid/0/feed ]";
   $gmap_array = gmap_parse_macro($gmap_string);
+  $fhwalk_overview['gmap_array'] = $gmap_array ;
 
-
-//Overview
+// Term
   $fhwalk_overview['term'] = $term;
 
 // Country selection
@@ -334,27 +781,146 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
     '#attributes' => array( 'style' => 'visibility:hidden' ) //trick to use fhwalk_overview_submit
   );
   $country_search =  drupal_get_form('fhwalk_overview', $form);
-  
+  $fhwalk_overview['country'] = $country;
+  $fhwalk_overview['country_search'] = $country_search;
+    
 // Walk list
   if( $country <> '-') {
     $walk_list = _fhwalk_getwalks($tid, $country);
+    $fhwalk_overview['walk_list'] = $walk_list;
   }
 
+// Walk status
+  $status = variable_get("fhwalk_" . $tid . "_status", 0);
+  $fhwalk_overview['status'] = $status;
 
 // print node
-  $out .= gmap_draw_map($gmap_array);
-  $out .= $term->description;
-  $out .= $country_search;
-  $out .= theme('fhwalk_walklist', $walk_list);
-      
+//  $out .= gmap_draw_map($gmap_array);
+
+//  $out .= $term->description;
+//  $out .= $country_search;
+//  $out .= theme('fhwalk_walklist', $walk_list);
+
+  $out = theme('fhwalk_overview', $fhwalk_overview);     
     
 // debug
+/*
   $out .= '<hr />' . print_r($term, true);
   $out .= '<hr />' . "tid: $tid";
   $out .= '<hr />' . "country: $country";
-  $out .= '<hr />' . "walk_list: " . print_r($walk_list, true);
-  
+  $out .= '<hr />' . "fhwalk_overview: " . print_r($fhwalk_overview, true);
+*/  
   return $out;
+}
+function _fhwalk_status($sid=-1) {
+  $status_options = array( 0=>"Closed", 1=>"Post Action", 2=>"Active" );
+  if($sid>=0) {
+    return $status_options[$sid];
+  } else {
+    return $status_options;
+  }
+}
+
+function fhwalk_admin_submit($form_id, $form_values) {
+  $msg = print_r($form_values, true);
+  $variable = 'fhwalk_' . $form_values['tid'] . '_status';
+//  drupal_set_message("pippo dice: $form_id - $msg - $variable");
+// set walk name and description
+  $sql = "UPDATE {term_data} SET name = '%s', description = '%s' WHERE tid = %d";
+  db_query($sql, $form_values['name'], $form_values['description'], $form_values['tid'] );
+// set status
+  variable_set("$variable", $form_values['status']);  
+}
+
+function fhwalk_admin() {
+  if (variable_get('fhwalk_vocabulary', 0)==0) {
+    drupal_set_message(t('First select a fhwalk vocabulary!'));
+    drupal_goto('/admin/settings/fhwalk');
+  };
+  $terms = taxonomy_get_tree(variable_get('fhwalk_vocabulary', 0));
+  $status_options = array( 0=>"Closed", 1=>"Post Action", 2=>"Active" );
+
+  foreach($terms as $term) {
+    $synonyms = taxonomy_get_synonyms($term->tid);
+    $synonym = $synonyms[0];
+    $status_variable = 'fhwalk_' . $term->tid . '_status';
+
+    $form = array();
+    $form["fhwalk_admin_$term->tid"] = array(
+      '#type' => 'fieldset',
+      '#title' => $term->name . ' - ' . $status_options[variable_get("$status_variable", 0)],
+      '#collapsible' => TRUE,
+      '#collapsed' => (variable_get("$status_variable", 0) == 0),
+    );
+//    $form_out = taxonomy_admin_term_edit($term->tid);
+    $form["fhwalk_admin_$term->tid"]['name'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('Walk name'), 
+      '#default_value' => $term->name, 
+      '#maxlength' => 64, 
+      '#required' => TRUE
+    );
+    $form["fhwalk_admin_$term->tid"]['description'] = array(
+      '#type' => 'textarea', 
+      '#title' => t('Description'), 
+      '#default_value' => $term->description, 
+      '#description' => t('A description of the walk campaign.')
+    );
+    $form["fhwalk_admin_$term->tid"]['date'] = array(
+      '#type' => 'textarea', 
+      '#title' => t('Date'), 
+      '#default_value' => variable_get("fhwalk_date_$term->tid", '13/05/2007'), 
+      '#description' => t('Enter the date (format day/month/year i.e. 13/05/2007).')
+    );
+    
+    $status_help  = "<dl><dt><b>Campaign status</b></dt>";
+    $status_help .= "<dt>Closed</dt><dd><b>Prohibit</b> new events from being added <b>and</b> comments</dd>";
+    $status_help .= "<dt>Post Action</dt><dd><b>Prohibit</b> new events from being added <b>allows</b> comments</dd>";
+    $status_help .= "<dt>Active</dt><dd><b>Allows</b> new events</dd>";
+    $form["fhwalk_admin_$term->tid"]['status'] = array(
+      '#type' => 'select', 
+      '#title' => t('Status'), 
+      '#options' => $status_options,
+      '#default_value' => variable_get("$status_variable", 0), 
+      '#description' => $status_help
+    );
+    $form["fhwalk_admin_$term->tid"]['tid'] = array(
+      '#type' => 'textfield', 
+      '#default_value' => $term->tid,
+      '#attributes' => array( 'style' => 'visibility:hidden' ), //trick to use fhwalk_overview_submit
+      '#weight' => 99
+    );
+    $form["fhwalk_admin_$term->tid"]['link'] = array(
+      '#title'  => t('walk home page'),
+      '#prefix' => "<div class='form-item'><label for='edit-name'>" . t('home') . ':</label>',
+      '#value'  => l($term->name, $synonym),
+      '#suffix' => '</div>',
+    ); 
+    $form["fhwalk_admin_$term->tid"]['submit'] = array('#type' => 'submit', '#value' => t('Submit')); 
+    $out .=  drupal_get_form("fhwalk_admin", $form);
+
+/*    
+    $out .= taxonomy_admin_term_edit($term->tid);
+*/
+  }
+//  $out = drupal_get_form('fhwalk_admin_form_term', $form); 
+  return $out;
+  
+  
+}
+
+function fhwalk_signup_submit($form_id, $form_values) {
+global $user;
+  $msg = print_r($form_values, true);
+  drupal_set_message("pippo ($form_id) dice: $msg ");
+
+  if ($form_values['volunteer']){
+    $role = "volunteer";
+  } else {
+    $role = "attendee";
+  }
+  $sql = "INSERT INTO {gathering_signup} SET wid=%d, uid=%d, role='%s', comment='%s',opencomment=%d,timestamp=CURRENT_TIMESTAMP, guests=%d"; 
+  db_query($sql,$form_values['nid'], $user->uid, $role, $form_values['comment'], $form_values['opencomment'], $form_values['guests']);
 }
 
 /*

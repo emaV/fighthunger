@@ -326,12 +326,11 @@ global $user;
         '#value' => $tid,
       );
 // check for other vocabularies
-      unset($form['taxonomy'][$vid]);
       $i = 0;
       foreach($form['taxonomy'] as $key => $value) if(is_numeric($key)) $i++;
+      unset($form['taxonomy'][$vid]);
   
-      if ($i==0) {
-// only $vid      
+      if ($i==1) {  // only $vid      
         unset($form['taxonomy']);
         $form['taxonomy'] = array(
           '#type' => 'hidden',

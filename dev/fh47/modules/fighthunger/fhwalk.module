@@ -720,7 +720,7 @@ function _fhwalk_getwalks($tid, $country='%') {
 function theme_fhwalk_overview($fhwalk_overview) {
 
 // Map
-  $out = gmap_draw_map($fhwalk_overview['gmap_array']);
+  $out = $fhwalk_overview['gmap'];
 
 // Presentation
   $out .= '<div>' . $fhwalk_overview['term']->description . '</div>';
@@ -761,6 +761,7 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
   $gmap_string = "[gmap |id=map |center=40, 0 |zoom=3 |width=500px |height=400px |control=Small |type=Map |feed=blue::/taxonomy/term/$tid/0/feed ]";
   $gmap_array = gmap_parse_macro($gmap_string);
   $fhwalk_overview['gmap_array'] = $gmap_array ;
+  $fhwalk_overview['gmap'] = gmap_draw_map($fhwalk_overview['gmap_array']);
 
 // Term
   $fhwalk_overview['term'] = $term;

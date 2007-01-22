@@ -525,7 +525,7 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
 function theme_fhwalk_overview($fhwalk_overview) {
 
 // Map
-//  $out .= gmap_draw_map($gmap_array);
+  $out .= gmap_draw_map($gmap_array);
 
 // Presentation
   $out .= $fhwalk_overview['term']->description;

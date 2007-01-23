@@ -3,6 +3,28 @@ body {
   direction: rtl;
   /* text-align: right; */
 }
+/* fonts */
+body {
+  font-family: Simplified Arabic, sans-serif;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: Simplified Arabic, sans-serif;
+}
+code {
+  font-family: Profont, 'lucida console', 'Courier New', Monaco, monospace;
+}
+#site-slogan {
+  font-family: Simplified Arabic, sans-serif;
+}
+#top-nav {
+  font-family: Simplified Arabic, sans-serif;
+}
+.main-content .node .info, .main-content .node .links, #mission {
+  font-family: Simplified Arabic, sans-serif;
+}
+.comment .title, .comment .author, .comment .links {
+  font-family: Simplified Arabic, sans-serif;
+}
 
 /* Colors and borders */
 body, #search {
@@ -117,9 +139,6 @@ div.picture { border: 0; }
 /* END of colours and borders */
 
 body {
-  /* +Tahoma */
-  font-family: Tahoma, Verdana, Helvetica, Arial, Lucida, sans-serif;
-  font-size: 84%;
   padding: 0;
   margin: 0;
 }
@@ -127,10 +146,6 @@ h1 { font-size: 1.3em; }
 h2 { font-size: 1.1em; }
 h3 { font-size: 1em; font-weight: bold;}
 h4, h5, h6 { font-size: 0.9em; font-weight: bold;}
-h1, h2, h3, h4, h5, h6 {
-  /* +Tahoma */
-  font-family: Tahoma, Helvetica, Arial, Lucida, Verdana, sans-serif;
-}
 p, .book .body {
   padding: 0 0 0.5em 0;
   margin: 0;
@@ -156,7 +171,6 @@ blockquote {
 }
 code {
   font-size: 1em;
-  font-family: Profont, 'lucida console', 'Courier New', Monaco, monospace;
 }
 #header {
   position: relative;
@@ -175,7 +189,6 @@ code {
   margin: 0;
 }
 #site-slogan {
-  font-family: Helvetica, Arial, Lucida, Verdana, sans-serif;
   display: inline;
   font-weight: bold;
   font-size : 1.2em;
@@ -263,8 +276,6 @@ td.sidebar {
 #top-nav {
   padding: 0;
   margin: 0 0 1.5em 0;
-  /* +Tahoma */
-  font-family: Tahoma, Helvetica, Arial, Lucida, Verdana, sans-serif;
 }
 #top-nav ul {
   margin: 0;
@@ -354,10 +365,6 @@ td.sidebar {
   padding: 0;
   margin: 0;
 }
-.main-content .node .info, .main-content .node .links, #mission {
-  /* +Tahoma */
-  font-family: Tahoma, Helvetica, Arial, Lucida, Verdana, sans-serif;
-}
 #mission {
 /*  padding: 5px 10px; */
   padding: 5px 0px 5px 10px;
@@ -400,10 +407,6 @@ td.sidebar {
   margin: 0;
   line-height: 1.6em;
   text-indent: 0;
-}
-.comment .title, .comment .author, .comment .links {
-  /* +Tahoma */
-  font-family: Tahoma, Helvetica, Arial, Lucida, Verdana, sans-serif;
 }
 .comment .title {
   font-weight: bold;

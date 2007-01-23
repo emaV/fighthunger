@@ -644,21 +644,21 @@ padding:.75em;
 border:0px;
 }
 
-.block-i18n h2 {
+.block-i18n h2,  #block-i18ntrans-0 h2 {
   visibility: hidden;
   height: 0;
 }
-.block-i18n li {
+.block-i18n li,  #block-i18ntrans-0 li {
   display: inline;
   margin: 2px;
   padding: 2px;
   font-size: 0.8em;
 }
-.block-i18n li .active {
+.block-i18n li .active,  #block-i18ntrans-0 li .active {
   font-weight: bold;
 }
 
-.block-i18n ul {
+.block-i18n ul,  #block-i18ntrans-0 ul {
   display: inline;
   margin-left: 10px;
 }

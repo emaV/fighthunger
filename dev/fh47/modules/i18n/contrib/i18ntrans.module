@@ -662,4 +662,47 @@ function _i18ntrans_settings_functions($all = FALSE) {
   }
   return $functions;
 }
+
+/**
+ * Function i18n_get_links
+ * 
+ * Returns an array of links for all languages, with or without names/flags
+ * check for translations 
+ */
+function i18ntrans_get_links($path = '') {
+  $links = i18n_get_links($path);
+  $supported = i18n_supported_languages();
+  
+  if (arg(0) == 'node' && is_numeric(arg(1))) {
+    $nid = arg(1);
+    $trid = db_result(db_query("SELECT trid FROM {i18n_node} WHERE nid=%d", $nid));
+    if($trid) {
+      $result = db_query("SELECT language, nid FROM {i18n_node} WHERE trid=%d", $trid);
+      while ($row = db_fetch_array($result)) {
+        $link = $row['language'] . '/node/' . $row['nid'];
+        $links[$row['language']] = theme('i18n_link', $supported[$row['language']], $link, $row['language']);
+      }
+    } 
+  }
+  return $links;
+}
+
+/**
+ * Language block
+ * 
+ * This is not a simple language switcher:
+ * it knows very well nothing about translations
+ */
+function i18ntrans_block($op = 'list', $delta = 0) {
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('Language switcher (knows about translations');
+  }
+  elseif($op == 'view') {
+    $blocks['subject'] = t('Languages');
+    $blocks['content'] = theme('item_list', i18ntrans_get_links($_GET['q']));
+  }
+  return $blocks;
+}
+
+
 ?>

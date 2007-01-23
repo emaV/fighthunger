@@ -3,18 +3,21 @@
 /*
 ** HTML elements
 */
-a, a:link, a:active {
-  color: #930;
+a:link {
+  color: #aaa;
+}
+a:active {
+  color: #000;
 }
 a:visited {
-  color: #630;
+  color: #aaa;
 }
 body {
   padding: 5em 0 0 3em;
   background-image: url(background.png);
   background-repeat: repeat-x;
-  font-family: trebuchet ms, tahoma, verdana, arial, helvetica;
-  border-top: 10px solid gray;
+  font-family: verdana, tahoma, verdana, arial, helvetica;
+  border-top: 0px solid gray;
 }
 ul {
   list-style-type: disc;
@@ -24,7 +27,7 @@ ul {
 ** Page layout blocks / IDs
 */
 #main {
-  width: 500px;
+  width: 550px;
 }
 #sidebar-left {
   border-right: 1px solid gray;
@@ -49,9 +52,10 @@ ul {
   color: #aaa;
 }
 #header .title a:hover {
-  color: #930;
+  color: #000;
 }
 #header .site-slogan {
+  color: #aaa;
   margin-top: -0.1em;
   font-size: 0.8em;
 }
@@ -59,7 +63,7 @@ ul {
   font-size: 0.8em;
 }
 ul.links li {
-  border-left: 1px solid #000;
+  border-left: 1px solid #aaa;
 }
 ul.links li.first {
   border-left: none;

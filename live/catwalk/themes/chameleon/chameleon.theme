@@ -82,7 +82,7 @@ function chameleon_page($content, $show_blocks = TRUE) {
   $output .= "   <td id=\"main\">\n";
 
   if ($title) {
-    $output .= theme("breadcrumb", drupal_get_breadcrumb());
+//   $output .= theme("breadcrumb", drupal_get_breadcrumb());
     $output .= "<h2>$title</h2>";
   }
 

@@ -32,18 +32,29 @@
   print $node->body_plain;
 
 // Donation
-  print "<h3>" . t("donation") . "</h3>";
+//  print "<h3>" . t("donation") . "</h3>";
   print $node->hook_view['donation'];
 
-// Signup
-  print $node->hook_view['signup'];
+// Actions
+  print $node->actions;
 
-// Forward
-  print $node->hook_view['forward'];
-
-
+// LCP
+  print $node->LCP;
+/*
+  foreach($node->LCP as $LCPkey => $LCPvalue) {
+    $LCPnode = node_view(node_load($LCPvalue['nid']), FALSE);
+    $LCPout .= "<div class='LCP-node'>";
+    $LCPout .= '<h3>' . $LCPvalue['language'] . '</h3>';
+    $LCPout .= $LCPnode;
+    $LCPout .= '</div>';
+  }
+  print "<div class='LCP-container'>";
+  print $LCPout;
+  print "</div>";
+*/
   
 // DEBUG
+/*
   print "<hr /><h2>START DEBUG</h2>";
     
   $hook_array = $node->hook_view;
@@ -51,10 +62,10 @@
    print "<h3>$key</h3>\n$value";
   }
  
-//  print "<hr />" . print_r($node, true);
- // print print_r($node->hook_view, true);
+  print "<hr />" . print_r($node, true);
+//  print "<hr />" . print_r($node->LCP, true);
   print "<hr /><h2>END DEBUG</h2>";
-
+*/
 
 ?>
   </div>

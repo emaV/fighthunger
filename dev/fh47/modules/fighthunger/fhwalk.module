@@ -21,10 +21,13 @@ After installation:
 
 - SQL queries
 
-1 - change gathering-n to fhwalk
+1 - change module weight 
+UPDATE `system` SET `weight` = '1' WHERE `filename` = 'modules/fighthunger/fhwalk.module'; 
+
+3 - change gathering-n to fhwalk
 UPDATE node SET `type`='fhwalk' WHERE `type` LIKE 'gather%';
 
-2 - add taxonomy information in term_node table
+4 - add taxonomy information in term_node table
 
 INSERT INTO `term_node` SELECT nid, 32 AS tid
 FROM `node`
@@ -32,14 +35,14 @@ WHERE `type` = 'gathering-2'
 
 Check the number (32) with vocabulary ssigned to fhwalk
 
-3 - altering walk data (for coordinator field)
+5 - altering walk data (for coordinator field)
 ALTER TABLE `gathering_node` ADD `cid` INT( 10 ) NULL AFTER `nid`;  
 
 
-4 - lowercase on location table
+6 - lowercase on location table
 UPDATE `location` SET `country`=LOWER(`country`)
 
-5 - move data from gathering-1 and 2 to event!!
+7 - move data from gathering-1 and 2 to event!!
 (but we have to check for time zone of ewh servers!!!)
 2006-05-21 10:00:00 convert to 1148220000 ewhserver
                      should be 1148202000 so we have to subtract 18000 
@@ -58,7 +61,7 @@ INSERT INTO `event` (nid, event_start, event_end)
     UNIX_TIMESTAMP( ADDTIME( `enddate`   , `endtime`   ))-18000 AS event_end 
     FROM `gathering_node`;
 
-6 - altering signup data (for signup status)
+8 - altering signup data (for signup status)
 ALTER TABLE `gathering_signup` ADD `stage` INT( 2 ) NOT NULL AFTER `guests` ;
 
 *************************************************************************/

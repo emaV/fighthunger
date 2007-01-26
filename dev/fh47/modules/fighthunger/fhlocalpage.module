@@ -1,0 +1,196 @@
+<?php
+// $Id: fhwalk.module,v 0.1 2007/01/09 09:02:48 ema Exp $
+
+/**
+ * @file
+ * Enables users to manage fh wtw events.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function fhlocalpage_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Allows managing local pages. <b>Require fhwalk, location</b>');
+    case 'node/add#fhlocalpage':
+      return t('Create Local Pages.');
+  }
+}
+
+/**
+ * Get language name in local language (if available)
+ * @param $code
+ *    string with iso code
+ * @return
+ *    language name in local language or translated by drupal t() or in english    
+ */
+function _fhlocalpage_getlang($code) {
+  static $isocodes;
+  if (!is_array($isocodes)) $isocodes = _locale_get_iso639_list();
+  $value = $isocodes[$code];
+  return (count($value)==2) ? $value[1] : t($value[0]);
+}
+
+/**
+ * Custom edit form
+ */
+function fhlocalpage_form_alter($form_id, &$form) {
+  include_once './includes/locale.inc';
+  global $user;
+  static $isocodes;
+
+  switch ($form_id) {
+  
+    case 'fhlocalpage_node_form': 
+
+// Set Local Page Option fieldset form
+  $form['LPO_options'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Local Page Options'),
+    '#collapsible' => TRUE, 
+    '#collapsed' => FALSE, 
+    '#weight' => -4
+  );
+
+
+// Set isocode - code from _locale_prepare_iso_list()
+    if (!is_array($isocodes)) {
+      $isocodes = _locale_get_iso639_list();
+      foreach ($isocodes as $key => $value) {
+        if (count($value) == 2) {
+          $tname = t($value[0]);
+          $isocodes[$key] = ($tname == $value[1]) ? $tname : "$tname ($value[1])";
+        } else {
+          $isocodes[$key] = t($value[0]);
+        }
+      }
+      asort($isocodes);
+    }
+ 
+ // change i18n fieldset
+    $form['i18n']['language']['#options'] = $isocodes;
+    $form['i18n']['language']['#description'] = t('Enter language of this page');
+    $form['i18n']['language']['#required'] = true;
+
+// include in LPO    
+    $form['LPO_options']['language'] = $form['i18n']['language'];   
+    $form['LPO_options']['i18n_status'] = array('#type' => 'hidden', '#value' => 0);
+    unset($form['i18n']);
+
+
+// change taxonomy fieldset
+    $vid = variable_get('fhwalk_vocabulary', 0);
+    $form['LPO_options']['taxonomy'][$vid] = $form['taxonomy'][$vid];
+    $form['LPO_options']['taxonomy']['#tree'] = true;
+    $form['LPO_options']['taxonomy'][$vid]['#title'] = t('Campaign');
+    $form['LPO_options']['taxonomy'][$vid]['#options'] = fhwalk_get_active_campaigns();
+    
+// check for other vocabularies
+    $i = 0;
+    foreach($form['taxonomy'] as $key => $value) if(is_numeric($key)) $i++;
+    unset($form['taxonomy'][$vid]);
+    if ($i==1) unset($form['taxonomy']);
+
+// set location
+    $form['LPO_options']['location']['country'] = $form['location']['country'];
+    $form['LPO_options']['location']['#tree'] = true;
+    unset($form['location']);
+    
+    unset($form['product_transform']);
+
+// DEBUG
+/*
+    if (variable_get('fhwalk_vocabulary', 0)<>0) {
+      $terms = taxonomy_get_tree(variable_get('fhwalk_vocabulary', 0));
+      foreach($terms as $term) {
+        $synonyms = taxonomy_get_synonyms($term->tid);
+        $synonym = $synonyms[0];
+        
+        $output .= "<h4>$term->name - $synonym</h4>" . print_r($term, true);
+      }
+      $output .= "<hr />";
+    }
+*/
+
+/*
+    foreach ($form as $category => $items) {
+      if (is_array($items)) {
+        $output .= "<h4>$category - weigth:" . $items['#weight'] . "</h4>";
+      }
+      $output .= print_r($items, true);
+    }
+    $form['dumpq'] = array('#type' => 'markup', '#value' => $output,  '#weight' => 15);
+*/
+// END DEBUG
+
+      break;
+
+    case 'forward_form':
+      $form['message']['#title'] = t("Invite others to this walk");
+      break;
+
+  }
+
+  return $form;
+}
+
+/**
+ * hook_nodeapi implementation
+ *
+ * @ingroup event_nodeapi
+ */
+function fhlocalpage_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  if($node->type != 'fhlocalpage') return;
+
+  switch ($op) {
+    case 'validate':
+      
+      $vid = variable_get('fhwalk_vocabulary', 0);
+      
+      $language = $node->language;
+      $country  = $node->location['country'];
+      $tid      = $node->taxonomy[$vid];
+
+      $sql = 'SELECT n.nid FROM {node} n ' .
+        'JOIN term_node tn ON tn.nid=n.nid ' .
+        'JOIN location l ON l.oid=n.nid ' .
+        'JOIN i18n_node i18n ON n.nid=i18n.nid ' .
+        "WHERE i18n.language='%s' AND l.country='%s' AND tn.tid=%d";
+      $nid = db_result(db_query($sql, $language, $country, $tid));
+      
+      if(!$node->nid) {
+        $result = ($nid>0);
+      } else {
+        $result = ($node->nid <> $nid);
+      }
+
+      if($result) {
+        $msg  = "<h2>Local Page validation</h2>";
+        $msg .= "(language = $language; country  = $country; tid = $tid)<br/>";
+        $msg .= t('There is already a Local Country Page in this language for this campaign: ');
+        $msg .= l('here', "node/$nid"); 
+        
+        form_set_error('Local Country Page', $msg);
+      }
+      break;
+      
+// exclude other module hooks
+    case 'load':
+      $node->body_plain = check_markup($node->body, $node->format, FALSE);
+//      $msg = print_r($node, true);
+//      drupal_set_message("<h3>load:</h3> $msg<hr/>");
+      break;
+    case 'view':
+      $node->body = $node->body_plain;
+//      $msg = print_r($node, true);
+//      drupal_set_message("<h3>view:</h3> $msg<hr/>");
+      break;
+
+    default:
+      drupal_set_message("fhlocalpage: $op");
+      
+  }
+}
+
+?> 

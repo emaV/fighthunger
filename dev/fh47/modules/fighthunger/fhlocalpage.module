@@ -192,5 +192,3 @@ function fhlocalpage_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
       
   }
 }
-
-?> 

@@ -276,9 +276,40 @@ function fhpartner_form(&$node) {
     '#title' => t('End date'),
     );
   $form['date_end']['date'] = fhpartner_date_field('form', 'enddate', $node->enddate);
+  
+  // Partner logos
+  $form['logos'] = array('#type' => 'fieldset', '#title' => 'Images', '#collapsible' => TRUE);
+  $form['logos']['small'] = array('#type' => 'fieldset', '#title' => 'Small Logo');
+  $form['logos']['small']['logo'] = fhpartner_field_logo('form', 'logosmall', $node);
+  $form['logos']['large'] = array('#type' => 'fieldset', '#title' => 'Big Logo');  
+  $form['logos']['large']['logo'] = fhpartner_field_logo('form', 'logolarge', $node);
   return $form;
 }
 
+/**
+ * Manage logo fields
+ */
+function fhpartner_field_logo($op, $field, $node) {
+  switch($op) {
+    case 'form':
+      if ($node->files && count($node->files)) {
+        foreach($node->files as $file) {
+          $options[$file->filepath] = $file->description;
+        }
+        $form[$field] = array(
+          '#type' => 'select', 
+          '#options' => $options, 
+          '#default_value' => $node->$field
+        );
+        if($node->$field) {
+          $form['preview'] = array('#value' => '<img src="'. file_create_url($node->$field) . '" />');
+        }
+      } else {
+        $form[$field] = array('#value' => t('Upload images for this partner'));
+      }
+      return $form;
+  }
+}
 /**
  * Implementation of hook_validate()
  */
@@ -294,6 +325,7 @@ function fhpartner_validate(&$node, $form) {
     form_set_error('country', t('You must select a country'));
   } 
 }
+
 
 /**
  * Manage date fields

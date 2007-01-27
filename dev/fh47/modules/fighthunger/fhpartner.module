@@ -278,7 +278,7 @@ function fhpartner_form(&$node) {
   $form['date_end']['date'] = fhpartner_date_field('form', 'enddate', $node->enddate);
   
   // Partner logos
-  $form['logos'] = array('#type' => 'fieldset', '#title' => 'Images', '#collapsible' => TRUE);
+  $form['logos'] = array('#type' => 'fieldset', '#title' => 'Images', '#collapsible' => TRUE, '#collapsed' => TRUE);
   $form['logos']['small'] = array('#type' => 'fieldset', '#title' => 'Small Logo');
   $form['logos']['small']['logo'] = fhpartner_field_logo('form', 'logosmall', $node);
   $form['logos']['large'] = array('#type' => 'fieldset', '#title' => 'Big Logo');  
@@ -362,6 +362,29 @@ function _fhpartner_get_local_partners() {
 }
 
 /**
+ * Get partner list
+ */
+function fhpartner_get_partners($audience = 'LOCAL', $conditions = array()) {
+  $partners = array();
+  // Default conditions
+  $where = array('pn.active' => 1, 'pn.paud' => db_escape_string($audience));
+  // Build where clause
+  foreach($conditions as $field => $value) {
+    $where['pn.'.$field] = db_escape_string($value);
+  }
+  $sql = "SELECT n.* FROM {node} n INNER JOIN {partners_node} pn ON n.nid = pn.nid WHERE n.type = 'partner'";
+  foreach($where as $field => $value) {
+    $sql .= " AND $field = '$value'";
+  }
+  $sql .= " ORDER BY n.title";
+  $result = db_query(db_rewrite_sql($sql));
+  while ($node = db_fetch_object($result)) {
+    $partners[$node->nid] = $node->title;
+  }
+  return $partners;
+  
+}
+/**
  * Return an array of the partners a given user is permitted to 
  * manage for a given node
  */   
@@ -405,110 +428,45 @@ function _fhpartner_permitted($node,$user = NULL) {
 function fhpartner_form_alter($form_id, &$form) {
   global $user;
 
-  if (isset($form['type'])) {
-    // Add the node-type settings option to activate the email this page link
-    if ($form['type']['#value'] .'_node_settings' == $form_id) {
-      $form['workflow']['fhpartner_support_'. $form['type']['#value']] = array(
-        '#type' => 'checkbox',
-        '#title' => t('Enable fhpartner'),
-        '#return_value' => 1,
-        '#default_value' => variable_get('fhpartner_support_'. $form['type']['#value'], '1'),
-        '#description' => t('Enable partners for this node type'),
-      );
-    }
-  }
-
-  switch ($form_id) {
-    case 'fhpartner_node_form':
-
-// unset start and end time and timezone
-/*
-    unset( $form['event_start']['date']['start_hour'] );
-    unset( $form['event_start']['date']['start_minute'] );
-    unset( $form['event_end']['date']['end_hour'] );
-    unset( $form['event_end']['date']['end_minute'] );
-    unset( $form['timezone']);
-*/  
-
-/*  
-// modify date
-    if (isset($form['event_start'])) {
-
-      $form['fhevent'] = array(
-        '#type'   => 'fieldset',
-        '#title'  => 'Event date',
-        '#weight' => 10);
-              
-//      $form['fhevent']['date'] =  array('#value' => t('Date'));
-      $form['fhevent']['date']['start_day'] = $form['event_start']['date']['start_day'];
-      $form['fhevent']['date']['start_month'] = $form['event_start']['date']['start_month'];
-      $form['fhevent']['date']['start_year'] = $form['event_start']['date']['start_year'];
-
-//      $form['fhevent']['start'] =  array('#value' => t('Start Time'));
-      $form['fhevent']['start']['start_hour']   = $form['event_start']['date']['start_hour'];
-      $form['fhevent']['start']['start_minute'] = $form['event_start']['date']['start_minute'];
- //     unset($form['event_start']);       
-    };
-    if (isset($form['event_end'])) {
-      unset( $form['event_end']['date']['end_hour']['#prefix'] );
- //     $form['fhevent']['end'] =  array('#value' => '<label>' . t('End Time') . '</label>') ;
-//     $form['fhevent']['end']['#prefix'] =  '<label>' . t('End Time') . '</label>' ;
-      $form['fhevent']['end']['end_hour']   = $form['event_end']['date']['end_hour'];
-      $form['fhevent']['end']['end_minute'] = $form['event_end']['date']['end_minute'];
- //     unset($form['event_end']);       
-    }
-*/      
-//    if (isset($form['timezone'])) unset($form['timezone']);
- 
-// delete product form
-//    if (isset($form['product_transform'])) unset($form['product_transform']);
-    
-// delete og form
-//    if (isset($form['og_nodeapi'])) unset($form['og_nodeapi']);
-  
-  // reorder
-  //    if (isset($form['fhevent']))    $form['fhevent']['#weight'] = 1;
-      if (isset($form['event_start'])) $form['event_start']['#weight'] = 1;
-      if (isset($form['event_end']))   $form['event_end']['#weight'] = 2;
-      if (isset($form['timezone']))   $form['timezone']['#weight'] = 3;
-    
-//    if (isset($form['location']))    $form['location']['#weight'] = 3;
-//    if (isset($form['donation']))    $form['donation']['#weight'] = 4;
-
-/*
-    foreach ($form as $category => $items) {
-      if (is_array($items)) {
-        $output .= "<h4>$category - weigth:" . $items['#weight'] . "</h4>";
-      }
-      $output .= print_r($items, true);
-    }
-    $form['dumpq'] = array('#type' => 'markup', '#value' => $output,  '#weight' => 15);
-*/
-
-      break;
-
-    case 'fhwalk_node_form':
-
-//      $options = _fhpartner_permitted($node);
-//      $options = array('pippo','paperino', $node->nid);
-      if (!(empty($options))) {
-        $form['fhpartners'] = array(
-          '#type'   => 'fieldset',
-          '#title'  => t('Local partners'),
-          '#collapsible' => TRUE,
-          '#collapsed' => FALSE
+  if (isset($form['type']) && $type = $form['type']['#value']) {
+    switch ($form_id) {
+      case $type.'_node_settings':
+        $form['workflow']['fhpartner_support_'. $type] = array(
+          '#type' => 'radios',
+          '#title' => t('Partners'),
+          '#options' => array(t('Disabled'), t('Enabled')),
+          '#default_value' => variable_get('fhpartner_support_'. $type, 0),
+          '#description' => t('Enable partners for this content type'),
         );
-        $form['fhpartners']['local'] = array(
-          '#type' => 'checkboxes',
-//          '#default_value' => $node->partners,
-          '#options' => $options,
-          '#description' => t("Select the partner(s) to associate this event with."),
-        );
-      }
-      break;
+        return $form;
+      case $type.'_node_form':
+        $node = $form['#node'];
+        $country = $node->location['country'];
+        if (variable_get('fhpartner_support_'.$type, 0) && $country) {
+          
+          $form['fhpartner'] = array(
+            '#type'   => 'fieldset',
+            '#title'  => t('Local partners'),
+            '#collapsible' => TRUE,
+            '#collapsed' => FALSE
+          );
+          $partners = fhpartner_get_partners('LOCAL');
+          if(count($partners)) {
+            $form['fhpartner']['partners'] = array(
+              '#type' => 'checkboxes',
+              '#default_value' => $node->partners,
+              '#options' => $partners,
+              '#description' => t("Select the partner(s) to associate this event with."),
+            );
+          } else {
+            $form['fhpartner']['partners'] = array('#value' => t('There are no local partners available.'));
+          }
+          return $form;
+        }
+        break;
+    }
   }
 }
-
 /**
  * Implementation of hook_load().
  */
@@ -598,111 +556,44 @@ function fhpartner_update($node) {
 /**
  * Implementation of hook_delete().
  */
-
 function fhpartner_delete(&$node) {
-  db_query("DELETE FROM {partners_user}     WHERE pid=%d",$node->nid);
-  db_query("DELETE FROM {partners_partners} WHERE pid=%d",$node->nid);
-  db_query("DELETE FROM {partners_node}     WHERE nid=%d",$node->nid);
+  db_query("DELETE FROM {partners_user}     WHERE pid = %d",$node->nid);
+  db_query("DELETE FROM {partners_partners} WHERE pid = %d",$node->nid);
+  db_query("DELETE FROM {partners_node}     WHERE nid = %d",$node->nid);
 }
 
 /**
- * Nodeapi helper functions
- *
+ * Implementation of hook_nodeapi()
  */  
-
-// helper function for nodeapi
-function fhpartner_nodeapi_load($node) {
-  $rs = db_query("SELECT p.pid FROM {node} n, {partners_partners} p WHERE p.nid=%d AND p.pid = n.nid ORDER BY n.sticky DESC, n.title ASC",$node->nid);
-  while ($a = db_fetch_array($rs)) {
-    $partners[] = $a['pid'];
-  }
-  $out['partners'] = $partners;
-  return $out;
-}
-
-// helper function for nodeapi
-function fhpartner_nodeapi_insert($node) {
-  $permitted = _partners_permitted($node);
-  foreach ($node->partners as $pid) {
-    if (array_key_exists($pid,$permitted)) {
-      db_query("INSERT INTO partners_partners SET nid=%d,pid=%d",$node->nid,$pid);
-    }
-  }
-}
-
-// helper function for nodeapi
-// this is a little tricky
-function fhpartner_nodeapi_update($node) {
-  // gather data
-  $permitted = _partners_permitted($node);
-  $partners = $node->partners;
-
-  // for each partner this user is permitted to modify
-  if (is_array($partners)){
-    foreach ($permitted as $pid=>$pname) {
-      // check whether the partner has been enabled
-      if (in_array($pid,$partners)){
-        if (db_num_rows(db_query("SELECT * FROM {partners_partners} WHERE nid=%d AND pid=%d",$node->nid,$pid))==0)
-          db_query("INSERT INTO partners_partners SET nid=%d,pid=%d",$node->nid,$pid);
-      } else {
-        db_query("DELETE FROM partners_partners WHERE nid=%d AND pid=%d",$node->nid,$pid);
-      }
-    }
-  }
-}
-
-
-/**
- * hook_nodeapi implementation
- *
- * @ingroup event_nodeapi
- */
-
- /*
-function fhpartner_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
-  if (!variable_get('fhpartner_support_'. $node->type, 0)) return;
-
-  switch ($op) {
+function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch($op) {
     case 'load':
-      $rs = db_query("SELECT p.pid FROM {node} n, {partners_partners} p WHERE p.nid=%d AND p.pid = n.nid ORDER BY n.sticky DESC, n.title ASC",$node->nid);
+      $partners = array();
+      $rs = db_query("SELECT p.pid FROM {partners_partners} p INNER JOIN {node} n ON p.nid = n.nid WHERE p.nid= %d ORDER BY n.sticky DESC, n.title ASC", $node->nid);
       while ($a = db_fetch_array($rs)) {
         $partners[] = $a['pid'];
       }
-      $node->partners = $partners;
-      break;
-    case 'insert':
-      $permitted = _partners_permitted($node);
-      foreach ($node->partners as $pid) {
-        if (array_key_exists($pid,$permitted)) {
-          db_query("INSERT INTO partners_partners SET nid=%d,pid=%d",$node->nid,$pid);
-        }
-      }
-      break;
+      return array('partners' => $partners);
     case 'update':
-      // gather data
-      $permitted = _partners_permitted($node);
-      $partners  = $node->partners;
-    
-      // for each partner this user is permitted to modify
-      if (is_array($partners)){
-        foreach ($permitted as $pid=>$pname) {
-          // check whether the partner has been enabled
-          if (in_array($pid,$partners)){
-            if (db_num_rows(db_query("SELECT * FROM {partners_partners} WHERE nid=%d AND pid=%d",$node->nid,$pid))==0)
-              db_query("INSERT INTO partners_partners SET nid=%d,pid=%d",$node->nid,$pid);
-          } else {
-            db_query("DELETE FROM partners_partners WHERE nid=%d AND pid=%d",$node->nid,$pid);
-          }
+      db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
+      // Intentional no break
+    case 'insert':
+      if(is_array($node->partners)) {
+        // $permitted = _partners_permitted($node);
+        foreach ($node->partners as $pid) {
+          //if (array_key_exists($pid, $permitted)) {
+            db_query("INSERT INTO partners_partners SET nid=%d, pid=%d",$node->nid, $pid);
+          //}
         }
       }
       break;
-    case "delete":
-        db_query("DELETE FROM partners_partners WHERE nid=%d",$node->nid);
+    case 'delete':
+      db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
       break;
   }
-
 }
-*/
+
+
 
 
 /**

@@ -7,14 +7,19 @@
  * Emanuele Quinto, http://www.fighthunger.org
  */
  
-/**
+/*
  * TODO:
  * update table: 
- *   update node SET `type`='fhpartner' WHERE `type` = 'partners';
- *   ALTER TABLE `partners_node` ADD `paud` ENUM( 'GLOBAL', 'COUNTRY', 'LOCAL' ) NOT NULL AFTER `ptid` ;
- *   ALTER TABLE `partners_node` ADD `country` CHAR( 2 ) NOT NULL AFTER `paud`   
+  UPDATE node SET `type`='partner' WHERE `type` = 'partners';
+  ALTER TABLE `partners_node` ADD `paud` ENUM( 'GLOBAL', 'COUNTRY', 'LOCAL' ) NOT NULL AFTER `ptid` ;
+  ALTER TABLE `partners_node` ADD `country` CHAR( 2 ) NOT NULL AFTER `paud`;   
  */     
-
+/*
+-- More updates
+  ALTER TABLE `partners_node` ADD PRIMARY KEY(nid);
+  INSERT IGNORE INTO partners_node(nid, crmid, ptid, paud, active) 
+  SELECT n.nid, 0, 'NGO', 'GLOBAL', 1 FROM node n WHERE n.type = 'partner';
+ */
 /**
  * Implementation of hook_help().
  */
@@ -24,7 +29,7 @@ function fhpartner_help($section) {
       return t('<strong>FH:</strong>Allows to create and manage wtw event partners.');
     case 'admin/help#fhpartner':
       return '<p>'. t('Fhpartner module is used to manage wtw event partners') .'</p>';
-    case 'node/add#fhpartner':
+    case 'node/add#partner':
       return t('Create FH event partners.');
   }
 }
@@ -33,9 +38,13 @@ function fhpartner_help($section) {
  * Implementation of hook_perm().
  */
 function fhpartner_perm() {
-  return array('create fhpartner', 
-    'edit own fhpartner' , 
-    'administer fhpartner');
+  return array(
+    'create partner', 
+    'edit own partners' , 
+    'administer partners',
+    'manage global partners',
+    'manage country partners'
+  );
 }
 
 /**
@@ -43,21 +52,65 @@ function fhpartner_perm() {
  */
 function fhpartner_menu($may_cache) {
   $items = array();
-  $access = user_access('administer fhpartner');
 
   if ($may_cache) {
-		$items[] = array('path' => 'admin/fhpartner', 
-        'title' => t('Administer fhpartner'),
+	$items[] = array('path' => 'admin/fhpartner', 
+        'title' => t('Administer partners'),
         'type' => MENU_CALLBACK,
         'weight' => 0,
         'callback' => 'fhpartner_admin',
-        'access' => $access);
-		
-    $items[] = array('path' => "node/add/fhpartner", 
-        'title' => t('Create fh partners'),
-        'access' => user_access("create fhpartner"));
+        'access' => user_access('administer partners')
+    );
+    $items[] = array('path' => "node/add/partner", 
+        'title' => t('partner'),
+        'callback' => 'fhpartner_add',
+        'access' => user_access("create partners")
+    );
+    $node = new StdClass();
+    foreach (_fhpartner_audience() as $type => $name) {
+      $node->paud = $type;
+      $items[] = array(
+       'path' => 'node/add/partner/' . $type,
+       'title' => $name,
+       'access' => fhpartner_access('create', $node)
+      );
+    }
   }
   return $items;
+}
+
+/**
+ * Menu callback: create partners main page
+ */
+function fhpartner_add() {
+  global $user;
+  $output = '';
+
+  $ptypes = _fhpartner_audience();
+  
+  if (arg(3) && in_array(arg(3), array_keys($ptypes))) {
+    $ptype = arg(3);
+
+    // Initialize settings
+    $node = array('uid' => $user->uid, 'name' => $user->name, 'type' => 'partner', 'paud' => $ptype);
+    
+    $output = node_form($node);
+    drupal_set_title(t('Submit %name Partner', array('%name' => $ptypes[$ptype])));
+  }
+  else {
+    $link = 'node/add/partner';
+    // If no (valid) parther type has been provided, display a partner type overview.
+    $node = new StdClass();
+    foreach ($ptypes as $ptype => $name) {
+      $node->paud = $ptype;
+      if (fhpartner_access('create', $node)) {
+        $items[$ptype] = l($name, "$link/$ptype", array('title' => t('Create a %s.', array('%s' => $name))));
+        //$out .= '<dd>'. implode("\n", module_invoke_all('help', 'node/add/product#'. $ptype)) .'</dd>';
+      }
+    }
+    $output .= theme('item_list', $items);
+  }
+  return $output;
 }
 
 /**
@@ -66,17 +119,34 @@ function fhpartner_menu($may_cache) {
  
 /**
  * Implementation of hook_access().
+ * 
+ * Global are created/edited/deleted by users with 'manage Global partner' permission.
+ * Country are created/edited/deleted by users with 'manage Country partner' permission.
+ * Local Partner is a little different:
+ *  create: each organiser (users who create a walk) can create a Local Partner; this user can set 'private' flag for this partner;
+ *  edit/delete: organiser can edit own partners; users with 'manage Country partner' and 'manage Global partner' permission can edit as well;
+ *  select (on editing walk): 'private' partners are available only to creators, users with 'manage Global partner' and 'manage Country partner' can overrule. 
+ *  Note: 'manage Global partner' is associated to 'admin fhwalk', and 'manage Country partner' to 'coordinate fhwalk' in roles. 
  */
 function fhpartner_access($op, $node) {
   global $user;
   
-  if(user_access("administer fhpartner")) {
+  if (user_access('administer partners')) {
     return TRUE;
-  } elseif ($op == 'create') {
-    return user_access("create fhpartner");
-  } elseif ($op == 'update' || $op == 'delete') {
-    if (user_access("edit own fhpartner") && ($user->uid == $node->uid)) {
+  } elseif (($op == 'update' || $op == 'delete') && user_access("edit own partners") && ($user->uid == $node->uid)) {
       return TRUE;
+  } else {
+    switch ($node->paud) {
+      case 'GLOBAL':
+        return user_access('manage global partners');
+      case 'COUNTRY':
+        return user_access('manage country partners');
+      case 'LOCAL':
+        if($op = 'create' && user_access('create partners')) {
+          return TRUE;
+        } else {
+          return user_access('manage global partners') || user_access('manage country partners');
+        }
     }
   }
 }
@@ -85,7 +155,7 @@ function fhpartner_access($op, $node) {
  * Implementation of hook_node_info().
  */
 function fhpartner_node_info() {
-  return array('fhpartner' => array('name' => t('fhpartner'), 'base' => 'fhpartner'));
+  return array('partner' => array('name' => t('partner'), 'base' => 'fhpartner'));
 }
 
 /**
@@ -118,15 +188,16 @@ function fhpartner_settings() {
  * Implementation of hook_form().
  */
 function fhpartner_form(&$node) {
+  $edit = isset($_POST['edit']) ? $_POST['edit'] : array();
   // general settings
   $form['title'] = array(
     '#type' => 'textfield',
-    '#title' => t('Title'),
+    '#title' => t('Name'),
     '#required' => TRUE,
     '#default_value' => $node->title,
     '#description' => t("the name of this partner."),
     '#required' => TRUE,
-    '#weight' => -9,
+    '#weight' => -10,
   );
   $form['body'] = array(
     '#type' => 'textarea',
@@ -134,46 +205,47 @@ function fhpartner_form(&$node) {
     '#default_value' => $node->body,
     '#rows' => 5,
     '#description' => t('Enter a description of the partner.'),
-    '#weight' => -8,
+    '#weight' => -7,
   );
   $form['format'] = filter_form($node->format);
-  $form['format']['#weight'] = -7;
+  $form['format']['#weight'] = -6;
 
-// add forms for partner settings
-
-// partner type form
-  $options = array("NGO"=>t("NGO"),
-                   "PRIVATE"=>t("Private"),
-                   "INSTITUTION"=>t("Institution"),
-                   "UNAGENCY"=>t("UN Agency"),
-                   "OTHER"=>"Other");
-  $form['ptid'] = array(
+  // partner type and audience
+  $form['ptype'] = array('#type' => 'fieldset', '#title' => t('Partner Type and Audience'));
+  
+  $form['ptype']['ptid'] = array(
     '#type' => 'select',
-    '#title' => t('Partner Type'),
+    '#title' => t('Type'),
     '#default_value' => $node->ptid,
-    '#options' => $options,
+    '#options' => _fhpartner_partner_type(),
     '#description' => t('Enter partner type.'),
+
   );
 
-// partner audience form
-  $options = array("GLOBAL"=>t("Global"),
-                   "COUNTRY"=>t("Country"),
-                   "LOCAL"=>t("Local"));
-  $form['paud'] = array(
-    '#type' => 'select',
-    '#title' => t('Partner Audience'),
-    '#default_value' => $node->paud,
-    '#options' => $options,
-    '#description' => t('Enter partner audience.'),
-  );
-// partner audience country form
-//  if( ($node->paud=='COUNTRY') || !isset($node->paud))
-  $form['blabla'] = array( '#value' => 'isset: ' . (isset($node->paud) ? 'yes' : 'no') );
+  // Restrict partner types a user can create
 
-  if ( !isset($node->paud) || ($node->paud=='COUNTRY') ) {
-    $form['country'] = array(
+  $options = _fhpartner_audience();
+  if(!$node->nid || !user_access('administer partners')) {
+    $form['ptype']['paud_text'] = array(
+      '#type' => 'item',
+      '#value' => $options[$node->paud],
+      '#title' => t('Audience')
+      );
+     $form['paud'] = array('#type' => 'value', '#value' => $node->paud);
+  } else {
+    $form['ptype']['paud'] = array(
       '#type' => 'select',
-      '#title' => t('Partner Country'),
+      '#title' => t('Audience'),
+      '#default_value' => $node->paud,
+      '#options' => $options,
+      '#description' => t('Enter partner audience.'),
+    );
+  }
+  // partner audience country form
+  if (isset($edit['paud']) && $edit['paud'] == 'COUNTRY' || $node->paud == 'COUNTRY') {
+    $form['ptype']['country'] = array(
+      '#type' => 'select',
+      '#title' => t('Country'),
       '#default_value' => $node->country,
       '#options' => fh_get_country_list(),
       '#description' => t('Enter partner country audience.'),
@@ -187,39 +259,63 @@ function fhpartner_form(&$node) {
   $options = array(0=>t("Inactive"),
                    1=>t("Active"));
   $form['active'] = array(
-    '#type' => 'select',
-    '#title' => t('Active'),
+    '#type' => 'radios',
+    '#title' => t('Status'),
     '#default_value' => $node->active,
     '#options' => $options,
   );
-/*  
+ 
+  // Partner dates
   $form['date_start'] = array(
     '#type' => 'fieldset',
     '#title' => t('Start date'),
     );
-  $form['date_start']['date'] = event_form_date( strtotime($node->startdate) + 3600 , 'start', 0);
-//  unset( $form['date_start']['date']['start_hour'] );
-//  unset( $form['date_start']['date']['start_minute'] );
-
+  $form['date_start']['date'] = fhpartner_date_field('form',  'startdate', $node->startdate);
   $form['date_end'] = array(
     '#type' => 'fieldset',
     '#title' => t('End date'),
     );
-  $form['date_end']['date'] = event_form_date( strtotime( $node->enddate)  + 3600 , 'end', 0);
-  unset( $form['date_end']['date']['end_hour'] );
-  unset( $form['date_end']['date']['end_minute'] );
- */ 
+  $form['date_end']['date'] = fhpartner_date_field('form', 'enddate', $node->enddate);
   return $form;
 }
 
 /**
- * Implementation of hook_form().
+ * Implementation of hook_validate()
  */
-/*
-function fhpartner_form_submit($form_id, $form_values) {   
+function fhpartner_validate(&$node, $form) {
+  // Dates
+  foreach(array('startdate', 'enddate') as $field) {
+    if(!$date = fhpartner_date_field('value', $field, (array)$node)) {
+      form_set_error($field, t('%date_name is not a valid date.', array('%date_name' => ($field == 'startdate') ? t('Start date') : t('End date'))));
+    }
+  }
+  // Type
+  if ($node->paud == 'COUNTRY' && !$node->country) {
+    form_set_error('country', t('You must select a country'));
+  } 
 }
-*/
 
+/**
+ * Manage date fields
+ * 
+ * This function encapsulates all date management. Relies on event module.
+ */
+function fhpartner_date_field($op, $field = 'start', $date = NULL, $offset = 0) {
+  switch($op) {
+    case 'form':
+      $form = module_invoke('event', 'form_date', strtotime($date) +3600, $field, $offset);
+      unset($form[$field.'_hour']);
+      unset($form[$field.'_minute']);
+      return $form;
+    case 'value':
+      // Parameter is form submit
+      if (($year = $date[$field.'_year']) && ($month = $date[$field.'_month']) && ($day = $date[$field.'_day']) && checkdate($month, $day, $year)) {
+        return $year.'-'.$month.'-'.$day; // ISO date
+      } else {
+        return NULL;
+      }
+  }
+}
 
 /**
  * Utility function, queries database
@@ -382,31 +478,10 @@ function fhpartner_form_alter($form_id, &$form) {
 }
 
 /**
- * Return an array of fhpartner database fields
- */
-function _fhpartner_get_fields() {
-  return array('nid' => 0,
-               'crmid' =>  0,
-               'ptid' => 'NGO',
-               'paud' => 'GLOBAL',
-               'country' => '',
-               'logosmall' =>  '',
-               'logolarge' =>  '',
-               'startdate' =>  '0000-00-00',
-               'enddate' =>  '0000-00-00',
-               'active' =>  '0');
-}
-
-/**
  * Implementation of hook_load().
  */
 function fhpartner_load($node) {
-  $fields = array_keys(_fhpartner_get_fields());
-// remove nid from field list
-  unset($fields[0]);
-
-  $fhpartner = db_fetch_object(db_query('SELECT '. implode(',', $fields) .' FROM {partners_node} WHERE nid=%d', $node->nid));
-  return $fhpartner;
+  return db_fetch_object(db_query('SELECT * FROM {partners_node} WHERE nid= %d', $node->nid));
 }
 
 function fhpartner_view(&$node, $teaser = FALSE, $page = FALSE) {
@@ -448,37 +523,44 @@ function fhpartner_view(&$node, $teaser = FALSE, $page = FALSE) {
 }
 
 /**
+ * Implementation of hook_insert().
+ */
+function fhpartner_insert($node) {
+  $node->startdate = fhpartner_date_field('value', 'startdate', (array)$node);
+  $node->enddate = fhpartner_date_field('value', 'enddate', (array)$node);  
+  $fields = _fhpartner_get_fields();
+  $params[] = '%d';
+  $values[] = $node->nid; 
+  foreach( $fields as $key => $default) {
+    $params[] = "'%s'";
+    $values[] = isset($node->$key) ? $node->key : $default;
+  }
+  db_query("INSERT INTO {partners_node}(nid, ".implode(', ', array_keys($fields)).") VALUES(".implode(', ', $params). ")", $values);
+}
+
+/**
  * Implementation of hook_update().
  */
 function fhpartner_update($node) {
+  $node->startdate = fhpartner_date_field('value', 'startdate', (array)$node);
+  $node->enddate = fhpartner_date_field('value', 'enddate', (array)$node);
 
   $fields = _fhpartner_get_fields();
-// remove nid from field list
-  unset($fields[0]);
   $keys = array_keys($fields);
 
   foreach ($node as $key => $value) {
     if (in_array($key, $keys)) {
       // this is a banner field, update it
-      $param = $key;
-      $param .= is_int($fields[$key]) ? '=%d' : "='%s'";
+      $param = $key. '= ';
+      $param .= is_int($value) ? "%d" : "'%s'";
       $q[] = $param;
-      if ($value) {
-        $v[] = $value;
-      } else {
-        $v[] = $fields[$key];
-      }
+      $v[] = $value;
     }
   }
   $v[] = $node->nid;
 
-  db_query('UPDATE {partners_node} SET '. implode(',', $q) . ' WHERE nid=%d', $v);
-/*
-  drupal_set_message('UPDATE {partners_node} SET '. implode(',', $q) . ' WHERE nid=%d');
-  drupal_set_message(print_r($q, true));
-  drupal_set_message(print_r($v, true));
-  drupal_set_message(print_r($node, true));
-*/  
+  db_query('UPDATE {partners_node} SET '. implode(', ', $q) . ' WHERE nid = %d', $v);
+
 }
 
 /**
@@ -543,6 +625,7 @@ function fhpartner_nodeapi_update($node) {
  *
  * @ingroup event_nodeapi
  */
+
  /*
 function fhpartner_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
   if (!variable_get('fhpartner_support_'. $node->type, 0)) return;
@@ -635,4 +718,37 @@ function fhpartner_admin() {
   }
 }
 
-?>
+/**
+ * Return an array of fhpartner database fields
+ */
+function _fhpartner_get_fields() {
+  return array(
+    'crmid' =>  0,
+    'ptid' => 'NGO',
+    'paud' => 'GLOBAL',
+    'country' => '',
+    'logosmall' =>  '',
+    'logolarge' =>  '',
+    'startdate' =>  '0000-00-00',
+    'enddate' =>  '0000-00-00',
+    'active' =>  '0'
+  );
+}
+
+function _fhpartner_audience() {
+  return array(
+    "GLOBAL"=>t("Global"),
+    "COUNTRY"=>t("Country"),
+    "LOCAL"=>t("Local")
+  );
+}
+
+function _fhpartner_partner_type() {
+  return array(
+    "NGO"=>t("NGO"),
+    "PRIVATE"=>t("Private"),
+    "INSTITUTION"=>t("Institution"),
+    "UNAGENCY"=>t("UN Agency"),
+    "OTHER"=>t("Other")
+  );
+}

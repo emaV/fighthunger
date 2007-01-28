@@ -5,6 +5,15 @@
  * @file
  * Enables users to manage partners for events.
  * Emanuele Quinto, http://www.fighthunger.org
+ * 
+ * Dependencies:
+ *  - event.module, uses some event API
+ *  - gathering module
+ *
+ * Schema:
+ *  partners_node, data for partner content type
+ *  partners_partners, links partners to other content types
+ *  partners_user, links partners to users
  */
  
 /*
@@ -77,6 +86,32 @@ function fhpartner_menu($may_cache) {
     }
   }
   return $items;
+}
+
+/**
+ * Implementation of hook_block().
+ *
+ * Displays global partners only for objects linked to partners
+ */
+function fhpartner_block($op = 'list', $delta = 0) {
+  $block = array();
+  if ($op == 'list') {
+    $block[0]['info'] = t('Global Partners');
+    return $block;
+  }
+  else if ($op == 'view') {
+    // Only display this block when the user is viewing a node with partners enabled
+    if (arg(0) == 'node' && is_numeric(arg(1)) && ($node = node_load(arg(1))) && variable_get('fhpartner_support_'.$node->type, 0)) {
+      $block['subject'] = t('Global Partners');
+      $partners = fhpartner_get_partners('GLOBAL');
+      $links = array();
+      foreach($partners as $nid => $name) {
+        $links[] = l($name, 'node/'.$nid);
+      }
+      $block['content'] = theme('item_list', $links);
+    }
+    return $block;
+  }
 }
 
 /**
@@ -163,23 +198,17 @@ function fhpartner_node_info() {
  */
  
 function fhpartner_settings() {
-/*  
-  $term_options = array();
-  $vocabularies = taxonomy_get_vocabularies('og');
+  // Select vocabulary for campaigns
+  $vocabularies = taxonomy_get_vocabularies('partner');
+  $options = array();
   foreach($vocabularies as $voc) {
-    $vocabulary_options[$voc->vid] = $voc->name;
-    $terms =  taxonomy_get_tree($voc->vid, 0, -1, 1);
-    foreach($terms as $term) {
-      $term_options[$term->tid] = "$voc->name - $term->name";
-    }
+    $options[$voc->vid] = $voc->name;
   }  
-  $form['fhwtw_event_vocabulary'] = array(
-    '#type' => 'radios', 
-    '#title' => t('fh wtw events vocabulary'),
-    '#default_value' => variable_get('fhwtw_event_vocabulary', 0),
-    '#options' => $term_options
+  $form['fhpartner_campaign_vocabulary'] = array('#type' => 'radios', '#title' => t('Campaigns vocabulary'),
+    '#default_value' => variable_get('fhpartner_campaign_vocabulary', key($options)),
+    '#options' => $options
   );
-*/  
+
   return $form;
 }
 
@@ -242,27 +271,22 @@ function fhpartner_form(&$node) {
     );
   }
   // partner audience country form
-  if (isset($edit['paud']) && $edit['paud'] == 'COUNTRY' || $node->paud == 'COUNTRY') {
-    $form['ptype']['country'] = array(
+  $audience = isset($edit['paud']) ? $edit['paud'] : $node->paud;
+  $form['ptype']['country'] = array(
       '#type' => 'select',
       '#title' => t('Country'),
       '#default_value' => $node->country,
       '#options' => fh_get_country_list(),
       '#description' => t('Enter partner country audience.'),
-    );
-  }
+      '#required' => ($audience != 'GLOBAL') // Country required only for LOCAL, COUNTRY partners
+  );
 
-// partner status form
-  if (!isset($node->active)) {
-    $node->active = 1;
-  }
-  $options = array(0=>t("Inactive"),
-                   1=>t("Active"));
+  // Partners status
   $form['active'] = array(
     '#type' => 'radios',
     '#title' => t('Status'),
-    '#default_value' => $node->active,
-    '#options' => $options,
+    '#default_value' => isset($node->active) ? $node->active : 1,
+    '#options' => array(t('Inactive'), t('Active')),
   );
  
   // Partner dates
@@ -350,29 +374,23 @@ function fhpartner_date_field($op, $field = 'start', $date = NULL, $offset = 0) 
 }
 
 /**
- * Utility function, queries database
- * does not actually load all the partner nodes, to save db query time
- */  
-function _fhpartner_get_local_partners() {
-  $rs = db_query("SELECT * FROM {node} n, {partners_node} pn WHERE n.nid = pn.nid AND pn.active=1 AND pn.paud='LOCAL' ORDER BY n.title");
-  while ($a = db_fetch_array($rs)) {
-    $out[$a['nid']] = $a['title'];
-  }
-  return $out;
-}
-
-/**
  * Get partner list
  */
 function fhpartner_get_partners($audience = 'LOCAL', $conditions = array()) {
   $partners = array();
   // Default conditions
   $where = array('pn.active' => 1, 'pn.paud' => db_escape_string($audience));
-  // Build where clause
+  $joins = array();
+  // Build where clause. Special case for taxonomy term parameter, 'tid'
+  if(isset($conditions['tid'])) {
+    $joins['node_term'] = "INNER JOIN {node_term} t ON t.nid = n.nid";
+    $where['t.tid'] = db_escape_string($conditions['tid']);
+    unset($conditions['tid']);
+  }
   foreach($conditions as $field => $value) {
     $where['pn.'.$field] = db_escape_string($value);
   }
-  $sql = "SELECT n.* FROM {node} n INNER JOIN {partners_node} pn ON n.nid = pn.nid WHERE n.type = 'partner'";
+  $sql = "SELECT n.* FROM {node} n INNER JOIN {partners_node} pn ON n.nid = pn.nid ". implode(' ', $joins)." WHERE n.type = 'partner'";
   foreach($where as $field => $value) {
     $sql .= " AND $field = '$value'";
   }
@@ -381,46 +399,21 @@ function fhpartner_get_partners($audience = 'LOCAL', $conditions = array()) {
   while ($node = db_fetch_object($result)) {
     $partners[$node->nid] = $node->title;
   }
-  return $partners;
-  
+  return $partners; 
 }
+
 /**
- * Return an array of the partners a given user is permitted to 
- * manage for a given node
- */   
-function _fhpartner_permitted($node,$user = NULL) {
-  // allow nodes and users to be passed as objects or ids
-  // if no user is specified, use the global user
-  if (is_numeric($node)) {
-    $node = node_load(array("nid"=>$node));
+ * Get campaign linked with a node
+ */
+function fhpartner_node_get_campaign($node) {
+  if (is_int($node)) {
+    $node = node_load($node);
   }
-  if (is_null($user)) {
-    global $user;
-  } elseif (is_numeric($user)) {
-    $user = user_load(array("uid"=>$user));
+  // Return the taxonomy term that is in campaign vocabulary
+  if (is_array($node->taxonomy)) {
+    return db_result(db_query("SELECT tid FROM {term_data} WHERE vid = %d AND tid IN (%s)", variable_get('fhpartner_campaign_vocabulary', 0), implode(',', array_keys($node->taxonomy))));
   }
-
-  if ($node->type=="fhwalk") {
-    if (user_access('administer fhpartner')) {
-      // users with 'administer partners' can assign any partner
-      $out = _fhpartner_get_local_partners();
-    } else {
-      // users with 'manage partners' can only assign designated partners
-      $rs = db_query("SELECT * FROM {node} n, {partners_user} pu, {partners_node} pn WHERE n.nid = pu.pid AND pn.active=1 AND pn.paud='LOCAL' AND n.nid = pn.nid AND pu.uid = %d ORDER BY n.title",$user->uid);
-      // $out will be empty (false) if no Partners are returned 
-      while ($a = db_fetch_array($rs)) {
-        $out[$a['nid']] = $a['title'];
-      }
-    }
-  } else {
-    // this nodetype does not have Partners enabled
-    $out = false;
-  }
-  
-//      $out = _fhpartner_get_local_partners();
-  return $out;
 }
-
 
 /**
  * Implementation of hook_form_alter().
@@ -450,11 +443,11 @@ function fhpartner_form_alter($form_id, &$form) {
             '#collapsible' => TRUE,
             '#collapsed' => FALSE
           );
-          $partners = fhpartner_get_partners('LOCAL');
+          $partners = fhpartner_get_partners('LOCAL', array('country' => $country));
           if(count($partners)) {
             $form['fhpartner']['partners'] = array(
               '#type' => 'checkboxes',
-              '#default_value' => $node->partners,
+              '#default_value' => is_array($node->partners) ? array_keys($node->partners) : array(),
               '#options' => $partners,
               '#description' => t("Select the partner(s) to associate this event with."),
             );
@@ -568,22 +561,16 @@ function fhpartner_delete(&$node) {
 function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   switch($op) {
     case 'load':
-      $partners = array();
-      $rs = db_query("SELECT p.pid FROM {partners_partners} p INNER JOIN {node} n ON p.nid = n.nid WHERE p.nid= %d ORDER BY n.sticky DESC, n.title ASC", $node->nid);
-      while ($a = db_fetch_array($rs)) {
-        $partners[] = $a['pid'];
+      if (variable_get('fhpartner_support_'.$node->type, 0)) {
+        return array('partners' => fhpartner_node_get_partners($node->nid));
       }
-      return array('partners' => $partners);
     case 'update':
       db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
       // Intentional no break
     case 'insert':
       if(is_array($node->partners)) {
-        // $permitted = _partners_permitted($node);
         foreach ($node->partners as $pid) {
-          //if (array_key_exists($pid, $permitted)) {
-            db_query("INSERT INTO partners_partners SET nid=%d, pid=%d",$node->nid, $pid);
-          //}
+          db_query("INSERT INTO {partners_partners} SET nid = %d, pid = %d",$node->nid, $pid);
         }
       }
       break;
@@ -593,14 +580,27 @@ function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   }
 }
 
-
+/**
+ * Get partners for a node
+ * 
+ * @return
+ *   Array of partner names indexed by nid
+ */
+function fhpartner_node_get_partners($node, $index = 'nid') {
+  $nid = is_int($node) ? $node : $node->nid;
+  $result = db_query("SELECT p.*, n.title FROM {partners_node} p INNER JOIN {node} n  ON p.nid = n.nid INNER JOIN {partners_partners} pp ON p.nid = pp.pid WHERE pp.nid = %d", $nid);
+  $partners = array();
+  while($node = db_fetch_object($result)) {
+    $partners[$node->$index] = $node;
+  }
+  return $partners;
+}
 
 
 /**
  * FH partner type administration
  */
 function fhpartner_admin() {
-
   $headers = array(
     array('data' => t('Title'), 'field' => 'title', 'sort' => 'asc'),
     array('data' => t('Type'),  'field' => 'ptid'),

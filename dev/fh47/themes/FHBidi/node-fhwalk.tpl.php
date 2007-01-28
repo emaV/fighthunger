@@ -28,8 +28,11 @@
 // Sponsor
 
 // Details
-  print "<h3>" . t("Details") . "</h3>";
-  print $node->body_plain;
+//  print "<h3>" . t("Details") . "</h3>";
+//  print $node->body_plain;
+
+// Actions
+  print $node->details;
 
 // Donation
 //  print "<h3>" . t("donation") . "</h3>";

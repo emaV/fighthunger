@@ -25,7 +25,7 @@ ADD `signup_show_comments` INT( 2 ) NOT NULL AFTER `signup_show_number`,
 ADD `signup_waiver` LONGTEXT NOT NULL AFTER `signup_show_comments`,
 ADD `signup_allow_guest` INT( 2 ) NOT NULL AFTER `signup_waiver`,
 ADD `signup_email_confirm` LONGTEXT NOT NULL AFTER `signup_allow_guest`,
-ADD `signup_email_unsubscribe` LONGTEXT NOT NULL AFTER `signup_email_confirm` ;
+ADD `signup_email_unsubscribe` LONGTEXT NOT NULL AFTER `signup_email_confirm`,
 ADD `signup_email_approve` LONGTEXT NOT NULL AFTER `signup_email_unsubscribe`,
 ADD `signup_email_deny` LONGTEXT NOT NULL AFTER `signup_email_approve`,
 ADD `signup_email_wait` LONGTEXT NOT NULL AFTER `signup_email_deny`,

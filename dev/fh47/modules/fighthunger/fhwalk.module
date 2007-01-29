@@ -1139,8 +1139,7 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
   $span = max( ($lat_max - $lat_min)/180, ($long_max - $long_min)/360 );
 //  $span = 0.1;
   $gmap_array['span'] = $span;
-  $gmap_array['zoom'] = (int)(floor(5 - $span * 10));
-// $gmap_array['zoom'] = 4;
+  $gmap_array['zoom'] = min(max((int)(floor(5 - $span * 10)) , 1), 5);
   
   return $gmap_array;
   
@@ -1236,7 +1235,7 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
 // debug
 
 //  $out .= "<hr />" . htmlentities($gmap_string) . "";
-//  $out .= '<hr />$gmap_array: ' . htmlentities( print_r($gmap_array, true) );
+  $out .= '<hr />$gmap_array: ' . htmlentities( print_r($gmap_array, true) );
 /*
   $out .= "<hr />lat_max $lat_max, long_max $long_max, lat_min $lat_min, long_min $long_min";
   $span_lat = ($lat_max - $lat_min) / 180;

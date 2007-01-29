@@ -1096,17 +1096,17 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
       }
 */
       $gmap_array['markers'][] = array(
-//        'label'      => $label,
+        'label'      => $label,
         'tooltip'    => $value['city'],
-        'link'       => "/node/$key",
+//        'link'       => "/node/$key",
         'latitude'   => $value['latitude'],
         'longitude'  => $value['longitude'],
         'markername' => 'blue'        
       );    
     }
   }
-  $gmap_array['latitude']  = 42.4229545; 
-  $gmap_array['longitude'] = -113.5864825;
+  $gmap_array['latitude']  = ($lat_max + $lat_min)/2; 
+  $gmap_array['longitude'] = ($long_max + $long_min)/2;
   $gmap_array['zoom'] = 4;
   
   return $gmap_array;

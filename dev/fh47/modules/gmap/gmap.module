@@ -528,9 +528,10 @@ setTimeout("move(" + (noDisk - 1) +  ")", 2000);
       $javascript=str_replace('{id}',$gmap['id'],$javascript);
       $outtext .=$javascript;
     }
-    $outtext .= $EQ_timedFunction_code; // fork you
 
-    $outtext .="\n } \n   //]]>
+    $outtext .="\n }\n";
+    $outtext .= $EQ_timedFunction_code; // fork you
+    $outtext .="\n   //]]>
                </script>";
     return $outtext;
 }

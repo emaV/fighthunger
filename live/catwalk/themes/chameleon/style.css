@@ -4,13 +4,13 @@
 ** HTML elements
 */
 a:link {
-  color: #aaa;
+  color: #666;
 }
 a:active {
   color: #000;
 }
 a:visited {
-  color: #aaa;
+  color: #666;
 }
 body {
   padding: 5em 0 0 3em;
@@ -49,13 +49,13 @@ ul {
 #header .title a:visited,
 #header .title a:active {
   text-decoration: none;
-  color: #aaa;
+  color: #666;
 }
 #header .title a:hover {
   color: #000;
 }
 #header .site-slogan {
-  color: #aaa;
+  color: #666;
   margin-top: -0.1em;
   font-size: 0.8em;
 }
@@ -63,7 +63,7 @@ ul {
   font-size: 0.8em;
 }
 ul.links li {
-  border-left: 1px solid #aaa;
+  border-left: 1px solid #666;
 }
 ul.links li.first {
   border-left: none;

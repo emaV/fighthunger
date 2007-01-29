@@ -1105,9 +1105,12 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
       $long_max = ($long_max) ?  max($long_max, $value['longitude']) : $value['longitude'];
       $lat_min  = ($lat_min)  ?  min($lat_min,  $value['latitude'])  : $value['latitude'];
       $long_min = ($long_min) ?  min($long_min, $value['longitude']) : $value['longitude'];
-
+/*
       $label  = '<h3>' . $value['city'] . '</h3>' . $value['title'] . '<br /><br/>' . 
         '<a href="/' . drupal_get_path_alias("node/$key") . '"><i>' . t('Visit Walk Page') . '</i></a>';
+*/
+      $label  = $value['city']; 
+
 /*
       // get flickr photo
       list($tag_campaign, $tag_event) = split('/',  $path_alias );

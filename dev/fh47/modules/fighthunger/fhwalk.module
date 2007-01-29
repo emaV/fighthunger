@@ -1109,7 +1109,7 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
       $label  = '<h3>' . $value['city'] . '</h3>' . $value['title'] . '<br /><br/>' . 
         '<a href="/' . drupal_get_path_alias("node/$key") . '"><i>' . t('Visit Walk Page') . '</i></a>';
 */
-      $label  = $value['city']; 
+      $label  = '<h3>' . $value['city'] . '</h3>'; 
 
 /*
       // get flickr photo

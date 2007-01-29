@@ -1060,7 +1060,6 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
   $lat_min  = NULL;
   $long_min = NULL;
 
-
   $gmap_array =array(
     'id' => 'map',
     'width'   => '500px',
@@ -1130,6 +1129,11 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
 
   $term = taxonomy_get_term($tid);
   drupal_set_title($term->name);
+
+// Walk status
+  $status = variable_get("fhwalk_" . $tid . "_status", 0);
+  $fhwalk_overview['status'] = $status;
+
   
 // Walk list
   if( $country <> '-') {
@@ -1140,7 +1144,6 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
   }
 
 // Map
-
   $lat_max  = NULL;
   $long_max = NULL;
   $lat_min  = NULL;
@@ -1165,12 +1168,19 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
   $fhwalk_overview['term'] = $term;
 
 // Country selection
+  if( $fhwalk_overview['status']==2 ) {
+    $country_list = fh_get_country_list();
+  } else {
+    $country_list = array('' => '--') + _fhwalk_get_country_campaign($tid);
+  }
+
+
   $form['tid'] = array('#type' => 'hidden', '#value' => $tid);
   $form['synonym'] = array('#type' => 'hidden', '#value' => $synonym);
   $form['country'] = array(
     '#type' => 'select',
     '#title' => t('Select a country'),
-    '#options' => fh_get_country_list(),
+    '#options' => $country_list,
     '#default_value' => $country,
     '#attributes' => array('onchange' => 'submit()'),
   );
@@ -1183,9 +1193,6 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
   $fhwalk_overview['country_search_form'] = $form;
   $fhwalk_overview['country_search'] = drupal_get_form('fhwalk_overview', $form);
     
-// Walk status
-  $status = variable_get("fhwalk_" . $tid . "_status", 0);
-  $fhwalk_overview['status'] = $status;
 
 // print node
 //  $out .= gmap_draw_map($gmap_array);

@@ -1235,7 +1235,7 @@ function fhwalk_administer($synonym, $tid) {
 global $user;
 
   $search_keys = array('coord'=> 1, 'country' => 2);
-  $sql_array = array_intersect_key($_REQUEST, $search_keys);
+  $sql_array = ($_REQUEST) ? array_intersect_key($_REQUEST, $search_keys) : array();
 
   $term = taxonomy_get_term($tid);
   drupal_set_title(t('Administer') . ": $term->name");

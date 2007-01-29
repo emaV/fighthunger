@@ -1109,7 +1109,7 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
   $gmap_array['longitude'] = -113.5864825;
   $gmap_array['zoom'] = 4;
   
-  return $gmap_array;
+  return array($gmap_array);
   
 }
 

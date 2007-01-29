@@ -972,11 +972,12 @@ function fhwalk_overview_submit($form_id, $form_values) {
  * @return the walks array
  */
 function _fhwalk_getwalks($tid, $country='%') {
-  $sql = "SELECT n.nid, n.title, l.city, l.province, l.country FROM {node} n " .
-          "LEFT JOIN {location} l ON n.nid = l.oid " . 
-          "LEFT JOIN {term_node} tn ON n.nid= tn.nid " . 
-          "WHERE tn.tid = %d AND l.country LIKE '%s' AND n.type='fhwalk' " . 
-          "ORDER BY l.city"; 
+  $sql = "SELECT n.nid, n.title, l.city, l.province, l.country, l.latitude, l.longitude " .
+         "FROM {node} n " .
+         "LEFT JOIN {location} l ON n.nid = l.oid " . 
+         "LEFT JOIN {term_node} tn ON n.nid= tn.nid " . 
+         "WHERE tn.tid = %d AND l.country LIKE '%s' AND n.type='fhwalk' " . 
+         "ORDER BY l.city"; 
   $rs = db_query($sql, $tid, $country);
   $walk_list = array();
   while ($walk_data = db_fetch_array($rs)) {
@@ -1042,6 +1043,17 @@ function theme_fhwalk_overview_node($fhwalk_overview) {
 }
 
 /**
+ * Get gmap markers
+ *  
+ * @ingroup fhwalk_helpers
+ * @param $tid taxonomy campaign tid
+ * @param $country country 
+ * @return array of markers
+ */  
+function _fhwalk_get_gmap($tid, $country) {
+
+}
+/**
  * Walk campaign home page
  *  
  * @ingroup fhwalk_core
@@ -1055,8 +1067,55 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
   $term = taxonomy_get_term($tid);
   drupal_set_title($term->name);
   
+// Walk list
+  if( $country <> '-') {
+    $walk_list = _fhwalk_getwalks($tid, $country);
+    $fhwalk_overview['walk_list'] = $walk_list;
+  } else {
+    $walk_list = _fhwalk_getwalks($tid);
+  }
+
 // Map
-  $gmap_string = "[gmap |id=map |center=40, 0 |zoom=3 |width=500px |height=400px |control=Small |type=Map |feed=blue::/taxonomy/term/$tid/0/feed ]";
+  $gmap_markers = array();
+  $lat_max  = NULL;
+  $long_max = NULL;
+  $lat_min  = NULL;
+  $long_min = NULL;
+  foreach($walk_list as $key => $value) {
+    $path_alias = drupal_get_path_alias("node/$key");
+    $popup  = '<h3>' . $value['city'] . "</h3><a href='$path_alias'>" . $value['title'] . '</a>';
+    $popup  = $value['city'];
+/*
+// get flickr photo
+    list($tag_campaign, $tag_event) = split('/',  $path_alias );
+    $tag_flickr = _tags4flickr ($tag_event); 
+    $sql  = "SELECT * FROM {wtw_gallery_tags} WHERE tag = '$%s'";
+    $row = db_fetch_array(db_query($sql, $tag_flickr));
+    if($row) {
+      $pid = $row['photo_id'];
+      $secret = $row['secret'];
+      $server = $row['server'];
+      
+      $flickr_link = "http://www.flickr.com/photos/walktheworld/$pid/";
+      $flickr_square = "http://static.flickr.com/$server/" . $pid . "_" . $secret . "_s.jpg";
+      $popup .= "<a href='$flickr_link'><img src='$flickr_square' width='75' height='75' vspace='5' hspace='5'></a>";
+    }
+*/
+    $lat_max  = ($lat_max)  ?  max($lat_max,  $value['latitude'])  : $value['latitude'];
+    $long_max = ($long_max) ?  max($long_max, $value['longitude']) : $value['longitude'];
+    $lat_min  = ($lat_min)  ?  min($lat_min,  $value['latitude'])  : $value['latitude'];
+    $long_min = ($long_min) ?  min($long_min, $value['longitude']) : $value['longitude'];
+
+    $gmap_markers_array[] = $value['latitude'] . ',' .  $value['longitude'] . ":$popup";
+  }
+  $gmap_markers = implode(' + ',$gmap_markers_array);
+  $gmap_center_lat  = ($lat_max + $lat_min)/2;
+  $gmap_center_long = ($long_max + $long_min)/2;
+      
+  $gmap_string = "[gmap |id=map |center=$gmap_center_lat, $gmap_center_long " .
+    "|zoom=4 |width=500px |height=400px |control=Small |type=Map |markers=blue::$gmap_markers]";
+  
+//  $gmap_string = "[gmap |id=map |center=40, 0 |zoom=3 |width=500px |height=400px |control=Small |type=Map |feed=blue::/taxonomy/term/$tid/0/feed ]";
   $gmap_array = gmap_parse_macro($gmap_string);
   $fhwalk_overview['gmap_array'] = $gmap_array ;
 //  $fhwalk_overview['gmap'] = gmap_draw_map($fhwalk_overview['gmap_array']);
@@ -1083,12 +1142,6 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
   $fhwalk_overview['country_search_form'] = $form;
   $fhwalk_overview['country_search'] = drupal_get_form('fhwalk_overview', $form);
     
-// Walk list
-  if( $country <> '-') {
-    $walk_list = _fhwalk_getwalks($tid, $country);
-    $fhwalk_overview['walk_list'] = $walk_list;
-  }
-
 // Walk status
   $status = variable_get("fhwalk_" . $tid . "_status", 0);
   $fhwalk_overview['status'] = $status;
@@ -1103,8 +1156,9 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
   $out = theme('fhwalk_overview_node', $fhwalk_overview);     
     
 // debug
+
+  $out .= '<hr />' . $gmap_string;
 /*
-  $out .= '<hr />' . print_r($term, true);
   $out .= '<hr />' . "tid: $tid";
   $out .= '<hr />' . "country: $country";
   $out .= '<hr />' . "fhwalk_overview: " . print_r($fhwalk_overview, true);

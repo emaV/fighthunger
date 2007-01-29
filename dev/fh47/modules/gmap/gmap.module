@@ -382,7 +382,9 @@ function gmap_draw_map($gmap, $javascript='') {
           $clusterset=true;
         }
         else {
-          $outtext .=$gmap['id'].'.addOverlay(createGMarker(new GLatLng('.$item['latitude'].','.$item['longitude'].'),\''.$mytext.'\',\''.$mymarker."','$tooltip','$link'));\n";
+//          $outtext .=$gmap['id'].'.addOverlay(createGMarker(new GLatLng('.$item['latitude'].','.$item['longitude'].'),\''.$mytext.'\',\''.$mymarker."','$tooltip','$link'));\n";
+          $addPointFunction = $gmap['id'].'.addOverlay(createGMarker(new GLatLng('.$item['latitude'].','.$item['longitude'].'),\''.$mytext.'\',\''.$mymarker."','$tooltip','$link'))";
+          $outtext .= "window.setTimeout($addPointFunction, 0);\n"; // fork you
           if($gmap['autozoom']){
             $outtext .='bounds.extend(new GLatLng('.$item['latitude'].','.$item['longitude'].'));'."\n";
           }

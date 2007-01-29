@@ -1,0 +1,11 @@
+--- /var/www/svn_dev47/modules/location/location.inc	2006-11-21 13:25:02.000000000 +0100
++++ /var/www/dev47/modules/location/location.inc	2007-01-29 18:03:25.000000000 +0100
+@@ -121,7 +121,7 @@ function theme_location($location = arra
+       $output .= '<dd>'. $location['street'] .'</dd>';
+     }
+     
+-    if (!empty($location['additional']) && !in_array('street', $hide)) {
++    if (!empty($location['additional']) && !in_array('additional', $hide)) {
+       $output .= '<dd>' . $location['additional'] . '</dd>';
+     }
+     

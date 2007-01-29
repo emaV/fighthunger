@@ -121,7 +121,7 @@ function theme_location($location = array(), $hide = array()) {
       $output .= '<dd>'. $location['street'] .'</dd>';
     }
     
-    if (!empty($location['additional']) && !in_array('street', $hide)) {
+    if (!empty($location['additional']) && !in_array('additional', $hide)) {
       $output .= '<dd>' . $location['additional'] . '</dd>';
     }
     

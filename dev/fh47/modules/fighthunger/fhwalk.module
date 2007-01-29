@@ -833,22 +833,26 @@ function theme_fhwalk_actions($actions) {
  * @return rendered js tabs
  */
 function theme_fhwalk_LCP($LCP_list) {
-  if(count($LCP_list)==1) {
-    $LCPvalue = array_shift($LCP_list);
-    $output = node_view(node_load($LCPvalue['nid']), FALSE);
-  } else {
-    $form['LCPtabset'] = array(
-      '#type' => 'tabset'
-    );
-    foreach($LCP_list as $LCPkey => $LCPvalue) {
-      $LCPnode = node_view(node_load($LCPvalue['nid']), FALSE);
-      $form['LCPtabset'][$LCPkey] = array(
-        '#type' => 'tabpage',
-        '#title' => $LCPvalue['language']
+  if($LCP_list) { 
+    if(count($LCP_list)==1) {
+      $LCPvalue = array_shift($LCP_list);
+      $output = node_view(node_load($LCPvalue['nid']), FALSE);
+    } else {
+      $form['LCPtabset'] = array(
+        '#type' => 'tabset'
       );
-      $form['LCPtabset'][$LCPkey]['node'] = array('#value' => $LCPnode);
+      foreach($LCP_list as $LCPkey => $LCPvalue) {
+        $LCPnode = node_view(node_load($LCPvalue['nid']), FALSE);
+        $form['LCPtabset'][$LCPkey] = array(
+          '#type' => 'tabpage',
+          '#title' => $LCPvalue['language']
+        );
+        $form['LCPtabset'][$LCPkey]['node'] = array('#value' => $LCPnode);
+      }
+      $output = form_render($form);
     }
-    $output = form_render($form);
+  } else {
+    $output = '';
   }
   return $output;
 }

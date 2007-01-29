@@ -975,7 +975,7 @@ function _fhwalk_getwalks($tid, $country='%') {
   $sql = "SELECT n.nid, n.title, l.city, l.province, l.country FROM {node} n " .
           "LEFT JOIN {location} l ON n.nid = l.oid " . 
           "LEFT JOIN {term_node} tn ON n.nid= tn.nid " . 
-          "WHERE tn.tid = %d AND l.country='%s' AND n.type='fhwalk' " . 
+          "WHERE tn.tid = %d AND l.country LIKE '%s' AND n.type='fhwalk' " . 
           "ORDER BY l.city"; 
   $rs = db_query($sql, $tid, $country);
   $walk_list = array();

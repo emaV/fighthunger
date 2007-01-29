@@ -1234,8 +1234,11 @@ function _fhwalk_get_country_campaign($tid) {
 function fhwalk_administer($synonym, $tid) {
 global $user;
 
-  $search_keys = array('coord'=> 1, 'country' => 2);
-  $sql_array = ($_REQUEST) ? array_intersect_key($_REQUEST, $search_keys) : array();
+//  array_intersect_key() only in php 5.1
+//  $search_keys = array('coord'=> 1, 'country' => 2);
+//  $sql_array = ($_REQUEST) ? array_intersect_key($_REQUEST, $search_keys) : array();
+  if(_REQUEST['coord'])   $sql_array['coord'] = _REQUEST['coord'];
+  if(_REQUEST['country']) $sql_array['country'] = _REQUEST['country'];
 
   $term = taxonomy_get_term($tid);
   drupal_set_title(t('Administer') . ": $term->name");

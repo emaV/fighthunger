@@ -61,6 +61,20 @@ INSERT INTO `event` (nid, event_start, event_end)
     UNIX_TIMESTAMP( ADDTIME( `enddate`   , `endtime`   ))-18000 AS event_end 
     FROM `gathering_node`;
 
+7 - move some data to location
+
+UPDATE location l, gathering_node gn 
+SET l.name = gn.address1, l.street = gn.address2, l.additional = gn.directions 
+WHERE l.oid = gn.nid AND l.type = 'node';
+
+8 - move gathering_node.description to node_revision.body
+    ALL gathering node are without body!!!!
+
+UPDATE node_revisions nr, gathering_node gn 
+SET nr.body=gn.description, nr.format=3 
+WHERE nr.nid=gn.nid AND gn.description<>'';
+     
+
 7 - altering signup data (for signup status)
 ALTER TABLE `gathering_signup` ADD `stage` INT( 2 ) NOT NULL AFTER `guests` ;
 
@@ -257,7 +271,7 @@ function fhwalk_settings() {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_load($node) {
-  $fields = "cid";
+  $fields = "cid, route";
   $sql = "SELECT $fields FROM {gathering_node} WHERE nid = %d";
   $additions = db_fetch_object(db_query($sql, $node->nid));
 
@@ -279,9 +293,9 @@ function fhwalk_load($node) {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_insert($node) {
-  $fields = "cid, signup_status, signup_count, signup_pad, signup_show";
-  $sql = "INSERT INTO {gathering_node} (nid, $fields) VALUES (%d, %d, %d, %d, %d)";
-  db_query($sql, $node->nid, $node->cid, $node->signup_status, $node->signup_count, $node->signup_pad, $node->signup_show); 
+  $fields = "cid, route";
+  $sql = "INSERT INTO {gathering_node} (nid, $fields) VALUES (%d, %d, %s)";
+  db_query($sql, $node->nid, $node->cid, $node->route); 
 }
 
 /**
@@ -290,9 +304,9 @@ function fhwalk_insert($node) {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_update($node) {
-  $fields = "cid=%d, signup_status = %d, signup_count = %d, signup_pad = %d, signup_show = %d";
+  $fields = "cid=%d, route = %s";
   $sql = "UPDATE {gathering_node} SET $fields WHERE nid = %d";
-  db_query($sql, $node->cid, $node->signup_status, $node->signup_count, $node->signup_pad, $node->signup_show, $node->nid); 
+  db_query($sql, $node->cid, $node->route); 
 } 
 
 /************************
@@ -501,7 +515,7 @@ global $user;
   );
   $form['body'] = array(
     '#type' => 'textarea',
-    '#title' => t('Additional Information'),
+    '#title' => t('Basic Information'),
     '#default_value' => $node->body,
     '#rows' => 5,
     '#description' => t('Enter basic information for the walk.'),
@@ -509,6 +523,14 @@ global $user;
   );
   $form['format'] = filter_form($node->format);
   $form['format']['#weight'] = -7;
+  $form['route'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Route'),
+    '#default_value' => $node->route,
+    '#rows' => 5,
+    '#description' => t("Describe the general route for your walk, including approximate length and any landmarks."),
+    '#weight' => -6,
+  );
 
 
 // set walk organiser and walk coordinator form
@@ -640,7 +662,7 @@ global $user;
       $form['location']['name']['#title'] = t('Start Location');  
       $form['location']['street']['#title'] = t('Street Address');  
       $form['location']['street']['#required'] = 1;  
-      $form['location']['additional']['#title'] = t('Route');  
+      $form['location']['additional']['#title'] = t('Direction');  
       $form['location']['additional']['#type'] = 'textarea';
       unset($form['location']['additional']['#size']);
       unset($form['location']['additional']['#maxlength']);
@@ -889,16 +911,24 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
 // Fetch signup like from an external module
 //  $node->hook_view['signup'] = _fhwalk_signup_nodeapi($node);
 
-// Details
-//  print "<h3>" . t("Details") . "</h3>";
-//  print $node->body_plain;
+// Fix Location without direction
+  $node->hook_view['location']  = '<h3>'. t('Location') .'</h3>';
+  $node->hook_view['location'] .=  theme('location', $node->location, array('country', 'additional'));
 
 // Details
-
+  if($node->route<>'') {
+    $walk_details  = '<h3>' . t('Route') . '</h3>'; 
+    $walk_details .= $node->route;
+  }
+  if($node->body_plain) {
+    $walk_details .= '<h3>' . t('Walk Information') . '</h3>'; 
+    $walk_details .= $node->body_plain;
+  }
+   
   $details['details']  = array(
     '#title'  => t('Details'),
     '#weight' => 0,
-    '#value'  => $node->body_plain
+    '#value'  => $walk_details
   );
   if($node->fhwalk_status<2) {
     $details['scrapbook']  = array(

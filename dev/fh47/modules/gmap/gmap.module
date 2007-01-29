@@ -383,8 +383,9 @@ function gmap_draw_map($gmap, $javascript='') {
         }
         else {
 //          $outtext .=$gmap['id'].'.addOverlay(createGMarker(new GLatLng('.$item['latitude'].','.$item['longitude'].'),\''.$mytext.'\',\''.$mymarker."','$tooltip','$link'));\n";
+          $i = $i + 10;
           $addPointFunction = $gmap['id'].'.addOverlay(createGMarker(new GLatLng('.$item['latitude'].','.$item['longitude'].'),\''.$mytext.'\',\''.$mymarker."','$tooltip','$link'))";
-          $outtext .= "window.setTimeout($addPointFunction, 0);\n"; // fork you
+          $outtext .= "window.setTimeout($addPointFunction, 100);\n"; // fork you
           if($gmap['autozoom']){
             $outtext .='bounds.extend(new GLatLng('.$item['latitude'].','.$item['longitude'].'));'."\n";
           }

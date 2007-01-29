@@ -383,9 +383,23 @@ function gmap_draw_map($gmap, $javascript='') {
         }
         else {
 //          $outtext .=$gmap['id'].'.addOverlay(createGMarker(new GLatLng('.$item['latitude'].','.$item['longitude'].'),\''.$mytext.'\',\''.$mymarker."','$tooltip','$link'));\n";
-          $i = $i + 10;
-          $addPointFunction = $gmap['id'].'.addOverlay(createGMarker(new GLatLng('.$item['latitude'].','.$item['longitude'].'),\''.$mytext.'\',\''.$mymarker."','$tooltip','$link'))";
-          $outtext .= "window.setTimeout($addPointFunction, 100);\n"; // fork you
+/*
+function move(par) {
+	alert(par); 
+}
+setTimeout("move(" + (noDisk - 1) +  ")", 2000);
+*/
+          $EQ_delay = $EQ_delay + 10;
+          $EQ_addPointFunction = $gmap['id'].'.addOverlay(createGMarker(new GLatLng('.$item['latitude'].','.$item['longitude'].'),\''.$mytext.'\',\''.$mymarker."','$tooltip','$link'))";
+          $EQ_timedFunction_name = "EQ_addPoint_$EQ_delay";
+          
+          $EQ_timedFunction_code  = "function $EQ_timedFunction_name() {\n";
+          $EQ_timedFunction_code .= "   " . $EQ_addPointFunction . ";\n";
+          $EQ_timedFunction_code .= "}\n";
+          
+          $outtext .= $EQ_timedFunction_code; // fork you
+          $outtext .= 'window.setTimeout("' . $EQ_timedFunction_name . '", ' . "$EQ_delay);\n"; // fork you
+
           if($gmap['autozoom']){
             $outtext .='bounds.extend(new GLatLng('.$item['latitude'].','.$item['longitude'].'));'."\n";
           }

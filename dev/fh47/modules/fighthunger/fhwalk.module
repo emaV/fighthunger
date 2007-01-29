@@ -293,9 +293,11 @@ function fhwalk_load($node) {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_insert($node) {
-  $fields = "cid, route";
-  $sql = "INSERT INTO {gathering_node} (nid, $fields) VALUES (%d, %d, %s)";
-  db_query($sql, $node->nid, $node->cid, $node->route); 
+  $fields = "cid";
+  $sql = "INSERT INTO {gathering_node} (nid, $fields) VALUES (%d, %d)";
+  db_query($sql, $node->nid, $node->cid);
+//drupal_set_message("$sql, $node->nid, $node->cid, $node->route");
+//drupal_set_message("NODE: " . print_r($node, true));
 }
 
 /**

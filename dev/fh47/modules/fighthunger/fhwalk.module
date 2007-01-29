@@ -1097,8 +1097,8 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
 */
       $gmap_array['markers'][] = array(
         'label'      => $label,
-        'tooltip'    => $value['city'],
-        'link'       => drupal_get_path_alias("node/$key"),
+//        'tooltip'    => $value['city'],
+//        'link'       => drupal_get_path_alias("node/$key"),
         'latitude'   => $value['latitude'],
         'longitude'  => $value['longitude'],
         'markername' => 'blue'        
@@ -1109,7 +1109,7 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
   $gmap_array['longitude'] = -113.5864825;
   $gmap_array['zoom'] = 4;
   
-  return array($gmap_array);
+  return $gmap_array;
   
 }
 

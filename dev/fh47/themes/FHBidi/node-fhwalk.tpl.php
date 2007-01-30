@@ -23,26 +23,40 @@
 // Where
   print $node->hook_view['location'];
 // Route
-  print "<h3>" . t("Route") . "</h3>";
+  print "<h3>" . t("Directions") . "</h3>";
   print $node->location['additional'];
-// Sponsor
+  print "<div style='clear:both;'></div>";
 
-// Details
-//  print "<h3>" . t("Details") . "</h3>";
-//  print $node->body_plain;
+// Sponsor Local
+  if($node->partners) {
+    print "<h3>" . t("Local Parners") . "</h3>";
+    print $node->hook_view['fhpartner'];
+    print "<div style='clear:both;'></div>";
+  }
 
-// Actions
+// Details 
   print $node->details;
+  print "<div style='clear:both;'></div>";
 
 // Donation
 //  print "<h3>" . t("donation") . "</h3>";
   print $node->hook_view['donation'];
+  print "<div style='clear:both;'></div>";
 
 // Actions
   print $node->actions;
+  print "<div style='clear:both;'></div>";
+
+// Country Partners
+  if($node->partners_country) {
+    print "<h3>" . t("Country Parners") . "</h3>";
+    print $node->CP;
+    print "<div style='clear:both;'></div>";
+  }
 
 // LCP
   print $node->LCP;
+  print "<div style='clear:both;'></div>";
 /*
   foreach($node->LCP as $LCPkey => $LCPvalue) {
     $LCPnode = node_view(node_load($LCPvalue['nid']), FALSE);

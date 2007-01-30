@@ -1,5 +1,8 @@
 <?php
 /* $Revision: 1.21 $ */
+if (isset($DatabaseName)) { /* Scripts that do 
+  $_SESSION['DatabaseName'] = $DatabaseName;
+}
 
 if (!isset($_SESSION['DatabaseName'])){
 	if (isset($_POST['CompanyNameField'])){

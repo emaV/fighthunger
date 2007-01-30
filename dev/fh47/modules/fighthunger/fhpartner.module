@@ -48,7 +48,7 @@ function fhpartner_help($section) {
  */
 function fhpartner_perm() {
   return array(
-    'create partner', 
+    'create partners', 
     'edit own partners' , 
     'administer partners',
     'manage global partners',
@@ -127,7 +127,14 @@ function fhpartner_add() {
     $ptype = arg(3);
 
     // Initialize settings
-    $node = array('uid' => $user->uid, 'name' => $user->name, 'type' => 'partner', 'paud' => $ptype);
+    $node = array(
+      'uid' => $user->uid, 
+      'name' => $user->name, 
+      'type' => 'partner', 
+      'paud' => $ptype,
+      'startdate' => date('d-m-Y'),
+      'enddate' => date('d-m-Y', time()+ 15552000) // about 6 months
+    );
     
     $output = node_form($node);
     drupal_set_title(t('Submit %name Partner', array('%name' => $ptypes[$ptype])));

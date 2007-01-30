@@ -20,20 +20,18 @@ SQL queries
 1 - alter gathering_node
 
 ALTER TABLE `gathering_node` 
-ADD `signup_show_number` INT( 2 ) NOT NULL AFTER `signup_show`,
-ADD `signup_show_comments` INT( 2 ) NOT NULL AFTER `signup_show_number`,
-ADD `signup_waiver` LONGTEXT NOT NULL AFTER `signup_show_comments`,
-ADD `signup_allow_guest` INT( 2 ) NOT NULL AFTER `signup_waiver`,
-ADD `signup_email_confirm` LONGTEXT NOT NULL AFTER `signup_allow_guest`,
-ADD `signup_email_unsubscribe` LONGTEXT NOT NULL AFTER `signup_email_confirm`,
-ADD `signup_email_approve` LONGTEXT NOT NULL AFTER `signup_email_unsubscribe`,
-ADD `signup_email_deny` LONGTEXT NOT NULL AFTER `signup_email_approve`,
-ADD `signup_email_wait` LONGTEXT NOT NULL AFTER `signup_email_deny`,
-ADD `signup_email_remind` LONGTEXT NOT NULL AFTER `signup_email_wait`,
-ADD `signup_send_reminder` INT( 2 ) NOT NULL AFTER `signup_email_remind`,
-ADD `signup_reminder_days_before` INT( 2 ) NOT NULL AFTER `signup_send_reminder`;
-
-
+ADD `signup_show_number` INT( 2 ) NULL AFTER `signup_show`,
+ADD `signup_show_comments` INT( 2 ) NULL AFTER `signup_show_number`,
+ADD `signup_waiver` LONGTEXT NULL AFTER `signup_show_comments`,
+ADD `signup_allow_guest` INT( 2 ) NULL AFTER `signup_waiver`,
+ADD `signup_email_confirm` LONGTEXT NULL AFTER `signup_allow_guest`,
+ADD `signup_email_unsubscribe` LONGTEXT NULL AFTER `signup_email_confirm`,
+ADD `signup_email_approve` LONGTEXT NULL AFTER `signup_email_unsubscribe`,
+ADD `signup_email_deny` LONGTEXT NULL AFTER `signup_email_approve`,
+ADD `signup_email_wait` LONGTEXT NULL AFTER `signup_email_deny`,
+ADD `signup_email_remind` LONGTEXT NULL AFTER `signup_email_wait`,
+ADD `signup_send_reminder` INT( 2 ) NULL AFTER `signup_email_remind`,
+ADD `signup_reminder_days_before` INT( 2 ) NULL AFTER `signup_send_reminder`;
 
  ************************************************************************/
   

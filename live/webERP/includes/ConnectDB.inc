@@ -1,8 +1,5 @@
 <?php
 /* $Revision: 1.21 $ */
-if (isset($DatabaseName)) { // patch
-  $_SESSION['DatabaseName'] = $DatabaseName;
-}
 
 if (!isset($_SESSION['DatabaseName'])){
 	if (isset($_POST['CompanyNameField'])){

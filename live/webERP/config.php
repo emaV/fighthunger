@@ -38,7 +38,7 @@ $Version = '3.05';
 $host    = 'test.fighthunger.org';
 $host_db = 'ewhserver358';
 
-$database ='webERP';
+$DatabaseName = 'webERP';
 
 //The type of db server being used - currently only postgres or mysql
 $dbType = 'mysql';

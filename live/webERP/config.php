@@ -64,7 +64,7 @@ $MaximumExecutionTime =120;
 
 //The path to which session files should be stored in the server - useful for some multi-host web servers
 //this can be left commented out
-//$SessionSavePath = '/tmp';
+$SessionSavePath = '/var/www/vhosts_balanced/webERP/session_save_path';
 
 
 // which encryption function should be used

@@ -909,9 +909,6 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
   $node->hook_view_array = $return;
   $node->body = $node->body_plain;
 
-// Fetch signup like from an external module
-//  $node->hook_view['signup'] = _fhwalk_signup_nodeapi($node);
-
 // Fix Location without direction
   $node->hook_view['location']  = '<h3>'. t('Location') .'</h3>';
   $node->hook_view['location'] .=  theme('location', $node->location, array('country', 'additional'));
@@ -961,6 +958,10 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
     );
   }
   $node->actions = theme('fhwalk_actions', $actions);
+ 
+// Fetch and theme Country Partners
+  $node->partners_country = fhpartner_node_get_partners($node->nid, NULL, 'country');
+  $node->CP = theme('fhpartner_list', $node->partners_country); 
   
 // Fetch LCP nids and titles and theme
   $LCP_list = fhwalk_LCP_get_nodes($node->location['country'], $node->fhwalk_tid);

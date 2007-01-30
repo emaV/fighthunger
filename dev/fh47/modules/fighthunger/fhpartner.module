@@ -583,6 +583,9 @@ function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
         }
       }
       break;
+    case 'view':
+        $node->body .= theme('fhpartner_list', $node->partners);
+      break;
     case 'delete':
       db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
       break;
@@ -595,12 +598,22 @@ function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
  * @return
  *   Array of partner names indexed by nid
  */
-function fhpartner_node_get_partners($node, $index = 'nid') {
-  $nid = is_int($node) ? $node : $node->nid;
-  $result = db_query("SELECT p.*, n.title FROM {partners_node} p INNER JOIN {node} n  ON p.nid = n.nid INNER JOIN {partners_partners} pp ON p.nid = pp.pid WHERE pp.nid = %d", $nid);
-  $partners = array();
-  while($node = db_fetch_object($result)) {
-    $partners[$node->$index] = $node;
+function fhpartner_node_get_partners($node, $index = 'nid', $audience = 'local') {
+  $nid = is_numeric($node) ? $node : $node->nid;
+  if($audience=='local') {
+    $result = db_query("SELECT p.*, n.title FROM {partners_node} p INNER JOIN {node} n  ON p.nid = n.nid INNER JOIN {partners_partners} pp ON p.nid = pp.pid WHERE pp.nid = %d", $nid);
+    $partners = array();
+    while($node = db_fetch_object($result)) {
+      $partners[$node->$index] = $node;
+    }
+  } else {
+    $country = db_result(db_query("SELECT country FROM location WHERE type='node' AND oid=%d;", $nid));
+    $sql = "SELECT pn.*, n.title FROM {partners_node} pn INNER JOIN {node} n  ON pn.nid = n.nid WHERE pn.country = '%s' AND paud='COUNTRY'";    
+    $result = db_query($sql, $country);
+    $partners = array();
+    while($node = db_fetch_object($result)) {
+      $partners[$nid] = $node;
+    }
   }
   return $partners;
 }
@@ -683,4 +696,16 @@ function _fhpartner_partner_type() {
     "UNAGENCY"=>t("UN Agency"),
     "OTHER"=>t("Other")
   );
+}
+
+function theme_fhpartner_list($partners) {
+  $out_partners = "<div class='partner_list'>";
+  foreach($partners as $key => $value) {
+//    $url = drupal_get_path_alias("node/$key");
+    $img = "<img src='$value->logosmall' width='75' height='75' vspace='5' hspace='5'>";
+//    $out_partners .= "<a href='$url'>$img<br/>$value->title</a>";
+    $out_partners .= l("$img<br/>$value->title", "node/$key", NULL, NULL, NULL, NULL, TRUE);
+  }
+  $out_partners .= "</div>";
+  return $out_partners;
 }

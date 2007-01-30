@@ -35,7 +35,10 @@ $Version = '3.05';
 // Connection information for the database
 // $host is the computer ip address or name where the database is located
 // assuming that the web server is also the sql server
-$host = 'localhost';
+$host    = 'test.fighthunger.org';
+$host_db = 'ewhserver358';
+
+$database ='webERP';
 
 //The type of db server being used - currently only postgres or mysql
 $dbType = 'mysql';
@@ -43,8 +46,8 @@ $dbType = 'mysql';
 //$dbType = 'mysql';
 
 // sql user & password
-$dbuser = 'weberp_db_user';
-$dbpassword = 'weberp_db_pwd';
+$dbuser = 'fighthunger_www';
+$dbpassword = 'alsdajfd7sas';
 
 //It would probably be inappropraite to allow selection of the company in a hosted envionment so this option can be turned off with this parameter
 $AllowCompanySelectionBox = false;

@@ -35,8 +35,7 @@ $Version = '3.05';
 // Connection information for the database
 // $host is the computer ip address or name where the database is located
 // assuming that the web server is also the sql server
-$host    = 'test.fighthunger.org';
-$host_db = 'ewhserver358';
+$host = 'ewhserver358';
 
 $DatabaseName = 'webERP';
 

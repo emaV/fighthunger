@@ -132,6 +132,7 @@ function fhpartner_add() {
       'name' => $user->name, 
       'type' => 'partner', 
       'paud' => $ptype,
+      'active' => 1,
       'startdate' => date('d-m-Y'),
       'enddate' => date('d-m-Y', time()+ 15552000) // about 6 months
     );
@@ -403,6 +404,7 @@ function fhpartner_get_partners($audience = 'LOCAL', $conditions = array()) {
   }
   $sql .= " ORDER BY n.title";
   $result = db_query(db_rewrite_sql($sql));
+
   while ($node = db_fetch_object($result)) {
     $partners[$node->nid] = $node->title;
   }

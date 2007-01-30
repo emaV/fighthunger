@@ -296,8 +296,8 @@ function fhwalk_insert($node) {
   $fields = "cid, route";
   $sql = "INSERT INTO {gathering_node} (nid, $fields) VALUES (%d, %d, '%s')";
   db_query($sql, $node->nid, $node->cid, $node->route);
-drupal_set_message("$sql, $node->nid, $node->cid, $node->route");
-drupal_set_message("NODE: " . print_r($node, true));
+//drupal_set_message("$sql, $node->nid, $node->cid, $node->route");
+//drupal_set_message("NODE: " . print_r($node, true));
 }
 
 /**
@@ -812,7 +812,7 @@ global $user;
       }
       $output .= htmlentities(print_r($items, true));
     }
-    $form['dumpq'] = array('#type' => 'markup', '#value' => $output,  '#weight' => 15);
+//    $form['dumpq'] = array('#type' => 'markup', '#value' => $output,  '#weight' => 15);
 
       break;
 

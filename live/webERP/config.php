@@ -53,7 +53,7 @@ $dbpassword = 'alsdajfd7sas';
 $AllowCompanySelectionBox = false;
 
 //If $AllowCompanySelectionBox = false above then the $DefaultCompany string is entered in the login screen as a default - otherwise the user is expected to know the name of the company to log into.
-$DefaultCompany = 'webERP';
+//$DefaultCompany = 'webERP';
 
 //The maximum time that a login session can be idle before automatic logout
 //time is in seconds  3600 seconds in an hour

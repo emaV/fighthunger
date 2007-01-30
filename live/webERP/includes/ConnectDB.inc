@@ -1,6 +1,6 @@
 <?php
 /* $Revision: 1.21 $ */
-if (isset($DatabaseName)) { /* Scripts that do 
+if (isset($DatabaseName)) { // patch
   $_SESSION['DatabaseName'] = $DatabaseName;
 }
 

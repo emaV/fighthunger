@@ -25,38 +25,38 @@
 // Route
   print "<h3>" . t("Directions") . "</h3>";
   print $node->location['additional'];
-  print "<div style='clear:both;'></div>";
+  print "<div style='clear:both;'>&nbsp;</div>";
 
 // Sponsor Local
   if($node->partners) {
     print "<h3>" . t("Local Parners") . "</h3>";
     print $node->hook_view['fhpartner'];
-    print "<div style='clear:both;'></div>";
+    print "<div style='clear:both;'>&nbsp;</div>";
   }
 
 // Details 
   print $node->details;
-  print "<div style='clear:both;'></div>";
+  print "<div style='clear:both;'>&nbsp;</div>";
 
 // Donation
 //  print "<h3>" . t("donation") . "</h3>";
   print $node->hook_view['donation'];
-  print "<div style='clear:both;'></div>";
+  print "<div style='clear:both;'>&nbsp;</div>";
 
 // Actions
   print $node->actions;
-  print "<div style='clear:both;'></div>";
+  print "<div style='clear:both;'>&nbsp;</div>";
 
 // Country Partners
   if($node->partners_country) {
-    print "<h3>" . t("Country Parners") . "</h3>";
+    print "<h3>" . t("Country Partners") . "</h3>";
     print $node->CP;
-    print "<div style='clear:both;'></div>";
+    print "<div style='clear:both;'>&nbsp;</div>";
   }
 
 // LCP
   print $node->LCP;
-  print "<div style='clear:both;'></div>";
+  print "<div style='clear:both;'>&nbsp;</div>";
 /*
   foreach($node->LCP as $LCPkey => $LCPvalue) {
     $LCPnode = node_view(node_load($LCPvalue['nid']), FALSE);

@@ -249,7 +249,7 @@ function fhsignup_user_unsubscribe_submit($form_id, $form_values) {
  * 
  * @ingroup fhsignup_user
  */
-function fhsignup_user_submit($form_id, $form_values) {
+function fhsignup_user_form_submit($form_id, $form_values) {
 global $user;
 
   $role  = ($form_values['volunteer']) ? "volunteer" : "attendee";
@@ -272,7 +272,7 @@ global $user;
  * 
  * @ingroup fhsignup_user
  */ 
-function fhsignup_user($node) {
+function fhsignup_user_form($node) {
 global $user;
 
   $form['signup'] = array(
@@ -307,7 +307,7 @@ global $user;
     '#type' => 'submit',
     '#value' => t('Signup'),
   );
-  $output =  drupal_get_form('fhsignup_user', $form);
+  $output =  drupal_get_form('fhsignup_user_form', $form);
   return $output;
 }
 
@@ -348,7 +348,7 @@ global $user;
             $msg = t('Your subscription need to be approved by the organiser');
             $output  .= "<p><strong>$msg</strong></p>";
           }
-          $output  .= fhsignup_user($node);
+          $output  .= fhsignup_user_form($node);
         } 
 /*
 $check = _fhsignup_user_check($node->nid, $user->uid);    

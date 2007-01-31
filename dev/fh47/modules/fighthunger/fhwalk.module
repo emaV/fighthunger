@@ -325,7 +325,7 @@ function fhwalk_insert($node) {
     db_query($sql, $node->nid, $key, $value);
   }
  
-drupal_set_message("fhwalk INSERT: " . print_r($node, true));
+//drupal_set_message("fhwalk INSERT: " . print_r($node, true));
 }
 
 /**
@@ -350,7 +350,7 @@ function fhwalk_update($node) {
     if($value<>0) db_query($sql, $node->nid, $key, $value);
   }
 
-drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
+//drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
 } 
 
 // Get Lat Long

@@ -404,7 +404,8 @@ function fhwalk_submit($node) {
   $node->path =  _fhwalk_get_alias($node);
 
 // get latitude and longitude from google
-  if(!($node->location['latitude'] && $node->location['longitude']) ) {
+  if( !($node->location['latitude'] && $node->location['longitude']) ) {
+drupal_set_message("Check coord from google");
     $coordinate = fhwalk_get_latlon($node->location);
     if($coordinate[0]==200) {
       $node->location['latitude']  = $coordinate['lat'];
@@ -690,6 +691,9 @@ global $user;
       $form['location']['street']['#required'] = 1;  
       $form['location']['additional']['#title'] = t('Direction');  
       $form['location']['additional']['#type'] = 'textarea';
+      $form['location']['additional']['#rows'] = 5;
+      unset($form['location']['additional']['#prefix']);
+      unset($form['location']['additional']['#suffix']);
       unset($form['location']['additional']['#size']);
       unset($form['location']['additional']['#maxlength']);
       if(isset($form['H_country'])) {
@@ -731,6 +735,9 @@ global $user;
       $form['basic']['location']['province'] = $form['location']['province'];
       $form['basic']['location']['country']  = $form['location']['country'];
       $form['basic']['location']['#tree'] = true;
+      unset($form['location']['city']);
+      unset($form['location']['province']);
+      unset($form['location']['country']);
   
       $form['whenwhere'] = array(
         '#type'   => 'fieldset',
@@ -777,10 +784,28 @@ global $user;
 
 // other location info
       $form['whenwhere']['location']['#tree'] = true;
+
+      foreach($form['location'] as $key => $value) {
+        if($key[0]<>'#') $form['whenwhere']['location'][$key] = $value;
+        unset($form['location'][$key]);
+      }
+/*
       $form['whenwhere']['location']['name'] = $form['location']['name'];
       $form['whenwhere']['location']['street'] = $form['location']['street'];  
       $form['whenwhere']['location']['additional'] = $form['location']['additional'];  
 
+      if(isset($form['location']['latitude'])) {
+
+        $form['whenwhere']['location']['previous_source']   = $form['location']['previous_source']; 
+        $form['whenwhere']['location']['previous_latitude'] = $form['location']['previous_latitude'];
+        $form['whenwhere']['location']['previous_longitude']= $form['location']['previous_longitude'];
+        $form['whenwhere']['location']['latitude']          = $form['location']['latitude'];
+        $form['whenwhere']['location']['longitude']         = $form['location']['longitude'];
+
+      } else {
+        $form['whenwhere']['location']['latitude'] = array('#value' => 'NO add lat/lon');  
+      }
+*/
 // fhpartners
       $form['fhpartners']['#weight'] = 4;
 
@@ -794,7 +819,7 @@ global $user;
       unset($form['event_start']);
       unset($form['event_end']);
       unset($form['timezone']);
-      unset($form['location']);
+//      unset($form['location']);
  
 // delete product form
       if (isset($form['product_transform'])) unset($form['product_transform']);
@@ -1170,7 +1195,7 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
   $span = max( ($lat_max - $lat_min)/180, ($long_max - $long_min)/360 );
 //  $span = 0.1;
   $gmap_array['span'] = $span;
-  $gmap_array['zoom'] = min(max((int)(floor(5 - $span * 10)) , 1), 5);
+  $gmap_array['zoom'] = ($country<>'-') ? min(max((int)(floor(5 - $span * 10)) , 1), 5) : 1;
   
   return $gmap_array;
   

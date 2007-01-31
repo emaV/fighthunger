@@ -1251,12 +1251,15 @@ function fhwalk_overview($synonym, $tid, $country='-' ) {
 // Term
   $fhwalk_overview['term'] = $term;
 
-// Country selection
+// Country selection ONLY COUNTRIES WITH WALKS
+/*
   if( $fhwalk_overview['status']==2 ) {
     $country_list = fh_get_country_list();
   } else {
     $country_list = array('' => '--') + _fhwalk_get_country_campaign($tid);
   }
+*/
+  $country_list = array('' => '--') + _fhwalk_get_country_campaign($tid);
 
 
   $form['tid'] = array('#type' => 'hidden', '#value' => $tid);

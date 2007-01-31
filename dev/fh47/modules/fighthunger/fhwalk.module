@@ -75,8 +75,16 @@ SET nr.body=gn.description, nr.format=3
 WHERE nr.nid=gn.nid AND gn.description<>'';
      
 
-7 - altering signup data (for signup status)
+9 - altering signup data (for signup status)
 ALTER TABLE `gathering_signup` ADD `stage` INT( 2 ) NULL AFTER `guests` ;
+
+10 - create table history
+CREATE TABLE `fh_history` (
+  `tid` INT( 10 ) NOT NULL ,
+  `nid_now` INT( 10 ) NOT NULL ,
+  `nid_past` INT( 10 ) NOT NULL ,
+  INDEX ( `tid` , `nid_now` , `nid_past` )
+);
 
 *************************************************************************/
 
@@ -275,6 +283,17 @@ function fhwalk_load($node) {
   $sql = "SELECT $fields FROM {gathering_node} WHERE nid = %d";
   $additions = db_fetch_object(db_query($sql, $node->nid));
 
+// Fetch history
+  $sql = "SELECT rid FROM {fh_history} WHERE nid=%d";
+  $rid = db_result(db_query($sql, $node->nid));
+  if($rid) {
+    $sql = "SELECT tid, nid FROM {fh_history} WHERE rid=%d AND nid<>%d";
+    $result = db_query($sql, $rid, $node->nid);
+    while( $row = db_fetch_array($result) ) {
+      $additions->history[$row['tid']] = $row['nid'];
+    }
+  }
+
 // Get fhwalk_vocabulary
   $additions->fhwalk_vid = variable_get('fhwalk_vocabulary', 0);
   
@@ -293,11 +312,19 @@ function fhwalk_load($node) {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_insert($node) {
+// INSERT INTO in gathering_node
   $fields = "cid, route";
   $sql = "INSERT INTO {gathering_node} (nid, $fields) VALUES (%d, %d, '%s')";
   db_query($sql, $node->nid, $node->cid, $node->route);
-//drupal_set_message("$sql, $node->nid, $node->cid, $node->route");
-//drupal_set_message("NODE: " . print_r($node, true));
+  
+// INSERT INTO in fh_history
+  $sql = "INSERT INTO {fh_history} (rid, tid, nid) VALUES (%d, %d, %d)";
+  db_query($sql, $node->nid, $node->fhtid, $node->nid);
+  foreach($node->history as $key => $value) {
+    db_query($sql, $node->nid, $key, $value);
+  }
+ 
+drupal_set_message("fhwalk INSERT: " . print_r($node, true));
 }
 
 /**
@@ -306,9 +333,23 @@ function fhwalk_insert($node) {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_update($node) {
+// UPDATE in gathering_node
   $fields = "cid=%d, route = %s";
   $sql = "UPDATE {gathering_node} SET $fields WHERE nid = %d";
   db_query($sql, $node->cid, $node->route);
+
+// UPDATE in gathering_node
+  $sql = "SELECT rid FROM {fh_history} WHERE nid=%d";
+  $rid = db_result(db_query($sql, $node->nid));
+  if($rid) db_query("DELETE FROM {fh_history} fh WHERE rid = %d;", $rid);
+
+  $sql = "INSERT INTO {fh_history} (rid, tid, nid) VALUES (%d, %d, %d)";
+  db_query($sql, $node->nid, $node->fhwalk_tid, $node->nid);
+  foreach($node->history as $key => $value) {
+    if($value<>0) db_query($sql, $node->nid, $key, $value);
+  }
+
+drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
 } 
 
 // Get Lat Long
@@ -321,7 +362,7 @@ function fhwalk_get_latlon($location) {
         implode("%20", explode(" ", $location['city'])) . '+' .
         $country .
         "&output=csv&key=".variable_get('googlemap_api_key', '');
-  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
+//  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
   return $content;
 }
 
@@ -559,44 +600,67 @@ global $user;
 
 
 // set walk organiser and walk coordinator form
-  $form['organise'] = array(
-    '#type' => 'fieldset', 
-    '#title' => t('Organising information'),
-    '#collapsible' => TRUE, 
-    '#collapsed' => TRUE, 
-    '#weight' => 0);
-  $form['organise']['name'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Organiser'), 
-    '#maxlength' => 60, 
-    '#autocomplete_path' => 'user/autocomplete', 
-    '#default_value' => $node->name ? $node->name : '',
-    '#weight' => -2,
-    '#description' => t('Enter walk organiser'));
-      
-       
-  if (user_access('admin fhwalk')) {
-/*    
-      $sql = "SELECT DISTINCT u.uid, u.name FROM {users} u " . 
-          "JOIN  {users_roles} ur ON u.uid=ur.uid " .
-          "JOIN {permission} p ON ur.rid=p.rid " .
-          "WHERE p.perm LIKE '%coordinate fhwalk%'" .
-          "ORDER BY u.name";
-      $result = db_query($sql);
-      while($row = db_fetch_array($result)) $coords[$row['uid']] = $row['name'];   
-*/
-    $coords = _fhwalk_get_coordinators(); 
-    $coords[-1] = '[ MAKE A SELECTION ]';
-    $form['organise']['cid'] = array(
-      '#type' => 'select', 
-      '#title' => t('Coordinator'), 
-      '#options' => $coords, 
-      '#default_value' => $node->cid ? $node->cid : -1, 
-      '#weight' => -1, 
-      '#description' => t('Enter walk coordinator'));
+  if (user_access('coordinate fhwalk')) {
+    $form['organise'] = array(
+      '#type' => 'fieldset', 
+      '#title' => t('Organising information'),
+      '#collapsible' => TRUE, 
+      '#collapsed' => TRUE, 
+      '#weight' => 0);
+    $form['organise']['name'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('Organiser'), 
+      '#maxlength' => 60, 
+      '#autocomplete_path' => 'user/autocomplete', 
+      '#default_value' => $node->name ? $node->name : '',
+      '#weight' => -2,
+      '#description' => t('Enter walk organiser'));
+        
+         
+    if (user_access('admin fhwalk')) {
+      $coords = _fhwalk_get_coordinators(); 
+      $coords[-1] = '[ MAKE A SELECTION ]';
+      $form['organise']['cid'] = array(
+        '#type' => 'select', 
+        '#title' => t('Coordinator'), 
+        '#options' => $coords, 
+        '#default_value' => $node->cid ? $node->cid : -1, 
+        '#weight' => -1, 
+        '#description' => t('Enter walk coordinator'));
+    }
   }
 
-//  $form['ssignup'] = _fhwalk_signup_edit($node);
+// history
+  $form['history'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Previous Walks'),
+    '#collapsible' => TRUE, 
+    '#collapsed' => FALSE,
+    '#weight' => 5,
+    '#tree'   => TRUE,
+    '#description' => t('Select a walk to link with')
+  );
+
+  $terms = taxonomy_get_tree($node->fhwalk_vid);
+  foreach($terms as $term) {
+    $status_variable = 'fhwalk_' . $term->tid . '_status';
+    $synonyms = taxonomy_get_synonyms($term->tid);
+    $synonym = $synonyms[0];
+    if( variable_get($status_variable, 0)<2) {
+      $walk_list = _fhwalk_getwalks($term->tid, $node->location['country']);
+      if($walk_list) {
+        $walk_option[0] = t('Select a walk');
+        foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
+        $form['history'][$term->tid] = array(
+          '#type'    => 'select',
+          '#title'   => $term->name,
+          '#options' => $walk_option,
+          '#defaultvalue' => $node->history[$term->tid],
+          '#description'  => $term->description
+        );
+      }
+    }
+  }
 
   return $form;
 }
@@ -787,28 +851,12 @@ global $user;
         if($key[0]<>'#') $form['whenwhere']['location'][$key] = $value;
         unset($form['location'][$key]);
       }
-/*
-      $form['whenwhere']['location']['name'] = $form['location']['name'];
-      $form['whenwhere']['location']['street'] = $form['location']['street'];  
-      $form['whenwhere']['location']['additional'] = $form['location']['additional'];  
 
-      if(isset($form['location']['latitude'])) {
-
-        $form['whenwhere']['location']['previous_source']   = $form['location']['previous_source']; 
-        $form['whenwhere']['location']['previous_latitude'] = $form['location']['previous_latitude'];
-        $form['whenwhere']['location']['previous_longitude']= $form['location']['previous_longitude'];
-        $form['whenwhere']['location']['latitude']          = $form['location']['latitude'];
-        $form['whenwhere']['location']['longitude']         = $form['location']['longitude'];
-
-      } else {
-        $form['whenwhere']['location']['latitude'] = array('#value' => 'NO add lat/lon');  
-      }
-*/
 // fhpartners
       $form['fhpartners']['#weight'] = 4;
 
 // fhsignup
-      $form['signup']['#weight'] = 5;
+      $form['signup']['#weight'] = 6;
 
 // unset Authoring info
       unset($form['author']);
@@ -936,7 +984,7 @@ function theme_fhwalk_LCP($LCP_list) {
  * Save return value in $node->hook_view[$name]   *  
  *  
  * @ingroup fhwalk_core
- */ 
+ */
 function fhwalk_view($node, $teaser = FALSE, $page = FALSE) { 
   $node = (object)$node;
 
@@ -1005,7 +1053,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
     );
   }
   $node->actions = theme('fhwalk_actions', $actions);
- 
+
 // Fetch and theme Country Partners
   $node->partners_country = fhpartner_node_get_partners($node->nid, NULL, 'country');
   $node->CP = theme('fhpartner_list', $node->partners_country); 
@@ -1013,6 +1061,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
 // Fetch LCP nids and titles and theme
   $LCP_list = fhwalk_LCP_get_nodes($node->location['country'], $node->fhwalk_tid);
   $node->LCP = theme('fhwalk_LCP',$LCP_list);
+
 }
 
 /**
@@ -1887,6 +1936,8 @@ function fhwalk_LCP_get_nodes($country, $tid) {
     'JOIN i18n_node i18n ON n.nid=i18n.nid ' .
     "WHERE l.country='%s' AND tn.tid=%d";
   $result=db_query($sql, $country, $tid);
+  $nodes = array();
+
   while($row=db_fetch_array($result)) {
     $nodes[$row['language']] = array(
       'language' => _fhlocalpage_getlang($row['language']),
@@ -1894,7 +1945,7 @@ function fhwalk_LCP_get_nodes($country, $tid) {
       'title'    => $row['title'],
       );
   }
-//  $nodes= "$sql, $country, $tid " . db_num_rows($result);
+
   return $nodes;
 }
 

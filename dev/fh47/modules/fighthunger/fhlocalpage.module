@@ -36,7 +36,7 @@ function _fhlocalpage_getlang($code) {
  * Custom edit form
  */
 function fhlocalpage_form_alter($form_id, &$form) {
-  include_once './includes/locale.inc';
+  
   global $user;
   static $isocodes;
 
@@ -44,85 +44,55 @@ function fhlocalpage_form_alter($form_id, &$form) {
   
     case 'fhlocalpage_node_form': 
 
-// Set Local Page Option fieldset form
-  $form['LPO_options'] = array(
-    '#type' => 'fieldset', 
-    '#title' => t('Local Page Options'),
-    '#collapsible' => TRUE, 
-    '#collapsed' => FALSE, 
-    '#weight' => -4
-  );
-
-
-// Set isocode - code from _locale_prepare_iso_list()
-    if (!is_array($isocodes)) {
-      $isocodes = _locale_get_iso639_list();
-      foreach ($isocodes as $key => $value) {
-        if (count($value) == 2) {
-          $tname = t($value[0]);
-          $isocodes[$key] = ($tname == $value[1]) ? $tname : "$tname ($value[1])";
-        } else {
-          $isocodes[$key] = t($value[0]);
+    // Set Local Page Option fieldset form
+      $form['LPO_options'] = array(
+        '#type' => 'fieldset', 
+        '#title' => t('Local Page Options'),
+        '#collapsible' => TRUE, 
+        '#collapsed' => FALSE, 
+        '#weight' => -4
+      );
+    // Set isocode - code from _locale_prepare_iso_list()
+        if (!is_array($isocodes)) {
+          // Include only when really needed
+          include_once './includes/locale.inc';
+          $isocodes = _locale_get_iso639_list();
+          foreach ($isocodes as $key => $value) {
+            if (count($value) == 2) {
+              $tname = t($value[0]);
+              $isocodes[$key] = ($tname == $value[1]) ? $tname : "$tname ($value[1])";
+            } else {
+              $isocodes[$key] = t($value[0]);
+            }
+          }
+          asort($isocodes);
         }
-      }
-      asort($isocodes);
-    }
- 
- // change i18n fieldset
-    $form['i18n']['language']['#options'] = $isocodes;
-    $form['i18n']['language']['#description'] = t('Enter language of this page');
-    $form['i18n']['language']['#required'] = true;
-
-// include in LPO    
-    $form['LPO_options']['language'] = $form['i18n']['language'];   
-    $form['LPO_options']['i18n_status'] = array('#type' => 'hidden', '#value' => 0);
-    unset($form['i18n']);
-
-
-// change taxonomy fieldset
-    $vid = variable_get('fhwalk_vocabulary', 0);
-    $form['LPO_options']['taxonomy'][$vid] = $form['taxonomy'][$vid];
-    $form['LPO_options']['taxonomy']['#tree'] = true;
-    $form['LPO_options']['taxonomy'][$vid]['#title'] = t('Campaign');
-    $form['LPO_options']['taxonomy'][$vid]['#options'] = fhwalk_get_active_campaigns();
+     
+     // change i18n fieldset
+        $form['i18n']['language']['#options'] = $isocodes;
+        $form['i18n']['language']['#description'] = t('Enter language of this page');
+        $form['i18n']['language']['#required'] = true;
     
-// check for other vocabularies
-    $i = 0;
-    foreach($form['taxonomy'] as $key => $value) if(is_numeric($key)) $i++;
-    unset($form['taxonomy'][$vid]);
-    if ($i==1) unset($form['taxonomy']);
-
-// set location
-    $form['LPO_options']['location']['country'] = $form['location']['country'];
-    $form['LPO_options']['location']['#tree'] = true;
-    unset($form['location']);
-    
-    unset($form['product_transform']);
-
-// DEBUG
-/*
-    if (variable_get('fhwalk_vocabulary', 0)<>0) {
-      $terms = taxonomy_get_tree(variable_get('fhwalk_vocabulary', 0));
-      foreach($terms as $term) {
-        $synonyms = taxonomy_get_synonyms($term->tid);
-        $synonym = $synonyms[0];
-        
-        $output .= "<h4>$term->name - $synonym</h4>" . print_r($term, true);
-      }
-      $output .= "<hr />";
-    }
-*/
-
-/*
-    foreach ($form as $category => $items) {
-      if (is_array($items)) {
-        $output .= "<h4>$category - weigth:" . $items['#weight'] . "</h4>";
-      }
-      $output .= print_r($items, true);
-    }
-    $form['dumpq'] = array('#type' => 'markup', '#value' => $output,  '#weight' => 15);
-*/
-// END DEBUG
+    // include in LPO    
+        $form['LPO_options']['language'] = $form['i18n']['language'];   
+        $form['LPO_options']['i18n_status'] = array('#type' => 'hidden', '#value' => 0);
+        unset($form['i18n']);
+    // change taxonomy fieldset
+        $vid = variable_get('fhwalk_vocabulary', 0);
+        $form['LPO_options']['taxonomy'][$vid] = $form['taxonomy'][$vid];
+        $form['LPO_options']['taxonomy']['#tree'] = true;
+        $form['LPO_options']['taxonomy'][$vid]['#title'] = t('Campaign');
+        $form['LPO_options']['taxonomy'][$vid]['#options'] = fhwalk_get_active_campaigns();
+    // check for other vocabularies
+        $i = 0;
+        foreach($form['taxonomy'] as $key => $value) if(is_numeric($key)) $i++;
+        unset($form['taxonomy'][$vid]);
+        if ($i==1) unset($form['taxonomy']);
+    // set location
+        $form['LPO_options']['location']['country'] = $form['location']['country'];
+        $form['LPO_options']['location']['#tree'] = true;
+        unset($form['location']);
+        unset($form['product_transform']);
 
       break;
 
@@ -186,11 +156,6 @@ function fhlocalpage_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
 //      $msg = print_r($node, true);
 //      drupal_set_message("<h3>view:</h3> $msg<hr/>");
       break;
-
-    default:
-      drupal_set_message("fhlocalpage: $op");
       
   }
 }
-
-?> 

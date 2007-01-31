@@ -607,7 +607,7 @@ function fhpartner_node_get_partners($node, $index = 'nid', $audience = 'local')
     $result = db_query("SELECT p.*, n.title FROM {partners_node} p INNER JOIN {node} n  ON p.nid = n.nid INNER JOIN {partners_partners} pp ON p.nid = pp.pid WHERE pp.nid = %d", $nid);
     $partners = array();
     while($node = db_fetch_object($result)) {
-      $partners[$node->$index] = $node;
+      $partners[$node->nid] = $node;
     }
   } else {
     $country = db_result(db_query("SELECT country FROM location WHERE type='node' AND oid=%d;", $nid));
@@ -615,7 +615,7 @@ function fhpartner_node_get_partners($node, $index = 'nid', $audience = 'local')
     $result = db_query($sql, $country);
     $partners = array();
     while($node = db_fetch_object($result)) {
-      $partners[$node->$index] = $node;
+      $partners[$node->nid] = $node;
     }
   }
   return $partners;

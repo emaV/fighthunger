@@ -65,7 +65,7 @@ function fhpartner_menu($may_cache) {
   if ($may_cache) {
 	$items[] = array('path' => 'admin/fhpartner', 
         'title' => t('Administer partners'),
-        'type' => MENU_CALLBACK,
+        'type' => MENU_NORMAL_ITEM,
         'weight' => 0,
         'callback' => 'fhpartner_admin',
         'access' => user_access('administer partners')

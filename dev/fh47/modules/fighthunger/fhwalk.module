@@ -913,6 +913,22 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
   $node->hook_view['location']  = '<h3>'. t('Location') .'</h3>';
   $node->hook_view['location'] .=  theme('location', $node->location, array('country', 'additional'));
 
+  $location  = $node->location;
+  $countries = location_get_iso3166_list();
+  $country = $countries[$location['country']];
+
+// check http://groups.drupal.org/node/781#comment-3908
+  $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
+        implode("%20", explode(" ", $location['street'])) . '+' .
+        implode("%20", explode(" ", $location['city'])) . '+' .
+        $country .
+        "&output=csv&key=".variable_get('googlemap_api_key', '');
+  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
+
+  $node->hook_view['location'] .=  "RESULT FROM geocode: " . print_r($content, true);  
+
+
+
 // Details
   if($node->route<>'') {
     $walk_details  = '<h3>' . t('Route') . '</h3>'; 

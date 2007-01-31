@@ -27,7 +27,11 @@ function fhlocalpage_help($section) {
  */
 function _fhlocalpage_getlang($code) {
   static $isocodes;
-  if (!is_array($isocodes)) $isocodes = _locale_get_iso639_list();
+  if (!is_array($isocodes)) {
+    // Include only when really needed 
+    include_once './includes/locale.inc'; 
+ 	  $isocodes = _locale_get_iso639_list();
+ 	}
   $value = $isocodes[$code];
   return (count($value)==2) ? $value[1] : t($value[0]);
 }

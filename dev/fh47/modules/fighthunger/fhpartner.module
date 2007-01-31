@@ -700,11 +700,13 @@ function _fhpartner_partner_type() {
 
 function theme_fhpartner_list($partners) {
   $out_partners = "<div class='partner_list'>";
-  foreach($partners as $key => $value) {
-//    $url = drupal_get_path_alias("node/$key");
-    $img = "<img src='$value->logosmall' width='75' height='75' vspace='5' hspace='5'>";
-//    $out_partners .= "<a href='$url'>$img<br/>$value->title</a>";
-    $out_partners .= l("$img<br/>$value->title", "node/$key", NULL, NULL, NULL, NULL, TRUE);
+  if($partners) {
+    foreach($partners as $key => $value) {
+  //    $url = drupal_get_path_alias("node/$key");
+      $img = "<img src='$value->logosmall' width='75' height='75' vspace='5' hspace='5'>";
+  //    $out_partners .= "<a href='$url'>$img<br/>$value->title</a>";
+      $out_partners .= l("$img<br/>$value->title", "node/$key", NULL, NULL, NULL, NULL, TRUE);
+    }
   }
   $out_partners .= "</div>";
   return $out_partners;

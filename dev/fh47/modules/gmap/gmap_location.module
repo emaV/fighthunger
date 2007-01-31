@@ -590,7 +590,7 @@ function gmap_location_user($op, &$edit, &$user, $category = NULL) {
         _gmap_location_validate_form($object);
         return;
       case 'load':
-        $res=db_query("SELECT * FROM {location} WHERE eid=%d AND type='user'",$user->uid);
+        $res=db_query("SELECT * FROM {location} WHERE oid=%d AND type='user'",$user->uid);
         if ($gmap_user=db_fetch_array($res)) {
           if ($gmap_user['latitude'] !=0) $user->gmap_location_latitude=  $gmap_user['latitude'];
           if ($gmap_user['longitude']!=0) $user->gmap_location_longitude= $gmap_user['longitude'];

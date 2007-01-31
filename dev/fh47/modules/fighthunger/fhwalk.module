@@ -321,7 +321,6 @@ function fhwalk_get_latlon($location) {
         implode("%20", explode(" ", $location['city'])) . '+' .
         $country .
         "&output=csv&key=".variable_get('googlemap_api_key', '');
-watchdog('fhwalk', "Latlon from google: $location_geocode_gmap_url");
   $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
   return $content;
 }
@@ -406,13 +405,10 @@ function fhwalk_submit($node) {
 
 // get latitude and longitude from google
   if( !($node->location['latitude'] && $node->location['longitude']) ) {
-drupal_set_message("Check coord from google");
     $coordinate = fhwalk_get_latlon($node->location);
-drupal_set_message("Check coord from google RES: "  . print_r($coordinate, true) );
     if($coordinate[0]==200) {
-      $node->location['latitude']  = $coordinate['lat'];
-      $node->location['longitude'] = $coordinate['lon'];
-      watchdog('fhwalk', "Fetching lat lon from google: " . print_r($coordinate, true));
+      $node->location['latitude']  = $coordinate[2];
+      $node->location['longitude'] = $coordinate[3];
     } else {
       watchdog('fhwalk', "Error fetching lat lon from google: " . print_r($coordinate, true) , WATCHDOG_WARNING);
     }

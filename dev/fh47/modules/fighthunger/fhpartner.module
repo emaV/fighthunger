@@ -133,8 +133,8 @@ function fhpartner_add() {
       'type' => 'partner', 
       'paud' => $ptype,
       'active' => 1,
-      'startdate' => date('d-m-Y'),
-      'enddate' => date('d-m-Y', time()+ 15552000) // about 6 months
+      'startdate' => date('Y-m-d'),
+      'enddate' => date('Y-m-d', time()+ 15552000) // about 6 months
     );
     
     $output = node_form($node);

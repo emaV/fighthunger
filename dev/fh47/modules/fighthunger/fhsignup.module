@@ -84,14 +84,13 @@ function fhsignup_menu($may_cache) {
   if ($may_cache) {
   } else {
     if (arg(0) == 'node' && is_numeric(arg(1))) {
-      $node = node_load(array('nid' => arg(1)));
-      if (($node->type=='fhwalk') && ($node->fhwalk_status==2)) {
+      $node = node_load(arg(1));
+      if (($node->type=='fhwalk') && ($node->fhwalk_status == 2)) {
         $items[] = array(
           'path' => 'node/'. arg(1) .'/signup_admin', 
           'title' => t('Signup Admin'),
           'callback' => 'fhsignup_organiser',
-//          'access' => _fhsignup_access('admin signup', arg(1)),
-          'access' => true,
+          'access' => _fhsignup_access('admin signup', arg(1)),
           'weight' => 1,
           'type' => MENU_LOCAL_TASK
         );
@@ -453,8 +452,6 @@ $node = node_load($nid);
   } else {
     $access = FALSE;
   } 
-
-  if(!($access)) drupal_set_message(t('You are not allowed for this operation.') . " ($op)");
   return $access;
 }
 

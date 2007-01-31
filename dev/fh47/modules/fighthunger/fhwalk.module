@@ -403,6 +403,7 @@ function fhwalk_submit($node) {
 // get path alias
   $node->path =  _fhwalk_get_alias($node);
 
+// get latitude and longitude from google
   if(!($node->location['latitude'] && $node->location['longitude']) ) {
     $coordinate = fhwalk_get_latlon($node->location);
     if($coordinate[0]==200) {
@@ -413,13 +414,6 @@ function fhwalk_submit($node) {
       watchdog('fhwalk', "Error fetching lat lon from google: " . print_r($coordinate, true) , WATCHDOG_WARNING);
     }
   }
-}
-
-  
-// get latitude and longitude from google
-  
-//  $msg = "<h2>fhwalk_submit</h2>" . print_r($node, true);
-//  drupal_set_message($msg);
 }
 
 /**

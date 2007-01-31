@@ -923,6 +923,25 @@ global $user;
 
   return $form;
 }
+/**
+ * Themed history.
+ *  
+ * @ingroup fhwalk_theme
+ * @param $actions array with previous walk nids
+ * @return html
+ */
+function theme_fhwalk_history($history) {
+  $out_history  = '<div class="walk_history">';
+  $out_history .= '<ul>';
+  foreach($history as $key => $value) {
+    $sql = "SELECT title FROM {node} WHERE nid=%d";
+    $title = db_result(db_query($sql, $value));
+    $out_history .= '<li>' . l($title, "node/$value") . '</li>';
+  }
+  $out_history .= '</ul>';
+  $out_history .= '</div>';
+  return $out_history;
+}
 
 /**
  * Themed actions.
@@ -1031,6 +1050,15 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
       '#value'  => fhwalk_get_photos($node)
     );
   }
+
+  if($node->history) {
+    $details['history']  = array(
+      '#title'  => t('Previous Walks'),
+      '#weight' => 1,
+      '#value'  => theme('fhwalk_history', $node->history),
+    );
+  }
+
   $node->details = theme('fhwalk_actions', $details);
 
 

@@ -387,6 +387,16 @@ function fhwalk_submit($node) {
   
 // get path alias
   $node->path =  _fhwalk_get_alias($node);
+
+//  if(!($node->location['latitude'] && $node->location['longitude']) ) {
+    $coordinate = fhwalk_get_latlon($node->location);
+    $node->location['latitude']  = $coordinate['lat'];
+    $node->location['longitude'] = $coordinate['lon'];
+
+//  }
+
+  
+// get latitude and longitude from google
   
 //  $msg = "<h2>fhwalk_submit</h2>" . print_r($node, true);
 //  drupal_set_message($msg);
@@ -912,22 +922,6 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
 // Fix Location without direction
   $node->hook_view['location']  = '<h3>'. t('Location') .'</h3>';
   $node->hook_view['location'] .=  theme('location', $node->location, array('country', 'additional'));
-
-  $location  = $node->location;
-  $countries = location_get_iso3166_list();
-  $country = $countries[$location['country']];
-
-// check http://groups.drupal.org/node/781#comment-3908
-  $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
-        implode("%20", explode(" ", $location['street'])) . '+' .
-        implode("%20", explode(" ", $location['city'])) . '+' .
-        $country .
-        "&output=csv&key=".variable_get('googlemap_api_key', '');
-  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-
-  $node->hook_view['location'] .=  "RESULT FROM geocode: " . print_r($content, true);  
-
-
 
 // Details
   if($node->route<>'') {
@@ -1965,6 +1959,20 @@ function fhwalk_get_photos($node, $instructions=NULL) {
   return $out;
 }
 
+// Get Lat Long
+function fhwalk_get_latlon($location) {
+// check http://groups.drupal.org/node/781#comment-3908
+  $countries = location_get_iso3166_list();
+  $country = $countries[$location['country']];
+  $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
+        implode("%20", explode(" ", $location['street'])) . '+' .
+        implode("%20", explode(" ", $location['city'])) . '+' .
+        $country .
+        "&output=csv&key=".variable_get('googlemap_api_key', '');
+  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
+drupal_set_message("CHECK GOOGLE: " . print_r($content, true));
+  return array("lat"=>$content[2], "lon"=>$content[3]);
+}
 
 /* gmap key
 dev.fighthunger.org 

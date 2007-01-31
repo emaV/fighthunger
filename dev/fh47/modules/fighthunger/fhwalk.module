@@ -80,10 +80,11 @@ ALTER TABLE `gathering_signup` ADD `stage` INT( 2 ) NULL AFTER `guests` ;
 
 10 - create table history
 CREATE TABLE `fh_history` (
-  `tid` INT( 10 ) NOT NULL ,
-  `nid_now` INT( 10 ) NOT NULL ,
-  `nid_past` INT( 10 ) NOT NULL ,
-  INDEX ( `tid` , `nid_now` , `nid_past` )
+  `rid` int(10) NOT NULL,
+  `tid` int(10) NOT NULL,
+  `nid` int(10) NOT NULL,
+  PRIMARY KEY  (`rid`,`tid`,`nid`),
+  KEY `nid` (`nid`)
 );
 
 *************************************************************************/

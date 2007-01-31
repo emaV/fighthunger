@@ -407,6 +407,7 @@ function fhwalk_submit($node) {
   if( !($node->location['latitude'] && $node->location['longitude']) ) {
 drupal_set_message("Check coord from google");
     $coordinate = fhwalk_get_latlon($node->location);
+drupal_set_message("Check coord from google RES: "  . print_r($coordinate, true) );
     if($coordinate[0]==200) {
       $node->location['latitude']  = $coordinate['lat'];
       $node->location['longitude'] = $coordinate['lon'];

@@ -573,6 +573,7 @@ function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       if (variable_get('fhpartner_support_'.$node->type, 0)) {
         return array('partners' => fhpartner_node_get_partners($node->nid));
       }
+      break;
     case 'update':
       db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
       // Intentional no break
@@ -584,7 +585,9 @@ function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
       }
       break;
     case 'view':
+      if (variable_get('fhpartner_support_'.$node->type, 0) && is_array($node->partners)) {
         $node->body .= theme('fhpartner_list', $node->partners);
+      }
       break;
     case 'delete':
       db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
@@ -612,7 +615,7 @@ function fhpartner_node_get_partners($node, $index = 'nid', $audience = 'local')
     $result = db_query($sql, $country);
     $partners = array();
     while($node = db_fetch_object($result)) {
-      $partners[$nid] = $node;
+      $partners[$node->$index] = $node;
     }
   }
   return $partners;
@@ -699,13 +702,13 @@ function _fhpartner_partner_type() {
 }
 
 function theme_fhpartner_list($partners) {
-  $out_partners = "<div class='partner_list'>";
+  $out_partners = "<div class=\"partner_list\">";
   if($partners) {
     foreach($partners as $key => $value) {
-  //    $url = drupal_get_path_alias("node/$key");
       $img = "<img src='$value->logosmall' width='75' height='75' vspace='5' hspace='5'>";
-  //    $out_partners .= "<a href='$url'>$img<br/>$value->title</a>";
-      $out_partners .= l("$img<br/>$value->title", "node/$key", NULL, NULL, NULL, NULL, TRUE);
+      $out_partners .= l($img, "node/$key", NULL, NULL, NULL, NULL, TRUE);
+      $out_partners .= '<br />';
+      $out_partners .= l($value->title, "node/$key");
     }
   }
   $out_partners .= "</div>";

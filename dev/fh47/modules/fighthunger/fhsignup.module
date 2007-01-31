@@ -447,7 +447,7 @@ $node = node_load($nid);
   if($user->uid) {
     switch ($op) {
       case 'admin signup':
-        $access = ($user->uid==$node->uid) || user_access('coordinate fhwalk') || user_acces('admin fhwalk');
+        $access = ($user->uid==$node->uid) || user_access('coordinate fhwalk') || user_access('admin fhwalk');
       break;
     }
   } else {

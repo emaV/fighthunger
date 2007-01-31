@@ -308,8 +308,25 @@ function fhwalk_insert($node) {
 function fhwalk_update($node) {
   $fields = "cid=%d, route = %s";
   $sql = "UPDATE {gathering_node} SET $fields WHERE nid = %d";
-  db_query($sql, $node->cid, $node->route); 
+  db_query($sql, $node->cid, $node->route);
+drupal_set_message("Location: " . print_r($node->location, true));
 } 
+
+// Get Lat Long
+function fhwalk_get_latlon($location) {
+// check http://groups.drupal.org/node/781#comment-3908
+  $countries = location_get_iso3166_list();
+  $country = $countries[$location['country']];
+  $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
+        implode("%20", explode(" ", $location['street'])) . '+' .
+        implode("%20", explode(" ", $location['city'])) . '+' .
+        $country .
+        "&output=csv&key=".variable_get('googlemap_api_key', '');
+  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
+drupal_set_message("CHECK GOOGLE: " . print_r($content, true));
+  return array("lat"=>$content[2], "lon"=>$content[3]);
+}
+
 
 /************************
  *
@@ -392,6 +409,8 @@ function fhwalk_submit($node) {
     $coordinate = fhwalk_get_latlon($node->location);
     $node->location['latitude']  = $coordinate['lat'];
     $node->location['longitude'] = $coordinate['lon'];
+
+drupal_set_message("Location: " . print_r($node->location, true));
 
 //  }
 
@@ -1957,21 +1976,6 @@ function fhwalk_get_photos($node, $instructions=NULL) {
     $out .= "<p align='center'><font size='-2'>$msg</font></p>";
   }
   return $out;
-}
-
-// Get Lat Long
-function fhwalk_get_latlon($location) {
-// check http://groups.drupal.org/node/781#comment-3908
-  $countries = location_get_iso3166_list();
-  $country = $countries[$location['country']];
-  $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
-        implode("%20", explode(" ", $location['street'])) . '+' .
-        implode("%20", explode(" ", $location['city'])) . '+' .
-        $country .
-        "&output=csv&key=".variable_get('googlemap_api_key', '');
-  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-drupal_set_message("CHECK GOOGLE: " . print_r($content, true));
-  return array("lat"=>$content[2], "lon"=>$content[3]);
 }
 
 /* gmap key

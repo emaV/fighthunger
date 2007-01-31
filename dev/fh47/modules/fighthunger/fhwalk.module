@@ -1145,11 +1145,12 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
 
   $gmap_array =array(
     'id' => 'map',
-    'width'   => '500px',
-    'height'  => '400px',
-    'control' => 'Small', 
-    'type'    => 'Map',
-    'markers' => array()
+    'width'    => '500px',
+    'height'   => '400px',
+    'control'  => 'Small', 
+    'type'     => 'Map',
+    'markers'  => array(),
+    'tcontrol' => 'on'
   );
   
   foreach($walk_list as $key => $value) {

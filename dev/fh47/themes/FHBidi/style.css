@@ -55,7 +55,10 @@ a:active { color: #ff6600; }
   -moz-border-radius: 5px;
   border: solid 1px #ddd;
 }
-
+.form-submit {
+  background-color:#ff6600;
+  color:#fff;
+}
 /* User profile */
 .profile_content {
   margin: 15px;
@@ -192,6 +195,7 @@ input, textarea {
   color: inherit;
   border: 1px solid #777;
 }
+
 select {
   background: #ffffff;
   color: #000;

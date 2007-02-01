@@ -346,6 +346,7 @@ function fhwalk_get_latlon($location) {
 // check http://groups.drupal.org/node/781#comment-3908
   $countries = location_get_iso3166_list();
   $country = $countries[$location['country']];
+  if($country=='uk') $country = 'gb';
   $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
         implode("%20", explode(" ", $location['street'])) . '+' .
         implode("%20", explode(" ", $location['city'])) . '+' .

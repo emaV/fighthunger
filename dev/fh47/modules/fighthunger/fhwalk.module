@@ -138,12 +138,18 @@ function fhwalk_perm() {
 function fhwalk_access($op, $node) {
   global $user;
 
-  if ( ($op == 'create') || ($op == 'update') ) {
+  if ($op == 'create') {
     return user_access('create fhwalk');
+  }
+  if ($op == 'update') {
+    return ((user_access('admin fhwalk') || 
+            (user_access('coordinate fhwalk') ||
+            ($user->uid == $node->uid));
   }
 
   if ($op == 'delete') {
-    return user_access('coordinate fhwalk');
+    return ((user_access('admin fhwalk') || 
+            (user_access('coordinate fhwalk');
   }
 
   if ($op == 'view') {
@@ -338,7 +344,7 @@ function fhwalk_update($node) {
     if($value<>0) db_query($sql, $node->nid, $key, $value);
   }
 */
-//drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
+drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
 } 
 
 // Get Lat Long
@@ -988,6 +994,15 @@ function theme_fhwalk_LCP($LCP_list) {
   return $output;
 }
 
+
+function fhwalk_history_goto_submit($form_id, $form_values) {
+  $var = "walk_nid_" . $form_values['tid'];
+  $nid = $form_values['walk_nid_31'];
+  $tid = $form_values['form_id'];
+  drupal_set_message("E va a pagina ($var) $nid [$tid]" . $form_values['walk_nid_31']);
+  $msg = print_r($form_values, true);
+  drupal_set_message("pippo dice: $msg");
+}
 /**
  * Implementation of hook_view().
  * Call all module hook but don't append to body
@@ -1034,12 +1049,46 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
     '#value'  => $walk_details
   );
   if($node->fhwalk_status<2) {
+    // Scrapbook
     $details['scrapbook']  = array(
       '#title'  => t('Scrapbook'),
       '#weight' => -1,
       '#value'  => fhwalk_get_photos($node)
     );
-  }
+  } else {
+    // Walk History
+    $footers['history']  = array(
+      '#title'  => t('Previous Walks'),
+      '#weight' => 1,
+      '#value'  => ''
+    );
+    $terms = taxonomy_get_tree($node->fhwalk_vid);
+    foreach($terms as $term) {
+      $status_variable = 'fhwalk_' . $term->tid . '_status';
+      $synonyms = taxonomy_get_synonyms($term->tid);
+      $synonym = $synonyms[0];
+      if( variable_get($status_variable, 0)<2) {
+        $walk_list = _fhwalk_getwalks($term->tid, $node->location['country']);
+        if($walk_list) {
+          $form = array();
+          $walk_option = array();
+          foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
+          $form['pre'] = array('#value' => '<div class="container-inline">');
+          $form["walk_nid_" . $term->tid] = array(
+            '#type'    => 'select',
+            '#title'   => $term->name,
+            '#options' => $walk_option,
+            '#default_value' => $walk['nid'],
+//            '#description'  => $term->description
+          );
+          $form['submit'] = array('#type' => 'submit', '#value' => t('Visit Walk Page'));
+          $form['tid'] = array('#type' => 'hidden', '#value' => $term->tid);
+          $form['post'] = array('#value' => '</div>');
+          $footers['history']['#value'] .= drupal_get_form('fhwalk_history_goto', $form);
+        } 
+      }
+    }
+  }  
 /*
   if($node->history) {
     $details['history']  = array(
@@ -1049,7 +1098,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
     );
   }
 */
-  $node->details = theme('fhwalk_actions', $details);
+  $node->tabs['details'] = theme('fhwalk_tabs', $details);
 
 
 // Theme action tabs
@@ -1071,7 +1120,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
       '#value'  => $node->hook_view['forward']
     );
   }
-  $node->actions = theme('fhwalk_tabs', $actions);
+  $node->tabs['actions'] = theme('fhwalk_tabs', $actions);
 
 // Fetch and theme Country Partners
   $node->partners_country = fhpartner_node_get_partners($node->nid, NULL, 'country');
@@ -1079,7 +1128,10 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
   
 // Fetch LCP nids and titles and theme
   $LCP_list = fhwalk_LCP_get_nodes($node->location['country'], $node->fhwalk_tid);
-  $node->LCP = theme('fhwalk_LCP',$LCP_list);
+  $node->tabs['LCP'] = theme('fhwalk_LCP',$LCP_list);
+  
+// Set footer tabs (only history now)
+  $node->tabs['footer'] = theme('fhwalk_tabs', $footers);
 
 }
 

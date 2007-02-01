@@ -710,9 +710,9 @@ global $user;
     $form['taxdump1'] = array('#value' => '<hr/>' . print_r($form['taxonomy'] , true).'<hr/>');  
 */  
 
-// set proper taxonomy choices
+      // set proper taxonomy choices
       $vid = variable_get('fhwalk_vocabulary', 0);
-// recover $tid and reset $form['taxonomy'][$vid]
+      // recover $tid and reset $form['taxonomy'][$vid]
       if(isset($form['H_tid'])) {
         $tid = $form['H_tid']['#value'];
         list($day, $month, $year) = explode("/", variable_get("fhwalk_date_$tid", '13/05/2007'));
@@ -727,7 +727,7 @@ global $user;
       $synonyms = taxonomy_get_synonyms($term->tid);
       $form['H_syn'] = array('#type' => 'hidden',  '#value' => $synonyms[0]);
       $tid_form      = array('#type'  => 'hidden', '#value' => $tid); 
-// check for other vocabularies
+      // check for other vocabularies
       $i = 0;
       foreach($form['taxonomy'] as $key => $value) if(is_numeric($key)) $i++;
       unset($form['taxonomy'][$vid]);
@@ -762,10 +762,10 @@ global $user;
       if(isset($form['H_country'])) {
         $form['location']['country']['#default_value'] = $form['H_country']['#value'];
       }
-      if( $form['location']['country']['#default_value']<>'' ) {
-        $form['location']['province']['#options'] = _fhwalk_countryprovinces($form['location']['country']['#default_value']);
+      if( ($country = $form['location']['country']['#default_value']) && $country != '-') {
+        $form['location']['province']['#options'] = _fhwalk_countryprovinces($country);
       }
-
+ 
       
 // modify date form
 /*
@@ -2088,5 +2088,3 @@ www.fighthunger.org
 ABQIAAAAbfOVykIDfWkLXGy0_OSL9BRgf3C9hf3-9QMTBHhlaRzlk7IiGRSANts4wuV54Vxca7J9SJp4BcALeQ
 */
 
-
-?> 

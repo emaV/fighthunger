@@ -525,7 +525,7 @@ function fhpartner_insert($node) {
   $values[] = $node->nid; 
   foreach( $fields as $key => $default) {
     $params[] = "'%s'";
-    $values[] = isset($node->$key) ? $node->key : $default;
+    $values[] = isset($node->$key) ? $node->$key : $default;
   }
   db_query("INSERT INTO {partners_node}(nid, ".implode(', ', array_keys($fields)).") VALUES(".implode(', ', $params). ")", $values);
 }
@@ -568,30 +568,30 @@ function fhpartner_delete(&$node) {
  * Implementation of hook_nodeapi()
  */  
 function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
-  switch($op) {
-    case 'load':
-      if (variable_get('fhpartner_support_'.$node->type, 0)) {
+  if ($op == 'delete') {
+    db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
+  } elseif (variable_get('fhpartner_support_'.$node->type, 0) ) {
+    switch($op) {
+      case 'load':
         return array('partners' => fhpartner_node_get_partners($node->nid));
-      }
-      break;
-    case 'update':
-      db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
-      // Intentional no break
-    case 'insert':
-      if(is_array($node->partners)) {
-        foreach ($node->partners as $pid) {
-          db_query("INSERT INTO {partners_partners} SET nid = %d, pid = %d",$node->nid, $pid);
+        break;
+      case 'update':
+        db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
+        // Intentional no break
+      case 'insert':
+        if(is_array($node->partners)) {
+          foreach ($node->partners as $partner) {
+            // Partner may be nid or object
+            db_query("INSERT INTO {partners_partners} SET nid = %d, pid = %d",$node->nid, is_object($partner) ? $partner->nid : $partner);
+          }
         }
-      }
-      break;
-    case 'view':
-      if (variable_get('fhpartner_support_'.$node->type, 0) && is_array($node->partners)) {
-        $node->body .= theme('fhpartner_list', $node->partners);
-      }
-      break;
-    case 'delete':
-      db_query("DELETE FROM {partners_partners} WHERE nid = %d", $node->nid);
-      break;
+        break;
+      case 'view':
+        if (is_array($node->partners)) {
+          $node->body .= theme('fhpartner_list', $node->partners);
+        }
+        break;
+    }
   }
 }
 

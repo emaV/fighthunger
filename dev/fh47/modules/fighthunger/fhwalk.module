@@ -997,12 +997,8 @@ function theme_fhwalk_LCP($LCP_list) {
 
 
 function fhwalk_history_goto_submit($form_id, $form_values) {
-  $var = "walk_nid_" . $form_values['tid'];
-  $nid = $form_values['walk_nid_31'];
-  $tid = $form_values['form_id'];
-  drupal_set_message("E va a pagina ($var) $nid [$tid]" . $form_values['walk_nid_31']);
-  $msg = print_r($form_values, true);
-  drupal_set_message("pippo dice: $msg");
+  $nid = $form_values["walk_nid_" . $form_values['tid']];
+  drupal_goto("node/$nid");
 }
 /**
  * Implementation of hook_view().
@@ -1079,13 +1075,12 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
             '#type'    => 'select',
             '#title'   => $term->name,
             '#options' => $walk_option,
-            '#default_value' => $walk['nid'],
 //            '#description'  => $term->description
           );
           $form['submit'] = array('#type' => 'submit', '#value' => t('Visit Walk Page'));
           $form['tid'] = array('#type' => 'hidden', '#value' => $term->tid);
           $form['post'] = array('#value' => '</div>');
-          $footers['history']['#value'] .= drupal_get_form('fhwalk_history_goto', $form);
+          $footers['history']['#value'] .= drupal_get_form("fhwalk_history_" . $term->tid, $form, 'fhwalk_history_goto');
         } 
       }
     }

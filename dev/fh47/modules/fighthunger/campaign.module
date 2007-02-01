@@ -87,8 +87,9 @@ function campaign_form_alter($form_id, &$form) {
  */
 function campaign_check_taxonomy($form) {
   // Bypass restrictions for some permissions
-  // if( user_access('administer campaigns') ) 
-  if(($vid = variable_get('campaign_vocabulary', 0)) && isset($form['taxonomy'][$vid])) {
+  if( user_access('administer campaigns') || isset($form['_administer'])) { 
+    // Do nothing
+  } elseif(($vid = variable_get('campaign_vocabulary', 0)) && isset($form['taxonomy'][$vid])) {
     // Remove not permitted campaigns
     if($form['nid']['#value'] && $current = $form['taxonomy'][$vid]['#default_value']) {
       // Keep current value
@@ -135,6 +136,18 @@ function campaign_taxonomy($op, $type, $object = NULL) {
 }
 
 /**
+ * Loads campaign data for content types, ordered by date, latest first 
+ */
+function campaign_node_get_campaigns($node) {
+  $list = array();
+  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid INNER JOIN {term_node} tn ON t.tid = tn.tid WHERE tn.nid = %d ORDER BY c.startdate DESC", $node->nid);
+  while($campaign = db_fetch_object($result)) {
+    $list[] = $campaign;
+  }
+  return $list;
+  
+}
+/**
  * Menu callback: Administer campaigns
  */
 function campaign_admin_campaigns() {
@@ -154,6 +167,14 @@ function campaign_save_campaign($campaign) {
   db_query("INSERT INTO {campaign}(cid, shortname, startdate, enddate, status) VALUES(%d, '%s', '%s', '%s', '%d')", $campaign['tid'], $campaign['shortname'], $campaign['startdate'], $campaign['enddate'], $campaign['status']);
   drupal_set_message(t('The campaign data has been updated.'));
 }
+
+/**
+ * Get latest date from active campaign
+ */
+function campaign_default_date() {
+  return db_result(db_query("SELECT MAX(startdate) FROM {campaign} WHERE status = %d", CAMPAIGN_STATUS_ACTIVE));
+}
+
 /**
  * Get campaign data
  */
@@ -161,6 +182,17 @@ function campaign_get_campaign($cid) {
   return db_fetch_object(db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.tid = %d", $cid));
 }
 
+/**
+ * Get all campaigns
+ */
+function campaign_get_all_campaigns() {
+  $list = array();
+  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", $vid);
+  while($campaign = db_fetch_object($result)) {
+    $list[$campaign->tid] = $campaign;
+  }
+  return $list;
+}
 /**
  * Implementation of hook_perm().
  */

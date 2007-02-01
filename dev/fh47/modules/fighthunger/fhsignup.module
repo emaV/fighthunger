@@ -789,7 +789,8 @@ function _fhsignup_edit($node) {
     '#default_value' => ($node) ? $node->signup_status : 0,
     '#options' => _fhsignup_status(),
     '#description' => t('Select event partecipation mode.'),
-  ); 
+  );
+/*   
   $form['signup']['signup_pad'] = array(
     '#type' => 'textfield',
     '#title' => t('Signup Padding'),
@@ -798,6 +799,7 @@ function _fhsignup_edit($node) {
     '#maxlength' => 4,
     '#description' => t('Set max number of signup; set to 0 to exclude any check (i.e. not max subscribers)'),
   );
+*/
   $form['signup']['signup_show'] = array(
     '#type' => 'checkbox',
     '#title' => t('Show signups'),

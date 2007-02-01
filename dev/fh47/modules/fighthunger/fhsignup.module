@@ -120,8 +120,16 @@ function fhsignup_menu($may_cache) {
  * @ingroup fhsignup_core
  */
 function fhsignup_settings() {
+  $coords = _fhwalk_get_coordinators(); 
+  $form['fhsignup_coordinator_default'] = array(
+    '#type' => 'select', 
+    '#title' => t('Coordinator'), 
+    '#options' => $coords, 
+    '#default_value' => variable_get('fhsignup_coordinator_default', ''),
+    '#description' => t('Enter default walk coordinator.')
+  );
   $form['fhsignup_waiver'] = array(
-    '#title' => t('fhwalk Standard Waiver'),
+    '#title' => t('Standard walk Term & Conditions'),
     '#type' => 'textarea',
     '#cols' => 75,
     '#rows' => 15,
@@ -194,6 +202,17 @@ global $user;
   switch ($op) {
     case 'insert':
     case 'update':
+
+      // Check for T&C changes (only coords and admins can change without blocking signup)    
+      if( $node->signup_waiver <> $node->signup_waiver_old) {
+        if( user_access('coordinate fhwalk') || user_access('admin fhwalk') ) {
+          drupal_set_message(t('This walk T&C changed.'));
+        } else {
+          drupal_set_message(t('This walk T&C pending for approval. Signup disabled until then.'));
+          $node->signup_status=3;
+        }
+      }    
+        
       $fields = "signup_status = %d, signup_count = %d, signup_pad = %d, " . 
         "signup_show = %d, signup_show_number = %d, signup_show_comments = %d, " . 
         "signup_waiver = '%s', signup_allow_guest = %d, " . 
@@ -210,7 +229,19 @@ global $user;
         $node->signup_email_approve, $node->signup_email_deny, 
         $node->signup_email_wait, $node->signup_email_remind,
         $node->signup_send_reminder, $node->signup_reminder_days_before, 
-        $node->nid);        
+        $node->nid);
+/*
+$msg = "$sql, 
+        $node->signup_count, $node->signup_status, $node->signup_pad, 
+        $node->signup_show, $node->signup_show_number, $node->signup_show_comments, 
+        $node->signup_waiver, $node->signup_allow_guest,
+        $node->signup_email_confirm, $node->signup_email_unsubscribe,
+        $node->signup_email_approve, $node->signup_email_deny, 
+        $node->signup_email_wait, $node->signup_email_remind,
+        $node->signup_send_reminder, $node->signup_reminder_days_before, 
+        $node->nid";
+drupal_set_message("fhsignup OP: $op<hr/>$msg");
+*/
       break;
     case 'load':
       if($node->nid) {
@@ -266,6 +297,12 @@ global $user;
   drupal_set_message($msg);
 }
 
+function fhsignup_user_form_validate($form_id, $form_values) {
+  if ($form_values['TaC_accept'] == '') {
+    form_set_error('', t('You must agree with T&C.'));
+  }
+}
+
 /**
  * Signup form
  * 
@@ -306,6 +343,24 @@ global $user;
     '#type' => 'submit',
     '#value' => t('Signup'),
   );
+
+  $form['signup']['TaC_accept'] =  array(
+    '#type'     => 'checkbox',
+    '#title'    => ('I agree to these Term & Conditions.'),
+    '#weight'   => 41,
+  ); 
+  $form['signup']['TaC'] = array(
+    '#type'        => 'fieldset', 
+    '#title'       => t('Term & Conditions'),
+    '#collapsible' => TRUE, 
+    '#collapsed'   => TRUE, 
+    '#weight'      => 42
+  );
+  $form['signup']['TaC']['waiver'] = array(
+    '#value' => "<label>$node->signup_waiver</label>",
+  );
+
+
   $output =  drupal_get_form('fhsignup_user_form', $form);
   return $output;
 }
@@ -419,11 +474,14 @@ function _fhsignup_stages($i=0) {
  * @ingroup fhsignup_helpers
  */
 function _fhsignup_status($i=-1) {
+global $user;
+
   $status = array(0 => t('no approval required'),
                   1 => t('approval required'),
                   2 => t('only invitation'),
-                  3 => t('closed event'));
+                  3 => t('blocked event (contact your walk coordinator)'));
   if($i==-1) {
+    if(! (user_access('coordinate fhwalk') || user_access('admin fhwalk')) ) unset($status[3]); 
     return $status;
   } else {
     return $status[$i];
@@ -774,6 +832,7 @@ function _fhsignup_email_messages_form($node) {
  * @return form for signup editing  
  */ 
 function _fhsignup_edit($node) {
+global $user;
 
   $form['signup'] = array(
     '#type'   => 'fieldset',
@@ -783,13 +842,24 @@ function _fhsignup_edit($node) {
     '#weight' => 5,
   );
 
-  $form['signup']['signup_status'] = array(
-    '#type' => 'select',
-    '#title' => t('Signup Approval'),
-    '#default_value' => ($node) ? $node->signup_status : 0,
-    '#options' => _fhsignup_status(),
-    '#description' => t('Select event partecipation mode.'),
-  );
+//  if( ($node->signup_status==3) ) {
+  if( ($node->signup_status==3) && !(user_access('coordinate fhwalk') || user_access('admin fhwalk')) ) {
+    $form['signup']['signup_status_msg'] = array(
+      '#value' => '<h3>' . t('Signup for this walk is blocked. Contact your coordinator') . '</h3>',
+    );
+    $form['signup']['signup_status'] = array(
+      '#type'  => 'hidden',
+      '#value' => 3
+    );
+  } else {
+    $form['signup']['signup_status'] = array(
+      '#type' => 'select',
+      '#title' => t('Signup Approval'),
+      '#default_value' => ($node) ? $node->signup_status : 0,
+      '#options' => _fhsignup_status(),
+      '#description' => t('Select event partecipation mode.'),
+    );
+
 /*   
   $form['signup']['signup_pad'] = array(
     '#type' => 'textfield',
@@ -800,48 +870,53 @@ function _fhsignup_edit($node) {
     '#description' => t('Set max number of signup; set to 0 to exclude any check (i.e. not max subscribers)'),
   );
 */
-  $form['signup']['signup_show'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Show signups'),
-    '#default_value' => ($node) ? $node->signup_show : 1,
-    '#description' => t('Show signup on walk page.'),
-  );
-  $form['signup']['signup_show_number'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Show signups number'),
-    '#default_value' => ($node) ? $node->signup_show_number : 1,
-    '#description' => t('Show signups number on walk page.'),
-  );
-  $form['signup']['signup_show_comments'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Show user comments'),
-    '#default_value' => ($node) ? $node->signup_show_comments : 1,
-    '#description' => t('Show user comments on walk page.'),
-  );
-  $form['signup']['signup_allow_guest'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Group Signup'),
-    '#default_value' => ($node) ? $node->signup_allow_guest : 1,
-    '#description' => t('Allowing Group Signup walkers can bring how many guest they want.'),
-  );
-  
-  if(!($node->signup_waiver)) $node->signup_waiver = variable_get('fhsignup_waiver', '');
-  $form['signup']['signup_waiver'] = array(
-    '#title' => t('Walk insurance waiver'),
-    '#type' => 'textarea',
-    '#cols' => 75,
-    '#rows' => 10,
-    '#default_value' => $node->signup_waiver,
-    '#description' => t("Standard insurance waiver text"),
-  );
+    $form['signup']['signup_show'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show signups'),
+      '#default_value' => ($node) ? $node->signup_show : 1,
+      '#description' => t('Show signup on walk page.'),
+    );
+    $form['signup']['signup_show_number'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show signups number'),
+      '#default_value' => ($node) ? $node->signup_show_number : 1,
+      '#description' => t('Show signups number on walk page.'),
+    );
+    $form['signup']['signup_show_comments'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show user comments'),
+      '#default_value' => ($node) ? $node->signup_show_comments : 1,
+      '#description' => t('Show user comments on walk page.'),
+    );
+    $form['signup']['signup_allow_guest'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Group Signup'),
+      '#default_value' => ($node) ? $node->signup_allow_guest : 1,
+      '#description' => t('Allowing Group Signup walkers can bring how many guest they want.'),
+    );
+    
+    if(!($node->signup_waiver)) $node->signup_waiver = variable_get('fhsignup_waiver', '');
+    $form['signup']['signup_waiver_old'] = array(
+      '#type' => 'hidden',
+      '#value' => $node->signup_waiver,
+    );
+    $form['signup']['signup_waiver'] = array(
+      '#title' => t('Walk Terms & Conditions'),
+      '#type' => 'textarea',
+      '#cols' => 75,
+      '#rows' => 10,
+      '#default_value' => $node->signup_waiver,
+      '#description' => t("<strong>If you change T&C signup will be blocked until your coordinator approve your changes.</strong>"),
+    );
+  }
   
   $form_email_settings = array(
     '#type'   => 'fieldset',
     '#title'  => t('Custom signup email settings'),
     '#collapsible' => TRUE,
-    '#collapsed' => FALSE,
+    '#collapsed' => TRUE,
   );
-  $form['signup']['email_settings'] =  array_merge($form_email_settings, _fhsignup_email_messages_form($node)); 
+  $form['signup']['email_settings'] =  array_merge($form_email_settings, _fhsignup_email_messages_form($node));
 
   return $form;
 }
@@ -925,6 +1000,51 @@ function _fhsignup_checkuser($nid, $uid) {
   return (db_num_rows(db_query($sql,$nid, $uid))>0);
 }
 
+/**
+ * Get signup users table (for walk page)
+ * 
+ * @ingroup fhsignup_core
+ * @param  $nid 
+ * @param  $options 
+ */
+function fhsignup_walk_signup_table($nid, $show_message) {
+
+  $header = array(
+    array('data' => t('User'),      'field' => 'u.name'),
+    array('data' => t('Role'),      'field' => 'gs.role'),
+    array('data' => t('Comment'),   'field' => 'gs.comment'),
+    array('data' => t('Date'),      'field' => 'gs.timestamp', 'sort' => 'desc'),
+  );
+  if($show_message==0) unset($header[2]);
+  
+  $sql = 'SELECT gs.*, u.name, u.uid ' .
+    'FROM {gathering_signup} gs ' .
+    'JOIN {users} u ON gs.uid = u.uid ' .
+    'WHERE gs.wid=%d';
+    
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL, $nid);
+  while ($signup = db_fetch_object($result)) {
+    $row = array('data' => array(
+          $signup->name,
+          $signup->role,
+          $signup->comment,
+          date("j M o", strtotime($signup->timestamp)))
+    );
+    if($show_message==0) unset($row['data'][2]);
+    $rows[] = $row;
+  }
+
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No signup available.'), 'colspan' => 4-($show_message==0)));
+  }
+  
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+
+//  $output = "pippo dice: $nid";
+  return $output;
+}
 
 /**
  * Get signup users table (different operations by approval status)

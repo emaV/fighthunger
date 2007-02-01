@@ -131,6 +131,20 @@ function fhwalk_perm() {
 }
 
 /**
+ * Themed walk list.
+ *  
+ * @ingroup fhwalk_helpers
+ * @param $walk_list array with walk
+ * @return a <ul><li> html list
+ */
+function _fhwalk_get_walk_by_id($uid,$tid) {
+  $sql="SELECT COUNT(n.nid) from {node} n " .
+    "JOIN {term_node} tn ON n.nid=tn.nid " .
+    "WHERE n.type='fhwalk' AND n.uid=%d AND tn.tid=%d;";
+  return db_result(db_query($sql, $uid, $tid));
+}
+
+/**
  * Implementation of hook_access().
  *  
  * @ingroup fhwalk_core
@@ -139,7 +153,10 @@ function fhwalk_access($op, $node) {
   global $user;
 
   if ($op == 'create') {
-    return user_access('create fhwalk');
+    if( user_access('admin fhwalk') || 
+        user_access('coordinate fhwalk') ||
+        user_access('create multiple fhwalk') )return true;
+    return ( user_access('create fhwalk') && (_fhwalk_get_walk_by_id($user->uid,$node->fhwalk_tid)==0) );   
   }
   if ($op == 'update') {
     return (user_access('admin fhwalk') || 
@@ -1045,77 +1062,92 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
     '#weight' => 0,
     '#value'  => $walk_details
   );
-  if($node->fhwalk_status<2) {
-    // Scrapbook
-    $details['scrapbook']  = array(
-      '#title'  => t('Scrapbook'),
-      '#weight' => -1,
-      '#value'  => fhwalk_get_photos($node)
-    );
-  } else {
-    // Walk History
-    $footers['history']  = array(
-      '#title'  => t('Previous Walks'),
-      '#weight' => 1,
-      '#value'  => ''
-    );
-    $terms = taxonomy_get_tree($node->fhwalk_vid);
-    foreach($terms as $term) {
-      $status_variable = 'fhwalk_' . $term->tid . '_status';
-      $synonyms = taxonomy_get_synonyms($term->tid);
-      $synonym = $synonyms[0];
-      if( variable_get($status_variable, 0)<2) {
-        $walk_list = _fhwalk_getwalks($term->tid, $node->location['country']);
-        if($walk_list) {
-          $form = array();
-          $walk_option = array();
-          foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
-          $form['pre'] = array('#value' => '<div class="container-inline">');
-          $form["walk_nid_" . $term->tid] = array(
-            '#type'    => 'select',
-            '#title'   => $term->name,
-            '#options' => $walk_option,
-//            '#description'  => $term->description
-          );
-          $form['submit'] = array('#type' => 'submit', '#value' => t('Visit Walk Page'));
-          $form['tid'] = array('#type' => 'hidden', '#value' => $term->tid);
-          $form['post'] = array('#value' => '</div>');
-          $footers['history']['#value'] .= drupal_get_form("fhwalk_history_" . $term->tid, $form, 'fhwalk_history_goto');
-        } 
+
+  switch ($node->fhwalk_status) {
+    case 0:
+    case 1:
+
+      // Scrapbook
+      $details['scrapbook']  = array(
+        '#title'  => t('Scrapbook'),
+        '#weight' => -1,
+        '#value'  => fhwalk_get_photos($node)
+      );
+
+      // TAF
+      $actions['taf'] = array(
+        '#title'  => t('Tell others about this walk'),
+        '#weight' => 1,
+        '#value'  => $node->hook_view['forward']
+      );
+      break;
+
+    case 2:  
+
+      // Walk History
+      $footers['history']  = array(
+        '#title'  => t('Previous Walks'),
+        '#weight' => 1,
+        '#value'  => ''
+      );
+      $terms = taxonomy_get_tree($node->fhwalk_vid);
+      foreach($terms as $term) {
+        $status_variable = 'fhwalk_' . $term->tid . '_status';
+        $synonyms = taxonomy_get_synonyms($term->tid);
+        $synonym = $synonyms[0];
+        if( variable_get($status_variable, 0)<2) {
+          $walk_list = _fhwalk_getwalks($term->tid, $node->location['country']);
+          if($walk_list) {
+            $form = array();
+            $walk_option = array();
+            foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
+            $form['pre'] = array('#value' => '<div class="container-inline">');
+            $form["walk_nid_" . $term->tid] = array(
+              '#type'    => 'select',
+              '#title'   => $term->name,
+              '#options' => $walk_option,
+  //            '#description'  => $term->description
+            );
+            $form['submit'] = array('#type' => 'submit', '#value' => t('Visit Walk Page'));
+            $form['tid'] = array('#type' => 'hidden', '#value' => $term->tid);
+            $form['post'] = array('#value' => '</div>');
+            $footers['history']['#value'] .= drupal_get_form("fhwalk_history_" . $term->tid, $form, 'fhwalk_history_goto');
+          } 
+        }
       }
-    }
+      
+      // show signup
+      $actions['signup'] = array(
+        '#title'  => t('Signup'),
+        '#weight' => 0,
+        '#value'  => $node->hook_view['fhsignup']
+      );
+
+      // check signup_show
+      if($node->signup_show) {
+        $actions['signup_list'] = array(
+          '#title'  => t('Signup List'),
+          '#weight' => 1,
+          '#value'  => fhsignup_walk_signup_table($node->nid, $node->signup_show_comments),
+        );
+      }
+      
+      // show invite
+      $actions['taf'] = array(
+        '#title'  => t('Invite others to this walk'),
+        '#weight' => 10,
+        '#value'  => $node->hook_view['forward']
+      );
+      
+      break;
+
   }  
-/*
-  if($node->history) {
-    $details['history']  = array(
-      '#title'  => t('Previous Walks'),
-      '#weight' => 1,
-      '#value'  => theme('fhwalk_history', $node->history),
-    );
-  }
-*/
+
+
+// Theme details tabs
   $node->tabs['details'] = theme('fhwalk_tabs', $details);
 
-
 // Theme action tabs
-  if($node->fhwalk_status==2) {
-    $actions['signup'] = array(
-      '#title'  => t('Signup'),
-      '#weight' => 0,
-      '#value'  => $node->hook_view['fhsignup']
-    );
-    $actions['taf'] = array(
-      '#title'  => t('Invite others to this walk'),
-      '#weight' => 1,
-      '#value'  => $node->hook_view['forward']
-    );
-  } else {
-    $actions['taf'] = array(
-      '#title'  => t('Tell others about this walk'),
-      '#weight' => 1,
-      '#value'  => $node->hook_view['forward']
-    );
-  }
   $node->tabs['actions'] = theme('fhwalk_tabs', $actions);
 
 // Fetch and theme Country Partners

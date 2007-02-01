@@ -223,21 +223,6 @@ function fhwalk_menu($may_cache) {
         }
       }
     }
-/*    
-    if (arg(0) == 'node' && is_numeric(arg(1))) {
-      $node = node_load(array('nid' => arg(1)));
-      if ($node->type=='fhwalk') {
-        $items[] = array(
-          'path' => 'node/'. arg(1) .'/signup_admin', 
-          'title' => t('Signup Admin'),
-          'callback' => 'fhwalk_signup_admin',
-          'access' => user_access('create fhwalk'),
-          'weight' => 1,
-          'type' => MENU_LOCAL_TASK
-        );
-      }
-    }
-*/        
   }
   return $items;
 }
@@ -285,6 +270,7 @@ function fhwalk_load($node) {
   $additions = db_fetch_object(db_query($sql, $node->nid));
 
 // Fetch history
+/*
   $sql = "SELECT rid FROM {fh_history} WHERE nid=%d";
   $rid = db_result(db_query($sql, $node->nid));
   if($rid) {
@@ -294,7 +280,7 @@ function fhwalk_load($node) {
       $additions->history[$row['tid']] = $row['nid'];
     }
   }
-
+*/
 // Get fhwalk_vocabulary
   $additions->fhwalk_vid = variable_get('fhwalk_vocabulary', 0);
   
@@ -319,12 +305,13 @@ function fhwalk_insert($node) {
   db_query($sql, $node->nid, $node->cid, $node->route);
   
 // INSERT INTO in fh_history
+/*
   $sql = "INSERT INTO {fh_history} (rid, tid, nid) VALUES (%d, %d, %d)";
   db_query($sql, $node->nid, $node->fhtid, $node->nid);
   foreach($node->history as $key => $value) {
     db_query($sql, $node->nid, $key, $value);
   }
- 
+*/ 
 //drupal_set_message("fhwalk INSERT: " . print_r($node, true));
 }
 
@@ -339,7 +326,8 @@ function fhwalk_update($node) {
   $sql = "UPDATE {gathering_node} SET $fields WHERE nid = %d";
   db_query($sql, $node->cid, $node->route);
 
-// UPDATE in gathering_node
+// UPDATE in fh_history
+/*
   $sql = "SELECT rid FROM {fh_history} WHERE nid=%d";
   $rid = db_result(db_query($sql, $node->nid));
   if($rid) db_query("DELETE FROM {fh_history} fh WHERE rid = %d;", $rid);
@@ -349,7 +337,7 @@ function fhwalk_update($node) {
   foreach($node->history as $key => $value) {
     if($value<>0) db_query($sql, $node->nid, $key, $value);
   }
-
+*/
 //drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
 } 
 
@@ -632,6 +620,7 @@ global $user;
   }
 
 // history
+/*
   $form['history'] = array(
     '#type' => 'fieldset', 
     '#title' => t('Previous Walks'),
@@ -662,7 +651,7 @@ global $user;
       }
     }
   }
-
+*/
   return $form;
 }
 
@@ -1050,7 +1039,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
       '#value'  => fhwalk_get_photos($node)
     );
   }
-
+/*
   if($node->history) {
     $details['history']  = array(
       '#title'  => t('Previous Walks'),
@@ -1058,7 +1047,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
       '#value'  => theme('fhwalk_history', $node->history),
     );
   }
-
+*/
   $node->details = theme('fhwalk_actions', $details);
 
 

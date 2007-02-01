@@ -89,6 +89,23 @@ function fhpartner_menu($may_cache) {
 }
 
 /**
+ * Theming partners for block
+ *
+ * @param  array of partners
+ * @return html 
+ */
+function theme_partner_block_content($partners) {
+  foreach($partners as $nid => $name) {
+    $node = node_load($nid);
+    $out .= "<div class='item-partner'><a href='node/$nid'>\n";
+    $out .= "<img src='".$node->logosmall."'><br/>\n";
+    $out .= "$name\n";
+    $out .= "</a></div>\n";
+  }
+  return $out;    
+}
+
+/**
  * Implementation of hook_block().
  *
  * Displays global partners only for objects linked to partners
@@ -104,11 +121,14 @@ function fhpartner_block($op = 'list', $delta = 0) {
     if (arg(0) == 'node' && is_numeric(arg(1)) && ($node = node_load(arg(1))) && variable_get('fhpartner_support_'.$node->type, 0)) {
       $block['subject'] = t('Global Partners');
       $partners = fhpartner_get_partners('GLOBAL');
+/*
       $links = array();
       foreach($partners as $nid => $name) {
         $links[] = l($name, 'node/'.$nid);
       }
       $block['content'] = theme('item_list', $links);
+*/
+      $block['content'] = theme('partner_block_content', $partners);
     }
     return $block;
   }

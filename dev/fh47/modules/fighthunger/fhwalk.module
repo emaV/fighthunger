@@ -142,14 +142,15 @@ function fhwalk_access($op, $node) {
     return user_access('create fhwalk');
   }
   if ($op == 'update') {
-    return ((user_access('admin fhwalk') || 
-            (user_access('coordinate fhwalk') ||
+    return (user_access('admin fhwalk') || 
+            user_access('coordinate fhwalk') ||
             ($user->uid == $node->uid));
   }
 
   if ($op == 'delete') {
-    return ((user_access('admin fhwalk') || 
-            (user_access('coordinate fhwalk');
+    return (user_access('admin fhwalk') || 
+            user_access('coordinate fhwalk') ||
+            ($user->uid == $node->uid));
   }
 
   if ($op == 'view') {

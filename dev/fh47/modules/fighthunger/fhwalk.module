@@ -937,20 +937,20 @@ function theme_fhwalk_history($history) {
  * Themed actions.
  *  
  * @ingroup fhwalk_theme
- * @param $actions array with action data (title, content, weigth)
+ * @param $tab array with tab data (title, content, weigth)
  * @return rendered js tabs
  */
-function theme_fhwalk_actions($actions) {
+function theme_fhwalk_tabs($tab) {
   $form['tabset'] = array(
     '#type' => 'tabset'
   );
-  foreach($actions as $key => $actions_data) {
+  foreach($tab as $key => $tab_data) {
     $form['tabset'][$key] = array(
       '#type'   => 'tabpage',
-      '#title'  => $actions_data['#title'],
-      '#weight' => $actions_data['#weight']
+      '#title'  => $tab_data['#title'],
+      '#weight' => $tab_data['#weight']
     );
-    $form['tabset'][$key]['action'] = array('#value' => $actions_data['#value']);
+    $form['tabset'][$key]['action'] = array('#value' => $tab_data['#value']);
   }
   $output = form_render($form);
   return $output;
@@ -1071,7 +1071,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
       '#value'  => $node->hook_view['forward']
     );
   }
-  $node->actions = theme('fhwalk_actions', $actions);
+  $node->actions = theme('fhwalk_tabs', $actions);
 
 // Fetch and theme Country Partners
   $node->partners_country = fhpartner_node_get_partners($node->nid, NULL, 'country');

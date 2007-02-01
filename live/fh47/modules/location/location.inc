@@ -121,7 +121,7 @@ function theme_location($location = array(), $hide = array()) {
       $output .= '<dd>'. $location['street'] .'</dd>';
     }
     
-    if (!empty($location['additional']) && !in_array('street', $hide)) {
+    if (!empty($location['additional']) && !in_array('additional', $hide)) {
       $output .= '<dd>' . $location['additional'] . '</dd>';
     }
     
@@ -1516,7 +1516,7 @@ function _location_get_iso3166_list() {
                'fo' => 'Faroe Islands',
                'fr' => 'France',
                'ga' => 'Gabon',
-               'gb' => 'United Kingdom',
+               //'gb' => 'United Kingdom',
                'gd' => 'Grenada',
                'ge' => 'Georgia',
                'gf' => 'French Guiana',
@@ -1664,7 +1664,7 @@ function _location_get_iso3166_list() {
                'tz' => 'Tanzania',
                'ua' => 'Ukraine',
                'ug' => 'Uganda',
-               //'uk' => 'United Kingdom',
+               'uk' => 'United Kingdom',
                'um' => 'United States Minor Outlying Islands',
                'us' => 'United States',
                'uy' => 'Uruguay',

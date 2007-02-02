@@ -1197,7 +1197,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
   $node->tabs['actions'] = theme('fhwalk_tabs', $actions);
 
 // Fetch and theme Country Partners
-  $node->partners_country = fhpartner_node_get_partners($node->nid, NULL, 'country');
+  $node->partners_country = fhpartner_node_get_partners($node, array('audience' => 'COUNTRY'));
   $node->CP = theme('fhpartner_list', $node->partners_country); 
 
 // Fetch LCP nids and titles and theme

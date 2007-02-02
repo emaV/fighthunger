@@ -403,6 +403,12 @@ function fhpartner_date_field($op, $field = 'start', $date = NULL, $offset = 0) 
 
 /**
  * Get partner list
+ *  
+ * @ingroup fhpartner_helpers
+ * @param   $audience string 
+ * @ param  $conditions with fields for where condition in the form:
+ *                      array('tid' => 33)  
+ * @return  array with partners
  */
 function fhpartner_get_partners($audience = 'LOCAL', $conditions = array()) {
   $partners = array();
@@ -411,7 +417,7 @@ function fhpartner_get_partners($audience = 'LOCAL', $conditions = array()) {
   $joins = array();
   // Build where clause. Special case for taxonomy term parameter, 'tid'
   if(isset($conditions['tid'])) {
-    $joins['node_term'] = "INNER JOIN {node_term} t ON t.nid = n.nid";
+    $joins['term_node'] = "INNER JOIN {term_node} t ON t.nid = n.nid";
     $where['t.tid'] = db_escape_string($conditions['tid']);
     unset($conditions['tid']);
   }
@@ -618,9 +624,13 @@ function fhpartner_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
 /**
  * Get partners for a node
  * 
+ * @ingroup  fhpartner_helpers 
+ * @param    $nid node id
+ * @param    array of conditions
  * @return
  *   Array of partner names indexed by nid
  */
+/*
 function fhpartner_node_get_partners($node, $index = 'nid', $audience = 'local') {
   $nid = is_numeric($node) ? $node : $node->nid;
   if($audience=='local') {
@@ -631,7 +641,7 @@ function fhpartner_node_get_partners($node, $index = 'nid', $audience = 'local')
     }
   } else {
     $country = db_result(db_query("SELECT country FROM location WHERE type='node' AND oid=%d;", $nid));
-    $sql = "SELECT pn.*, n.title FROM {partners_node} pn INNER JOIN {node} n  ON pn.nid = n.nid WHERE pn.country = '%s' AND paud='COUNTRY'";    
+    $sql = "SELECT pn.*, n.title FROM {partners_node} pn INNER JOIN {node} n  ON pn.nid = n.nid WHERE pn.country = '%s' AND paud='COUNTRY'";
     $result = db_query($sql, $country);
     $partners = array();
     while($node = db_fetch_object($result)) {
@@ -640,7 +650,67 @@ function fhpartner_node_get_partners($node, $index = 'nid', $audience = 'local')
   }
   return $partners;
 }
+*/
+function fhpartner_node_get_partners($node, $conditions = array('audience' => 'LOCAL') ) {
+  $nid = is_numeric($node) ? $node : $node->nid;
+  $partners = array();
 
+  switch ($conditions['audience']) {
+
+    case 'GLOBAL':
+      if (isset($conditions['tid'])) {
+        $tid = $conditions['tid'];
+      } elseif (isset($node->fhwalk_tid)) {
+        $tid = $node->fhwalk_tid;
+      } else {
+        $campaign = array_shift(fhcampaign_node_get_campaigns($nid));
+        $tid = $campaign->tid;
+      }
+
+      $sql = "SELECT pn.*, n.title FROM {partners_node} pn " .
+        "INNER JOIN {node} n  ON pn.nid = n.nid " .
+        "INNER JOIN {term_node} tn ON pn.nid = tn.nid " .
+        "WHERE pn.paud = 'GLOBAL' AND tn.tid = %d";
+      $result = db_query($sql, $tid);
+      break;
+
+    case 'COUNTRY':
+      if (isset($conditions['tid'])) {
+        $tid=$conditions['tid'];
+      } elseif (isset($node->fhwalk_tid)) {
+        $tid = $node->fhwalk_tid;
+      } else {
+        $campaign = array_shift(fhcampaign_node_get_campaigns($nid));
+        $tid = $campaign->tid;
+      }
+      if (isset($conditions['country'])) {
+        $country = $conditions['country'];
+      } elseif (isset($node->location['country'])) {
+        $country = $node->location['country'];
+      } else {
+        $country = db_result(db_query("SELECT country FROM location WHERE type='node' AND oid=%d;", $nid));
+      }
+      $sql = "SELECT pn.*, n.title FROM {partners_node} pn " .
+        "INNER JOIN {node} n  ON pn.nid = n.nid " .
+        "INNER JOIN {term_node} tn ON pn.nid = tn.nid " .
+        "WHERE pn.paud = 'COUNTRY' AND tn.tid=%d AND pn.country = '%s';";
+      $result = db_query($sql, $tid, $country);
+      break;
+
+    default:
+      $sql = "SELECT pn.*, n.title FROM {partners_node} pn " .
+        "INNER JOIN {node} n  ON pn.nid = n.nid " .
+        "INNER JOIN {partners_partners} pp ON pn.nid = pp.pid " .
+        "WHERE pp.nid = %d";
+      $result = db_query($sql, $nid);
+
+  }
+  while($node = db_fetch_object($result)) {
+    $partners[$node->nid] = $node;
+  }
+
+  return $partners;
+}
 
 /**
  * FH partner type administration

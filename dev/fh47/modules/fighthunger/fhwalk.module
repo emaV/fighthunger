@@ -360,38 +360,36 @@ function fhwalk_update($node) {
 function fhwalk_get_latlon($location) {
 // check http://groups.drupal.org/node/781#comment-3908
   $countries = location_get_iso3166_list();
-  $country = $countries[$location['country']];
   if($country=='uk') $country = 'gb';
+  $country = $countries[$location['country']];
+  
+// Try fetching STREET
   $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
         implode("+", explode(" ", $location['street'])) . ',' .
         implode("+", explode(" ", $location['city'])) . ',' .
         $country .
         "&output=csv&key=".variable_get('googlemap_api_key', '');
   $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-  watchdog('fhwalk', "Fetching STREET from google: $location_geocode_gmap_url");
+//  watchdog('fhwalk', "Fetching STREET from google: $location_geocode_gmap_url");
 
-if($content[0]<>200) {
-  $msg  = "location['street']: " . $location['street'] . '<br />';
-  $msg .= "location['city']: "   . $location['city'] . '<br />';
-  $msg .= "country: $country<br />";
-  $msg .= "$location_geocode_gmap_url<br/>";
-  $msg .= print_r($content, true);
-  watchdog('fhwalk', "Error fetching lat lon from google: $msg", WATCHDOG_WARNING);
-  
-  $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
-        implode("+", explode(" ", $location['city'])) . ',' .
-        $country .
-        "&output=csv&key=".variable_get('googlemap_api_key', '');
-  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-  $msg  = "location['city']: "   . $location['city'] . '<br />';
-  $msg .= "country: $country<br />";
-  $msg .= "$location_geocode_gmap_url<br/>";
-  $msg .= print_r($content, true);
-  watchdog('fhwalk', "CITY RESULT from google: $msg");
-
-}
-
- return $content;
+// Then only CITY
+  if($content[0]<>200) {
+    $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
+          implode("+", explode(" ", $location['city'])) . ',' .
+          $country .
+          "&output=csv&key=".variable_get('googlemap_api_key', '');
+    $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
+    $content[4] = 'city'
+// Then only COUNTRY (?!)    
+    if($content[0]<>200) {
+      $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
+            $country .
+            "&output=csv&key=".variable_get('googlemap_api_key', '');
+      $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
+      $content[4] = 'country'
+    } 
+  }  
+  return $content;
 }
 
 

@@ -51,7 +51,7 @@ a:active { color: #ff6600; }
   margin: 5px;
   background: #efefef;
   width: auto;
-  float: right;
+  float: left;
   -moz-border-radius: 5px;
   border: solid 1px #ddd;
 }

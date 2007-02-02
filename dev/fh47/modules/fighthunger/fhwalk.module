@@ -1170,14 +1170,16 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
       );
 
       // check signup_show
-      if($node->signup_show) {
+      if($node->signup_show || $node->signup_show_number) {
+        $value  = ($node->signup_show)        ? fhsignup_walk_signup_table($node->nid, $node->signup_show_comments) : '';
+        $value .= ($node->signup_show_number) ? ('<h2>' . t('Signup Count') . ': ' . _fhsignup_count($node->nid) . '</h2>') : '';
         $actions['signup_list'] = array(
           '#title'  => t('Signup List'),
           '#weight' => 1,
-          '#value'  => fhsignup_walk_signup_table($node->nid, $node->signup_show_comments),
+          '#value'  => $value,
         );
       }
-      
+
       // show invite
       $actions['taf'] = array(
         '#title'  => t('Invite others to this walk'),

@@ -123,11 +123,11 @@ function fhwalk_node_info() {
  */
 function fhwalk_perm() {
   return array(
-    'join walk', // was join fhwalk
-    'create walk', // was create fhwalk
-    'create multiple walk', // was create multiple fhwalk
-    'coordinate walks', // was coordinate fhwalk
-    'administer walks' // was admin fhwalk
+    'join walk',     // was join fhwalk
+    'create walk',   // was create fhwalk
+    'create multiple walks', // was create multiple fhwalk
+    'coordinate walks',      // was coordinate fhwalk
+    'administer walks'       // was admin fhwalk
   ); 
 }
 
@@ -154,20 +154,20 @@ function fhwalk_access($op, $node) {
   global $user;
 
   if ($op == 'create') {
-    if( user_access('admin fhwalk') || 
-        user_access('coordinate fhwalk') ||
-        user_access('create multiple fhwalk') )return true;
+    if( user_access('administer walks') || 
+        user_access('coordinate walks') ||
+        user_access('create multiple walks') )return true;
     return ( user_access('create fhwalk') && (_fhwalk_get_walk_by_id($user->uid,$node->fhwalk_tid)==0) );   
   }
   if ($op == 'update') {
-    return (user_access('admin fhwalk') || 
-            user_access('coordinate fhwalk') ||
+    return (user_access('administer walks') || 
+            user_access('coordinate walks') ||
             ($user->uid == $node->uid));
   }
 
   if ($op == 'delete') {
-    return (user_access('admin fhwalk') || 
-            user_access('coordinate fhwalk') ||
+    return (user_access('administer walks') || 
+            user_access('coordinate walks') ||
             ($user->uid == $node->uid));
   }
 
@@ -185,14 +185,6 @@ function fhwalk_menu($may_cache) {
   $items = array();
 
   if ($may_cache) {
-    /*
-    $items[] = array(
-      'title' => t('fhwalk'),
-      'path' => 'admin/fhwalk', 
-      'access' => user_access('admin fhwalk'),
-      'callback' => 'fhwalk_admin',
-    );
-    */
     // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache
     foreach(fhcampaign_get_all_campaigns() as $campaign) {
       $items[] = array(
@@ -1001,7 +993,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
   $node->body_plain = $node->body;
 //  $node->body_hooked = $node->body;
   $node->body = '';
-  /*
+  
   foreach (module_implements('nodeapi') as $name) {
     $function = $name .'_nodeapi';
     $result = $function($node, 'view', $teaser, $page);
@@ -1009,7 +1001,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
     $node->body_hooked .= $node->body;
     $node->body = '';
   }
-  */
+ 
   $node->hook_view_array = $return;
   $node->body = $node->body_plain;
 

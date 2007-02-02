@@ -356,14 +356,68 @@ function fhwalk_update($node) {
 //drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
 } 
 
+function _fhwalk_geocode_google($street='', $city, $province='', $country) {
+  if(variable_get('googlemap_api_key', '')=='') { 
+    $content = array(0,0,0,0,'NO api_key');
+  } else {
+    $location_geocode_gmap_url = "http://maps.google.com/maps/geo?q=" . 
+          ( ($street)   ? "$street,"   : '') . $city .
+          ( ($province) ? "$province," : '') . $country .
+          "&output=csv&key=".variable_get('googlemap_api_key', '');
+    $result  = file_get_contents("$location_geocode_gmap_url");
+    $content = explode(",", $result);
+    $content[4] = 'google';
+  }
+watchdog('fhwalk', "GOOGLE: $location_geocode_gmap_url<br/>$result");
+  return $content; 
+}
+
+/**
+ *
+ * using geonames - http://www.geonames.org/export/
+ * http://forum.geonames.org/gforum/posts/list/8.page
+ * get URL:
+ * http://ws.geonames.org/postalCodeSearchJSON?placename=Manchester&country=gb&maxRows=1
+ * result JSON: 
+ * {"postalCodes":[{"adminName2":"Greater Manchester","postalCode":"M1","countryCode":"GB","lng":-2.2166667,"placeName":"Manchester","lat":53.5}]}  
+ * Parsing without j-son decode http://it2.php.net/manual/en/function.json-decode.php
+ * 
+ */  
+function _fhwalk_geocode_geonames($city, $country) {
+  $location_geonames_org_url = "http://ws.geonames.org/postalCodeSearchJSON?" .
+    "placename=$city&country=$country&maxRows=1";
+  $result  = file_get_contents("$location_geonames_org_url");
+  
+  $result_tmp =  substr($result, 1, -1);                // strip curly braces
+  $result_array_tmp = split(":", $result_tmp, 2);       // split in two
+  $result_tmp = $result_array_tmp[1];                   // take second part
+  $result_tmp =  substr($result_tmp, 1, -1);            // strip square
+  if($result_tmp) {   // GO AHEAD we have something to parse 
+    $result_tmp =  substr($result_tmp, 1, -1);          // strip curly
+    $result_array_tmp = explode(',', $result_tmp);       // explode all fragments
+    foreach($result_array_tmp as $fragment) {
+      list($key, $val) = explode(':', $fragment);       // explode $key and $value
+      $result_array[$key] = $val;
+    }
+    $content[0] = 200;
+    $content[2] = $result_array['lat'];
+    $content[3] = $result_array['lng'];
+    $content[4] = 'geonames';
+  } else {            // STOP !!!
+    $content[0] = 0;
+  }
+watchdog('fhwalk', "GEONAMES: $location_geonames_org_url<br/>$result");
+  return $content;
+}
+
 // Get Lat Long
 // check http://groups.drupal.org/node/781#comment-3908
 function fhwalk_get_latlon($location) {
-  if(variable_get('googlemap_api_key', '')=='') return array(0,0,0,0,'NO api_key');
   
-  if($location['country']=='uk') $location['country'] = 'gb';
-  $country = fh_get_country_name($location['country']);
-  if($province=$location['province']) {
+// urlencode all
+  $street   = rawurlencode(utf8_encode($street));
+  $city     = rawurlencode(utf8_encode($city));
+   if($province=$location['province']) {
     if (strlen($province) && $province != 'xx') {
       // chop off the 2-letter code and the '-' from the front of the value
       $province = substr($province, 3);
@@ -371,52 +425,26 @@ function fhwalk_get_latlon($location) {
       $province ='';
     }
   }
+  if($location['country']=='uk') $location['country'] = 'gb';
+  $country = rawurlencode(utf8_encode(fh_get_country_name($location['country'])));
   
-// Try fetching STREET
-  $location_geocode_gmap_url = "http://maps.google.com/maps/geo?q=" . 
-        implode("+", explode(" ", $location['street'])) . ',' .
-        implode("+", explode(" ", $location['city'])) . ',' .
-        ( ($province) ? "$province," : '') .
-        implode("+", explode(" ", $country)) .
-        "&output=csv&key=".variable_get('googlemap_api_key', '');
-  $result  = file_get_contents("$location_geocode_gmap_url");     
-  $content = explode(",", $result);
+// Try fetching GOOGLE street, city, province, country
+  $content = _fhwalk_geocode_google($street, $city, $province, $country);
 
-// Then only CITY
   if($content[0]<>200) {
-    $msg  = "Error fetching STREET from google<br/>" ;
-    $msg .= print_r($content, true) . "<br/>$result<br/>";
-    $msg .= print_r($location, true) . "<br/>";
-    $msg .= $location_geocode_gmap_url . "<br/>";
-    watchdog('fhwalk', $msg, WATCHDOG_WARNING);
-  
-  
-    $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
-        implode("+", explode(" ", $location['city'])) . ',' .
-        ( ($province) ? "$province," : '') .
-        implode("+", explode(" ", $country)) .
-          "&output=csv&key=".variable_get('googlemap_api_key', '');
-    $result  = file_get_contents("$location_geocode_gmap_url");     
-    $content = explode(",", $result);
-//    $content[4] = 'city';
-// Then only COUNTRY (?!)    
+    // Then GOOGLE city, province, country
+    $content = _fhwalk_geocode_google('', $city, $province, $country);
     if($content[0]<>200) {
-      $msg  = "Error fetching CITY from google<br/>" ;
-      $msg .= print_r($location, true) . "<br/>$result<br/>";
-      $msg .= $location_geocode_gmap_url . "<br/>";
-      $msg .= print_r($content, true) . "<br/>";
-      watchdog('fhwalk', $msg, WATCHDOG_WARNING);
-
-      $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
-            implode("+", explode(" ", $country)) .
-            "&output=csv&key=".variable_get('googlemap_api_key', '');
-      $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-//      $content[4] = 'country';
-    } 
-  }  
+      // Then GOOGLE city, country
+      $content = _fhwalk_geocode_google('', $city, '', $country);
+      if($content[0]<>200) {
+        // Then geonames city, country
+        $content = _fhwalk_geocode_geonames($city, $country);
+      }
+    }
+  }
   return $content;
 }
-
 
 /************************
  *

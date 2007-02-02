@@ -415,8 +415,8 @@ watchdog('fhwalk', "GEONAMES: $location_geonames_org_url<br/>$result");
 function fhwalk_get_latlon($location) {
   
 // urlencode all
-  $street   = rawurlencode(utf8_encode($street));
-  $city     = rawurlencode(utf8_encode($city));
+  $street   = rawurlencode(utf8_encode($location['street']));
+  $city     = rawurlencode(utf8_encode($location['city']));
    if($province=$location['province']) {
     if (strlen($province) && $province != 'xx') {
       // chop off the 2-letter code and the '-' from the front of the value

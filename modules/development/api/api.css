@@ -1,0 +1,39 @@
+/* $Id: api.css,v 1.4 2006/03/06 16:33:13 JonBob Exp $ */
+
+.php {
+  font-family: monospace;
+}
+
+.php .php-comment {
+  color: #666;
+}
+
+.php .php-function-or-constant {
+  color: #00a;
+}
+
+.php .php-function-or-constant a.local {
+  color: #00a;
+  font-weight: bold;
+}
+
+.php .php-function-or-constant a.php-manual {
+  color: #048;
+  font-weight: bold;
+}
+
+.php .php-variable {
+  color: #330;
+}
+
+.php .php-string {
+  color: #a00;
+}
+
+.php .php-constant {
+  color: #a33;
+}
+
+.php .php-keyword {
+  color: #060;
+}

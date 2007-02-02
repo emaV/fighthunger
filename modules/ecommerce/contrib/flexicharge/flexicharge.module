@@ -1,0 +1,357 @@
+<?php
+
+// $Id: flexicharge.module,v 1.8.2.1 2006/11/05 13:56:24 sime Exp $
+
+define('FLEXICHARGE_CHARGE', 1);
+define('FLEXICHARGE_CHARGE_PCT_SUBTOTAL', 2);
+define('FLEXICHARGE_CHARGE_PCT_ITEMTOTAL', 3);
+
+function flexicharge_help($section) {
+  switch ($section) {
+  }
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function flexicharge_menu($may_cache) {
+  $items = array();
+  $access = user_access('administer store');
+
+  if ($may_cache) {
+
+    $items[] = array(
+      'path'     => 'admin/store/settings/flexicharge',
+      'title'    => t('flexicharge'),
+      'callback' => 'flexicharge_charges_overview',
+      'callback arguments' => array('config'),
+      'access'   => $access,
+    );
+    $items[] = array(
+      'path'     => 'admin/store/settings/flexicharge/add',
+      'title'    => t('flexicharge add charge'),
+      'callback' => 'flexicharge_charge_form',
+      'type'     => MENU_CALLBACK,
+      'access'   => $access,
+    );
+    $items[] = array(
+      'path'     => 'admin/store/settings/flexicharge/edit',
+      'title'    => t('flexicharge edit charge'),
+      'callback' => 'flexicharge_charge_form',
+      'type'     => MENU_CALLBACK,
+      'access'   => $access,
+    );
+    $items[] = array(
+      'path'     => 'admin/store/settings/flexicharge/delete',
+      'title'    => t('flexicharge edit charge'),
+      'callback' => 'flexicharge_charge_delete',
+      'type'     => MENU_CALLBACK,
+      'access'   => $access,
+    );
+  }
+  return $items;
+}
+
+/**
+ * Use checkoutapi to calculate charges, each method has it's own checkout
+ * function
+ */
+function flexicharge_checkoutapi(&$txn, $op, $arg3 = NULL, $arg4 = NULL) {
+
+  if($txn=='flexicharge') {return TRUE;}
+
+  switch ($op) {
+    case 'review':
+
+      // Get saved charges from database.
+      $configured_charges = _flexicharge_configured_charges();
+
+      // Call this to include() the method files.
+      _flexicharge_partners();
+
+      $return = array();
+      $weight = 1000; // Very heavy, we want to appear below all other charges.
+
+      while ($charge = db_fetch_object($configured_charges)) {
+        // this is the operation we normally want for a misc charge
+        $f = $charge->provider .'_flexicharge_review';
+        if (function_exists($f)) {
+          $charge_data = $f($txn, $charge);
+        }
+        // Note, we give flexicharge a heavy weight until it can be
+        // properly integrated into the order of other misc charges
+        // because some misc charges could be based on other charges.
+
+        if (is_array($charge_data)) {
+          $charge_data['weight'] = $charge_data['weight'] + 1000;
+          $txn->misc[] = (object)$charge_data;
+        }
+        elseif ($charge_data) {
+          $return[] = $charge_data;
+        }
+      }
+      break;
+
+    case 'review_submit':
+
+      break;
+  }
+
+}
+
+function flexicharge_shipping_checkout_rates(&$txn) {
+/*
+ * I have listed this as a possible capture for shipping charges, but there
+ * is now weight.inc in shipcalc so it's redundant at the moment.
+ */
+}
+
+function flexicharge_charges_overview() {
+/*
+ * First we display a list of currently configured charges.
+ *
+ */
+  drupal_set_title(t('Flexicharge Overview'));
+  $operators = _flexicharge_operators('list');
+
+  $i = 0;
+  $configured_charges = _flexicharge_configured_charges();
+  while ($charge = db_fetch_object($configured_charges)) {
+    $i++;
+    $row['name'] = $i;
+    $row['chid'] = l($charge->display, 'admin/store/settings/flexicharge/edit/'. $charge->chid);
+    $row['operator'] = $operators[$charge->operator];
+    $row['rate'] = $charge->rate;
+    $row['price'] = $charge->rate;
+    $row['delete'] = l('delete', 'admin/store/settings/flexicharge/delete/'. $charge->chid);
+    $charge_list[] = $row;
+  }
+  $output .= theme('fieldset',
+                array(
+                  '#title' => 'Currently configured charges',
+                  '#children' => theme('table', array(), $charge_list),
+                  '#collapsible' => true,
+                  '#collapsed' => false));
+
+/*
+ * Second we add a fieldset containing links to create new
+ * charges.
+ *
+ */
+  $charge_methods = _flexicharge_charge_methods();
+  foreach ($charge_methods as $provider => $methods) {
+    foreach (element_children($methods) as $method) {
+      $charge_menu[] = l($methods[$method]['#title'],'admin/store/settings/flexicharge/add',NULL ,"provider=$provider&method=$method");
+    }
+  }
+  $output .= theme('fieldset',
+                array(
+                  '#title' => 'Add a new charge',
+                  '#children' => theme('item_list', $charge_menu),
+                  '#collapsible' => TRUE,
+                  '#collapsed' => TRUE));
+ return $output;
+}
+
+function flexicharge_charge_form() {
+
+  $charge_methods = _flexicharge_charge_methods();
+
+
+  switch (arg(4)) {
+    case 'add':
+      $op = 'add';
+      $chid = 0;
+      $provider = $_GET['provider'];
+      $method = $_GET['method'];
+      drupal_set_title(t('New Flexicharge'));
+      break;
+    case 'edit':
+      drupal_set_title(t('Edit Flexicharge'));
+      $op = 'edit';
+      $chid = arg(5);
+      $charge = db_fetch_object(db_query('SELECT provider, method, display, operator, rate, position, subtotal_before, subtotal_after, already_added, settings FROM {ec_flexicharge} WHERE chid = %d', $chid));
+      $provider = $charge->provider;
+      $method = $charge->method;
+      $settings = unserialize($charge->settings);
+      break;
+  }
+
+  $form = array();
+  $form['module'] = array('#type' => 'fieldset','#title' => $method,'#description' => 'Charge description goes here','#collapsible' => TRUE,'#collapsed' => FALSE, '#tree' => true);
+  $form['module']['chid'] = array('#type' => 'value', '#value' => $chid);
+  $form['module']['provider'] = array('#type' => 'value', '#value' => $provider);
+  $form['module']['method'] = array('#type' => 'value', '#value' => $method);
+  $form['module']['display'] = array(
+    '#type' => 'textfield',
+    '#required' => true,
+    '#title' => t('Display label'),
+    '#description' => t('This is the description for the review screen and invoice.'),
+    '#default_value' => ($chid) ? $charge->display : $charge_methods[$provider][$method]['#title'],
+    '#size' => 20,
+  );
+  $operators[0] = '--';
+  $operators = _flexicharge_operators('list');
+
+  $form['module']['elements'] = array();
+
+  $form['module']['operator'] = array(
+    '#type' => 'select',
+    '#title' => t('Operator'),
+    '#default_value' => ($chid) ? $charge->operator : FLEXICHARGE_ADD,
+    '#options' => $operators,
+    );
+  $form['module']['rate'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Charge rate'),
+    '#default_value' => ($chid) ? $charge->rate : 0,
+    '#description' => t('Use positive or negative values. You can specify percent like 10 or -20, use the operator to specify percentage.'),
+    '#size' => 8,
+  );
+  $form['module']['position'] = array(
+    '#type' => 'textfield',
+    '#required' => true,
+    '#title' => t('Calculation order'),
+    '#description' => t('Position of this charge in the flexicharge calculations.'),
+    '#default_value' => ($chid) ? $charge->position : 1,
+    '#size' => 5,
+  );
+  $form['module']['subtotal_before'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Display a subtotal before?'),
+    '#default_value' => ($chid) ? $charge->subtotal_before : 0,
+  );
+  $form['module']['subtotal_after'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Display a subtotal after?'),
+    '#default_value' => ($chid) ? $charge->subtotal_after : 0,
+  );
+  $form['module']['already_added'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Display this amount as \'included\', but don\'t add it to the subtotal.'),
+    '#default_value' => ($chid) ? $charge->already_added : 0,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save charge'),
+  );
+
+  // Get the form elements required by the charge provider
+  $f = $provider .'_flexicharge_form_elements';
+  if (function_exists($f)) {
+    $form['module']['elements'] = $f($form, $op, $method);
+  }
+
+  // If there are custom form elements - apply them from the database values
+  if (arg(4) == 'edit' && is_array($settings)) {
+    foreach ($settings as $e => $s) {
+      $form['module']['elements'][$e]['#default_value'] = $s;
+    }
+  }
+
+  return drupal_get_form('flexicharge_charge_form', $form);
+}
+
+function flexicharge_charge_form_submit($form_id, $form) {
+
+  // Get the form elements required by the charge provider
+  $f = $provider .'_flexicharge_form_validate';
+  if (function_exists($f)) {
+    $form = $f($form_id, $form);
+  }
+
+  if (isset($form['module']['elements'])) {
+    $settings = serialize($form['module']['elements']);
+  }
+  else {
+    $settings = '';
+  }
+
+  if ($form['module']['chid']) {
+
+    db_query("UPDATE {ec_flexicharge} SET display = '%s', operator = %d, rate = %f, position = %d, subtotal_before = %d, subtotal_after = %d, already_added= %d, settings = '%s' WHERE chid = %d",
+              $form['module']['display'], $form['module']['operator'],
+              $form['module']['rate'], $form['module']['position'],
+              $form['module']['subtotal_before'], $form['module']['subtotal_after'],
+              $form['module']['already_added'], $settings, $form['module']['chid']);
+  }
+  else {
+
+    db_query("INSERT INTO {ec_flexicharge}
+              ( provider, method, display,
+                operator, rate, position,
+                subtotal_before, subtotal_after,
+                already_added, settings)
+              VALUES ('%s', '%s', '%s', %d, %f, %d, %d, %d, %d, '%s')",
+              $form['module']['provider'], $form['module']['method'],
+              $form['module']['display'], $form['module']['operator'],
+              $form['module']['rate'], $form['module']['position'],
+              $form['module']['subtotal_before'], $form['module']['subtotal_after'],
+              $form['module']['already_added'], $settings);
+  }
+
+  drupal_goto('admin/store/settings/flexicharge');
+}
+
+function flexicharge_charge_delete() {
+
+  db_query("DELETE FROM {ec_flexicharge} WHERE chid = %d",arg(5));
+  drupal_goto('admin/store/settings/flexicharge');
+}
+
+
+/**
+ * Returns an array of flexicharge methods.
+ * This function mimics shipcalc_shipping_methods() and for cross-reference
+ * purposes I have kept it mostly the same. In shipcalc, a 'partner' is UPS.
+ * USPS etc, in flexicharge, a 'partner' is actually a collection of one or
+ * more charge types.
+ */
+
+function _flexicharge_charge_methods() {
+  $methods = array();
+
+  $partners = _flexicharge_partners();
+  foreach ($partners as $partner) {
+    $charge_methods = $partner->name .'_charge_methods';
+    if (function_exists($charge_methods)) {
+      $methods = array_merge($methods, $charge_methods($form));
+    }
+  }
+  return $methods;
+}
+
+/**
+ * Returns an array of flexicharge method files.
+ */
+function _flexicharge_partners() {
+  // Locate the subdirectory holding partner include files.
+  $partner_dir = drupal_get_path('module', 'flexicharge');
+  // Locate all partner include files.
+  $files = file_scan_directory("$partner_dir", '\.inc$');
+
+  $partners = array();
+  foreach ($files as $partner) {
+    include_once($partner->filename);
+    $partners[$partner->name] = $partner;
+  }
+  return $partners;
+}
+
+function _flexicharge_configured_charges() {
+  return db_query("SELECT chid, provider, method, display, operator, rate, position, subtotal_before, subtotal_after, already_added, settings FROM {ec_flexicharge} ORDER BY position");
+}
+
+
+function _flexicharge_operators($op = 'list') {
+
+  switch ($op) {
+    case 'list':
+      $operators = array(
+        FLEXICHARGE_CHARGE => 'Simple +/-',
+        FLEXICHARGE_CHARGE_PCT_SUBTOTAL => '% of Subtotal',
+        FLEXICHARGE_CHARGE_PCT_ITEMTOTAL=> '% of Item Total',
+        );
+      return $operators;
+  }
+}

@@ -1,0 +1,34 @@
+<?php
+// $Id: tax.install,v 1.3 2006/05/09 12:23:37 gordon Exp $
+
+/**
+ * E-Commerce tax module schema
+ */
+function tax_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_tax} (
+        taxid int(11) unsigned NOT NULL default '0',
+        realm varchar(255) NOT NULL default '',
+        realm_value varchar(255) NOT NULL default '',
+        ptype varchar(128) NOT NULL default '',
+        operator decimal(10,2) NOT NULL default '0.00',
+        operand varchar(10) NOT NULL default '',
+        PRIMARY KEY  (taxid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_tax} (
+        taxid integer NOT NULL default '0',
+        realm varchar(255) NOT NULL default '',
+        realm_value varchar(255) NOT NULL default '',
+        ptype varchar(128) NOT NULL default '',
+        operator decimal(10,2) NOT NULL default '0.00',
+        operand varchar(10) NOT NULL default '',
+        PRIMARY KEY  (taxid)
+      )");
+      break;
+  }
+}
+

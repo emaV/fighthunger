@@ -1,0 +1,207 @@
+<?php
+// $Id: ecviews.module,v 1.2 2006/08/25 02:59:30 neclimdul Exp $
+
+/**
+ * @file
+ * E-Commerce Views integration.
+ *
+ * Provides E-Commerce itegration with views. 
+ */
+
+function ecviews_help($section = 'admin/help#ecviews') {
+  $output = '';
+  switch ($section) {
+    case 'admin/settings/modules#description':
+      $output = t('Provides Views integration for core E-Commerce Modules.');
+      break;
+  }
+
+  return $output;
+}
+
+/**
+ * Implementation of hook_views_tables()
+ */
+function ecviews_views_tables() {
+  $tables['ec_product'] = array(
+    'name' => 'ec_product',
+    'join' => array(
+      'left' => array(
+        'table' => 'node',
+        'field' => 'vid'
+      ),
+      'right' => array(
+        'field' => 'vid'
+      ),
+    ),
+    'fields' => array(
+      'sku' => array(
+        'name' => t('Product: SKU'),
+        'sortable' => true,
+      ),
+      'price' => array(
+        'name' => t('Product: Price'),
+        'sortable' => true,
+      )
+    ),
+    'sorts' => array(
+      'sku' => array(
+        'name' => t('Product: SKU'),
+      ),
+      'price' => array(
+        'name' => t('Product: Price'),
+      ),
+    ),
+    'filters' => array(
+      'is_product' => array(
+        'name' => t('Product: Is Product'),
+        'operator' => array('=' => 'Equals'),
+        'list' => 'views_handler_operator_yesno',
+        'list-type' => 'select',
+        'handler' => 'ecviews_views_handler_filter_product',
+      ),    
+      'ptype' => array(
+        'name' => 'Product: Type',
+        'operator' => 'views_handler_operator_andor',
+        'list' => 'ecviews_views_handler_filter_product_type',
+        'list-type' => 'list',
+        'help' => 'Filter by product type',
+      ),
+      'pparent' => array(
+        'name' => 'Product: Master Product',
+        'operator' => array('=' => 'Equals'),
+        'list' => array('Product', 'Sub-Product'),
+        'list-type' => 'select',
+        'handler' => 'ecviews_views_handler_filter_product_parent',
+        'help' => t('Filter the product based upon the product being a normal product or a sub-product'),
+      ),
+    ),
+  ); // End ec_product table
+  // Will need to add ec_transaction at some point so we can filter on transaction status
+  /* TODO: Things I would like to provide.
+   *   filters
+   *     is_recurring(to move out when recurring moves out)
+   *     number of purchases
+   */
+  //    
+  $tables['ec_transaction_product'] = array(
+    'name' => 'ec_transaction_product',
+    'join' => array(
+      'left' => array(
+        'table' => 'node',
+        'field' => 'nid'
+      ),
+      'right' => array(
+        'field' => 'nid'
+      ),
+    ),
+    'fields' => array(
+      'title' => array(
+        'name' => t('Purchased Product: Title'),
+        'sortable' => true,
+      ),
+      'qty' => array(
+        'name' => t('Purchased Product: Quantity'),
+        'sortable' => true,
+      ),
+      'price' => array(
+        'name' => t('Purchased Product: Price'),
+        'sortable' => true,
+      ),
+      'product_count' => array(
+        'name' => t('Purchased Product: Number of Purchases'),
+        'notafield' => true,
+        'sortable' => true,
+        'query_handler' => 'views_query_handler_product_count',
+      ),
+
+    ),
+    'sorts' => array(
+      'title' => array(
+        'name' => t('Purchased Product: Title'),
+      ),
+      'qty' => array(
+        'name' => t('Purchased Product: Quantity'),
+      ),
+      'price' => array(
+        'name' => t('Purchased Product: Price'),
+      ),
+      'product_count' => array(
+        'name' => t('Purchased Product: Number of Purchases'),
+        'handler' => 'views_handler_product_count',
+      ),
+    ),
+  ); // End ec_transaction_product table
+  return $tables;
+}
+
+/**
+ * Field handler for count of purchases products
+ */
+function views_query_handler_product_count($field, $fieldinfo, $query) {
+  $alias = $field['field'];
+  $query->ensure_table($field['tablename']);
+  $query->add_field('count( ' . $field['tablename'] . '.nid )', '', $alias);
+  $query->add_groupby('node.nid');
+}
+
+/**
+ * Sort handler for count of purchased products
+ */
+function views_handler_product_count($op, &$query, $sortdata, $sort) {
+  $alias = explode('.', $sort['id']);
+  $alias = $alias[1];
+  $query->ensure_table($sortdata['table']);
+  $query->add_field('count( ' . $sortdata['table'] . '.nid )', '', $alias);
+  $query->add_groupby('node.nid');
+  $query->add_orderby('', $alias, $sort['sortorder']);
+}
+
+/**
+ * Return a list of Product Types
+ */
+function ecviews_views_handler_filter_product_type() {
+  return product_get_ptypes();
+}
+
+/**
+ * ecviews_views_handler_filter_product_parent()
+ *
+ * Filter products based upon being a parent product or not.
+ */
+function ecviews_views_handler_filter_product_parent($op, $filter, $filterinfo, &$query) {
+  switch ($op) {
+    case 'handler':
+      $query->ensure_table('ec_product');
+      switch ($filter['value'][0]) {
+        case '0':
+          $query->add_where($filter['field'] .' = 0');
+          break;
+
+        case '1':
+          $query->add_where($filter['field']);
+          break;
+      }
+      break;
+  }
+}
+
+/**
+ * Filter Nodes based on being a product.
+ */
+function ecviews_views_handler_filter_product($op, $filter, $filterinfo, &$query) {
+  switch ($op) {
+    case 'handler':
+      $query->ensure_table('ec_product');
+      switch ($filter['value'][0]) {
+        case '0':
+          $query->add_where('ec_product.ptype IS NULL');
+          break;
+
+        case '1':
+          $query->add_where('ec_product.ptype IS NOT NULL');
+          break;
+      }
+      break;
+  }
+}

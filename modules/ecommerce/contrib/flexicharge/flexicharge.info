@@ -1,0 +1,5 @@
+; $Id: flexicharge.info,v 1.2 2006/10/10 07:07:29 sime Exp $
+name = Flexicharge
+description = Misc custom price adjustments for E-Commerce.
+package = "E-Commerce Other"
+dependencies = payment

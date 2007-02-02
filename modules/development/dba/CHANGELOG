@@ -1,0 +1,140 @@
+---------------
+Forms API TODO: (patches welcome)
+ - #68274: properly implement all items on settings page to accept updates
+ - #40661: restore checkboxes next to table names on database overview
+ - #40660: restore 'edit row' functionality
+There will be no 4.7 release until the above TODO list is empty.
+---------------
+
+April 17, 2006:
+ - dba.module
+    o fix bug #59073: remove tablesort_pager(), no longer used in 4.7
+    o add t() around 'Never' to allow translation
+
+March 17, 2006:
+ - dba.module
+    o fix bug #49651: restore 'run script' functionality
+    o feature #41589: support exclude list for tables to not backup data
+
+October 31, 2005:
+ - dba.module
+    o initial port to HEAD, begin update effort to get module working with the
+      forms API.  Known to not fully work yet (see Forms API TODO above)
+    o simplified the overview page, now just shows the table name and the
+      number of rows in the table.  Clicking the table name allows you to view
+      it, then from there you can use tabs to 'describe', 'check', 'backup'
+      'empty' and 'drop'.
+    o removed 'dba_admin' function, updated module to take more advantage of
+      the _menu() hook, logically separating functions.
+    o added a new 'optimize' tab for optimizing MySQL tables
+
+October 27, 2005:
+ - dba.module
+    o database backup was skipping empty tables.
+    o bug #32534: fix gzip compression
+
+September 27, 2005:
+ - dba.module
+    o bug #31162, email database backup to user #1's email address
+
+August 24, 2005:
+ - dba.module
+    o bug #19486, #26222, #22774, support prefixed tables
+      (fix based heavily on Moshe Weitzman's patch provided in issue #19486)
+    o feature #29475, mail automatically generated database backups to the
+      site administrator
+
+August 21, 2005:
+ - dba.module
+    o bug #14807, use array when function expects array. (PHP 5 support)
+    o bug #12762, don't remove {}'s from database queries (unable to edit user
+      fields)
+    o bug #19214, characters not escaped, double quotes cause errors
+    o feature #22826, provide automatic (scheduled) database backups
+
+August 20, 2005:
+ - dba.module
+    o bug #28649, backup no longer times out on large tables
+    o feature, database backup now includes table schema
+    o rename 'run script' to query
+    o initial support for running script from remote client (ie, restore backup)
+
+July 16, 2005:
+ - dba.module
+    o feature #19807, added javascript to select all/clear all
+      (patch by Varr Willis)
+    o removed 'check all' menu subtab, no longer necessary
+
+March 21, 2005:
+ - dba.module
+    o updated for Drupal 4.6
+    o converted to using new theme('verify') to verify actions
+    o when backing up one database table, filename defaults to name of table
+
+October 27, 2004:
+ - dba.module
+    o fix bug #12195, patch from Uwe Hermann
+    o fix bug #12207, only call dba_get_active_tables() when necessary
+
+October 2, 2004:
+ - dba.module
+    o feature request #11198 - filter based on db_prefix when listing tables
+
+October 1, 2004:
+ - dba.module
+    o feature request #10934 - added ability to backup data in database
+
+September 27, 2004
+ - dba.module:
+    o fixed bug #10923 - updated to support menu caching
+
+August 17, 2004
+ - dba.module: updated to work with Drupal 4.5
+    o update help links
+    o replace _link with _menu, adding tabs/subtabs
+
+July 25, 2004
+ - dba.module
+    o add proper PostgreSQL support
+    o added ability to edit or delete specific row for most tables
+       - option only available if the table has a Primary Key
+       - this functionality currently only works with MySQL
+ - README.pgsql
+    o details how to install PostgreSQL support
+ - scripts/dba.pgsql-7.3
+    o drupal_system_catalog for PostgreSQL 7.3
+ - scripts/dba.pgsql-7.4
+    o drupal_system_catalog for PostgreSQL 7.4 and later
+
+July 11, 2004
+ - dba.module
+    o fixed bug #9208, properly drop table(s).
+    o add feature request #9209, support multiple sql statements in scripts.
+    o fixed bug #9210, fix dba_get_fields() to properly work with PostgreSQL
+     (thanks to "aam" for all the above fixes)
+
+July 9, 2004
+ - dba.module
+    o added some support for PostGreSQL (patches by "aam")
+      (reported to work: overview, describe)
+      (reported to not work: view, drop)
+
+June 16, 2004
+ - dba.module
+    o fixed localization issues, reported in bug #8555.
+
+June 15, 2004 (Jeremy Andrews)
+ - dba.module
+    o further cleanup (removed no-longer used option)
+    o added ability to describe table
+    o prevent errors if trying to manually view/describe multiple tables
+
+June 14, 2004 (Jeremy Andrews)
+ - dba.module
+    o random cleanup
+    o added the ability to check, repair, empty and drop more than one table at
+      a time.
+
+June 12, 2004 (Jeremy Andrews)
+ - dba.module, README, CHANGELOG
+    o initial release for Drupal 4.4

@@ -1,0 +1,1133 @@
+<?php
+// $Id: cart.module,v 1.133.2.13 2006/11/06 23:29:47 sime Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Declare a block or set of blocks
+ */
+function cart_block($op = "list", $delta = 0, $edit = array()) {
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('Shopping Cart');
+    return $blocks;
+  }
+  /* We don't need to display this on the cart page. */
+  //elseif ($_GET['q'] != "cart" && !strstr($_GET['q'], "cart/")) {
+  else if ($op == 'view') {
+    switch($delta) {
+      case 0:
+        $item_count = count(cart_get_items());
+        if (!$item_count && variable_get('cart_empty_hide', '0')) break;
+
+        $cart_image = ($item_count) ? '/images/cart_full.png' : '/images/cart_empty.png';
+        $block['subject'] = t('Shopping cart'). ' '. l('<img src="'. base_path() . drupal_get_path('module', 'cart') . $cart_image .'" alt="[]" title="'. t('View your cart items') .'" />', 'cart/view', array('title' => t('View your cart items.')), NULL, NULL, FALSE, TRUE);
+        $block['content'] = theme('cart_display_block');
+        break;
+    }
+    return $block;
+  }
+  else if ($op == 'configure') {
+    $form['cart_empty_hide'] = array('#type' => 'checkbox', '#title' => t('Hide block if cart is empty'), '#default_value' => variable_get('cart_empty_hide', '0'));
+    return $form;
+  }
+  elseif ($op == 'save' && isset($edit['cart_empty_hide'])) {
+    variable_set('cart_empty_hide', $edit['cart_empty_hide']);
+  }
+}
+
+/**
+ * Perform periodic actions
+ */
+function cart_cron() {
+  // Remove items from the cart table that haven't been touched for more than a month.
+  db_query('DELETE FROM {ec_cart} WHERE changed < %d', strtotime('Last month'));
+  // Optimize table query removed - users can now install DB maintenance module
+  // for this.
+}
+
+/**
+ * Implementation of the hook_help()
+ */
+function cart_help($section = 'admin/help#cart') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Ecommerce shopping cart.');
+    case 'admin/store/settings/checkout':
+      return t('This form is used to control the order the pages are viewed in the checkout process. Number the order you would like these screens to appear.');
+  }
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function cart_menu($may_cache) {
+  global $user;
+
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'cart', 'title' => t('Shopping cart'),
+      'callback' => 'cart_view_form', 'access' => user_access('access content'),
+      'type' => MENU_CALLBACK);
+
+    $items[] = array('path' => 'cart/checkout', 'title' => t('Checkout'),
+      'callback' => 'checkout_form', 'access' => user_access('access content'),
+      'type' => MENU_CALLBACK);
+
+    $items[] = array('path' => 'cart/review',
+      'title' => t('Please review and submit your order'),
+      'callback' => 'checkout_review', 'access' => user_access('access content'),
+      'type' => MENU_CALLBACK);
+
+    $items[] = array('path' => 'admin/store/settings/checkout', 'title' => t('checkout'),
+      'callback' => 'checkout_admin_controller',
+      'access' => user_access('administer store'));
+  }
+  else {
+    theme_add_style(drupal_get_path('module', 'cart') .'/cart.css');
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_exit().
+ *
+ * Always clear the cart/view page for anonymous users from the cache otherwise
+ * the cart/view page will be out of sync.
+ */
+function cart_exit() {
+  global $user;
+
+  if (strstr($_GET['q'], 'cart/view') && $user->uid == 0 && variable_get('cache', 0)) {
+    cache_clear_all(url('cart/view'), true);
+  }
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function cart_user($op, &$edit, &$user, $category = NULL) {
+  switch ($op) {
+    case 'login':
+       // Convert their cart session to a permanent user cart at login.
+      db_query("UPDATE {ec_cart} SET cookie_id = %d WHERE cookie_id = '%s'", $user->uid, session_id());
+      break;
+  }
+}
+
+/********************************************************************
+ * Theme Hooks
+ ********************************************************************/
+
+/**
+ * Themes the cart block
+ */
+function theme_cart_display_block() {
+  global $user;
+  $output = '';
+
+  /**
+   * Until Drupal can handle partial page caching, We should only display a
+   * View Cart link for anonymous users and the full fancy items and total cart
+   * for authenticated users since those pages aren't cached.
+   */
+  if ($user->uid == 0 && variable_get('cache', 0)) {
+    $output .= l(t('View your cart'), 'cart/view');
+  }
+  else {
+
+    $item = cart_get_items();
+    $item_count = count($item);
+    $item_suffix = ($item_count == 1) ? t('item') : t('items');
+
+    $output .= '<div class="item-count">'. t("%item_count %item_suffix in %your_cart", array("%item_count" => $item_count, "%item_suffix" => $item_suffix, "%your_cart" => l(t("your cart"), "cart/view"))). "</div>\n";
+
+    if (!empty($item)) {
+      $output .= '<div class="items">';
+      foreach ($item as $i) {
+        $node = node_load($i->nid);
+        if (product_has_quantity($node)) {
+          $total += ($i->price+product_get_specials($i, true)) * $i->qty;
+          $output .= l("$node->title x $i->qty", 'node/'. ($node->pparent ? $node->pparent : $node->nid)). "<br />";
+        }
+        else {
+          $total += $i->price+product_get_specials($i, true);
+          $output .= l("$node->title", 'node/'. ($node->pparent ? $node->pparent : $node->nid)). "<br />";
+        }
+      }
+      $output .= "</div><div class=\"total\">". payment_format($total) . "</div>";
+      $output .= '<div class="checkout">'. t('Ready to <a href="%checkout-url">checkout</a>?', array('%checkout-url' => url('cart/checkout'))) .'</div>';
+    }
+  }
+
+  return $output;
+}
+
+/**
+ * Returns a themed shopping cart form.
+ */
+function theme_cart_view($form) {
+  $total = 0;
+  $header = array(t('Items'), t('Qty.'), '');
+
+  foreach (element_children($form['items']) as $nid) {
+    $total+= $form['items'][$nid]['#total'];
+    $total+= $form['items'][$nid]['#specials'];
+    $desc = form_render($form['items'][$nid]['title']) .'<br />';
+    if ($form['items'][$nid]['recurring']) {
+      $desc.= '<div class="recurring-details">'. form_render($form['items'][$nid]['recurring']) .'</div>';
+    }
+    if ($form['items'][$nid]['availability']) {
+      $desc.= form_render($form['items'][$nid]['availability']);
+    }
+    $desc.= '<p>'. payment_format($form['items'][$nid]['#total']+$form['items'][$nid]['#specials']) .'</p>';
+    
+    $row[] = array(
+      array('data' => $desc),
+      array('data' => $form['items'][$nid]['qty'] ? form_render($form['items'][$nid]['qty']) : '', 'align' => 'center'),
+      array('data' => l(t('Remove'), "cart/delete/$nid")),
+    );
+  }
+  $row[] = array(array("data" => "<strong>". t('Subtotal:') . '</strong> ' . payment_format($total), "colspan" => 3, "align" => "right"));
+  $output.= theme('table', $header, $row);
+  $output.= form_render($form);
+  return $output;
+}
+
+/**
+ * Themes the admin screen
+ */
+function theme_checkout_admin_screen($form) {
+  $output = '';
+  $header = array(t('Module'), t('Screen order'));
+  $screens = checkout_get_screens();
+
+  foreach ($screens as $i => $name) {
+    $rows[] = array($name, form_render($form['module'][$name]));
+  }
+  $output .= theme('table', $header, $rows);
+  $output .= form_render($form);
+
+  return $output;
+}
+
+/********************************************************************
+ * Module Functions
+ ********************************************************************/
+/**
+ * This is a form to handle the cart view
+ */
+function cart_view_form() {
+  // Handle any extra args
+  switch (arg(1)) {
+    case 'add':
+      cart_add_item(arg(2), isset($_REQUEST['qty']) ? $_REQUEST['qty'] : (arg(3) ? arg(3) : NULL), $_REQUEST['edit'] ? $_REQUEST['edit'] : array());
+      drupal_goto('cart/view');
+      break;
+
+    case 'renew':
+      cart_renew_item(arg(2), isset($_REQUEST['qty']) ? $_REQUEST['qty'] : arg(3));
+      drupal_goto('cart/view');
+      break;
+
+    case 'edit':
+      cart_update_item(arg(2), isset($_REQUEST['qty']) ? $_REQUEST['qty'] : arg(3), $_REQUEST['edit'] ? $_REQUEST['edit'] : array());
+      drupal_goto('cart/view');
+      break;
+
+    case 'delete':
+      cart_remove_item(arg(2));
+      drupal_goto('cart/view');
+      break;
+
+    default: // normal view
+      break;
+  }
+
+  // Build the cart form
+  $items = cart_get_items();
+  if ($items) {
+    $form['items'] = array('#tree' => true);
+    foreach ($items as $i) {
+      $node = node_load($i->nid);
+      $form['items'][$node->nid]['#node'] = $node;
+      $form['items'][$node->nid]['title'] = array(
+        '#value' => l($node->title, "node/". ($node->pparent ? $node->pparent : $node->nid))
+      );
+      $form['items'][$node->nid]['#total'] = product_has_quantity($node) ? $i->price * $i->qty : $i->price;
+      $form['items'][$node->nid]['#specials'] = product_has_quantity($node) ? product_get_specials($i, true) * $i->qty : product_get_specials($i, true);
+      if ($node->is_recurring) {
+        $form['items'][$node->nid]['recurring'] = array(
+          '#value' => product_recurring_nice_string($node)
+        );
+      }
+      if ($node->ptype == 'tangible' && $node->availability != null && $node->availability != 1) {
+        $form['items'][$node->nid]['availability'] = array(
+          '#value' => availability_get_message($node->availability)
+        );
+      }
+      if (product_has_quantity($node)) {
+        $form['items'][$node->nid]['qty'] = array(
+          '#type' => 'textfield',
+          '#default_value' => $i->qty, 
+          '#size' => 2, 
+          '#maxlength' => 2
+        );
+      }
+    }
+  
+    $form['submit'] = array('#type' => 'submit', '#value' => t('Update Cart'));
+    $form['checkout'] = array('#type' => 'submit', '#value' => t('Checkout'));
+
+    return drupal_get_form('cart_view', $form);
+  }
+  else {
+    return '<p>'. t('Your shopping cart is empty. You may continue shopping from our %product-page.', array('%product-page' => l(t('product page'), 'product'))). '</p>';
+  }
+}
+
+/**
+ * Implements the _validation hook for the cart_view form
+ */
+function cart_view_validate($form_id, &$form_values) {
+  // Only way to get op out 
+  $op = isset($_POST['op']) ? $_POST['op'] : ''; 
+ 
+  switch($op) {
+    case t('Checkout'):
+      // Any checks needed
+      // form_set_error('submit','Quantity changed');
+    default:
+      // no change?
+      // form_set_error('submit','');
+  }
+}
+
+/**
+ * Implements the _submit hook for the cart_view form
+ */
+function cart_view_submit($form_id, $form_values) {
+  $op = isset($_POST['op']) ? $_POST['op'] : ''; 
+  switch($op) {
+    case t('Update Cart'):
+      cache_clear_all();
+      cart_update_item_object((object)$form_values);
+      return 'cart/view';
+
+    case t('Checkout'):
+      // force it not to validate so we see the update quantity page again.
+      return 'cart/checkout';
+  }
+}
+
+/**
+ * Builds the checkout forms.
+ * Moves through screens relating to each appropriate checkoutapi making sure
+ * the cart doesn't get out of sync and keeping track of the transacion 
+ * structure.
+ */
+function checkout_form() {
+  global $user;
+  /* User needs to login or create an account before they can checkout. */
+  if (variable_get('store_auth_cust', 1) && $user->uid == 0) {
+    drupal_set_message(t('Login or <a href="%reg-link">register</a> to continue the checkout process', array('%reg-link' => url('user/register', drupal_get_destination()))));
+    drupal_goto('user', drupal_get_destination());
+  }
+
+  /* Prebuild values from post and args if they exist */
+  $screen = 0;
+
+  $data = new StdClass(); // my eclipse warning hack :(
+
+  if (!isset($_REQUEST['op'])) {
+
+    // This is a new transaction, so remove the existing checkout.
+    ec_checkout_delete_data();
+
+    /* User has no items in their cart. Kick 'em to cart/view. 
+     * This comparison only needs to be done when rebuilding the way
+     * things are right now */
+    $data->items = cart_get_items();
+    if (!$data->items) {
+      drupal_goto('cart/view');
+    }
+
+    /* If this is an anonymous user, check all the products and see if they
+     * can be sold to them. If there are products which cannot be sold to an
+     * anonymous user then get the user to login or register. */
+    if (!$user->uid) {
+      foreach ($data->items as $item) {
+        if (in_array('registered_user', (array)module_invoke($item->ptype, $item, 'attributes', 'registered_user'))) {
+          drupal_set_message(t('Login or <a href="%reg-link">register</a> to continue the checkout process', array('%reg-link' => url('user/register', drupal_get_destination()))));
+          drupal_goto('user', drupal_get_destination());
+        }
+      }
+    }
+
+    // Setup screens
+    $data->screens = checkout_get_screens();
+    $data->review_screens = checkout_get_screens('review');
+    $data->screen = $screen;
+    $valid_screen = $data->valid_screen;
+    
+    $data->shippable = FALSE;
+    foreach ($data->items as $product) {
+      if (!$data->shippable && product_is_shippable($product->vid)) {
+        $data->shippable = TRUE;
+        break;
+      }
+    }
+
+    $data->uid = $user->uid;
+    $data->type = 'cart';
+
+    /* process any specials and add them to misc */
+    foreach ($data->items as $item) {
+      foreach (product_get_specials($item, false, $data) as $type => $special) {
+        $misc = new StdClass;
+        $misc->type = $type;
+        $misc->vid = $item->vid;
+        $misc->description = 'special';
+        $misc->invisible = 1;
+        $misc->price = $special;
+        $misc->qty = product_has_quantity($item) ? $item->qty : 1;
+        $data->misc[] = $misc;
+      }
+    }
+    ec_checkout_hide_data($data);
+  }
+  else {
+    $data = (object)ec_checkout_get_data();
+    $screen = is_numeric($_GET['op']) ? ($data->valid_screen > $_GET['op'] ? $_GET['op'] : $data->screen) : $data->screen;
+    $valid_screen = $data->valid_screen;
+  }
+  if ($valid_screen > $screen && !is_numeric($_GET['op'])) {
+    $valid_screen = $screen;
+  }
+  
+  // Make sure data screen is setup right
+  $data->screen = $screen;
+  
+  // Catch dead functions and skip to get the current checkoutapi call, also
+  // skip any blank forms.
+  $num_screens = count($data->screens) - 1;
+  while ($num_screens > $screen) {
+    if (function_exists($f = $data->screens[$screen] . '_checkoutapi') &&
+      ($form = $f($data, 'form'))) {
+      break;
+    }
+    $data->screen = ++$screen;
+  }
+  // if there is no form then go to the review page.
+  if (!$form) {
+    ec_checkout_hide_data($data);
+    drupal_goto('cart/review');
+  }
+  $data->checkoutapi = $f;
+
+  $form['txn'] = array('#type' => 'value', '#value' => $data);
+  $form['screen'] = array(
+    '#type' => 'hidden',
+    '#default_value' => $data->screen
+  );
+
+  // Add in our cart token
+  $form['#token'] = 'ecommerce_checkout:'. $screen. ':'. (!$valid_screen ? 0 : $valid_screen);
+  $form['#action'] = url('cart/checkout', (isset($_REQUEST['op']) ? 'op='. $_REQUEST['op'] : 'op=next'). (isset($_REQUEST['destination']) ? '&destination='.urlencode($_REQUEST['destination']) : ''));
+
+  return drupal_get_form("{$data->screens[$data->screen]}_checkout_form", $form, 'checkout_form');
+}
+
+/**
+ * Validates the checkout form by calling the api for the screen.
+ * As long as the checkoutapi validate function is looking for a transaction variable
+ * and not the form_values, this function is setup correctly
+ */
+function checkout_form_validate($form_id, &$form_values) {
+  $txn =& $form_values['txn'];
+  unset($form_values['txn']);
+
+  // Merge in current form data into transaction
+  foreach ($form_values as $key => $value) {
+    $txn->$key = $value;
+  }
+
+  // Call the checkoutapi to do its validations
+  $f = $txn->checkoutapi;
+  if (function_exists($f)) {
+    $f($txn, 'validate');
+  }
+}
+
+/**
+ * Handles a valid submit of a screen.
+ * Saves transaction to db, increments valid screen, and calls a screen handler
+ * if one exists 
+ */
+function checkout_form_submit($form_id, &$form_values) {
+  $txn =& $form_values['txn'];
+  unset($form_values['txn']);
+
+  // Merge in current form data into transaction
+  foreach ($form_values as $key => $value) {
+    $txn->$key = $value;
+  }
+
+  if (function_exists($f = $txn->checkoutapi)) {
+    $f($txn, 'save');
+  }
+  
+  if (!is_numeric($_GET['op'])) {
+    $txn->valid_screen = $txn->screen;
+  }
+  else {
+    $txn->screen = $txn->valid_screen;
+  }
+
+  // Store to database cache
+  ec_checkout_hide_data($txn);
+
+  // Seperate final screen redirect
+  if($txn->screens[$txn->screen] == 'cart') {
+    return 'cart/review';
+  }
+  // Redirect to the next screen
+  return array('cart/checkout', 'op=next');
+}
+
+/**
+ * Checkout Review Page
+ */
+function checkout_review() {
+  $data = ec_checkout_get_data();
+
+  $num_screens = count($data->screens);
+  if ($num_screens == 0 ) {
+    drupal_goto('cart/checkout');
+  }
+  if ($num_screens > $data->screen+1) {
+    drupal_goto('cart/checkout', 'op=next');
+  }
+  
+  drupal_set_title(t('Please review and submit your order'));
+
+  foreach ($data->review_screens as $module) {
+    $function = "{$module}_checkoutapi";
+    if ($subform = $function($data, 'review')) {
+      $form['screens'][$module] = $subform;
+      if (!$form['screens'][$module]['#theme'] && theme_get_function($module .'_review_form')) {
+        $form['screens'][$module]['#theme'] = $module .'_review_form';
+      }
+    }
+  }
+  
+  $form['submit'] = array('#type' => 'submit', '#value' => t('Place your order'));
+
+  $form['txn'] = array(
+    '#type' => 'value',
+    '#value' => $data
+  );
+  return drupal_get_form('checkout_review_form', $form);
+}
+
+function checkout_review_form_validate($form_id, $form_values) {
+  $txn = drupal_clone($form_values['txn']);
+  unset($form_values['txn']);
+  foreach ($form_values as $key => $value) {
+    $txn->$key = $value;
+  }
+  
+  foreach ($txn->review_screens as $module) {
+    $function = "{$module}_checkoutapi";
+    $function($txn, 'review_validate');
+  }
+}
+
+/**
+ * Process the transaction, saves it and passes on to the paymentapi
+ * setup the txn variable
+ * save the transaction and clear it out of the system
+ * pass on the transaction variable to the appropriate payment module and let if finish.
+ */
+function checkout_review_form_submit($form_id, $form_values) {
+
+  // Get the transaction stored by the last checkout step.
+  // Since we know should be able to assume the screen is valid, 
+  // the transaction is valid.
+  $txn = $form_values['txn'];
+  unset($form_values['txn']);
+  foreach ($form_values as $key => $value) {
+    $txn->$key = $value;
+  }
+
+  // Do any final updates to the transaction
+  foreach ($txn->review_screens as $module) {
+    $function = "{$module}_checkoutapi";
+    $function($txn, 'review_submit');
+  }
+
+  // If the user is submitting the order then process it, other-wise just
+  // save it.
+  if ($_POST['op'] == t('Place your order')) {
+  
+    // Make sure we have a user id
+    if (!$txn->uid) {
+      global $user;
+      $txn->uid = $user->uid;
+    }
+  
+    // Compile a list of renewal items
+    foreach ($txn->items as $item) {
+      if ($item->is_renewal) {
+        $txn->renewal[$item->nid] = $item->txnid;
+        $txn->items[$item->nid]->is_recurring = 0;
+      }
+    }
+
+    // If there is no gross cost we know the transaction is completed
+    if ($txn->gross == 0) {
+      $txn->payment_status = payment_get_status_id('completed');
+    }
+
+    // Save the transaction in the store history and clear it out
+    $txn->txnid = store_transaction_save($txn);
+    ec_checkout_delete_data();
+
+    // If the transaction is done, tell them and send them home
+    if ($txn->gross <= 0) {
+      drupal_set_message(t('Your order has been submitted.'));
+      return '';
+    }
+
+    // Finish of by passing the flow on to the appropriate paymentapi
+    // TODO we don't pass by reference which isn't as the paymentapi 
+    // is planned to be used
+    return module_invoke($txn->payment_method, 'paymentapi', $txn, 'payment page');
+  }
+  else {
+    ec_checkout_hide_data($txn);
+  }
+}
+
+/**
+ * The controller for the admin checkout interface.
+ */
+function checkout_admin_controller() {
+  $edit = $_POST['edit'];
+  $op   = $_POST['op'];
+  switch ($op) {
+    case t('Update screen order'):
+      if (checkout_admin_screen_validate($edit)) {
+        checkout_admin_screen_save($edit);
+        drupal_set_message(t('The screen order has been saved.'));
+      }
+
+    default:
+      $output = checkout_admin_screen_form();
+  }
+
+  drupal_set_title(t('Screen order'));
+  return $output;
+}
+
+/**
+ * Form for determining the order of the checkout screens.
+ */
+function checkout_admin_screen_form() {
+  $form = array();
+  $screens = checkout_get_screens();
+  foreach ($screens as $i => $name) {
+    $form['module'][$name] = array(
+      '#type' => 'textfield', 
+      '#default_value' => $i, 
+      '#size' => 5, 
+      '#maxlength' => 2
+    );
+  }
+  
+  if (isset($form['module'])) {
+    $form['module']['#tree'] = TRUE;
+  }
+  $form['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Update screen order')
+    );
+
+  return drupal_get_form('checkout_admin_screen', $form);
+}
+
+function checkout_admin_screen_validate(&$edit) {
+  $modules = (array)$edit['module'];
+  asort($modules);
+  foreach ($modules as $key => $value) {
+    if ($key != 'cart') {
+      $ordered[] = $key;
+    }
+  }
+  $ordered[] = 'cart';
+  $edit['module'] = $ordered;
+  return true;
+}
+
+function checkout_admin_screen_save($edit) {
+  variable_set('ec_checkout_screens', $edit['module']);
+  menu_rebuild();
+}
+
+/**
+ * Implementation of hook_checkoutapi().
+ */
+function cart_checkoutapi(&$txn, $op, $arg3 = NULL, $arg4 = NULL) {
+  switch ($op) {
+
+    case 'review':
+      $txn->subtotal = 0;
+      $txn->gross = store_transaction_calc_gross($txn);
+
+      if (is_array($txn->misc)) {
+        usort($txn->misc, 'store_transaction_misc_sort');
+      }
+      
+      foreach ((array)$txn->items as $product) {
+        $price = store_adjust_misc($txn, $product);
+        $node = node_load($product->nid);
+        $subtotal = product_has_quantity($node) ? ($price * $product->qty) : $price;
+        
+        $form['items'][$product->nid] = array(
+          'qty' => array('#value' => product_has_quantity($node) ? $product->qty : ''),
+          'item' => array('#type' => 'value', '#value' => $product), // allow more info to be displayed by the theme
+          'price' => array('#value' => $price),
+          'subtotal' => array('#value' => $subtotal),
+          'options' => array('#value' => $txn->type == 'cart' ? l(t('Change'), 'cart/view') : '')
+        );
+
+        $txn->subtotal += $subtotal;
+      }
+
+      $form['totals'] = array();
+
+      // Since we may remove items, keep a track of the current key.
+      $line = 0;
+      // Keep track of which lines are subtotals.
+      $st = array('#row_type' => 'ST');
+
+      // Create a subtotal line.
+      // If the Total comes immediately afterwards, then it will be repressed later.
+      $form['totals'][$line++] = array('#title' => t('Subtotal'), '#value' => $txn->subtotal, 'info' => $st);
+
+      if ($txn->misc) {
+        foreach ($txn->misc AS $key => $misc) {
+          if (!$misc->seen) {
+            // Only add the subtotal line if there are other items in misc.
+            if ($misc->subtotal_before && ($form['totals'][$line-1]['info']['#row_type'] != $st['#row_type'])) {
+              $form['totals'][$line++] = array('#title' => t('Subtotal'), '#value' => $txn->subtotal, 'info' => $st);
+            }
+          }
+
+          // Here we calculate the misc item
+          if (function_exists($misc->callback)) {
+            $f = $misc->callback;
+            $amount = $f($txn, $misc, $txn->subtotal);
+          }
+          else if ($misc->qty) {
+            $amount = ($misc->price * $misc->qty);
+          }
+          else {
+            $amount = $misc->price;
+          }
+          if(!$misc->already_added) {
+            $txn->subtotal+= $amount;
+          }
+
+          // Apply the total of this charge to the transaction object for saving later
+          $txn->misc[$key]->price = $amount;
+
+          if (!$misc->seen) {
+            // Misc Item goes here.
+            $form['totals'][$line++] = array('#title' => t($misc->description), '#value' => $amount);
+
+            // Subtotal - check straight after the misc item
+            if ($misc->subtotal_after) {
+              $form['totals'][$line++] = array('#title' => t('Subtotal'), '#value' => $txn->subtotal, 'info' => $st);
+            }
+          }
+        }
+      }
+      
+
+      // Remove any subtotal occurring before the total.
+      if ($form['totals'][$line-1]['info']['#row_type'] == $st['#row_type']) {
+        unset($form['totals'][$line-1]);
+      }
+      // Grand total
+      $form['totals'][] = array('#title' => t('Total'), '#value' => $txn->gross);
+
+      $form = array('cart' => $form);
+      return $form;
+  }
+}
+
+function theme_cart_review_form(&$form) {
+  $f =& $form['cart'];
+
+  $header = array(t('Qty'), t('Item'), t('Price'), t('Subtotal'), '');
+  $rows = array();
+  if ($f['items']) {
+    foreach ($f['items'] as $key => $line) {
+      if (is_numeric($key)) {
+        $rows[] = array(
+          $line['qty']['#value'], 
+          $line['item']['#value']->title, 
+          array('data' => payment_format($line['price']['#value']), 'align' => 'right'), 
+          array('data' => payment_format($line['subtotal']['#value']), 'align' => 'right'), 
+          $line['options']['#value']
+        );
+      }
+    }
+  }
+
+  $rows[] = array('', '', '', '', '');
+  foreach ($f['totals'] as $id => $line) {
+    if (is_numeric($id)) {
+      $rows[] = array(
+        '', 
+        "<b>{$line['#title']}</b>", 
+        '', 
+        array('data' => payment_format($line['#value']), 'align' => 'right'), 
+        ''
+      );
+    }
+  }
+
+  $content .= theme('table', $header, $rows);
+
+  return theme('box', t('Order Summary'), $content);
+}
+
+/**
+ * When a product is deleted, also remove it from users' shopping carts.
+ */
+function cart_productapi(&$node, $op) {
+  switch ($op) {
+    case 'delete':
+      return db_query('DELETE FROM {ec_cart} WHERE nid = %d', $node->nid);
+    }
+}
+
+/**
+ * Implementation of hook_ec_transactionapi()
+ * Empty cart when transaction is completed and inserted
+ */
+function cart_ec_transactionapi(&$txn, $op, $arg1 = NULL, $arg2 = NULL) {
+  switch ($op) {
+    case 'insert':
+      cart_empty($txn->uid);
+  }
+}
+
+/********************************************************************
+ * Helper Functions
+ ********************************************************************/
+
+/**
+ * Get the ordered screens for the checkout process.
+ */
+function checkout_get_screens($op = 'form') {
+  $old_screens = variable_get('ec_checkout_screens', '');
+  if (is_array($old_screens)) array_pop($old_screens);
+
+  // Grab the latest modules that may not be in our variable_get()
+  foreach (module_implements('checkoutapi') as $module) {
+    // Only count the $op cases
+    $function = "{$module}_checkoutapi";
+    if ($module != 'cart' && ($return = $function($module, $op))) {
+      $fresh_screens[] = $module;
+    }
+  }
+
+  // Merge any new screens with the old one, while preserving old screen order.
+  if (is_array($old_screens)) {
+    foreach ($old_screens as $i => $module) {
+      if (!module_hook($module, 'checkoutapi') || $module == 'cart') {
+        unset($old_screens[$i]);
+      }
+      elseif (is_scalar($key = array_search($module, $fresh_screens))) {
+        unset($fresh_screens[$key]);
+      }
+    }
+    $screens = array_merge($old_screens, $fresh_screens);
+  }
+  else {
+    $screens = $fresh_screens;
+  }
+  // Cart is always the last screen. It generates the final overview page.
+  $screens[] = 'cart';
+
+  return $screens;
+}
+
+/**
+ * Return the unique id (and hence the cart_id) of the user.
+ */
+function cart_get_id() {
+  global $user;
+  // If a user is logged in, their cart_id is their user id.
+  if ($user->uid) {
+    return $user->uid;
+  }
+  elseif ($sid = session_id()) {
+    // Use session id until the user registers, then switch to user id.
+    return $sid;
+  }
+}
+
+/**
+ *
+ */
+function cart_add_item($nid, $qty = NULL, $data = array()) {
+  $incr = FALSE;
+  if ($qty === NULL) {
+    $incr = TRUE;
+    $qty = 1;
+  }
+
+  /* Make sure we can add a product */
+  $node = node_load($nid);
+
+  if (!$node->ptype) {
+    drupal_set_message(t('%title is not a product. Unable to add to cart', array('%title' => $node->title)), 'error');
+    return;
+  }
+  
+  $function = $node->ptype . '_productapi';
+  if (function_exists($function)) {
+    $bool_cart_add = $function($node, 'cart add item', (object) $data);
+  }
+
+  if (is_null($bool_cart_add)) {
+    $bool_cart_add = true;
+  }
+
+  // added so modules that don't implement products can manipulate the cart
+  // the 'cart add item' hook will be modified in the next release
+  $bool_cart_allowed = module_invoke_all('productapi', $node, 'allowed in cart');
+
+  if (count($bool_cart_allowed)) {
+      sort($bool_cart_allowed);
+      $bool_cart_allowed = (int)$bool_cart_allowed[0];
+  } else {
+    $bool_cart_allowed = TRUE;
+  }
+  
+  $bool_cart_add = $bool_cart_add && $bool_cart_allowed;
+
+  if (!$node->nid || !$bool_cart_add) {
+    if ($_GET['destination']) {
+      drupal_goto();
+    }
+    return null;
+  }
+  if (!product_has_quantity($node)) {
+    $qty = 1;
+  }
+  $qty = ($qty > 0) ? $qty : 1;
+
+  $item_count = db_result(db_query("SELECT qty FROM {ec_cart} WHERE cookie_id = '%s' AND nid = %d", cart_get_id(), $node->nid));
+
+  /* If the item isn't in the cart yet, add it. */
+  if ($item_count == 0) {
+    db_query("INSERT INTO {ec_cart} (cookie_id, nid, qty, changed, data) VALUES ('%s', %d, %d, %d, '%s')", cart_get_id(), $node->nid, $qty, time(), serialize($data));
+    drupal_set_message(t('<strong>%product-title</strong> added to <a href="%cart_view">your shopping cart</a>', array('%cart_view' => url('cart/view'), '%product-title' => $node->title)));
+  }
+  else {
+    /* Update the item instead. */
+    cart_update_item($node->nid, (product_has_quantity($node) && $incr) ? $qty + $item_count : $qty, $data);
+  }
+
+  cache_clear_all();
+
+  if (isset($_GET['destination'])) {
+    drupal_goto();
+  }
+}
+
+/**
+ * Package up a renewable item to add to cart.
+ */
+function cart_renew_item($nid, $txnid) {
+  global $user;
+  $item = db_fetch_object(db_query("SELECT stp.expires, stp.price_interval, stp.price_unit FROM {ec_transaction} AS st, {ec_transaction_product} AS stp WHERE stp.is_recurring = 1 AND (stp.last_notify < st.expires OR stp.last_notify < stp.expires) AND st.txnid = stp.txnid AND st.uid = %d", $user->uid));
+
+  $renewal = null; // hack to get eclipse to stop bugging me
+  if ($item) {
+    //$renewal->expires = strtotime($item->price_interval. ' '. product_unit_nice_name($item->price_unit, $item->price_interval), $item->expires);
+    $renewal->is_renewal = true;
+    $renewal->txnid = $txnid;
+    $renewal->nid = $nid;
+    $renewal->uid = $user->uid;
+
+    cart_add_item($nid, 1, $renewal);
+  }
+  else {
+    drupal_set_message(t('Can\'t find your item in the database'), 'error');
+  }
+}
+
+/**
+ *
+ */
+function cart_update_item($nid, $qty, $data = array()) {
+  if (!$nid) return null;
+  if ($qty > 0) {
+    if ($data) {
+      db_query("UPDATE {ec_cart} SET qty = %d, changed = %d, data = '%s' WHERE nid = %d AND cookie_id = '%s'", $qty, time(), serialize($data), $nid, cart_get_id());
+    }
+    else {
+      db_query("UPDATE {ec_cart} SET qty = %d, changed = %d WHERE nid = %d AND cookie_id = '%s'", $qty, time(), $nid, cart_get_id());
+    }
+    cache_clear_all();
+  }
+  else {
+    cart_remove_item($nid);
+  }
+  // Rebuild the items hash
+  cart_get_items(null, 'rebuild');
+  if (!strstr(request_uri(), 'cart/view')) {
+    drupal_set_message(t('Your item(s) have been updated.'));
+  }
+}
+
+/**
+ *
+ */
+function cart_update_item_object($edit) {
+  if (is_object($edit)) {
+    foreach ($edit->items as $nid => $item) {
+      cart_update_item($nid, $item['qty']);
+    }
+  }
+}
+
+/**
+ *
+ */
+function cart_remove_item($nid) {
+
+  if (!$nid) return null;
+  db_query("DELETE FROM {ec_cart} WHERE cookie_id = '%s' AND nid = %d", cart_get_id(), $nid);
+  drupal_set_message(t('Your item has been removed.'));
+  cache_clear_all();
+}
+
+/**
+ *
+ */
+function cart_empty($cookie_id = null) {
+
+  if ($cookie_id == 0 || !$cookie_id) {
+    $cookie_id = cart_get_id();
+  }
+
+  $cookie_id = ($cookie_id) ? $cookie_id : cart_get_id();
+  return db_query("DELETE FROM {ec_cart} WHERE cookie_id = '%s'", $cookie_id);
+}
+
+/**
+ * Grab the items in a shopping cart for an user.
+ *
+ * If $id is not passed in, this function uses the uid of the person currently
+ * accessing this function.
+ *
+ * @param int $id The session or uid
+ * @param string @action if 'rebuild', than rebuild the current item hash.
+ *
+ * @return array An array of all items for an id indexed by nid.
+ */
+function cart_get_items($id = null, $action = null) {
+  static $items = array();
+  $id = $id ? $id : cart_get_id();
+
+  if ($action == 'rebuild') {
+    $items = array();
+  }
+
+  if ($items[$id] === NULL) {
+    $result = db_query("SELECT c.*, n.title, n.vid FROM {node} n INNER JOIN {ec_cart} c ON n.nid = c.nid WHERE c.cookie_id = '%s'", $id);
+
+    while ($cart = db_fetch_object($result)) {
+      $cart = drupal_unpack($cart, 'data');
+      $p = product_load($cart);
+      foreach ($p as $key => $value) {
+        $cart->$key = $value;
+      }
+      $items[$id][$cart->nid] = $cart;
+    }
+    if (!$items[$id]) {
+      $items[$id] = array();
+    }
+    else {
+      foreach ($items[$id] as $key => $item) {
+        $items[$id][$key]->price = product_adjust_price($item);
+      }
+    }
+  }
+
+  return $items[$id];
+}
+
+/**
+ * Invoke a hook_nodeapi() operation in all modules.
+ *
+ * @param &$txn
+ *   A txn object.
+ * @param $op
+ *   A string containing the name of the checkoutapi operation.
+ * @param $a3, $a4
+ *   Arguments to pass on to the hook, after the $txn and $op arguments.
+ * @return
+ *   The returned value of the invoked hooks.
+ */
+function checkout_invoke_checkoutapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  $return = array();
+  foreach (module_list() as $name) {
+    $function = $name .'_checkoutapi';
+    if (function_exists($function)) {
+      $result = $function($txn, $op, $a3, $a4);
+      if (is_array($result)) {
+        $return = array_merge($return, $result);
+      }
+      else if ($result) {
+        $return[] = $result;
+      }
+    }
+  }
+  return $return;
+}
+
+/**
+ * Write the current transaction to the DB so it isn't persisted throughout the form pages.
+ */
+function ec_checkout_hide_data($edit) {
+  ec_checkout_delete_data();
+  db_query("INSERT INTO {ec_tmp} (sid, tmp) VALUES ('%s', '%s')", cart_get_id(), serialize($edit));
+}
+
+/**
+ * Return the current transaction session.
+ * 
+ * @param $edit sets the static copy(local cache of sorts)
+ * @return false on empty or an array of data from ec_tmp
+ */
+function ec_checkout_get_data($edit = null) {
+  return unserialize(db_result(db_query("SELECT tmp FROM {ec_tmp} WHERE sid = '%s'", cart_get_id())));
+}
+
+/**
+ * Destroy the temp table data for this session.
+ */
+function ec_checkout_delete_data() {
+  db_query("DELETE FROM {ec_tmp} WHERE sid = '%s'", cart_get_id());
+}

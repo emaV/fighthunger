@@ -1,0 +1,76 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - COD module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-11-01 12:47+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: cod.module:15
+msgid "Process payments using cash on delivery."
+msgstr "Utiliser le contre-remboursement comme moyen de paiement."
+
+#: cod.module:23
+msgid "Title to use for COD"
+msgstr "Nom utilisé pour le contre-remboursement "
+
+#: cod.module:24
+#: ;50
+msgid "COD"
+msgstr "Contre-remboursement"
+
+#: cod.module:25
+msgid "Description to show shoppers for this type of payment."
+msgstr "Description affichée aux clients pour ce type de paiement."
+
+#: cod.module:27
+msgid "Page to go to after payment"
+msgstr "Page affichée après le paiement "
+
+#: cod.module:29
+msgid "Page to go to after payment is completed."
+msgstr "Page affichée après que le paiement ait été pris en compte."
+
+#: cod.module:31
+msgid "Mark transaction as paid?"
+msgstr "Marquer la transaction comme payée ?"
+
+#: cod.module:33
+#: ;38
+msgid "No"
+msgstr "Non"
+
+#: cod.module:33
+#: ;38
+msgid "Yes"
+msgstr "Oui"
+
+#: cod.module:34
+msgid "Whether to mark transactions as paid immediately, or wait till the store admin marks them as paid"
+msgstr "Sélectionnez Oui si vous voulez que les transactions soient automatiquement marquées comme payées, ou Non si vous préférez que le paiement des transactions soit validé manuellement."
+
+#: cod.module:36
+msgid "Mark transaction workflow as completed?"
+msgstr "Marquer la transaction comme terminée ?"
+
+#: cod.module:39
+msgid "Marks transactions that have no shippable items as completed in the workflow"
+msgstr "Permet de marquer comme terminées les transactions n'ayant pas d'articles à envoyer."
+
+#: cod.module:64
+msgid "Your purchase has been completed."
+msgstr "Votre commande est terminée."
+
+#: cod.module:89
+msgid "Your purchase has been received."
+msgstr "Votre commande a bien été reçue."
+
+#: cod.module:0
+msgid "cod"
+msgstr "Contre-remboursement"
+

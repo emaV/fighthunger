@@ -1,0 +1,78 @@
+<?php
+// $Id: ec_media.module,v 1.1.2.5 2006/10/02 00:33:19 gordon Exp $
+
+/**
+ * @file
+ * 
+ * The module makes it possible to treat media nodes as products.  By media
+ * nodes, we mean those nodes which manage a file of any sort.  This module
+ * bridges the gap between the third-party module's API and the file.module
+ * API.
+ * 
+ * Currently, only the audio module implements a hook which makes this
+ * bridging possible.  Audio is the only media type currently supported.
+ * 
+ * More media types may be added here in the future.
+ */
+
+/**
+ * hook_help()
+ */
+function ec_media_help($section) {
+  if ($section == 'admin/modules#description') {
+    return t('<b>EC:</b> Allows some media node types to be treated as file products.  Requires file product module.');
+  }
+  else if ($section == 'admin/help#ec_media') {
+    $output = '<p>' . t('The ec_media module allows nodes containing files to be treated as ecommerce file products.  This allows the file module to control whether users are permitted to download media files, so that the files are accessable only by users who have bought the product.').'</p>';
+    $output .= '<p>' . t('This module requires the file product module.') . '</p>';
+    $output .= '<p>' . t('Currently, the supported media modules include: %audio_link', array('%audio_link' => l(t('audio'), 'http://drupal.org/project/audio'))) . '</p>';
+    $output .= '<p>' . t('To enable audio products, take the following steps.') . '</p>';
+    $output .= '<ol><li>' . t('Go to %modules_link and enable audio and file modules.', array('%modules_link' => l(t('modules'), 'admin/modules'))) . '</li>';
+    $output .= '<li>' . t('Go to %configure_audio_link and select the \'file download\' product type.  Each new audio node will now be a file product.', array('%configure_audio_link' => l(t('audio configuration'), '/admin/settings/content-types/audio'))) . '</li>';
+    $output .= '<li>' . t('If there are existing audio nodes on your site, edit each one to make it into a file product.') . '</li>';
+    $output .= '<li>' . t('Go to %access_control_link and make sure that only administrators have the \'download audio\' and \'play audio\' permissions.  Users without those permission will be able to download audio only after purchasing the product.', array('%access_control_link' => l(t('access control'), 'admin/access'))) . '</li>';
+    $output .= '</ul>';
+    return $output;
+  }
+}
+/**
+ * hook_ec_file_nodetypes
+ * 
+ * Enables the ecommerce modules to treat audio nodes as file products.
+ * 
+ * @return
+ *   An array in which keys are nodetypes and values are configuration arrays.
+ */
+function ec_media_ec_file_nodetypes() {
+  return array('audio' => array('realm' => 'audio.module'));
+}
+
+/**
+ * hook_audio
+ * 
+ * Responds to events and callbacks from audio module.  Acts as a bridge
+ * between hook_audio and ecommerce file hooks.
+ */
+function ec_media_audio($op, $node, $arg1 = NULL) {
+  if ($op == 'access') {
+    global $user;
+    // $map translates audio module ops into file module ops
+    $map = array('play' => 'view',
+                 'download' => 'download');
+    $result = module_invoke_all('ec_file_access',
+                                $node->vid, 'audio.module', $node, $map[$arg1],
+                                $node->audio_file, $user);
+    if (in_array(TRUE, $result)) {
+      return TRUE;
+    }
+    if (in_array(FALSE, $result)) {
+      return FALSE;
+    }
+  }
+  else if ($op == 'insert' ||
+           $op == 'update' ||
+           $op == 'delete') {
+    module_invoke_all('ec_file_event', $node->vid, 'audio.module', 
+                      $node, $op, $node->audio_file);
+  }
+}

@@ -1,0 +1,317 @@
+<?php
+// $Id: worldpay.module,v 1.9.2.1 2006/10/02 00:33:20 gordon Exp $
+
+/**
+ * Updated June 20th 2006 with an automated worldpay_callback feature
+ * which includes a simple reverse DNS check to make sure the feedback to your shopping cart
+ * is coming from worldpay.com
+ * Please refer to the Worldpay support site for additional security measures. 
+ * Drop me an email if you have any ideas for improvements gusATmodernmediamuse.com
+ * /  
+
+/**
+ * Implementation of hook_help().
+ */
+function worldpay_help($section = 'admin/help#worldpay') {
+  switch ($section) {
+      case 'admin/modules#description':
+      // This description is shown in the listing at admin/modules.
+      return t('<b>EC:</b> WorldPay payment integration for the ecommerce.module.'); 
+    case 'admin/help#worldpay':
+      // Here is some help.
+      return t('The worldpay module allows the Drupal ecommerce system to use WorldPay as a payment gateway.  In order to use Worldpay as a payment gateway, you will first need to have the ecommerce module installed and configured, and a WorldPay account set up.');
+  }
+}
+
+
+/**
+ * Implementation of hook_ec_settings().
+ */
+function worldpay_ec_settings() {
+
+  $output = '';
+
+  $form['settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Main settings'),
+	  '#collapsible' => FALSE, 
+	  '#collapsed' => FALSE,
+
+  );
+
+
+  // Installation ID (instId)
+  $form['settings']['worldpay_instId'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Installation ID (instId)'),
+    '#default_value' => variable_get('worldpay_instId', '00000'),
+    '#size' => 20,
+    '#maxlength' => 255,
+    '#description' => t('WorldPay Installation ID. This should be set to your unique ID, which was given to you by WorldPay.'),
+  );
+
+  // Testing Mode (testMode)
+  $testMode_codes = array('0' => 'Live payment processing (0)', '100' => 'Test mode (100) - return success', '101' => 'Test mode (101) - return failure');
+  $form['settings']['worldpay_testMode'] = array(
+    '#type' => 'select',
+    '#title' => t('Testing Mode (testMode)'),
+    '#default_value' => variable_get('worldpay_testMode', '100'),
+    '#options' => $testMode_codes,
+    '#description' => t('WorldPay testMode code. Set to 0 for live shop, 100 or 101 for testing.'),
+  );
+
+  // Currency code (currency)
+  $currency_codes = array('USD' => 'USD - U.S. Dollars', 'EUR' => 'EUR - Euros', 'AUD' => 'AUD - Australian Dollars', 'CAD' => 'CAD - Canadian Dollars', 'GBP'=> 'GBP - Pounds Sterling');
+  $form['settings']['worldpay_currency_code'] = array(
+    '#type' => 'select',
+    '#title' => t('Currency code (currency)'),
+    '#default_value' => variable_get('worldpay_currency_code', 'EUR'),
+    '#options' => $currency_codes,
+    '#description' => t('The currecy code that WorldPay should process the payment in.'),
+  );
+
+  // WorldPay Minimum Amount
+  $form['settings']['worldpay_min_amount'] = array(
+    '#type' => 'textfield',
+    '#title' => t('WorldPay Minimum Amount'),
+    '#default_value' => variable_get('worldpay_min_amount', '5.00'),
+    '#size' => 10,
+    '#maxlength' => 10,
+    '#description' => t('The minimum purchase amount (gross) that will be accepted for WorldPay payments.'),
+  );
+
+ 
+  $form['checkout'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Worldpay checkout settings'),
+	  '#collapsible' => FALSE, 
+	  '#collapsed' => FALSE,
+  );
+
+  // WorldPay processing URL      
+  $form['checkout']['worldpay_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('WorldPay processing URL'),
+    '#default_value' => variable_get('worldpay_url', 'https://select.worldpay.com/wcc/purchase'),
+    '#size' => 60,
+    '#maxlength' => 180,
+    '#description' => t('URL of the secure payment page customers are sent to for payment processing (Select Junior). If unsure leave at default setting.'),
+  );
+  // WorldPay callback URL
+  $form['checkout']['worldpay_callback_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Thank you page/WorldPay callback URL'),
+    '#default_value' => variable_get('worldpay_callback_url', 'node'),
+    '#size' => 60,
+    '#maxlength' => 180,
+    '#description' => t('<P><strong>BASIC USAGE:</strong> Redirect users to a specific thank you page and process your orders manually from Worldpay emails and your worldpay account.</p><P><strong>ADVANCED USAGE:</strong> Insert <strong>worldpay_callback</strong> as the link that is used for processing payment confirmation (Select Junior). This also needs to be configured in the settings on the WorldPay server as the full URL. Please refer to the README.TXT that came with the worldpay.module for more detailed instructions.</p>'),
+  );
+  $form['checkout']['worldpay_payment_complete'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Worldpay_callback - Payment Completed message'), 
+    '#default_value' => variable_get('worldpay_payment_complete', '<h1>PAYMENT COMPLETED!</h1><p>WorldPay(tm) has accepted your card and payment has been made. Thank you. Click through to your %link to view/print out invoices and track your order.</p>', array('%link'=>l('Account page', 'store/history'))), 
+    '#cols' => 60, 
+    '#rows' => 5, 
+    '#description' => t('Insert your own message that is displayed when a payment is completed using worldpay_callback'),
+    );
+  $form['checkout']['worldpay_payment_cancelled'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Worldpay_callback - Order Cancelled message'), 
+    '#default_value' => variable_get('worldpay_payment_cancelled', '<h1>PAYMENT Cancelled!</h1><p>WorldPay(tm) has indicated that you cancelled your order. Please click through to our <a href="product">products page</a> to try again or to contact us if you are having difficulties.</p>'), 
+    '#cols' => 60, 
+    '#rows' => 5, 
+    '#description' => t('Insert your own message that is displayed when a payment is cancelled using worldpay_callback'),
+    );
+  $form['checkout']['worldpay_server_fail'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Worldpay_callback - server validation check failed message'), 
+    '#default_value' => variable_get('worldpay_server_fail', '<h1>Sorry!</h1><p>We were unable to validate your request with the WorldPay(tm) server. Please click through to our <a href="product">products page</a> to try again or to contact us if you are having difficulties.</p>'), 
+    '#cols' => 60, 
+    '#rows' => 5, 
+    '#description' => t('Insert your own message that is displayed when the Worldpay server validation check fails using worldpay_callback - a possible security breach'),
+    );
+  $form['checkout']['worldpay_debug_option'] = array(
+    '#type' => 'checkbox', 
+    '#title' => t('Switch debug on to display Worldpay feedback and data while testing'), 
+    '#return_value' => 1, 
+    '#default_value' => variable_get('worldpay_debug_option',0), 
+    '#description' => t('If this option is enabled, Worldpay callback data will be displayed in full at the bottom of your results page.'),
+  );
+  return $form;
+}
+
+
+
+/***
+ * Implementation of ecommerce paymentapi (payment.module)
+ */
+function worldpay_paymentapi(&$txn, $op, $arg = '') {
+
+  switch ($op) {
+    case 'display name':
+
+      return t('Credit/Debit Card (WorldPay)');
+
+    case 'update':
+    case 'insert':
+     // return worldpay_save($data);
+
+    case 'on checkout':
+      return worldpay_verify_checkout($txn);
+
+    case 'payment page':
+       return worldpay_goto($txn);
+      break;
+
+    case 'delete':
+     // return worldpay_delete($txn);
+    }
+}
+
+
+/**
+ * Implementation of hook_menu() - for worldpay callback
+ */
+function worldpay_menu($may_cache) {
+  $worldpay_callback_url = variable_get('worldpay_callback_url', 'worldpay_callback');
+
+  $items = array();
+//  if ($may_cache) {
+    $items[] = array('path' => $worldpay_callback_url, 'title' => t('WorldPay callback'),
+      'callback' => 'worldpay_callback_process', 'access' => true, 'type' => MENU_CALLBACK);
+//  }
+
+  return $items;
+}
+
+
+
+/***
+ * WorldPay verify checkout (check minimum purchase amount is met).
+ */
+function worldpay_verify_checkout($txn) {
+
+
+  $estimate = store_transaction_calc_gross($txn);
+  if (variable_get('worldpay_min_amount', '5') > $estimate) {
+    form_set_error('gross', t('Your purchase total must be at least %min-purchase-amount for online Credit card purchases.', array('%min-purchase-amount' => variable_get('worldpay_min_amount', '0'))));
+  }
+}
+
+
+/***
+ * 
+WORLDPAY PAYMENT FORM.
+ */
+
+
+
+function worldpay_goto($txn) {
+		global $base_url;
+
+  $worldpay_url = variable_get('worldpay_url', 'worldpay_callback');
+  $worldpay_testMode = variable_get('worldpay_testMode', '');
+  $worldpay_currency_code = variable_get('worldpay_currency_code', '');
+  $worldpay_instId = variable_get('worldpay_instId', '');
+
+$billing = $txn->address['billing'];
+
+
+// FORMAT BILLING ADDRESS AS 1 FIELD FOR WORLDPAY  
+	$address = $billing->street1;
+	if($billing->street2) {$address .= '&#10;' . $billing->street2;}
+	if($billing->city) {$address .= '&#10;' . $billing->city;}
+	$address .= '&#10;' . $billing->state;
+
+	$postcode = $billing->zip;
+
+	$tel = $billing->phone;
+
+	$email = $user->mail;
+
+  // FORMAT BILLING NAME AS 1 FIELD FOR WORLDPAY
+  $name = $billing->firstname . ' ' . $billing->lastname;
+
+ // BUILD A SUMMARY DESCRIPTION OF ITEMS BEING PURCHASED.
+  $description_summary = '';
+  $items = cart_get_items();
+  foreach ($items as $product) {
+    $node = node_load($product->nid);
+    $description_summary .= $node->title;
+    $description_summary .= ' (x' . $product->qty . '), <br>&#10;';
+  }
+
+
+  $payment_symbol = variable_get('payment_symbol', '');
+
+// BUILD THE URL NEEDED TO REDIRECT TO WORLDPAY
+$url .= "?instId=" . $worldpay_instId . "&";
+$url .= "currency=" . $worldpay_currency_code . "&";
+$url .= "cartId=" . $txn->txnid . "&";
+$url .= "amount=" . $txn->gross . "&";
+$url .= "testMode=" . $worldpay_testMode . "&";
+$url .= "Address=" .  urlencode($address) . "&";
+$url .= "postcode=" .  urlencode($postcode) . "&";
+$url .= "tel=" .  urlencode($tel) . "&";
+$url .= "name=" .  urlencode($name) . "&";
+$url .= "MC_callback=" . "worldpay_callback1" . "&";
+//$url .= "MC_callback=" . $base_url . $worldpay_url . "&";
+$url .= "desc=" .  urlencode($description_summary);
+
+
+
+
+$url = $worldpay_url . $url;
+return $url;
+}
+
+
+function worldpay_callback_process() {
+  // Run a reverse DNS lookup on the IP Address the callback is coming from and verify it is from Worldpay
+  $ip = $_SERVER['REMOTE_ADDR'];
+  $fullhost = gethostbyaddr($ip);
+  $host = preg_replace("/^[^.]+./", "*.", $fullhost);
+  if ($host == '*.worldpay.com'){  
+  if(($_POST[transStatus]) == "Y"){
+  global $conf;
+  $worldpay_complete_name = 'worldpay_payment_complete';
+  $worldpay_complete_default = t('<h1>PAYMENT COMPLETED!</h1><p>WorldPay(tm) has accepted your card and payment has been made. Thank you. Click through to your %link to view/print out invoices and track your order.</p>', array('%link'=>l('Account page', 'store/history')));
+  $output .= (isset($conf[$worldpay_complete_name]) ? $conf[$worldpay_complete_name] : $worldpay_complete_default);
+  $data['gross']          = $_POST['authAmount'];
+  $data['payment_method'] = 'worldpay';
+  $data['payment_status'] = "2";
+  $edit['workflow'] = '1';
+  $data['txnid'] = $_POST['cartId'];
+  $data['mail'] = $_POST['email'];
+  $txnid = store_transaction_save($data);
+  store_send_invoice_email($txnid);
+  }
+  
+	if(($_POST[transStatus]) == "C"){
+	  global $conf;
+    $worldpay_cancelled_name = 'worldpay_payment_cancelled';
+    $worldpay_cancelled_default = t('<h1>PAYMENT CANCELLED!</h1><p>WorldPay(tm) has indicated that you have cancelled your order. Please click to %link and contact us or try again.</p>', array('%link'=>l('return to our website', '$base_url')));
+    $output .= (isset($conf[$worldpay_cancelled_name]) ? $conf[$worldpay_cancelled_name] : $worldpay_cancelled_default);
+    }
+  }
+  
+  if ($host != '*.worldpay.com'){
+    global $conf; 
+    $worldpay_failed_name = 'worldpay_server_fail';
+    $worldpay_failed_default = t('<h1>Sorry!</h1><p>We were unable to validate your request with the WorldPay(tm) server. Please click through to our %link to try again or to contact us if you are having difficulties.</p>', array('%link'=>l('Products page', 'product')));
+    $output .= (isset($conf[$worldpay_failed_name]) ? $conf[$worldpay_failed_name] : $worldpay_failed_default);
+  }
+	
+  global $base_url;
+	drupal_set_html_head("<base href=\"$base_url/\" />\n");
+	init_theme();
+	print theme('page', $output);
+	global $conf;
+	$worldpay_debug_name = 'worldpay_debug_option';
+  $worldpay_debug_default = '0';
+  $worldpay_debug = (isset($conf[$worldpay_debug_name]) ? $conf[$worldpay_debug_name] : $worldpay_debug_default);
+  if (($worldpay_debug) == '1'){
+      print_r($_POST);
+      }
+	return;
+}

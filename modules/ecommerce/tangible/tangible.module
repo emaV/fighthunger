@@ -1,0 +1,139 @@
+<?php
+// $Id: tangible.module,v 1.21.2.2 2006/10/02 00:33:21 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+function tangible_help($section = 'admin/help#tangible') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Creates a tangible product. Dependency: product.module');
+    case 'node/add/product#tangible':
+      return t('A shippable product is a tangible, physical item. Optional features includes inventory control and availability estimates.');
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function tangible_perm() {
+  return array('create shippable products', 'edit own shippable products');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function tangible_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('create shippable products');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own shippable products') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}
+
+function tangible_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  switch ($op) {
+
+    case 'fields':
+      return array('stock' => $node->stock, 'manage_stock' => $node->manage_stock, 'availability' => $node->availability);
+
+    case 'validate':
+      if (isset($node->stock) && !$node->stock) {
+        if (!$node->stock) {
+          $node->stock = 0;
+        }
+        if (!is_numeric($node->stock)) {
+          form_set_error('stock', t('Please enter a numeric value for stock.'));
+        }
+      }
+      break;
+
+    case 'wizard_select':
+      return array('tangible' => t('shippable product'));
+
+    case 'attributes':
+      $attributes = array('is_shippable');
+      if (($node->manage_stock && $node->stock > 0) || !$node->manage_stock) {
+        $attributes[] = 'in_stock';
+      }
+      return $attributes;
+      break;
+
+    case 'cart add item':
+      if ($node->manage_stock && $node->stock <= 0) {
+        drupal_set_message(t('This product is currently out of stock'), 'error');
+        return FALSE;
+      }
+      break;
+
+    case 'on payment completion':
+      if ($node->manage_stock) {
+        db_query('UPDATE {ec_product_tangible} SET stock = %d WHERE nid = %d', $node->stock - $node->qty, $node->nid);
+      }
+      break;
+
+    case 'form':
+      $form['inventory'] = array(
+        '#type' => 'fieldset',
+        '#title' => t("Inventory control"),
+      );
+      $form['inventory']['manage_stock'] = array(
+        '#type' => 'radios',
+        '#title' => t('Inventory management for this item'),
+        '#default_value' => (($node->manage_stock == 0) ? $node->manage_stock : 1),
+        '#options' => array(t('Disabled'), t('Enabled')),
+        '#description' => t("When enabled, the number in stock will be decremented whenever an order of this item is made. When stock reaches zero, the 'Add to cart' will be replaced with 'Sold out'."),
+      );
+      $form['inventory']["stock"] = array(
+        '#type' => 'textfield',
+        '#title' => t("Number in stock"),
+        '#default_value' => (($node->stock != '') ? $node->stock : 0),
+        '#size' => 25,
+        '#maxlength' => 50,
+        '#description' => t("Number of products in inventory."),
+      );
+      $form['availability'] = array(
+        '#type' => 'select',
+        '#title' => t("Availability estimate"),
+        '#default_value' => $node->availability,
+        '#options' => availability_build_messages(),
+        '#description' => t("How long it will take this item to leave the fulfillment center once the order has been placed?"),
+      );
+      return $form;
+
+    case 'load':
+      return db_fetch_object(db_query('SELECT * FROM {ec_product_tangible} WHERE vid = %d', $node->vid));
+
+    case 'insert':
+      return db_query("INSERT INTO {ec_product_tangible} (nid, vid, stock, manage_stock, availability) VALUES ('%d', '%d', '%d', '%d', '%s')", $node->nid, $node->vid, $node->stock, $node->manage_stock, $node->availability);
+
+    case 'update':
+      return db_query("UPDATE {ec_product_tangible} SET stock = '%d', manage_stock = '%d', availability = '%s' WHERE vid = '%d'", $node->stock, $node->manage_stock, $node->availability, $node->vid);
+
+    case 'delete':
+      return db_query('DELETE FROM {ec_product_tangible} WHERE nid = %d', $node->nid);
+  }
+}
+
+function availability_get_message($aid) {
+  $availability = availability_build_messages();
+  return $availability[$aid];
+}
+
+function availability_build_messages() {
+  return array(
+    1 => t('--none--'),
+    2 => t('Usually ships in 24 hours.'),
+    3 => t('Usually ships in 2-3 days.'),
+    4 => t('Usually ships in 1-2 weeks.'),
+    5 => t('Usually ships in 4-6 weeks.'),
+  );
+}

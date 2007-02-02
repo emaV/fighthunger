@@ -416,7 +416,7 @@ function fhwalk_get_latlon($location) {
   
 // urlencode all
   $street   = urlencode(utf8_encode($location['street']));
-  $city     = rlencode(utf8_encode($location['city']));
+  $city     = urlencode(utf8_encode($location['city']));
    if($province=$location['province']) {
     if (strlen($province) && $province != 'xx') {
       // chop off the 2-letter code and the '-' from the front of the value

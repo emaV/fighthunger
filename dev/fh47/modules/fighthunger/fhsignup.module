@@ -292,14 +292,15 @@ global $user;
     fhsignup_email_notify($nid, $user->uid, 'wait');
     $msg = t('Your subscription is pending, requiring organiser approvation.');
   }
-  _fhsignup_user_add($form_values['nid'], $form_values['uid'], $role, $stage);
+  _fhsignup_user_add($form_values['nid'], $form_values['uid'], $role, $stage, 
+    $form_values['comment'], $form_values['opencomment'], $form_values['guests']);
 
-  drupal_set_message($msg);
+  drupal_set_message($msg . print_r($form_values, true));
 }
 
 function fhsignup_user_form_validate($form_id, $form_values) {
   if ($form_values['TaC_accept'] == '') {
-    form_set_error('', t('You must agree with T&C.'));
+    form_set_error('', t('You must agree with Term & Condition.'));
   }
 }
 
@@ -319,19 +320,25 @@ global $user;
     '#title' => t('Signup comment'),
     '#cols' => 75,
     '#rows' => 5,
-    '#description' => t("Comment (optional)"),
-  ); 
-  $form['signup']['guests'] = array(
-    '#type' => 'textfield',
-    '#title' => t('My guests'),
-    '#size' => 5,
-    '#maxlength' => 4,
-    '#description' => t('I am bringing this many others to walk with me.'),
+    '#description' => t("Comment (optional)."),
   );
-  $form['signup']['opencomment'] = array(
-    '#type' => 'checkbox',
-    '#title' => t("Show my comment in the attendee list."),
-  );
+  if($node->signup_show_comments) {
+    $form['signup']['opencomment'] = array(
+      '#type' => 'checkbox',
+      '#title' => t("Show my comment in the attendee list."),
+    );
+  } else {
+    $form['signup']['comment']['#description'] .= ' <strong>' . t('Your comments will be visible only to organisers.') . '</strong>';
+  }   
+  if($node->signup_allow_guest) {
+    $form['signup']['guests'] = array(
+      '#type' => 'textfield',
+      '#title' => t('My guests'),
+      '#size' => 5,
+      '#maxlength' => 4,
+      '#description' => t('I am bringing this many others to walk with me.'),
+    );
+  }
   $form['signup']['volunteer'] = array(
     '#type' => 'checkbox',
     '#title' => t("I would like to volunteer to help organize this event."),
@@ -360,12 +367,9 @@ global $user;
     '#value' => "<label>$node->signup_waiver</label>",
   );
 
-
   $output =  drupal_get_form('fhsignup_user_form', $form);
   return $output;
 }
-
-
 
 /**
  * Return signup form to fhwalk page.
@@ -550,14 +554,20 @@ function _fhsignup_user_check($nid, $uid) {
  * @ingroup fhsignup_helpers
  * @param $nid walk nid 
  * @param $uid user id
- * @param $stage user stage
+ * @param $role
+ * @param $stage
+ * @param $comment
+ * @param $opencomment
+ * @param $guest
  * @return  
  */
-function _fhsignup_user_add($nid, $uid, $role='attendee', $stage=3) {
+function _fhsignup_user_add($nid, $uid, $role='attendee', $stage=3, $comment='', $opencomment=0, $guest=0) {
   $sql = "SELECT * FROM {gathering_signup} WHERE wid=%d AND uid=%d";
   if( db_num_rows(db_query($sql,$nid, $uid))==0) {
-    $sql = "INSERT INTO {gathering_signup} SET wid=%d, uid=%d, role='%s', timestamp=CURRENT_TIMESTAMP, guests=%d, stage=%d"; 
-    db_query($sql, $nid, $uid, $role, 0, $stage);
+    $sql = "INSERT INTO {gathering_signup} " . 
+      "SET wid=%d, uid=%d, role='%s', timestamp=CURRENT_TIMESTAMP, " .
+      "stage=%d, comment='%s', opencomment=%d, guests=%d"; 
+    db_query($sql, $nid, $uid, $role, $stage, $comment, $opencomment, $guest);
   } else {
     drupal_set_message( t('User alread signed up!') );
   }
@@ -921,26 +931,6 @@ global $user;
   return $form;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  * Login helper for signup form  
  * 
@@ -1028,7 +1018,7 @@ function fhsignup_walk_signup_table($nid, $show_message) {
     $row = array('data' => array(
           $signup->name,
           $signup->role,
-          $signup->comment,
+          $signup->opencomment ? $signup->comment : '',
           date("j M o", strtotime($signup->timestamp)))
     );
     if($show_message==0) unset($row['data'][2]);

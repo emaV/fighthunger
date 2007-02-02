@@ -374,7 +374,7 @@ function fhwalk_get_latlon($location) {
   $location_geocode_gmap_url = "http://maps.google.com/maps/geo?q=" . 
         implode("+", explode(" ", $location['street'])) . ',' .
         implode("+", explode(" ", $location['city'])) . ',' .
-        ( ($province) ? "$province," . '') .
+        ( ($province) ? "$province," : '') .
         implode("+", explode(" ", $country)) .
         "&output=csv&key=".variable_get('googlemap_api_key', '');
   $result  = file_get_contents("$location_geocode_gmap_url");     
@@ -391,7 +391,7 @@ function fhwalk_get_latlon($location) {
   
     $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
         implode("+", explode(" ", $location['city'])) . ',' .
-        ( ($province) ? "$province," . '') .
+        ( ($province) ? "$province," : '') .
         implode("+", explode(" ", $country)) .
           "&output=csv&key=".variable_get('googlemap_api_key', '');
     $result  = file_get_contents("$location_geocode_gmap_url");     

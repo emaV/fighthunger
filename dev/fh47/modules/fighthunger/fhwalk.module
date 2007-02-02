@@ -367,8 +367,8 @@ function fhwalk_get_latlon($location) {
         implode("%20", explode(" ", $location['city'])) . '+' .
         $country .
         "&output=csv&key=".variable_get('googlemap_api_key', '');
-//  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-  //return $content;
+  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
+  return $content;
 }
 
 

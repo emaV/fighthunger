@@ -59,6 +59,11 @@ a:active { color: #ff6600; }
   background-color:#ff6600;
   color:#fff;
 }
+.form-submit:hover, .form-submit:focus  {
+  background-color:#ff2200;
+  color:#fff;
+}
+
 /* User profile */
 .profile_content {
   margin: 15px;

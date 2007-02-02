@@ -54,6 +54,7 @@
  
   
 // DEBUG
+/*
   print "\n\n<!-- DEBUG\n\n";
     
   $hook_array = $node->hook_view;
@@ -68,7 +69,7 @@
   print "\n\n\n\n" . htmlentities(print_r($node, true));
 
   print "\n\nEND DEBUG -->\n\n";
-
+*/
 
 ?>
   </div>

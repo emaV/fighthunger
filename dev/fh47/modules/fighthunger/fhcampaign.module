@@ -92,7 +92,7 @@ function fhcampaign_form_alter($form_id, &$form) {
  */
 function fhcampaign_check_taxonomy($form) {
   // Bypass restrictions for some permissions
-  if( user_access('administer campaigns') || isset($form['_administer'])) { 
+  if( user_access('administer walks') ) { 
     // Do nothing
   } elseif(($vid = _fhcampaign_vocabulary()) && isset($form['taxonomy'][$vid])) {
     // Remove not permitted campaigns
@@ -185,22 +185,6 @@ function fhcampaign_admin_campaigns() {
 }
 
 /**
- * Implementation of hook_perm().
- */
-function fhcampaign_perm() {
-  return array('administer campaigns', 'coordinate campaigns');
-}
-
-/**
- * Implementation of hook_access().
- */
-function fhcampaign_access($op, $node) {
-  global $user;
-
-  return user_access('administer campaigns');
-}
-
-/**
  * Implementation of hook_menu().
  */
 function fhcampaign_menu($may_cache) {
@@ -211,7 +195,7 @@ function fhcampaign_menu($may_cache) {
       'title' => t('campaigns'),
       'path' => 'admin/campaigns',
       'callback' => 'fhcampaign_admin_campaigns',
-      'access' => user_access('administer campaigns')
+      'access' => user_access('administer walks')
     );
   }
 
@@ -220,8 +204,11 @@ function fhcampaign_menu($may_cache) {
 
 /**
  * Get campaign list
+ * 
+ * @param $status
+ *   Campaign status, defaults to 'active, if === FALSE will get all campaigns
  */
-function fhcampaign_list($status = FALSE, $index = 'tid', $field = 'name') {
+function fhcampaign_list($status = CAMPAIGN_STATUS_ACTIVE, $index = 'tid', $field = 'name') {
   if($status === FALSE) {
     $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", _fhcampaign_vocabulary());
   } else {

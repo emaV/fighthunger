@@ -86,7 +86,7 @@ function fhlocalpage_form_alter($form_id, &$form) {
         $form['LPO_options']['taxonomy'][$vid] = $form['taxonomy'][$vid];
         $form['LPO_options']['taxonomy']['#tree'] = true;
         $form['LPO_options']['taxonomy'][$vid]['#title'] = t('Campaign');
-        $form['LPO_options']['taxonomy'][$vid]['#options'] = fhwalk_get_active_campaigns();
+        $form['LPO_options']['taxonomy'][$vid]['#options'] = fhcampaign_list();
     // check for other vocabularies
         $i = 0;
         foreach($form['taxonomy'] as $key => $value) if(is_numeric($key)) $i++;

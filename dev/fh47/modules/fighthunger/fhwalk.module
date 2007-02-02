@@ -646,8 +646,6 @@ global $user;
         '#weight' => -1, 
         '#description' => t('Enter walk coordinator')
       );
-      // Mark form for campaign administration
-      $form['_administer'] = array('#type' => 'value', '#value' => TRUE);
     }
   }
 // history
@@ -1876,22 +1874,6 @@ function _fhwalk_status($sid=-1) {
   } else {
     return $status_options;
   }
-}
-
-/**
- * Get taxonomy options (only active campaign terms).
- *  
- * @ingroup fhwalk_helpers
- * @return  array of vocabulary terms corresponding to active campaigns
- */ 
-function fhwalk_get_active_campaigns() {
-  $options = array();
-  $terms = taxonomy_get_tree(variable_get('fhwalk_vocabulary', 0));
-  foreach($terms as $term) {
-    $status_variable = 'fhwalk_' . $term->tid . '_status';
-    if(variable_get("$status_variable", 0)) $options[$term->tid] = $term->name;   
-  }
-  return $options;
 }
 
 /**

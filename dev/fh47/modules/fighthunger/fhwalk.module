@@ -365,19 +365,21 @@ function fhwalk_get_latlon($location) {
   $country = $countries[$location['country']];
   
 // Try fetching STREET
-  $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
+  $location_geocode_gmap_url = "http://maps.google.com/maps/geo?q=" . 
         implode("+", explode(" ", $location['street'])) . ',' .
         implode("+", explode(" ", $location['city'])) . ',' .
         $country .
         "&output=csv&key=".variable_get('googlemap_api_key', '');
-  $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
+  $result=file_get_contents("$location_geocode_gmap_url");     
+  $content=explode(",", $result);
+  $result=
 
 // Then only CITY
   if($content[0]<>200) {
     $msg  = "Error fetching STREET from google<br/>" ;
+    $msg .= print_r($content, true) . "<br/>$result<br/>";
     $msg .= print_r($location, true) . "<br/>";
     $msg .= $location_geocode_gmap_url . "<br/>";
-    $msg .= print_r($content, true) . "<br/>";
     watchdog('fhwalk', $msg, WATCHDOG_WARNING);
   
   

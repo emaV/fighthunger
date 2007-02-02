@@ -363,8 +363,8 @@ function fhwalk_get_latlon($location) {
   $country = $countries[$location['country']];
   if($country=='uk') $country = 'gb';
   $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
-        implode("%20", explode(" ", $location['street'])) . '+' .
-        implode("%20", explode(" ", $location['city'])) . '+' .
+        implode("+", explode(" ", $location['street'])) . ',' .
+        implode("+", explode(" ", $location['city'])) . ',' .
         $country .
         "&output=csv&key=".variable_get('googlemap_api_key', '');
   $content=explode(",", file_get_contents("$location_geocode_gmap_url"));

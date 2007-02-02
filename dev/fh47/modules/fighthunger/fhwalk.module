@@ -394,9 +394,10 @@ function _fhwalk_geocode_geonames($city, $country) {
   $result_tmp =  substr($result_tmp, 1, -1);            // strip square
   if($result_tmp) {   // GO AHEAD we have something to parse 
     $result_tmp =  substr($result_tmp, 1, -1);          // strip curly
-    $result_array_tmp = explode(',', $result_tmp);       // explode all fragments
+    $result_array_tmp = explode(',', $result_tmp);      // explode all fragments
     foreach($result_array_tmp as $fragment) {
       list($key, $val) = explode(':', $fragment);       // explode $key and $value
+      $key = substr($key, 1, -1);                       // strip "
       $result_array[$key] = $val;
     }
     $content[0] = 200;

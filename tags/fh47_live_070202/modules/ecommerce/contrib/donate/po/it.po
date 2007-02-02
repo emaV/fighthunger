@@ -1,0 +1,52 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Donate module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2006-01-12 19:26+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: donate.module:11
+msgid "Create donation products using the ecommerce package."
+msgstr "Creazione di prodotti donati."
+
+#: donate.module:22
+msgid "cart checkout"
+msgstr "consulta il carrrello"
+
+#: donate.module:35
+#: ;83
+msgid "add to cart"
+msgstr "aggiungi al carrello"
+
+#: donate.module:59
+msgid "donation"
+msgstr "donazione"
+
+#: donate.module:77
+msgid "<p>This item is in <a href=\"%cart_view\">your shopping cart</a>.</p>"
+msgstr "<p>Questo articolo &egrave; nel <a href=\"%cart_view\">vostro carrello</a>.</p>"
+
+#: donate.module:79
+msgid "Amount"
+msgstr "Montante/ammontare"
+
+#: donate.module:79
+msgid "How much would you like to donate?"
+msgstr "Quanto vuoi donare?"
+
+#: donate.module:80
+msgid "Options"
+msgstr "Opzioni"
+
+#: donate.module:0
+msgid "donate"
+msgstr "dona"
+

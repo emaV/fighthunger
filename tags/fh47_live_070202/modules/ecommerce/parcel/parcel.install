@@ -1,0 +1,26 @@
+<?php
+// $Id: parcel.install,v 1.3 2006/05/09 12:23:36 gordon Exp $
+
+/**
+ * E-Commerce parcel module schema
+ */
+function parcel_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_product_parcel} (
+        nid int(10) unsigned NOT NULL default '0',
+        mnid int(10) unsigned NOT NULL default '0',
+        UNIQUE KEY nid (nid,mnid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_product_parcel} (
+        nid integer NOT NULL default '0',
+        mnid integer NOT NULL default '0',
+        UNIQUE (nid, mnid)
+      )");
+      break;
+  }
+}
+

@@ -1,0 +1,339 @@
+<?php
+/*
+ * $Id: itransact.module,v 1.2.2.3 2006/10/02 00:33:20 gordon Exp $
+ */
+define(ITRANSACT_DEFAULT_PAYMENT_URL, 'store/payment/itransact');
+define(ITRANSACT_DEFAULT_THANKS_URL, 'node');
+
+function itransact_help($section = '') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> iTransact payment processing.<br />Dependency: payment.module');
+      break;
+    case 'admin/store/settings/itransact':
+      return t('Enter the required parameters that have been supplied during the signup process with ccard.');
+      break;
+  }
+}
+
+function itransact_menu($maycache) {
+  if ($maycache) {
+    $items[] = array(
+      'path' => ITRANSACT_DEFAULT_PAYMENT_URL,
+      'title' => t('Enter Credit Card Details'),
+      'callback' => 'itransact_enter_payment',
+      'access' => 1,
+      'type' => MENU_CALLBACK
+    );
+  }
+  return $items;
+}
+
+function itransact_ec_settings() {
+  $form = array();
+  $form['itransact_clientid'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('iTransact client id'), 
+    '#default_value' => variable_get('itransact_clientid', ''), 
+    '#size' => 70, 
+    '#maxlength' => 70, 
+    '#desciption' => t('client id that was issued by iTransact'),
+    '#required' => true
+   );
+  $form['itransact_clientpass'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('iTransact client password'), 
+    '#default_value' => variable_get('itransact_clientpass', ''), 
+    '#size' => 70, 
+    '#maxlength' => 70, 
+    '#desciption' => t('client password that was issued by iTransact'),
+    '#required' => true
+   );
+  $form['itransact_url'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Credit Card Payment Page'), 
+    '#default_value' => variable_get('itransact_url', url(ITRANSACT_DEFAULT_PAYMENT_URL, null, null, true)), 
+    '#size' => 70, 
+    '#maxlength' => 180, 
+    '#desciption' => t('URL to be directed to so that the payment can be received.'),
+    '#required' => true
+   );
+  $form['itransact_thanks_url'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Thank you Page'), 
+    '#default_value' => variable_get('itransact_thanks_url', url(ITRANSACT_DEFAULT_THANKS_URL, null, null, true)), 
+    '#size' => 70, 
+    '#maxlength' => 180, 
+    '#desciption' => t('URL to be directed once the payment has been entered.'),
+    '#required' => true
+   );
+  $form['itransact_cvnrequired'] = array(
+    '#type' => 'checkbox', 
+    '#title' => t('CVV field is required'), 
+    '#default_value' => variable_get('itransact_cvnrequired', FALSE),
+    '#attributes' => array('disabled' => TRUE),
+    '#description' => t('CVV is not supported at this time. If you would like this feature added, please sponsor a Drupal developer to do it.')
+   );
+  $form['itransact_addressrequired'] = array(
+    '#type' => 'checkbox', 
+    '#title' => t('Address field is required'), 
+    '#default_value' => variable_get('itransact_addressrequired', FALSE), 
+    '#attributes' => array('disabled' => TRUE),
+    '#description' => t('AVS is not supported at this time. If you would like this feature added, please sponsor a Drupal developer to do it.')
+   );
+
+  return $form;
+}
+
+function itransact_paymentapi(&$edit, $op, $arg = '') {
+  switch ($op) {
+    case 'display name':
+      return t('Credit Card');
+      break;
+    case 'payment page':
+      if ($edit->gross > 0) {
+        return payment_cc_goto($edit, variable_get('itransact_url', url(ITRANSACT_DEFAULT_URL, null, null, true)));
+      }
+      break;
+  }
+}
+
+function itransact_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  if ($txn->payment_method != 'itransact') return NULL;
+
+  switch ($op) {
+    case 'load':
+      $txn->payment = db_fetch_object(db_query("SELECT * FROM {ec_credit_card} WHERE txnid = %d", $txn->txnid));
+      break;
+    case 'insert':
+    case 'update':
+      payment_cc_save($txn);
+      break;
+    case 'delete':
+      payment_cc_delete($txn);
+      break;
+  }
+}
+
+/*
+ * Internal Functions
+ */
+
+function itransact_enter_payment() {
+  global $user, $t;
+
+  $txnid = $_GET['txnid'];
+
+  $t = store_transaction_load($txnid);
+  if (($user->uid != $t->uid && !user_access('administer store')) || $t->payment_status != 1) {
+    drupal_access_denied();
+    exit();
+  }
+  return itransact_payment_form($t);
+}
+
+function itransact_payment_form(&$t) {
+  global $user;
+
+  $form['billing'] = array(
+    '#type' => 'credit_card',
+    '#required' => TRUE,
+    '#name' => $t->address['billing']->firstname . ' ' . $t->address['billing']->lastname
+  );
+  $form[] = array(
+    '#type' => 'submit',
+    '#value' => t('submit payment'),
+  );
+  $form['t'] = array(
+    '#type' => 'value',
+    '#value' => $t
+  );
+  return drupal_get_form('itransact_payment_form', $form);
+}
+
+function itransact_payment_form_validate($form_id, &$values) {
+  global $form_values; // use global value here so data from processing is available later
+  $t =& $form_values['t'];
+  
+  // doing it this way to allow for other fields to be added later should address info
+  // need to be added to the module
+  valid_credit_card($form_values);
+  
+  if (is_array(form_get_errors()) || !_itransact_process($form_values)) {
+    store_transaction_save($t);
+    return payment_cc_goto($t, variable_get('itransact_url', url(ITRANSACT_DEFAULT_URL, null, null, true)));
+  }
+}
+
+function itransact_payment_form_submit($form_id, &$form_values) {
+  $t =& $form_values['t'];
+  $t->payment_status = payment_get_status_id('completed');
+  $form_values['txnid'] = $t->txnid;
+
+  // check to see if there are any shippable items
+  $has_shippable = false;
+  foreach ($t->items as $p) {
+    if (product_is_shippable($p->nid)) {
+      $has_shippable = true;
+      break;
+    }
+  }
+  if (!$has_shippable) {
+    $t->workflow = 6;
+  }
+
+  store_transaction_save($t);
+  store_send_invoice_email($t->txnid);
+
+  $url = variable_get('itransact_thanks_url', url(ITRANSACT_DEFAULT_THANKS_URL, null, null, true));
+  drupal_set_message(t('your payment has been accepted, thank you'));
+ 
+  return $url;
+}
+
+/*
+ * Private functions
+ */
+
+function _itransact_process(&$form_values) {
+  include_once 'modules/ecommerce/contrib/eway/eway.inc';
+  $form_values = array_merge($form_values, payment_cc_split_name($form_values['name'], $matches));
+ 
+  $t =& $form_values['t'];
+
+  $amount = str_replace('.', '', $t->gross);
+  $form_values['clientid'] = variable_get('itransact_clientid', '');
+  $form_values['clientpass'] = variable_get('itransact_clientpass', '');
+
+  if (empty($form_values['clientid']) || empty($form_values['clientpass'])) {
+    drupal_set_message('iTransact requires you to setup your Client ID and Password before using their payment service.');
+    return FALSE;
+  }
+
+  $paymenturl = 'https://secure.paymentclearing.com/cgi-bin/rc/xmltrans.cgi';
+  return xml_payment($form_values, $paymenturl, 'itransact_build_xml', 'itransact_decode_xml_response');
+}
+
+function itransact_build_xml(&$data){
+  $rssData = "xml=<?xml version=\"1.0\"?>\n";
+  $rssData .= "<SaleRequest>\n";
+  $rssData .= "<CustomerData>\n";
+  $rssData .= "<Email>1</Email>\n";
+  $rssData .= "<BillingAddress>\n";
+  $rssData .= "<Address1>1</Address1>\n";
+  $rssData .= "<FirstName>{$data['first_name']}</FirstName>\n";
+  $rssData .= "<LastName>{$data['last_name']}</LastName>\n";
+  $rssData .= "<City>1</City>\n";
+  $rssData .= "<State>1</State>\n";
+  $rssData .= "<Zip>1</Zip>\n";
+  $rssData .= "<Country>1</Country>\n";
+  $rssData .= "<Phone>1</Phone>\n";
+  $rssData .= "</BillingAddress>\n";
+  $rssData .= "<AccountInfo>\n";
+  $rssData .= "<CardInfo>\n";
+  $rssData .= "<CCNum>{$data['cardnumber']}</CCNum>\n";
+  $rssData .= "<CCMo>{$data['expiry']['expmonth']}</CCMo>\n";
+  $rssData .= "<CCYr>20{$data['expiry']['expyear']}</CCYr>\n";
+
+  if (isset($data['cvn']['illegible'])) {
+    $rssData .= "<CVV2Number>{$data['cvn']['number']}</CVV2Number>\n";
+
+    if ($data['cvn']['illegible']) {
+      $rssData .= "<CVV2Illegible>1</CVV2Illegible>\n";
+    }
+  }
+
+  $rssData .= "</CardInfo>\n";
+  $rssData .= "</AccountInfo>\n";
+  $rssData .= "</CustomerData>\n";
+  $rssData .= "<TransactionData>\n";
+
+  // ONLY include AuthCode for force transactions.  Please be careful
+  // with force transactions since accidental usage outside of test mode
+  // even with test card numbers could result in discount rate charges
+  if (!empty($data['auth_code'])) {
+    $rssData .= "<AuthCode>{$data['auth_code']}</AuthCode>\n";
+  }
+  // Enables PreAuth transactions
+  else if (!empty($data['preauth'])) {
+    $rssData .= "<Preauth/>\n";
+  }
+
+  $homepage = url('', NULL, NULL, TRUE);
+  
+  $rssData .= "<VendorId>{$data['clientid']}</VendorId>\n";
+  $rssData .= "<VendorPassword>{$data['clientpass']}</VendorPassword>\n";
+  $rssData .= "<HomePage>$homepage</HomePage>\n";
+  $rssData .= "<OrderItems>\n";
+
+  $rssData .= "<Item>\n";
+  $rssData .= "<Description>$homepage sale</Description>\n";
+  $rssData .= "<Cost>{$data['t']->gross}</Cost>\n";
+  $rssData .= "<Qty>1</Qty>\n";
+  $rssData .= "</Item>\n";
+  
+  $rssData .= "</OrderItems>\n";
+  $rssData .= "</TransactionData>\n";
+  $rssData .= "</SaleRequest>\n";
+
+  return $rssData;
+}
+
+function itransact_decode_xml_response(&$data, $response) {
+  $t =& $data['t'];
+  /* these left-hand side arguments must be filled in all payment
+   * modules to take advantage of the centralised code. */
+  if ($response['Status'] == 'OK' && $response['AuthCode'] != '') {
+    $t->payment->cc_amount = $response['Total'];
+    $t->payment->cc_refnum = $response['XID'];
+    $t->payment->cc_ordernum = $response['AuthCode'];
+    $t->payment->cc_reason = 'APPROVED';
+    return TRUE;
+  } else {
+    _itransact_error($response['ErrorCategory']);
+    $t->payment->cc_amount = '0.00';
+    $t->payment->cc_reason = $response['ErrorCategory'];
+    $t->payment->cc_refnum = -1;
+    $t->payment->logmsg = $response['ErrorMessage'];
+    return FALSE;
+  }
+}
+
+/**
+ * Sets the form error appropriate for the message supplied by iTransact.
+ *
+ * @param $error Error category supplied by iTransact.
+ * @return Message set in the form.
+ */
+function _itransact_error($error, $suppress = FALSE) {
+  switch($error) {
+    case 'INTERNAL_ERROR':
+      $msg = t('Payment attempted; Gateway error. Try again in a few minutes and if it still fails contact the system administrator.');
+      $field = 'foo';
+      break;
+    case 'PROCESSOR_ERROR':
+      $msg = t('Card declined');
+      $field = 'cardnumber';
+      break;
+    case 'REQUEST_FORMAT':
+    case 'REQUEST_VALIDATION':
+      $msg = t('Invalid XML Format. Contact the System Administrator. No transactions will be processed until this is fixed. Error code: ').$error;
+      $field = 'clientid';
+      break;
+    case 'AVS_FAILURE':
+      $msg = t('Payment attempted; Invalid address supplied');
+      $field = 'address';
+      break;
+    case 'CVV2_FAILURE':
+      $msg = t('Payment attempted; Invalid CVN provided');
+      $field = 'cvn';
+      break;
+    default:
+      $msg = $error;
+      $field = 'other';
+  }
+
+  form_set_error($field, $msg);
+
+  return $msg;
+}

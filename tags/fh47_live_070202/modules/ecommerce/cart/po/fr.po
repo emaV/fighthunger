@@ -1,0 +1,196 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Cart Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-11-01 12:42+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: cart.module:13
+msgid "Shopping Cart"
+msgstr "Panier"
+
+#: cart.module:25
+#: ;70
+msgid "Shopping cart"
+msgstr "Panier"
+
+#: cart.module:25
+msgid "View your cart items."
+msgstr "Voir le contenu de votre panier"
+
+#: cart.module:32
+msgid "Hide block if cart is empty"
+msgstr "Cacher le bloc si le panier est vide"
+
+#: cart.module:55
+msgid "Ecommerce shopping cart."
+msgstr "Panier E-Commerce."
+
+#: cart.module:57
+msgid "This form is used to control the order the pages are viewed in the checkout process. Number the order you would like these screens to appear."
+msgstr "Ce formulaire vous permet de contrôler le déroulement des pages affichées durant le processus de commande. Vous devez affecter un numéro à chaque page afin de spécifier son ordre d'apparition."
+
+#: cart.module:74
+msgid "checkout"
+msgstr "commande"
+
+#: cart.module:128
+msgid "View your cart"
+msgstr "Voir le contenu de votre panier"
+
+#: cart.module:134
+msgid "item"
+msgstr "article"
+
+#: cart.module:134
+msgid "items"
+msgstr "articles"
+
+#: cart.module:136
+msgid "%item_count %item_suffix in %your_cart"
+msgstr "%item_count %item_suffix dans %your_cart"
+
+#: cart.module:136
+msgid "your cart"
+msgstr "votre panier"
+
+#: cart.module:146
+msgid "Ready to <a href=\"%checkout-url\">checkout</a>?"
+msgstr "Prêt à <a href=\"%checkout-url\">commander</a> ?"
+
+#: cart.module:160
+#: ;493
+msgid "Items"
+msgstr "Articles"
+
+#: cart.module:160
+msgid "Qty."
+msgstr "Qté."
+
+#: cart.module:175
+msgid "Remove"
+msgstr "Supprimer"
+
+#: cart.module:179
+msgid "Subtotal:"
+msgstr "Sous total :"
+
+#: cart.module:180
+#: ;235
+msgid "Update quantity"
+msgstr "Mettre à jour les quantités"
+
+#: cart.module:180
+msgid "Checkout"
+msgstr "Commander"
+
+#: cart.module:186
+msgid "Your shopping cart is empty. You may continue shopping from our %product-page."
+msgstr "Votre panier est vide. Vous pouvez visiter notre %product-page."
+
+#: cart.module:186
+msgid "product page"
+msgstr "page produits"
+
+#: cart.module:319
+msgid "Please review and submit your order"
+msgstr "Merci de vérifier et de confirmer votre commande"
+
+#: cart.module:346
+msgid "Login or <a href=\"%reg-link\">register</a> to continue the checkout process"
+msgstr "Veuillez vous connecter ou <a href=\"%reg-link\">vous enregistrer</a> pour continuer votre commande"
+
+#: cart.module:359
+msgid "Your shopping cart"
+msgstr "Votre panier"
+
+#: cart.module:373
+#: ;400
+msgid "Update screen order"
+msgstr "Mettre à jour le déroulement des pages"
+
+#: cart.module:376
+msgid "The screen order has been saved."
+msgstr "Le déroulement des pages a été sauvegardé."
+
+#: cart.module:383
+#: ;391
+msgid "Screen order"
+msgstr "Ordre des pages"
+
+#: cart.module:391
+msgid "Module"
+msgstr "Module"
+
+#: cart.module:474
+msgid "Place your order"
+msgstr "Passer votre commande"
+
+#: cart.module:486
+msgid "The following items are in your order"
+msgstr "Votre commande contient les articles suivants"
+
+#: cart.module:490
+msgid "%order of <b>%title</b> at %price each"
+msgstr "%order de <b>%title</b> au prix de %price pièce"
+
+#: cart.module:490
+msgid "Update or delete?"
+msgstr "Modifier ou supprimer ?"
+
+#: cart.module:496
+msgid "<strong>Subtotal</strong>: %subtotal<br />"
+msgstr "<strong>Sous Total</strong> : %subtotal<br />"
+
+#: cart.module:498
+msgid "<strong>Shipping cost</strong>: %shipping-cost<br />"
+msgstr "<strong>Frais d'envoi</strong> : %shipping-cost<br />"
+
+#: cart.module:500
+msgid "<strong>Total</strong>: %total<br />"
+msgstr "<strong>Total</strong> : %total<br />"
+
+#: cart.module:502
+msgid "Order Summary"
+msgstr "Résumé de la commande"
+
+#: cart.module:555
+msgid "Your order has been submitted."
+msgstr "Votre commande a été effectuée."
+
+#: cart.module:599
+msgid "<strong>%product-title</strong> added to <a href=\"%cart_view\">your shopping cart</a>"
+msgstr "<strong>%product-title</strong> ajouté à <a href=\"%cart_view\">votre panier</a>"
+
+#: cart.module:636
+msgid "Can't find your item in the database"
+msgstr "Le produit spécifié ne figure pas dans notre base produits."
+
+#: cart.module:661
+msgid "Your item(s) have been updated."
+msgstr "Article(s) mis à jour."
+
+#: cart.module:688
+msgid "Your item has been removed."
+msgstr "Article supprimé."
+
+#: cart.module:825
+msgid "Validation error, please try again.  If this error persists, please contact the site administrator."
+msgstr "Erreur de validation, veuillez réessayer. Si cette erreur persiste, merci de contacter les administrateurs du site."
+
+#: cart.module:490
+msgid "%count order"
+msgid_plural "%count orders"
+msgstr[0] "%count commande"
+msgstr[1] "%count commandes"
+
+#: cart.module:0
+msgid "cart"
+msgstr "panier"
+

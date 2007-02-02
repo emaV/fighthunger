@@ -1,0 +1,190 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Auction module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2006-01-12 19:31+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: auction.module:16
+msgid "Create auction products. Dependency: product.module"
+msgstr "Crea prodotti da mettere all'asta. Dipendenza: modulo prodotti (product.module)."
+
+#: auction.module:28
+#: ;165
+msgid "bid"
+msgstr "offerta"
+
+#: auction.module:31
+msgid "checkout"
+msgstr "vai alla cassa"
+
+#: auction.module:53
+msgid "Bidding closed"
+msgstr "Offerta conclusa"
+
+#: auction.module:56
+msgid "Bid now"
+msgstr "Effettua un'offerta"
+
+#: auction.module:56
+msgid "Place your bid for this item"
+msgstr "Fai la tua offerta per questo articolo"
+
+#: auction.module:68
+msgid "Auction items"
+msgstr "Articoli venduti all'asta"
+
+#: auction.module:68
+msgid "Pay for your winning auction items"
+msgstr "Paga i prodotti in asta"
+
+#: auction.module:82
+msgid "Please enter an expiration date."
+msgstr "Inserisci una data di scadenza."
+
+#: auction.module:89
+msgid "Invalid date specified."
+msgstr "Data  non valida."
+
+#: auction.module:96
+msgid "auction item"
+msgstr "articolo all'asta"
+
+#: auction.module:113
+msgid "Expiration date"
+msgstr "Data di scadenza"
+
+#: auction.module:113
+msgid "Enter the date this product is no longer open for bidding."
+msgstr "Digita la data in cui le offerte per questo prodotto verranno terminate."
+
+#: auction.module:151
+#: ;282
+msgid "Confirm bid"
+msgstr "Conferma l'offerta"
+
+#: auction.module:161
+#: ;332
+msgid "Pay for your items"
+msgstr "Paga i tuoi articoli"
+
+#: auction.module:196
+msgid "Checkout"
+msgstr "Vai alla cassa"
+
+#: auction.module:215
+msgid "Auction"
+msgstr "Asta"
+
+#: auction.module:216
+msgid "You have no winning items to pay for."
+msgstr "Non hai nessuna articolo in offerta da pagare."
+
+#: auction.module:244
+msgid "Bid history for  &quot;%product-name&quot;"
+msgstr "Cronologia offerta per questo &quot;%product-name&quot;"
+
+#: auction.module:246
+msgid "User"
+msgstr "Utente"
+
+#: auction.module:246
+msgid "Bid"
+msgstr "Offerta"
+
+#: auction.module:246
+msgid "Date of bid"
+msgstr "Data dell'offerta"
+
+#: auction.module:267
+msgid "This auction has ended."
+msgstr "Questa asta &egrave; terminata."
+
+#: auction.module:271
+msgid "Bidding on &quot;%product-name&quot;."
+msgstr "Offerta su %product-name&quot;."
+
+#: auction.module:274
+msgid "Enter an amount above %base-bid-amount."
+msgstr "Inserisci un importo superiore a %base-bid-amount."
+
+#: auction.module:280
+#: ;339
+msgid "Current bid:"
+msgstr "Offerta corrente:"
+
+#: auction.module:281
+msgid "Your bid:"
+msgstr "La tua offeta:"
+
+#: auction.module:295
+msgid "You must bid more than %current-price."
+msgstr "Devi fare un'offerta maggiore di %current-price."
+
+#: auction.module:299
+msgid "Script error."
+msgstr "Si &egrave; verificato un errore nello script."
+
+#: auction.module:303
+msgid "You must enter a price."
+msgstr "Devi inserire un prezzo."
+
+#: auction.module:315
+msgid "Your bid of %bid-amount has been placed."
+msgstr "La tua offerta di %bid-amount &egrave; stata fatta."
+
+#: auction.module:332
+msgid "You've already paid for this item."
+msgstr "Hai gi&agrave; pagato questo articolo."
+
+#: auction.module:335
+msgid "Place bid"
+msgstr "Fai un'offerta!"
+
+#: auction.module:341
+msgid "Time left:"
+msgstr "Tempo rimasto:"
+
+#: auction.module:344
+#: ;350
+msgid "High bidder:"
+msgstr "Migliore offerta:"
+
+#: auction.module:346
+msgid "(<a href=\"%bid-history-link\">%num-bids</a>)"
+msgstr "(<a href=\"%bid-history-link\">%num-bids</a>)"
+
+#: auction.module:347
+msgid "Bid history"
+msgstr "Cronologia delle offerte"
+
+#: auction.module:350
+msgid "none"
+msgstr "nessuno"
+
+#: auction.module:362
+msgid "Description"
+msgstr "Descrizione"
+
+#: auction.module:346
+msgid "1 previous bid"
+msgid_plural "%count previous bids"
+msgstr[0] "1 offerta precedente"
+msgstr[1] "%count offerte precedenti"
+
+#: auction.module:42
+msgid "place bids"
+msgstr "fai le offerte"
+
+#: auction.module:0
+msgid "auction"
+msgstr "asta"
+

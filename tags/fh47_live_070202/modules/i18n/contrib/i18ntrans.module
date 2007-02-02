@@ -1,0 +1,708 @@
+<?php
+// $Id: i18ntrans.module,v 1.1.2.1 2006/05/17 10:49:11 jareyero Exp $
+
+/**
+ * @i18trans.module
+ * This drupal module provides support for translate translatable
+ * - variables as defined in $i18n_variables.
+ * - string (as in admin/locale/string) 
+ * - nodes (as in /node/$nid/translation) 
+ * REQUIRE i18n.module, translation.module
+ * 
+ * GPL as usual emanuele_quinto@yahoo.it    
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function i18ntrans_help($section = 'admin/help#i18ntrans' ) {
+  switch ($section) {
+    case 'admin/help#i18ntrans' :
+      $output = t('<p>This module provides support for translatable variables. Maybe.</p>');
+      break;
+    case 'admin/modules#description' :
+      $output = t('Supports translatable variables, strings and nodes. <b>Requires i18n, translation, and locale module</b>' );
+      break;
+    case 'admin/i18ntrans/strings':
+      if( _i18n_get_lang() == variable_get('translation_default_language','en') )
+        return t("<p>It is often convenient to get the strings from your setup on the <a href=\"%export\">export page</a>, and use a desktop Gettext translation editor to edit the translations.  On this page you can search in the translated and untranslated strings, and the default English texts provided by Drupal.</p>", array("%export" => url("admin/locale/language/export")));
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+ // todo: set the permission
+function i18ntrans_perm() {
+  return array('manage translations');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function i18ntrans_access($op, $node) {
+  global $user;
+  return user_access('manage translations');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function i18ntrans_menu($may_cache) {
+  $items = array();
+  $access = user_access('manage translations');
+
+  if ($may_cache) {
+    $items[] = array('path' => 'admin/i18ntrans', 
+      'title' => t('translation'),
+      'callback' => 'i18ntrans_page_variables',
+      'type' => MENU_NORMAL_ITEM,
+      'access' => $access);
+    $items[] = array('path' => 'admin/i18ntrans/settings', 
+      'title' => t('settings') . ' (i18n)',
+      'callback' => 'i18ntrans_page_settings',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 2,
+      'access' => $access);      
+    $items[] = array('path' => 'admin/i18ntrans/strings', 
+      'title' => t('strings') . ' (l10n)',
+      'callback' => 'i18ntrans_page_strings',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 2,
+      'access' => true);
+    $items[] = array('path' => 'admin/i18ntrans/nodes', 
+      'title' => t('nodes') . ' (i18n)',
+      'callback' => 'i18ntrans_page_content',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 3,
+      'access' => $access);
+    $items[] = array('path' => 'admin/i18ntrans/profile', 
+      'title' => t('profile') . ' (i18n)',
+      'callback' => 'i18ntrans_page_profile',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 4,
+      'access' => $access);
+    $items[] = array('path' => 'admin/i18ntrans/menu', 
+      'title' => t('menu') . ' (l10n)',
+      'callback' => 'i18ntrans_page_menu',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 5,
+      'access' => $access);
+  }
+  return $items;
+}
+
+/***
+ * Generate HTML from a variable 
+ ***/ 
+function _i18ntrans_html($var, $parent="", $indent=1) { 
+  $output =  "\n<div class=\"array_tree\" id=\"array_tree_$indent\">\n";
+  switch (gettype($var)) { 
+    case "array":
+      foreach($var as $key => $val) { 
+        $output .= "<b>".htmlspecialchars($key)."</b>";
+        $output .= "<div class=\"array_tree_element\" id=\"array_tree_element_$indent\" style=\"margin-left: 10px\">";
+        $output .= _i18ntrans_html($val, "$parent,$key", $indent++);
+        $output .= "</div>";
+      }
+      break;
+    case "integer":
+    case "double":
+    case "boolean":
+    case "string":
+      $output .= "<code>" . htmlspecialchars($var) . "</code><br />";
+      break;
+    default:
+      $output .= "<b>($parent)</b> => ".gettype($var)."<br />";
+      break; 
+  }
+  $output .= "</div>\n";
+  return $output; 
+}
+
+
+/***
+ * Generate a form from a variable (like print_r)
+ * see http://wwww.php.net/manual/en/function.print-r.php#58811 
+ * @$i18n_var array specifies the variable to generate form for.
+ * @return a form corresponding to var.
+ ***/ 
+function _i18ntrans_form_var($i18n_var) { 
+
+  switch (gettype($i18n_var['untrans'])) { 
+    case "array":
+      $form = array(
+        '#value' => 'N/A'
+      );
+      break;
+    case "integer":
+    case "double":
+    case "boolean":
+      $form = array(
+        '#type' => 'textfield',
+        '#title' => t('translation'),
+        '#default_value' => $i18n_var['trans'],
+        '#required' =>FALSE,
+      );
+      break;
+    case "string":
+      $nrow = floor(strlen($i18n_var['untrans']) / 50);
+      $nrow = ($nrow>2) ? $nrow : 2;
+      $form = array(
+        '#type' => 'textarea',
+        '#title' => t('translation'),
+        '#default_value' => $i18n_var['trans'],
+        '#rows' => $nrow,
+        '#required' => FALSE
+      );
+      break;
+  }
+  return $form; 
+}
+
+
+/***
+ * Process variable form (i18ntrans_page_form).
+ ***/
+function i18ntrans_page_submit($form_id, $form_values) {
+  global $i18n_conf;
+  global $conf;
+
+  switch($form_values['type']) {
+    case 'variable' :
+      foreach ($form_values[i18n] as $key => $value) {
+        if($value['value']) {
+          variable_set($key, $value['value']);
+          $var_trans[$key] = $value['value'];
+        }
+      }
+      drupal_set_message(t('The configuration options have been saved.'));
+      break;
+  }
+}
+
+/***
+ * Call back to generate the variable page.
+ ***/
+function i18ntrans_page_variables() {
+  global $conf;
+  $lang = _i18n_get_lang();
+
+// load i18n variables
+  $i18n_variables = $conf['i18n_variables'];
+  $i18n_vars = array();
+  
+// load from table translated i18n variables
+  $result = db_query("SELECT * FROM {i18n_variable} WHERE language='%s'", $lang);
+  $variables_trans = array();
+  while ($variable = db_fetch_object($result)) {
+    $variables_trans[$variable->name] = unserialize($variable->value);
+  }
+
+// load from cache untranslated i18n variables
+  $cached = cache_get('variables:en');
+  $variables = unserialize($cached->data);
+  foreach($i18n_variables as $name) {
+    $i18n_vars[$name]['untrans'] = isset($variables[$name]) ? $variables[$name] : (isset($conf[$name]) ? $conf[$name] : '');
+    $i18n_vars[$name]['trans'] = isset($variables_trans[$name]) ? $variables_trans[$name] : '';
+  }  
+  
+// created form
+  $form['i18n'] = array(
+    '#type' => 'fieldset',
+    '#tree' => TRUE
+  );
+  foreach ($i18n_variables as $variable) {
+    $form['i18n']["$variable"] = array(
+      '#type' => 'fieldset',
+      '#title' => "$variable",
+      '#collapsible' => TRUE,
+      '#collapsed' => false,
+      '#weight' => -2,
+      '#tree' => TRUE
+    );
+    $form['i18n']["$variable"]['original'] = array(
+      '#type' => 'item',
+      '#title' => t('Original text'),
+      '#value' => _i18ntrans_html($i18n_vars[$variable]['untrans'], $variable),
+      '#weight' => -9
+    );
+    $form['i18n']["$variable"]['value'] = _i18ntrans_form_var($i18n_vars[$variable]);
+  }
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+    '#weight' => 9
+  );
+  $form['lang'] = array(
+    '#type' => 'value',
+    '#value' => _i18n_get_lang(),
+    '#weight' => 8
+  );
+  $form['type'] = array(
+    '#type' => 'value',
+    '#value' => 'variable',
+    '#weight' => 8
+  );
+  $content .= drupal_get_form('i18ntrans_page', $form);
+
+  drupal_set_title(t('translate') . ' - ' . t('variables'));
+  print theme('page', $content);
+}
+
+/**
+ * Process string editing form submissions.
+ * Saves all translations of strings submitted from 
+ * form i18ntrans_page_string_form
+ */
+function i18ntrans_page_string_submit($form_id, $form_values) {
+  $trans = $form_values['l10n'];
+  $lang = $form_values['lang'];
+  
+  foreach($trans as $lid => $arrval) {
+    if ($arrval['value']) {
+      $value = filter_xss_admin($arrval['value']);
+      $keyval[$lid] = $value;
+      $trans = db_fetch_object(db_query("SELECT translation FROM {locales_target} WHERE lid = %d AND locale = '%s'", $lid, $lang));
+      if (isset($trans->translation)) {
+        db_query("UPDATE {locales_target} SET translation = '%s' WHERE lid = %d AND locale = '%s'", $value, $lid, $lang);
+      } else {
+        db_query("INSERT INTO {locales_target} (lid, translation, locale) VALUES (%d, '%s', '%s')", $lid, $value, $lang);
+      }
+    }
+  }
+
+  // Refresh the locale cache.
+  locale_refresh_cache();
+  // Rebuild the menu, strings may have changed.
+  menu_rebuild();
+  
+  drupal_set_message(t('The strings have been saved.'));
+}
+
+/***
+ * Call back to generate
+ * user interface for string editing.
+ */
+function i18ntrans_page_strings() {
+  $lang_curr = _i18n_get_lang();
+  $lang_def = variable_get('translation_default_language','en');
+
+  if(!($lang_curr==$lang_def)) {
+    // generate SQL to retrive ONLY untranslated string
+    $join = "SELECT s.source, s.location, s.lid, t.translation, t.locale FROM {locales_source} s INNER JOIN {locales_target} t ON s.lid = t.lid ";
+    $where = "WHERE (t.translation = '') AND (t.locale = '%s')";
+    $orderby = "ORDER BY s.source";
+    $sql = "$join $where $orderby";
+    $arguments[] = _i18n_get_lang();
+    $string4page = 50;
+    $result = pager_query($sql, $string4page, 0, NULL, $arguments);
+  
+  // form generation
+    $form = array('#tree' => TRUE);
+    $form['l10n'] = array(
+      '#type' => 'fieldset'
+    );
+  
+  // iterate on paged result
+    while ($locale = db_fetch_object($result)) {
+      $lid = $locale->lid;
+      $source = $locale->source;
+      $translation = $locale->translation;
+      $title = "$lid  - " . check_plain(truncate_utf8($source, 50, FALSE, TRUE)); 
+      $form['l10n']["$lid"] = array(
+        '#type' => 'fieldset',
+        '#title' => "$title",
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+        '#weight' => 0
+      );
+      $form['l10n']["$lid"]['original'] = array(
+        '#type' => 'item',
+        '#title' => t('Original text'),
+        '#value' => check_plain($source),
+        '#weight' => 0
+      );
+      $form['l10n']["$lid"]['value'] = array(
+        '#type' => 'textarea',
+        '#title' => t('translation'),
+        '#default_value' => $translation,
+        '#rows' => 0,
+        '#required' => FALSE
+      );
+    }
+  
+    $form['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Submit'),
+      '#weight' => 9
+    );
+    $form['lang'] = array(
+      '#type' => 'value',
+      '#value' => _i18n_get_lang(),
+      '#weight' => 7
+    );
+    $form['type'] = array(
+      '#type' => 'value',
+      '#value' => 'string',
+      '#weight' => 7
+    );
+  
+  // add pager
+    if ($pager = theme('pager', NULL, $string4page, 0, $request)) {
+      $form['l10n']['pager'] = array(
+        '#value' => $pager,
+        '#weight' => 9
+      );
+    }
+    $output = drupal_get_form('i18ntrans_page_string', $form);
+  } else {
+    $output = locale_string_search();
+  }
+
+  drupal_set_title(t('translate') . ' - ' . t('strings'));
+  print theme('page', $output);
+}
+
+/**
+ * Menu callback: wrapper for content admin translations
+ * 
+ * Source language is default language, destination is current language
+ */
+function i18ntrans_page_content() {
+  $output = '';
+  $defaults = array('source_language' => i18n_default_language(), 'translation_language' => i18n_get_lang(), 'source_status' => TRANSLATION_STATUS_SOURCE);
+	$output .=  translation_node_admin_form($defaults);
+  return $output;  
+}
+
+/**
+ * Alter form for i18nprofile  && locale
+ */ 
+function i18ntrans_form_alter($form_id, &$form) {
+  global $base_url;
+
+  if( ($form_id == 'i18nprofile_field_form') || 
+      ($form_id == 'i18nprofile_category_form') ||
+      ($form_id == '_locale_string_edit') ) {
+     
+    // store in an hidden field referring page
+    $ref_current = substr($_SERVER['HTTP_REFERER'], strlen($base_url)+1);
+    if(empty($_POST)) {
+      $form['i18ntrans_return'] = array('#type' => 'hidden', '#value' => $ref_current);
+    } else {
+      $form['i18ntrans_return'] = array('#type' => 'hidden', '#value' => $_POST['edit']['i18ntrans_return']);
+    }
+    $form['#submit'] = (array)$form['#submit'] + array('i18ntrans_formaltered_submit' => array());
+  }
+}
+/**
+ *  custom profile field submit function (redirect to referrer page)
+ */ 
+function i18ntrans_formaltered_submit($form_id, $form_values) {
+  if(isset($form_values['i18ntrans_return'])) return $form_values['i18ntrans_return'];
+}
+
+/***
+ * Call back to generate
+ * user interface for field profile translation.
+ * use i18nprofile module
+ * alterning its form and submit queue   
+ */
+function i18ntrans_page_profile() {
+  $lang_curr = _i18n_get_lang();
+  return i18nprofile_translation_overview($lang_curr);
+}
+
+
+
+function i18ntrans_menu_overview_tree_rows($pid = 0, $depth = 0, $lang_curr='en') {
+  $parent_item = menu_get_item($pid);
+  $rows = array();
+
+  // Get languages and remove english from the list
+  $languages = i18n_supported_languages();
+  if($lang_curr=='en') {
+    unset($languages['en']);
+  } else {
+    foreach($languages as $key => $name) {
+      if($key<>$lang_curr) unset($languages[$key]);
+    }
+  }
+  foreach($languages as $key => $name) 
+    $languages[$key] = $key;
+  
+  if (isset($parent_item) && isset($parent_item['children'])) {
+    usort($parent_item['children'], '_menu_sort');
+    foreach ($parent_item['children'] as $mid) {
+      $item = menu_get_item($mid);
+      // Populate the title field AND use locale() on value
+//      locale($item['title']);
+      $title = check_plain(t($item['title'])); 
+      // adding indent
+      if ($depth > 0) {
+        $title = '-&nbsp;'. $title;
+        for ($i = 1; $i < $depth; $i++) {
+          $title = '&nbsp;&nbsp;'. $title;
+        }
+      }
+     
+      // get lid from locales_source
+      $lid = '';
+      if($lang_curr=='en') {
+        $sql = "SELECT s.lid FROM {locales_source} s WHERE s.source='%s'";
+        $result = db_query($sql, $item['title']);
+      } else {
+        $sql = "SELECT s.lid FROM {locales_source} s INNER JOIN {locales_target} t ON s.lid = t.lid WHERE t.translation='%s'";
+        $result = db_query($sql, $item['title']);
+        if (db_num_rows($result)==0) {
+          $sql = "SELECT s.lid FROM {locales_source} s WHERE s.source='%s'";
+          $result = db_query($sql, $item['title']);
+        }
+      }
+      $lid = db_result($result);
+      $operation = l(t('edit'), "admin/locale/string/edit/$lid");
+      
+      // get locales
+      $sql = "SELECT locale, translation FROM  {locales_target} WHERE lid=%d";
+      $result = db_query($sql, $lid);
+      $locales = $languages;
+      while ($array = db_fetch_array($result)) {
+        $locale = $array['locale'];
+        if (isset($languages[$locale]) && ($array['translation']<>''))
+          $locales[$locale] = "<em class='locale-untranslated'>$locale</em>";
+      }
+
+      // Call out translated items.
+      $trans_test = true;
+      foreach($languages as $key => $name) 
+        $trans_test &= ($languages[$key] == $locales[$key]);
+      $class = ($trans_test) ?  'menu-enabled' : 'menu-disabled';
+      $operation = l((($trans_test) ?  t('add') : t('edit')), "admin/locale/string/edit/$lid");
+
+      // Shows only enabled items
+      if ($item['type'] & (MENU_VISIBLE_IN_TREE | MENU_VISIBLE_IF_HAS_CHILDREN)) {
+        $rows[] = array(array('data' => $title, 'class' => $class),
+                        array('data' => implode(" | ", $locales), 'class' => $class),
+                        array('data' => "$operation", 'class' => $class));
+        $rows = array_merge($rows, i18ntrans_menu_overview_tree_rows($mid, $depth + 1, $lang_curr));
+      } else {
+        // Skip items that are hidden and locked; admins will never care about them.
+        $rows = array_merge($rows, i18ntrans_menu_overview_tree_rows($mid, $depth, $lang_curr));
+      }
+    }
+  }
+  return $rows;
+}
+
+function i18ntrans_menu_overview($lang_curr) {
+  $menu_queue = variable_get('translation_menu_queue',array());
+  $menu_list = menu_get_menu();
+
+  $header = array(t('Menu item'),  t('Locales'),  t('Operations'));
+
+// created form
+  $form['menu'] = array(
+    '#type' => 'fieldset',
+    '#tree' => TRUE
+  );
+  foreach ($menu_queue as $mid) {
+    $table = theme('table', $header, i18ntrans_menu_overview_tree_rows($mid, 0, $lang_curr));
+    
+    $form['menu']["$mid"] = array(
+      '#type' => 'fieldset',
+      '#title' => $menu_list['items'][$mid]['title'],
+      '#collapsible' => TRUE,
+      '#collapsed' => false,
+      '#weight' => -2,
+      '#tree' => TRUE
+    );
+    $form['menu']["$mid"]['table'] = array(
+      '#value' => $table
+    );
+  }
+  $output = drupal_get_form('i18ntrans_page_menu', $form);
+  return $output;
+}
+
+
+/***
+ * Call back to generate
+ * user interface for menu translation.
+ */   
+function i18ntrans_page_menu() {
+  
+  $lang_curr = _i18n_get_lang();
+  $output = i18ntrans_menu_overview($lang_curr);
+
+  drupal_set_title(t('translate') . ' - ' . t('menus'));
+  return $output;
+
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function i18ntrans_settings() {
+  $form['translation_default_language'] = array(
+	  '#type' => 'select',
+	  '#title' => t('default language'),
+	  '#default_value' => variable_get('translation_default_language','en'),
+	  '#options' => array_merge(array('' => ''), i18n_supported_languages()),
+	  '#description' => t('Langugage to be used as default in theme variable translation')
+  );
+
+  $menus = menu_get_root_menus();
+  $form['translation_menu_queue']= array(
+    '#type' => 'checkboxes',
+    '#title' => t('menu queue'),
+    '#default_value' => variable_get('translation_menu_queue',array()),
+    '#options' => $menus, 
+    '#description' => t('Menus to be translated in ALL languages')
+  );
+  $form['translation_settings_functions'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Settings functions'),
+    '#default_value' => variable_get('translation_settings_functions', ''),
+    '#rows' => 5,
+    '#cols' => 10,
+    '#description' => t('List of functions to extract translatable settings, one function per line. Leave empty for all settings functions'),
+    '#suffix' => '<p><small>'.t('Existing settings functions are:').'<pre>'. implode("\n", _i18ntrans_settings_functions(FALSE)).'</pre></small></p>'
+    );
+  return $form;
+}
+
+/**
+ * Menu callback: variable translations
+ */
+function i18ntrans_page_settings() {
+  $variables = variable_get('i18n_variables', array());
+  //var_dump($variables);
+	// Build settings form
+  //$form = module_invoke_all('settings');
+
+  $form = array();
+  foreach(_i18ntrans_settings_functions() as $function) {
+  	if(function_exists($function) && $result = $function()) {
+  		$form += i18ntrans_form_extract($result, $variables);
+  	}
+  }
+  //$form = i18ntrans_form_extract($form, $variables);
+  // Build settings form
+  $form['buttons']['submit'] = array('#type' => 'submit', '#value' => t('Save configuration') );
+  $form['buttons']['reset'] = array('#type' => 'submit', '#value' => t('Reset to defaults') );
+  
+  return drupal_get_form('i18ntrans_variables_form', $form);
+  //var_dump($form);
+}
+
+/**
+ * Process translated settings
+ * 
+ * Settings are only saved to conf array, so they're saved by i18n later
+ */
+function i18ntrans_variables_form_submit($form_id, $values) {
+  global $conf;
+  $op = isset($_POST['op']) ? $_POST['op'] : '';
+
+  // Exclude unnecessary elements.
+  unset($values['submit'], $values['reset'], $values['form_id']);
+
+  foreach ($values as $key => $value) {
+    if ($op == t('Reset to defaults')) {
+      unset($conf[$key]);
+    }
+    else {
+      if (is_array($value) && isset($values['array_filter'])) {
+        $value = array_keys(array_filter($value));
+      }
+      $conf[$key] = $value;
+    }
+  }
+  if ($op == t('Reset to defaults')) {
+    drupal_set_message(t('The configuration options have been reset to their default values.'));
+  }
+  else {
+    drupal_set_message(t('The configuration options have been saved.'));
+  }
+  menu_rebuild();	
+}
+/**
+ * Extracts fields of a form array
+ */
+function i18ntrans_form_extract($form, $variables) {
+  $result = array();
+  foreach(element_children($form) as $field) {
+    if ($form[$field]['#type'] == 'fieldset') {
+    	if($subform = i18ntrans_form_extract($form[$field], $variables)) {
+        $result = array_merge($result, $subform );
+      }
+    } elseif (in_array($field, $variables, TRUE)) {
+      $result[$field] = $form[$field];
+      //print "match:$field<br/>";
+      //var_dump($form[$field]);
+    }
+  }
+  return $result;
+}
+
+/**
+ * Returns settings functions to process
+ */ 
+function _i18ntrans_settings_functions($all = FALSE) {
+  if(!$all && $functions = variable_get('translation_settings_functions', '')) {
+  	$functions = explode("\n", $functions);
+    $functions = array_map("trim", $functions);
+  } else {
+	  $functions = array('system_view_general');
+    foreach (module_implements('settings') as $module) {
+     $functions[] = $module .'_settings';
+    }
+  }
+  return $functions;
+}
+
+/**
+ * Function i18n_get_links
+ * 
+ * Returns an array of links for all languages, with or without names/flags
+ * check for translations 
+ */
+function i18ntrans_get_links($path = '') {
+  $links = i18n_get_links($path);
+  $supported = i18n_supported_languages();
+  
+  if (arg(0) == 'node' && is_numeric(arg(1))) {
+    $nid = arg(1);
+    $trid = db_result(db_query("SELECT trid FROM {i18n_node} WHERE nid=%d", $nid));
+    if($trid) {
+      $result = db_query("SELECT language, nid FROM {i18n_node} WHERE trid=%d", $trid);
+      while ($row = db_fetch_array($result)) {
+        $link = $row['language'] . '/node/' . $row['nid'];
+        $links[$row['language']] = theme('i18n_link', $supported[$row['language']], $link, $row['language']);
+      }
+    } 
+  }
+  return $links;
+}
+
+/**
+ * Language block
+ * 
+ * This is not a simple language switcher:
+ * it knows very well nothing about translations
+ */
+function i18ntrans_block($op = 'list', $delta = 0) {
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('Language switcher (knows about translations');
+  }
+  elseif($op == 'view') {
+    $blocks['subject'] = t('Languages');
+    $blocks['content'] = theme('item_list', i18ntrans_get_links($_GET['q']));
+  }
+  return $blocks;
+}
+
+
+?>

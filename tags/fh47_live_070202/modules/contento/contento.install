@@ -1,0 +1,40 @@
+<?php
+// $Id: contento.install,v 1.1.2.1 2006/07/07 09:04:20 jareyero Exp $
+
+/**
+ * @file
+ * Installation for db table for ContentO.
+ */
+
+function contento_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $query = db_query("CREATE TABLE {content_type} ( " .
+                        "name VARCHAR(32) NOT NULL DEFAULT '', " .
+                        "base VARCHAR(32) NOT NULL DEFAULT '', " .
+                        "label VARCHAR(255) NOT NULL DEFAULT '', " .
+                        "description MEDIUMTEXT NOT NULL, " .
+                        "help MEDIUMTEXT NOT NULL, " .
+                        "has_title TINYINT(3) UNSIGNED NOT NULL DEFAULT '0', " .
+                        "title_label VARCHAR(255) NOT NULL DEFAULT '', " .
+                        "has_body TINYINT(3) UNSIGNED NOT NULL DEFAULT '0', " .
+                        "body_label VARCHAR(255) NOT NULL DEFAULT '', " .
+                        "PRIMARY KEY(name)" .
+                        ") /*!40100 DEFAULT CHARACTER SET utf8 */");
+      break;
+    case 'pgsql':
+      break;
+  }
+
+  if (!isset($query)) {
+    drupal_set_message(t('Please install the ContentO database tables manually.'));
+  }
+  else if ($query) {
+    drupal_set_message(t('ContentO database tables installed.'));
+  }
+  else {
+    drupal_set_message(t('ContentO database tables installation was unsuccessful.'));
+  }
+}
+?>

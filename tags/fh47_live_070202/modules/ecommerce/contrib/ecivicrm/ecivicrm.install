@@ -1,0 +1,48 @@
+<?php
+// $Id: ecivicrm.install,v 1.3 2006/05/09 12:23:36 gordon Exp $
+
+/**
+ * E-Commerce ecivicrm module schema
+ */
+function ecivicrm_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_transaction_ecivicrm} (
+        txnid int(10) unsigned NOT NULL default '0',
+        civicrm_cid int(10) unsigned NOT NULL default '0',
+        PRIMARY KEY  (txnid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_transaction_ecivicrm} (
+        txnid integer NOT NULL default '0',
+        civicrm_cid integer NOT NULL default '0',
+        PRIMARY KEY (txnid)
+      )");
+     break;
+  }
+}
+
+/*
+ * Updates
+ */
+
+/**
+ * update 1
+ *
+ * Change civicrm_uid to civicrm_cid which is a better name form this field.
+ */
+function ecivicrm_update_1() {
+  $ret = array();
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_transaction_ecivicrm} CHANGE civicrm_uid civicrm_cid INT(10) UNSIGNED NOT NULL DEFAULT '0'");
+      break;
+      
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}

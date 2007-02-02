@@ -370,9 +370,8 @@ function fhwalk_get_latlon($location) {
         implode("+", explode(" ", $location['city'])) . ',' .
         $country .
         "&output=csv&key=".variable_get('googlemap_api_key', '');
-  $result=file_get_contents("$location_geocode_gmap_url");     
-  $content=explode(",", $result);
-  $result=
+  $result  = file_get_contents("$location_geocode_gmap_url");     
+  $content = explode(",", $result);
 
 // Then only CITY
   if($content[0]<>200) {
@@ -387,12 +386,13 @@ function fhwalk_get_latlon($location) {
           implode("+", explode(" ", $location['city'])) . ',' .
           $country .
           "&output=csv&key=".variable_get('googlemap_api_key', '');
-    $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-    $content[4] = 'city';
+    $result  = file_get_contents("$location_geocode_gmap_url");     
+    $content = explode(",", $result);
+//    $content[4] = 'city';
 // Then only COUNTRY (?!)    
     if($content[0]<>200) {
       $msg  = "Error fetching CITY from google<br/>" ;
-      $msg .= print_r($location, true) . "<br/>";
+      $msg .= print_r($location, true) . "<br/>$result<br/>";
       $msg .= $location_geocode_gmap_url . "<br/>";
       $msg .= print_r($content, true) . "<br/>";
       watchdog('fhwalk', $msg, WATCHDOG_WARNING);
@@ -401,7 +401,7 @@ function fhwalk_get_latlon($location) {
             $country .
             "&output=csv&key=".variable_get('googlemap_api_key', '');
       $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-      $content[4] = 'country';
+//      $content[4] = 'country';
     } 
   }  
   return $content;

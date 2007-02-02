@@ -8,6 +8,11 @@
  * Dependencies
  *   fhwalk.module
  *     Only for the fhwalk_vocabulary variable
+ *  
+SQL queries on gathering_campaign
+
+ALTER TABLE `gathering_campaign` CHANGE `active` `status` INT( 2 ) NOT NULL DEFAULT '0';
+    
  */
 
 define('CAMPAIGN_STATUS_CLOSED', 0);
@@ -41,7 +46,7 @@ function fhcampaign_form_alter($form_id, &$form) {
     $campaign = $campaign ? (array)$campaign : array();
     $form['campaign']['shortname'] = array(
       '#type' => 'textfield', 
-      '#title' => t('Short name'), 
+      '#title' => t('Short name') . $tid, 
       '#default_value' => $campaign['shortname'], 
       '#maxlength' => 64, 
       '#required' => TRUE
@@ -133,7 +138,7 @@ function fhcampaign_taxonomy($op, $type, $object = NULL) {
         menu_rebuild();
         break;      
       case 'delete':
-        db_query("DELETE FROM {campaign} WHERE cid = %d", $object->tid);
+        db_query("DELETE FROM {gathering_campaign} WHERE camid = %d", $object->tid);
         menu_rebuild();
         break;
     }
@@ -141,9 +146,12 @@ function fhcampaign_taxonomy($op, $type, $object = NULL) {
 }
 
 /**
- * Loads campaign data for content types, ordered by date, latest first 
+ * Loads campaign data for content types, ordered by date, latest first
+ * FETCH ALSO USING ONLY node id  
  */
 function fhcampaign_node_get_campaigns($node) {
+  $nid = is_numeric($node) ? $node : $node->nid;
+
   $list = array();
   // If node has taxonomy, check all terms
   if (is_array($node->taxonomy)) {
@@ -161,10 +169,10 @@ function fhcampaign_node_get_campaigns($node) {
         $terms[] = db_escape_string($term);
       }
     }
-    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d AND t.tid IN ('".implode("','", $terms) ."') ORDER BY c.startdate DESC", _fhcampaign_vocabulary());
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.vid = %d AND t.tid IN ('".implode("','", $terms) ."') ORDER BY c.startdate DESC", _fhcampaign_vocabulary());
     //drupal_set_message("DEBUG: fhcampaign_node_get_campaigns:".implode('', $terms));
   } else {
-    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid INNER JOIN {term_node} tn ON t.tid = tn.tid WHERE tn.nid = %d ORDER BY c.startdate DESC", $node->nid);
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid INNER JOIN {term_node} tn ON t.tid = tn.tid WHERE tn.nid = %d ORDER BY c.startdate DESC", $nid);
   }
   while($campaign = db_fetch_object($result)) {
     $list[] = $campaign;
@@ -210,9 +218,9 @@ function fhcampaign_menu($may_cache) {
  */
 function fhcampaign_list($status = CAMPAIGN_STATUS_ACTIVE, $index = 'tid', $field = 'name') {
   if($status === FALSE) {
-    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", _fhcampaign_vocabulary());
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.vid = %d", _fhcampaign_vocabulary());
   } else {
-    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d AND c.status = '%d'", _fhcampaign_vocabulary(), $status);
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.vid = %d AND c.status = '%d'", _fhcampaign_vocabulary(), $status);
   }
   $list = array();
   while($campaign = db_fetch_object($result)) {
@@ -248,8 +256,8 @@ function fhcampaign_country_list($tid) {
  */
 function fhcampaign_save_campaign($campaign) {
   $campaign = (array)$campaign;
-  db_query("DELETE FROM {campaign} WHERE cid = %d", $campaign['tid']);
-  db_query("INSERT INTO {campaign}(cid, shortname, startdate, enddate, status) VALUES(%d, '%s', '%s', '%s', '%d')", $campaign['tid'], $campaign['shortname'], $campaign['startdate'], $campaign['enddate'], $campaign['status']);
+  db_query("DELETE FROM {gathering_campaign} WHERE camid = %d", $campaign['tid']);
+  db_query("INSERT INTO {gathering_campaign} (camid, shortname, startdate, enddate, status) VALUES(%d, '%s', '%s', '%s', '%d')", $campaign['tid'], $campaign['shortname'], $campaign['startdate'], $campaign['enddate'], $campaign['status']);
   drupal_set_message(t('The campaign data has been updated.'));
 }
 
@@ -257,14 +265,14 @@ function fhcampaign_save_campaign($campaign) {
  * Get latest date from active campaign
  */
 function fhcampaign_default_date() {
-  return db_result(db_query("SELECT MAX(startdate) FROM {campaign} WHERE status = %d", CAMPAIGN_STATUS_ACTIVE));
+  return db_result(db_query("SELECT MAX(startdate) FROM {gathering_campaign} WHERE status = %d", CAMPAIGN_STATUS_ACTIVE));
 }
 
 /**
  * Get campaign data
  */
 function fhcampaign_get_campaign($cid) {
-  return db_fetch_object(db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.tid = %d", $cid));
+  return db_fetch_object(db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.tid = %d", $cid));
 }
 
 /**
@@ -272,7 +280,7 @@ function fhcampaign_get_campaign($cid) {
  */
 function fhcampaign_get_all_campaigns() {
   $list = array();
-  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid");
+  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.vid = %d", _fhcampaign_vocabulary());
   while($campaign = db_fetch_object($result)) {
     $list[$campaign->tid] = $campaign;
   }

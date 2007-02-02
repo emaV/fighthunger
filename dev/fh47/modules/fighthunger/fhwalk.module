@@ -156,7 +156,7 @@ function fhwalk_access($op, $node) {
   if ($op == 'create') {
     if( user_access('administer walks') || 
         user_access('coordinate walks') ||
-        user_access('create multiple walks') )return true;
+        user_access('create multiple walks') ) return true;
     return ( user_access('create fhwalk') && (_fhwalk_get_walk_by_id($user->uid,$node->fhwalk_tid)==0) );   
   }
   if ($op == 'update') {
@@ -357,16 +357,18 @@ function fhwalk_update($node) {
 } 
 
 // Get Lat Long
+// check http://groups.drupal.org/node/781#comment-3908
 function fhwalk_get_latlon($location) {
   if(variable_get('googlemap_api_key', '')=='') return array(0,0,0,0,'NO api_key');
-// check http://groups.drupal.org/node/781#comment-3908
-  $countries = location_get_iso3166_list();
-  if($country=='uk') $country = 'gb';
-  $country = $countries[$location['country']];
+  
+  if($location['country']=='uk') $location['country'] = 'gb';
+  $country = fh_get_country_name($location['country']);
   if($province=$location['province']) {
     if (strlen($province) && $province != 'xx') {
       // chop off the 2-letter code and the '-' from the front of the value
       $province = substr($province, 3);
+    } else {
+      $province ='';
     }
   }
   

@@ -358,6 +358,7 @@ function fhwalk_update($node) {
 
 // Get Lat Long
 function fhwalk_get_latlon($location) {
+  if(variable_get('googlemap_api_key', '')=='') return array(0,0,0,0,'NO api_key');
 // check http://groups.drupal.org/node/781#comment-3908
   $countries = location_get_iso3166_list();
   if($country=='uk') $country = 'gb';
@@ -379,14 +380,14 @@ function fhwalk_get_latlon($location) {
           $country .
           "&output=csv&key=".variable_get('googlemap_api_key', '');
     $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-    $content[4] = 'city'
+    $content[4] = 'city';
 // Then only COUNTRY (?!)    
     if($content[0]<>200) {
       $location_geocode_gmap_url="http://maps.google.com/maps/geo?q=" . 
             $country .
             "&output=csv&key=".variable_get('googlemap_api_key', '');
       $content=explode(",", file_get_contents("$location_geocode_gmap_url"));
-      $content[4] = 'country'
+      $content[4] = 'country';
     } 
   }  
   return $content;

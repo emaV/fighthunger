@@ -371,7 +371,6 @@ function fhwalk_get_latlon($location) {
 
 if($content[0]<>200) {
 watchdog('fhwalk', "Fetching STREET from google: $location_geocode_gmap_url");
-if($content[0]<>200) {
   $msg  = "location['street']: " . $location['street'] . '<br />';
   $msg .= "location['city']: "   . $location['city'] . '<br />';
   $msg .= "country: $country<br />";
@@ -389,6 +388,7 @@ if($content[0]<>200) {
   $msg .= "$location_geocode_gmap_url<br/>";
   $msg .= print_r($coordinate, true);
   watchdog('fhwalk', "CITY RESULT from google: $msg");
+
 }
 
  return $content;

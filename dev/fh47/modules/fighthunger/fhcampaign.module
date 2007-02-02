@@ -272,7 +272,7 @@ function fhcampaign_get_campaign($cid) {
  */
 function fhcampaign_get_all_campaigns() {
   $list = array();
-  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", $vid);
+  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid");
   while($campaign = db_fetch_object($result)) {
     $list[$campaign->tid] = $campaign;
   }

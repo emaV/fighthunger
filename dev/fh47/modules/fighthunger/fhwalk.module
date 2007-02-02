@@ -368,7 +368,7 @@ function _fhwalk_geocode_google($street='', $city, $province='', $country) {
     $content = explode(",", $result);
     $content[4] = 'google';
   }
-watchdog('fhwalk', "GOOGLE: $location_geocode_gmap_url<br/>$result");
+watchdog('fhwalk', "GOOGLE: $location_geocode_gmap_url<br/>$result<br/>" . print_r($content,true));
   return $content; 
 }
 
@@ -406,7 +406,7 @@ function _fhwalk_geocode_geonames($city, $country) {
   } else {            // STOP !!!
     $content[0] = 0;
   }
-watchdog('fhwalk', "GEONAMES: $location_geonames_org_url<br/>$result");
+watchdog('fhwalk', "GEONAMES: $location_geonames_org_url<br/>$result<br/>" . print_r($content,true));
   return $content;
 }
 
@@ -443,6 +443,7 @@ function fhwalk_get_latlon($location) {
       }
     }
   }
+watchdog('fhwalk', "geocode: " . print_r($content,true));
   return $content;
 }
 

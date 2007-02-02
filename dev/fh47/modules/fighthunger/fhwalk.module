@@ -439,7 +439,7 @@ function fhwalk_get_latlon($location) {
       $content = _fhwalk_geocode_google('', $city, '', $country);
       if($content[0]<>200) {
         // Then geonames city, country
-        $content = _fhwalk_geocode_geonames($city, $country);
+        $content = _fhwalk_geocode_geonames($city, $location['country']);
       }
     }
   }

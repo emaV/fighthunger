@@ -4,34 +4,39 @@
 /**
  * @file
  * Campaign management
+ * 
+ * Dependencies
+ *   fhwalk.module
+ *     Only for the fhwalk_vocabulary variable
  */
 
 define('CAMPAIGN_STATUS_CLOSED', 0);
 define('CAMPAIGN_STATUS_POST', 1);
 define('CAMPAIGN_STATUS_ACTIVE', 2);
+
 /**
  * Implementation of hook_help().
  */
-function campaign_help($section) {
+function fhcampaign_help($section) {
   switch ($section) {
-    case 'admin/help#campaign':
+    case 'admin/help#fhcampaign':
       $output = '<p>'. t('The campaign module is used to create and manage <em>campaigns.') .'</p>';
       return $output;
     case 'admin/modules#description':
-      return t('Campaign management.');
+      return t('<strong>FH:</strong> Campaign management.');
     case 'node/add#campaign':
-      return t('Create a new Wtw campaign.');
+      return t('Create a new Wtw Campaign.');
   }
 }
 
 /**
  * Implementation of hook_form_alter().
  */
-function campaign_form_alter($form_id, &$form) {
-  if($form_id == 'taxonomy_form_term' && $form['vid']['#value'] == variable_get('campaign_vocabulary', 0)) {
+function fhcampaign_form_alter($form_id, &$form) {
+  if($form_id == 'taxonomy_form_term' && $form['vid']['#value'] == _fhcampaign_vocabulary()) {
     $form['campaign'] = array('#type' => 'fieldset', '#title' => t('Campaign'), '#weight' => -18);
     if(isset($form['tid']) && $tid = $form['tid']['#value']) {
-      $campaign = campaign_get_campaign($tid);
+      $campaign = fhcampaign_get_campaign($tid);
     }
     $campaign = $campaign ? (array)$campaign : array();
     $form['campaign']['shortname'] = array(
@@ -56,7 +61,7 @@ function campaign_form_alter($form_id, &$form) {
     $form['campaign']['status'] = array(
       '#type' => 'select', 
       '#title' => t('Status'), 
-      '#options' => _campaign_status(),
+      '#options' => _fhcampaign_status(),
       '#default_value' => $campaign['status'], 
       '#description' => $status_help
     );
@@ -64,17 +69,17 @@ function campaign_form_alter($form_id, &$form) {
   } elseif (isset($form['type']) && $type = $form['type']['#value']) {
     switch ($form_id) {
       case $type.'_node_settings':
-        $form['workflow']['campaign_support_'. $type] = array(
+        $form['workflow']['fhcampaign_support_'. $type] = array(
           '#type' => 'radios',
           '#title' => t('Campaigns'),
           '#options' => array(t('Disabled'), t('Enabled')),
-          '#default_value' => variable_get('campaign_support_'. $type, 0),
+          '#default_value' => variable_get('fhcampaign_support_'. $type, 0),
           '#description' => t('Enable campaigns for this content type'),
         );
         return $form;
       case $type.'_node_form':
-        if (variable_get('campaign_support_'.$type, 0) ) {
-          $form['#after_build'][] = 'campaign_check_taxonomy';
+        if (variable_get('fhcampaign_support_'.$type, 0) ) {
+          $form['#after_build'][] = 'fhcampaign_check_taxonomy';
         } 
         break;
         
@@ -85,11 +90,11 @@ function campaign_form_alter($form_id, &$form) {
 /**
  * Form callback: after build function for node forms
  */
-function campaign_check_taxonomy($form) {
+function fhcampaign_check_taxonomy($form) {
   // Bypass restrictions for some permissions
   if( user_access('administer campaigns') || isset($form['_administer'])) { 
     // Do nothing
-  } elseif(($vid = variable_get('campaign_vocabulary', 0)) && isset($form['taxonomy'][$vid])) {
+  } elseif(($vid = _fhcampaign_vocabulary()) && isset($form['taxonomy'][$vid])) {
     // Remove not permitted campaigns
     if($form['nid']['#value'] && $current = $form['taxonomy'][$vid]['#default_value']) {
       // Keep current value
@@ -100,7 +105,7 @@ function campaign_check_taxonomy($form) {
       }
     } else {
       // New node. Restrict to active campaigns
-      $form['taxonomy'][$vid]['#options'] = campaign_list(CAMPAIGN_STATUS_ACTIVE);
+      $form['taxonomy'][$vid]['#options'] = fhcampaign_list(CAMPAIGN_STATUS_ACTIVE);
       // Set default value if in query string
       if(isset($_REQUEST['campaign'])&& $cid = $_REQUEST['campaign']) {
         $options = $form['taxonomy'][$vid]['#options'];
@@ -118,13 +123,13 @@ function campaign_check_taxonomy($form) {
 /**
  * Implementation of hook_taxonomy()
  */
-function campaign_taxonomy($op, $type, $object = NULL) {
+function fhcampaign_taxonomy($op, $type, $object = NULL) {
   $object = $object ? (object)$object : NULL;
-  if($type == 'term' && $object->vid == variable_get('campaign_vocabulary', 0)) {
+  if($type == 'term' && $object->vid == _fhcampaign_vocabulary()) {
     switch($op) {
       case 'insert':
       case 'update':
-        campaign_save_campaign($object);
+        fhcampaign_save_campaign($object);
         menu_rebuild();
         break;      
       case 'delete':
@@ -138,9 +143,29 @@ function campaign_taxonomy($op, $type, $object = NULL) {
 /**
  * Loads campaign data for content types, ordered by date, latest first 
  */
-function campaign_node_get_campaigns($node) {
+function fhcampaign_node_get_campaigns($node) {
   $list = array();
-  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid INNER JOIN {term_node} tn ON t.tid = tn.tid WHERE tn.nid = %d ORDER BY c.startdate DESC", $node->nid);
+  // If node has taxonomy, check all terms
+  if (is_array($node->taxonomy)) {
+    $terms = array();
+    foreach ($node->taxonomy as $term) {
+      if (is_array($term)) {
+        foreach ($term as $tid) {
+          $terms[] = db_escape_string($tid);
+        }
+      }
+      else if (is_object($term)) {
+        $tems[] = db_escape_string($term->tid);
+      }
+      else if ($term) {
+        $terms[] = db_escape_string($term);
+      }
+    }
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d AND t.tid IN ('".implode("','", $terms) ."') ORDER BY c.startdate DESC", _fhcampaign_vocabulary());
+    //drupal_set_message("DEBUG: fhcampaign_node_get_campaigns:".implode('', $terms));
+  } else {
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid INNER JOIN {term_node} tn ON t.tid = tn.tid WHERE tn.nid = %d ORDER BY c.startdate DESC", $node->nid);
+  }
   while($campaign = db_fetch_object($result)) {
     $list[] = $campaign;
   }
@@ -150,60 +175,26 @@ function campaign_node_get_campaigns($node) {
 /**
  * Menu callback: Administer campaigns
  */
-function campaign_admin_campaigns() {
-  if($vid = variable_get('campaign_vocabulary', 0)) {
+function fhcampaign_admin_campaigns() {
+  if($vid = _fhcampaign_vocabulary()) {
     return taxonomy_overview_terms($vid);
   } else {
     drupal_set_message(t('You must set up the campaign vocabulary first'), 'error');
     drupal_goto('adming/settings/campaign');
   }
 }
-/**
- * Save campaign data
- */
-function campaign_save_campaign($campaign) {
-  $campaign = (array)$campaign;
-  db_query("DELETE FROM {campaign} WHERE cid = %d", $campaign['tid']);
-  db_query("INSERT INTO {campaign}(cid, shortname, startdate, enddate, status) VALUES(%d, '%s', '%s', '%s', '%d')", $campaign['tid'], $campaign['shortname'], $campaign['startdate'], $campaign['enddate'], $campaign['status']);
-  drupal_set_message(t('The campaign data has been updated.'));
-}
 
-/**
- * Get latest date from active campaign
- */
-function campaign_default_date() {
-  return db_result(db_query("SELECT MAX(startdate) FROM {campaign} WHERE status = %d", CAMPAIGN_STATUS_ACTIVE));
-}
-
-/**
- * Get campaign data
- */
-function campaign_get_campaign($cid) {
-  return db_fetch_object(db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.tid = %d", $cid));
-}
-
-/**
- * Get all campaigns
- */
-function campaign_get_all_campaigns() {
-  $list = array();
-  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", $vid);
-  while($campaign = db_fetch_object($result)) {
-    $list[$campaign->tid] = $campaign;
-  }
-  return $list;
-}
 /**
  * Implementation of hook_perm().
  */
-function campaign_perm() {
+function fhcampaign_perm() {
   return array('administer campaigns', 'coordinate campaigns');
 }
 
 /**
  * Implementation of hook_access().
  */
-function campaign_access($op, $node) {
+function fhcampaign_access($op, $node) {
   global $user;
 
   return user_access('administer campaigns');
@@ -212,193 +203,29 @@ function campaign_access($op, $node) {
 /**
  * Implementation of hook_menu().
  */
-function campaign_menu($may_cache) {
+function fhcampaign_menu($may_cache) {
   $items = array();
 
   if ($may_cache) {
     $items[] = array(
       'title' => t('campaigns'),
       'path' => 'admin/campaigns',
-      'callback' => 'campaign_admin_campaigns',
+      'callback' => 'fhcampaign_admin_campaigns',
       'access' => user_access('administer campaigns')
     );
-    /*
-    $items[] = array('path' => 'node/add/campaign', 'title' => t('campaign'),
-      'access' => user_access('administer campaigns'));
-    */
-    // Build campaign paths
-    /*
-    if ($vid = variable_get('campaign_vocabulary', 0)) {
-      $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", $vid);
-      while ($campaign = db_fetch_object($result)) {
-        $items[] = array(
-          'path' => $campaign->shortname,
-          'callback' => 'campaign_overview',
-          'callback arguments' => array($campaign->tid),
-          'access' => TRUE
-        );
-        $items[] = array(
-          'path' => "$campaign->shortname/overview",
-          'callback' => 'campaign_overview',
-          'callback arguments' => array($campaign->tid),
-          'title' => t('Overview'),
-          'type' => MENU_DEFAULT_LOCAL_TASK,
-          'weight' => 0,
-          'access' => TRUE
-        );
-        // More tabs for active campaigns
-        if ($campaign->status == 2) {
-          $items[] = array(
-            'path' => "$campaign->shortname/coordinate",
-            'callback' => 'fhwalk_coordinate',
-            'callback arguments' => array($campaign->tid),
-            'title' => t('Coordinate'),
-            'access' => user_access('coordinate campaigns'),
-            'weight' => 1,
-            'type' => MENU_LOCAL_TASK
-          );
-          $items[] = array(
-            'path' => "$campaign->shortname/administer",
-            'callback' => 'campaign_administer',
-            'callback arguments' => array($campaign->tid),
-            'title' => t('Administer'),
-            'access' => user_access('admininster campaigns'),
-            'weight' => 2,
-            'type' => MENU_LOCAL_TASK
-          );
-        }
-      }
-    }
-    */
   }
 
   return $items;
 }
 
 /**
- * Menu callback: campaign overview
- */
-function campaign_overview($cid, $country = NULL) {
-  $campaign = campaign_get_campaign($cid);
-  drupal_set_title($campaign->name);
-
-  // Campaign status
-  $overview['status'] = $campaign->status;
-
-  
-// Walk list
-  if( $country && $country != '-') {
-    $walk_list = _fhwalk_getwalks($cid, $country);
-    $overview['walk_list'] = $walk_list;
-  } else {
-    $walk_list = _fhwalk_getwalks($cid);
-  }
-
-// Map
-  $lat_max  = NULL;
-  $long_max = NULL;
-  $lat_min  = NULL;
-  $long_min = NULL;
-  foreach($walk_list as $key => $value) {
-    $lat_max  = ($lat_max)  ?  max($lat_max,  $value['latitude'])  : $value['latitude'];
-    $long_max = ($long_max) ?  max($long_max, $value['longitude']) : $value['longitude'];
-    $lat_min  = ($lat_min)  ?  min($lat_min,  $value['latitude'])  : $value['latitude'];
-    $long_min = ($long_min) ?  min($long_min, $value['longitude']) : $value['longitude'];
-  }
-/*      
-  $gmap_string = "[gmap |id=map |center=$gmap_center_lat, $gmap_center_long " .
-    "|zoom=$gmap_zoom |width=500px |height=400px |control=Small |type=Map " .
-    "|markers=blue::$gmap_markers]";
-*/ 
-
-  $gmap_array = _fhwalk_get_gmap_array($walk_list, $country);
-  $overview['gmap_array'] = $gmap_array ;
-//  $fhwalk_overview['gmap'] = gmap_draw_map($fhwalk_overview['gmap_array']);
-
-// Term
-  $overview['term'] = $campaign;
-
-
-  $country_list = array('' => '--') + campaign_country_list($cid);
-
-  $form['tid'] = array('#type' => 'hidden', '#value' => $cid);
-  $form['synonym'] = array('#type' => 'hidden', '#value' => $campaign->shortname);
-  $form['country'] = array(
-    '#type' => 'select',
-    '#title' => t('Select a country'),
-    '#options' => $country_list,
-    '#default_value' => $country,
-    '#attributes' => array('onchange' => 'submit()'),
-  );
-  $form['submit'] = array(
-    '#type' => 'submit', 
-    '#value' => t('Submit'), 
-    '#attributes' => array( 'style' => 'visibility:hidden' ) //trick to use fhwalk_overview_submit
-  );
-  $overview['country'] = $country;
-  $overview['country_search_form'] = $form;
-  $overview['country_search'] = drupal_get_form('campaign_switchcountry', $form);
-
-  $out = theme('fhwalk_overview_node', $overview);     
- 
-  return $out;
-}
-
-/**
- * Form callback
- */
-function campaign_switchcountry_submit($form_id, $form_values) {
-  $name = arg(0);
-  $type = arg(1);
-  $cid = $form_values['tid'];
-  $country = $form_values['country'];
-  if(!$country || $country = '-') {
-    return "$name/$type";
-  } else {
-    return "$name/$type/$country";
-  }
-}
-/**
- * Menu callback: campaign overview
- */
-function campaign_coordinate($cid, $country = '-') {
-  $campaign = campaign_get_campaign($cid);
-  return fhwalk_coordinate($campaign->shortname, $cid, $country);  
-}
-
-/**
- * Menu callback: campaign overview
- */
-function campaign_administer($cid, $country = '-') {
-  $campaign = campaign_get_campaign($cid);
-  return fhwalk_administer($campaign->shortname, $cid, $country);  
-}
-/**
- * Implementation of hook_settings()
- */
-function campaign_settings() {
-  // Select campaign vocabulary
-  $vocabularies = taxonomy_get_vocabularies();
-  foreach($vocabularies as $voc) {
-    $voc_options[$voc->vid] = "$voc->name";
-  }  
-  $form['campaign_vocabulary'] = array(
-    '#type' => 'radios', 
-    '#title' => t('campaign vocabulary'),
-    '#default_value' => variable_get('campaign_vocabulary', 0),
-    '#options' => $voc_options
-  );
-  return $form; 
-}
-
-/**
  * Get campaign list
  */
-function campaign_list($status = FALSE, $index = 'tid', $field = 'name') {
+function fhcampaign_list($status = FALSE, $index = 'tid', $field = 'name') {
   if($status === FALSE) {
-    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", variable_get('campaign_vocabulary', 0));
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", _fhcampaign_vocabulary());
   } else {
-    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d AND c.status = '%d'", variable_get('campaign_vocabulary', 0), $status);
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d AND c.status = '%d'", _fhcampaign_vocabulary(), $status);
   }
   $list = array();
   while($campaign = db_fetch_object($result)) {
@@ -413,7 +240,7 @@ function campaign_list($status = FALSE, $index = 'tid', $field = 'name') {
  * @param $tid taxonomy campaign tid
  * @return countries array
  */
-function campaign_country_list($tid) {
+function fhcampaign_country_list($tid) {
   $countries = array();
   $sql = "SELECT l.country FROM {location} l INNER JOIN {node} n ON n.nid = l.oid INNER JOIN {term_node} tn ON tn.nid = n.nid " .
     " WHERE l.type = 'node' AND tn.tid = %d";
@@ -425,6 +252,51 @@ function campaign_country_list($tid) {
 }
 
 /**
+ * @defgroup fh_database FH Database Layer
+ * @{
+ */
+
+/**
+ * Save campaign data
+ */
+function fhcampaign_save_campaign($campaign) {
+  $campaign = (array)$campaign;
+  db_query("DELETE FROM {campaign} WHERE cid = %d", $campaign['tid']);
+  db_query("INSERT INTO {campaign}(cid, shortname, startdate, enddate, status) VALUES(%d, '%s', '%s', '%s', '%d')", $campaign['tid'], $campaign['shortname'], $campaign['startdate'], $campaign['enddate'], $campaign['status']);
+  drupal_set_message(t('The campaign data has been updated.'));
+}
+
+/**
+ * Get latest date from active campaign
+ */
+function fhcampaign_default_date() {
+  return db_result(db_query("SELECT MAX(startdate) FROM {campaign} WHERE status = %d", CAMPAIGN_STATUS_ACTIVE));
+}
+
+/**
+ * Get campaign data
+ */
+function fhcampaign_get_campaign($cid) {
+  return db_fetch_object(db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.tid = %d", $cid));
+}
+
+/**
+ * Get all campaigns
+ */
+function fhcampaign_get_all_campaigns() {
+  $list = array();
+  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {campaign} c ON t.tid = c.cid WHERE t.vid = %d", $vid);
+  while($campaign = db_fetch_object($result)) {
+    $list[$campaign->tid] = $campaign;
+  }
+  return $list;
+}
+
+/**
+ * @} End of "defgroup fh_database".
+ */
+ 
+/**
  * Get campaign status
  *  
  * @param $sid  
@@ -432,7 +304,7 @@ function campaign_country_list($tid) {
  * @return 
  *    status or array of status (if $sid=-1)
  */ 
-function _campaign_status( $sid = -1) {
+function _fhcampaign_status( $sid = -1) {
   $options = array(
     CAMPAIGN_STATUS_CLOSED => t("Closed"),
     CAMPAIGN_STATUS_POST => t("Post Action"), 
@@ -444,3 +316,7 @@ function _campaign_status( $sid = -1) {
   }
 }
 
+// Return vocabulary id
+function _fhcampaign_vocabulary() {
+  return variable_get('fhwalk_vocabulary', 0);
+}

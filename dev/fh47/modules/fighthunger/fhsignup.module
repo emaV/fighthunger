@@ -61,11 +61,11 @@ function fhsignup_access($op, $node) {
   global $user;
 
   if ( ($op == 'create') || ($op == 'update') ) {
-    return user_access('create fhwalk');
+    return user_access('create walk');
   }
 
   if ($op == 'delete') {
-    return user_access('coordinate fhwalk');
+    return user_access('coordinate walks');
   }
 
   if ($op == 'view') {
@@ -120,7 +120,7 @@ function fhsignup_menu($may_cache) {
  * @ingroup fhsignup_core
  */
 function fhsignup_settings() {
-  $coords = _fhwalk_get_coordinators(); 
+  $coords = fhwalk_get_coordinators(); 
   $form['fhsignup_coordinator_default'] = array(
     '#type' => 'select', 
     '#title' => t('Coordinator'), 
@@ -197,7 +197,7 @@ function fhsignup_settings() {
 function fhsignup_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
 global $user;
 
-  if($node->type<>'fhwalk') return;
+  if($node->type != 'fhwalk') return;
 
   switch ($op) {
     case 'insert':
@@ -205,7 +205,7 @@ global $user;
 
       // Check for T&C changes (only coords and admins can change without blocking signup)    
       if( $node->signup_waiver <> $node->signup_waiver_old) {
-        if( user_access('coordinate fhwalk') || user_access('admin fhwalk') ) {
+        if( user_access('coordinate walks') || user_access('administer walks') ) {
           drupal_set_message(t('This walk T&C changed.'));
         } else {
           drupal_set_message(t('This walk T&C pending for approval. Signup disabled until then.'));
@@ -481,7 +481,7 @@ global $user;
                   2 => t('only invitation'),
                   3 => t('blocked event (contact your walk coordinator)'));
   if($i==-1) {
-    if(! (user_access('coordinate fhwalk') || user_access('admin fhwalk')) ) unset($status[3]); 
+    if(! (user_access('coordinate walks') || user_access('administer walks')) ) unset($status[3]); 
     return $status;
   } else {
     return $status[$i];
@@ -504,7 +504,7 @@ $node = node_load($nid);
   if($user->uid) {
     switch ($op) {
       case 'admin signup':
-        $access = ($user->uid==$node->uid) || user_access('coordinate fhwalk') || user_access('admin fhwalk');
+        $access = ($user->uid==$node->uid) || user_access('coordinate walks') || user_access('administer walks');
       break;
     }
   } else {
@@ -843,7 +843,7 @@ global $user;
   );
 
 //  if( ($node->signup_status==3) ) {
-  if( ($node->signup_status==3) && !(user_access('coordinate fhwalk') || user_access('admin fhwalk')) ) {
+  if( ($node->signup_status==3) && !(user_access('coordinate walks') || user_access('administer walks')) ) {
     $form['signup']['signup_status_msg'] = array(
       '#value' => '<h3>' . t('Signup for this walk is blocked. Contact your coordinator') . '</h3>',
     );

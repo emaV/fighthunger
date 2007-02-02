@@ -1,3 +1,7 @@
+
+
+
+/* Not needed anymore. Reusing gathering_campaign
 CREATE TABLE  `campaign` (
   `cid` int(10) NOT NULL,
   `shortname` varchar(64)  NOT NULL default '',
@@ -6,3 +10,4 @@ CREATE TABLE  `campaign` (
   `status` tinyint(4) NOT NULL default '0',
   PRIMARY KEY  (`cid`)
 ) DEFAULT CHARSET=utf8;
+*/

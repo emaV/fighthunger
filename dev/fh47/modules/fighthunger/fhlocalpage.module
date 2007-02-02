@@ -1,5 +1,5 @@
 <?php
-// $Id: fhwalk.module,v 0.1 2007/01/09 09:02:48 ema Exp $
+// $Id: fhlocalpage.module,v 0.1 2007/01/09 09:02:48 ema Exp $
 
 /**
  * @file
@@ -162,4 +162,36 @@ function fhlocalpage_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
       break;
       
   }
+}
+
+/**
+ * Get LCP nodes.
+ * 
+ * @param $country 
+ *   string (country)
+ * @param $tid 
+ *   integer (campaign)
+ * @return 
+ *   an array (indexed by language) with nid and title.
+ * 
+ * Note: moved from fhwalk
+ */
+function fhlocalpage_get_nodes($country, $tid) {
+  $sql = 'SELECT n.nid, n.title, i18n.language FROM {node} n ' .
+    ' INNER JOIN term_node tn ON tn.nid = n.nid ' .
+    " INNER JOIN location l ON l.oid = n.nid AND l.type = 'node'" .
+    ' INNER JOIN i18n_node i18n ON n.nid = i18n.nid ' .
+    "WHERE n.type = 'fhlocalpage' AND l.country='%s' AND tn.tid=%d";
+  $result=db_query($sql, $country, $tid);
+  $nodes = array();
+
+  while($row=db_fetch_array($result)) {
+    $nodes[$row['language']] = array(
+      'language' => _fhlocalpage_getlang($row['language']),
+      'nid'      => $row['nid'],
+      'title'    => $row['title'],
+      );
+  }
+
+  return $nodes;
 }

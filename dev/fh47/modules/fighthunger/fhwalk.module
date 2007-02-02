@@ -122,12 +122,13 @@ function fhwalk_node_info() {
  * @ingroup fhwalk_core
  */
 function fhwalk_perm() {
-  $out = array('join fhwalk',
-               'create fhwalk',
-               'create multiple fhwalk',
-               'coordinate fhwalk',
-               'admin fhwalk');
-  return $out;
+  return array(
+    'join walk', // was join fhwalk
+    'create walk', // was create fhwalk
+    'create multiple walk', // was create multiple fhwalk
+    'coordinate walks', // was coordinate fhwalk
+    'administer walks' // was admin fhwalk
+  ); 
 }
 
 /**
@@ -193,7 +194,7 @@ function fhwalk_menu($may_cache) {
     );
     */
     // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache
-    foreach(campaign_get_all_campaigns() as $campaign) {
+    foreach(fhcampaign_get_all_campaigns() as $campaign) {
       $items[] = array(
         'path' => $campaign->shortname,
         'callback' => 'fhwalk_overview',
@@ -306,7 +307,7 @@ function fhwalk_load($node) {
 */
   // Load campaign data.
 
-  if ($campaign = array_shift(campaign_node_get_campaigns($node))) {
+  if ($campaign = array_shift(fhcampaign_node_get_campaigns($node))) {
     $additions->fhwalk_tid = $campaign->tid;
     $additions->fhwalk_status = $campaign->status;
     $additions->campaign = $campaign;
@@ -420,26 +421,31 @@ function _fhwalk_get_alias_check($alias) {
  */
 function _fhwalk_get_alias($node) {
   // check if there is already an alias
-  $alias = db_result(db_query("SELECT dst FROM {url_alias} WHERE src='node/%d'",$node->nid));
-  
-  if (!($alias)) {
-    $pre = $node->H_syn;
-    $post = getRewriteString($node->location['city']);
-    
-// check plained $url
-    $alias = "$pre/$post";
-    if( !(drupal_lookup_path('source', $alias)) ) {
-// check with country    
-      $alias = $alias . '_' . $node->location['country'];
-      if( !(drupal_lookup_path('source', $alias)) ) {
-        $alias = $alias . '_' . $node->location['province'];
-        $i = 1;
-        for($i=0; drupal_lookup_path('source', "$alias_$i" ); $i++);
-        $alias =  "$alias_$i";
+  if ($alias = drupal_lookup_path('alias', 'node/'.$node->nid)) {
+    return $alias;
+  } else {
+      $campaign = array_shift(fhcampaign_node_get_campaigns($node));
+      $prefix = $campaign->shortname;
+      $country = getRewriteString(fh_get_country_name($node->location['country']));
+      $city = getRewriteString($node->location['city']);
+      
+      if($prefix && $country && $city) {
+        $alias = "$prefix/$country/$city";
+        $province = ''; $sufix = ''; $i = 0;
+        while((drupal_lookup_path('source', $alias.$province.$sufix)) ) {
+          if(!$sufix && !$province && isset($node->location['province']) && $province = $node->location['province']) {
+            $province = '_'.$province;
+          } else {
+            $i++;
+            $sufix = '_'.$i;
+          }
+        }
+        return $alias.$province.$sufix;
+      } else {
+        drupal_set_message(t('Cannot build walk path alias'), 'error');
+        drupal_set_message("DEBUG: prefix = $prefix country = $country city = $city");
       }
-    }
   } 
-  return $alias;
 }
 
 /**
@@ -447,16 +453,16 @@ function _fhwalk_get_alias($node) {
  *  
  * @ingroup fhwalk_core
  */ 
-function fhwalk_submit($node) {
-// recover end date
+function fhwalk_submit(&$node) {
+  // recover end date
   $node->end_day  =  $node->start_day;
   $node->end_month = $node->start_month;
   $node->end_year =  $node->start_year;
   
-// get path alias
-  $node->path =  _fhwalk_get_alias($node);
+  // Get path alias. Check for existing path before messing with aliases
+  if(!$node->path) $node->path =  _fhwalk_get_alias($node);
 
-// get latitude and longitude from google
+  // get latitude and longitude from google
   if( !($node->location['latitude'] && $node->location['longitude']) ) {
     $coordinate = fhwalk_get_latlon($node->location);
     if($coordinate[0]==200) {
@@ -471,10 +477,9 @@ function fhwalk_submit($node) {
 /**
  * Get coordinators.
  *  
- * @ingroup fhwalk_helpers
  * @return array of coordinators (user with 'coordinate fhwalk' permission)
  */ 
-function _fhwalk_get_coordinators() {
+function fhwalk_get_coordinators() {
   $sql = "SELECT DISTINCT u.uid, u.name FROM {users} u " . 
       "JOIN  {users_roles} ur ON u.uid=ur.uid " .
       "JOIN {permission} p ON ur.rid=p.rid " .
@@ -631,7 +636,7 @@ global $user;
         
     // Special data for administrators     
     if (user_access('admin fhwalk')) {
-      $coords = _fhwalk_get_coordinators(); 
+      $coords = fhwalk_get_coordinators(); 
       $coords[-1] = '[ MAKE A SELECTION ]';
       $form['organise']['cid'] = array(
         '#type' => 'select', 
@@ -736,13 +741,13 @@ global $user;
         $form['event_start']['date']['start_day']['#default_value']   = $day;
         $form['event_start']['date']['start_month']['#default_value'] = $month;
         $form['event_start']['date']['start_year']['#default_value']  = $year;
-      } elseif( ($vid = variable_get('campaign_vocabulary', 0)) 
+      } elseif( ($vid = variable_get('fhwalk_vocabulary', 0)) 
           && $tid = $form['taxonomy'][$vid]['#default_value'][0]
-          && $campaign = campaign_get_campaign($tid)) {
+          && $campaign = fhcampaign_get_campaign($tid)) {
         list($year, $month, $day) = explode("-", $campaign->startdate);
       } else {
         // Just set date from latest campaign
-        list($year, $month, $day) = explode("-", campaign_default_date());
+        list($year, $month, $day) = explode("-", fhcampaign_default_date());
       }
       // Further processing will be done on campaign module, after_build hook
     
@@ -981,21 +986,16 @@ function fhwalk_history_goto_submit($form_id, $form_values) {
   $nid = $form_values["walk_nid_" . $form_values['tid']];
   drupal_goto("node/$nid");
 }
+
 /**
  * Implementation of hook_view().
+ * 
  * Call all module hook but don't append to body
  * Save return value in $node->hook_view[$name]   *  
  *  
  * @ingroup fhwalk_core
  */
 function fhwalk_view($node, $teaser = FALSE, $page = FALSE) { 
-  static $recurse;
-  if($recurse) {
-    print "REcursing fhwalk_view: $recurse";
-    exit(0);
-  } 
-  $recurse = 1;
-  
   $node = (object)$node;
 
   $node = node_prepare($node, $teaser);
@@ -1034,7 +1034,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
     '#weight' => 0,
     '#value'  => $walk_details
   );
-  $recurse = 2;
+  
   switch ($node->fhwalk_status) {
     case 0:
     case 1:
@@ -1064,7 +1064,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
       );
       // Check for each campaign
       
-      foreach(campaign_get_all_campaigns() as $campaign) {
+      foreach(fhcampaign_get_all_campaigns() as $campaign) {
         //$status_variable = 'fhwalk_' . $term->tid . '_status';
         //$synonyms = taxonomy_get_synonyms($term->tid);
         //$synonym = $synonyms[0];
@@ -1118,26 +1118,26 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
 
   }  
 
-  $recurse = 3;
+
 // Theme details tabs
   $node->tabs['details'] = theme('fhwalk_tabs', $details);
-  $recurse = 4;
+
 // Theme action tabs
   $node->tabs['actions'] = theme('fhwalk_tabs', $actions);
-$recurse = 5;
+
 // Fetch and theme Country Partners
   $node->partners_country = fhpartner_node_get_partners($node->nid, NULL, 'country');
   $node->CP = theme('fhpartner_list', $node->partners_country); 
-$recurse = 6;
+
 // Fetch LCP nids and titles and theme
 
-  $LCP_list = fhwalk_LCP_get_nodes($node->location['country'], $node->fhwalk_tid);
+  $LCP_list = fhlocalpage_get_nodes($node->location['country'], $node->fhwalk_tid);
   $node->tabs['LCP'] = theme('fhwalk_LCP',$LCP_list);
 
-$recurse = 7;  
+ 
 // Set footer tabs (only history now)
   $node->tabs['footer'] = theme('fhwalk_tabs', $footers);
-  $recurse = 0;
+
 }
 
 /**
@@ -1598,10 +1598,10 @@ global $user;
     '#default_value' => ($sql_array['country'] ? $sql_array['country'] : ''), 
   );
   
-  $coords = _fhwalk_get_coordinators();
+  $coords = fhwalk_get_coordinators();
   $coords['all'] = '< ALL >'; 
   $coords['none'] = '< WITHOUT COORDINATOR >';
-//  $coords = array_merge($coords, _fhwalk_get_coordinators());
+//  $coords = array_merge($coords, fhwalk_get_coordinators());
 
   $form['walk_status']['search']['coordinator'] = array(
     '#type' => 'select',
@@ -1620,7 +1620,7 @@ global $user;
 /*
   $output .= "pippo dice ciao a tutti e stampa la request: $request";
   $output .= "e stampa la post: $post";
-  $output .= "e stampa i coord: " . print_r(_fhwalk_get_coordinators(), true);
+  $output .= "e stampa i coord: " . print_r(fhwalk_get_coordinators(), true);
 */
   return $output;
 }
@@ -1995,38 +1995,6 @@ function fhwalk_admin() {
  * Local Country Pages function and helpers
  *
  *******************************/  
-
-/**
- * Get LCP nodes.
- * 
- * @ingroup fhwalk_LCP
- * @param $country string (country)
- * @param $tid integer (campaign)
- * @return an array (indexed by language) with nid and title.
- */
-
-function fhwalk_LCP_get_nodes($country, $tid) {
-  $sql = 'SELECT n.nid, n.title, i18n.language FROM {node} n ' .
-    ' INNER JOIN term_node tn ON tn.nid = n.nid ' .
-    " INNER JOIN location l ON l.oid = n.nid AND l.type = 'node'" .
-    ' INNER JOIN i18n_node i18n ON n.nid = i18n.nid ' .
-    "WHERE n.type = 'fhlocalpage' AND l.country='%s' AND tn.tid=%d";
-  $result=db_query($sql, $country, $tid);
-  $nodes = array();
-
-  while($row=db_fetch_array($result)) {
-    $nodes[$row['language']] = array(
-      'language' => _fhlocalpage_getlang($row['language']),
-      'nid'      => $row['nid'],
-      'title'    => $row['title'],
-      );
-  }
-
-  return $nodes;
-}
-
-
-
 
 function theme_event_album_flash($node) {
 

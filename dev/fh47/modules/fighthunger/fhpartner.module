@@ -8,7 +8,7 @@
  * 
  * Dependencies:
  *  - event.module, uses some event API
- *  - gathering module
+ *  - fhwalk.module, for fhwalk_vocabulary
  *
  * Schema:
  *  partners_node, data for partner content type
@@ -189,7 +189,7 @@ function fhpartner_add() {
  *  create: each organiser (users who create a walk) can create a Local Partner; this user can set 'private' flag for this partner;
  *  edit/delete: organiser can edit own partners; users with 'manage Country partner' and 'manage Global partner' permission can edit as well;
  *  select (on editing walk): 'private' partners are available only to creators, users with 'manage Global partner' and 'manage Country partner' can overrule. 
- *  Note: 'manage Global partner' is associated to 'admin fhwalk', and 'manage Country partner' to 'coordinate fhwalk' in roles. 
+ *  Note: 'manage Global partner' is associated to 'administer walks', and 'manage Country partner' to 'coordinate walks' in roles. 
  */
 function fhpartner_access($op, $node) {
   global $user;
@@ -733,4 +733,9 @@ function theme_fhpartner_list($partners) {
   }
   $out_partners .= "</div>";
   return $out_partners;
+}
+
+// Campaign vocabulary
+function _fhpartner_vocabulary() {
+  
 }

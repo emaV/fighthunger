@@ -415,8 +415,8 @@ watchdog('fhwalk', "GEONAMES: $location_geonames_org_url<br/>$result");
 function fhwalk_get_latlon($location) {
   
 // urlencode all
-  $street   = rawurlencode(utf8_encode($location['street']));
-  $city     = rawurlencode(utf8_encode($location['city']));
+  $street   = urlencode(utf8_encode($location['street']));
+  $city     = rlencode(utf8_encode($location['city']));
    if($province=$location['province']) {
     if (strlen($province) && $province != 'xx') {
       // chop off the 2-letter code and the '-' from the front of the value
@@ -426,7 +426,7 @@ function fhwalk_get_latlon($location) {
     }
   }
   if($location['country']=='uk') $location['country'] = 'gb';
-  $country = rawurlencode(utf8_encode(fh_get_country_name($location['country'])));
+  $country = urlencode(utf8_encode(fh_get_country_name($location['country'])));
   
 // Try fetching GOOGLE street, city, province, country
   $content = _fhwalk_geocode_google($street, $city, $province, $country);

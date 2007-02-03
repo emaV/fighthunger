@@ -153,26 +153,29 @@ function _fhwalk_get_walk_by_id($uid,$tid) {
 function fhwalk_access($op, $node) {
   global $user;
 
-  if ($op == 'create') {
-    if( user_access('administer walks') || 
-        user_access('coordinate walks') ||
-        user_access('create multiple walks') ) return true;
-    return ( user_access('create fhwalk') && (_fhwalk_get_walk_by_id($user->uid,$node->fhwalk_tid)==0) );   
-  }
-  if ($op == 'update') {
-    return (user_access('administer walks') || 
-            user_access('coordinate walks') ||
-            ($user->uid == $node->uid));
-  }
-
-  if ($op == 'delete') {
-    return (user_access('administer walks') || 
-            user_access('coordinate walks') ||
-            ($user->uid == $node->uid));
-  }
-
-  if ($op == 'view') {
-    return TRUE;
+  switch ($op) {
+    case 'create':
+      return (  user_access('administer walks') || 
+                 user_access('coordinate walks') ||
+                 user_access('create multiple walks') ||
+                 (  $node->fhwalk_tid && user_access('create walk') && 
+                    (_fhwalk_get_walk_by_id($user->uid,$node->fhwalk_tid)==0) 
+                 )
+              );
+      break;
+    case 'update':
+      return (user_access('administer walks') || 
+              user_access('coordinate walks') ||
+              ($user->uid == $node->uid));
+      break;
+    case 'delete':
+      return (user_access('administer walks') || 
+              user_access('coordinate walks') ||
+              ($user->uid == $node->uid));
+      break;
+    case 'view':
+      return TRUE;
+      break;    
   }
 }
 
@@ -186,6 +189,7 @@ function fhwalk_menu($may_cache) {
 
   if ($may_cache) {
     // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache
+    $node = new StdClass();
     foreach(fhcampaign_get_all_campaigns() as $campaign) {
       $items[] = array(
         'path' => $campaign->shortname,
@@ -204,6 +208,13 @@ function fhwalk_menu($may_cache) {
       );
       // More tabs for active campaigns
       if ($campaign->status == CAMPAIGN_STATUS_ACTIVE) {
+        $node->fhwalk_tid = $campaign->tid;
+        $items[] = array(
+          'path' => "node/add/fhwalk/" . $campaign->tid, 
+          'title' => t('walk'),
+          'callback' => 'fhwalk_add',
+          'access' => fhwalk_access('create', $node)
+        );    
         $items[] = array(
           'path' => "$campaign->shortname/coordinate",
           'callback' => 'fhwalk_coordinate',
@@ -273,6 +284,32 @@ function fhwalk_settings() {
   );
   
   return $form;
+}
+
+/**
+ * Implementation of node_add().
+ *  
+ * @ingroup fhwalk_core
+ */ 
+function fhwalk_add() {
+  global $user;
+  $output = '';
+  
+  if (arg(3)) {
+    $fhwalk_tid = arg(3);
+
+    // Initialize settings
+    $node = array(
+      'uid' => $user->uid, 
+      'name' => $user->name, 
+      'fhwalk_tid' => $fhwalk_tid,
+      'type' => 'fhwalk'
+    );
+
+    $output = node_form($node);
+    drupal_set_title(t('Submit %name', array('%name' => node_get_name($node))));
+  }
+  return $output;
 }
 
 /**
@@ -353,7 +390,7 @@ function fhwalk_update($node) {
     if($value<>0) db_query($sql, $node->nid, $key, $value);
   }
 */
-//drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
+drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
 } 
 
 function _fhwalk_geocode_google($street='', $city, $province='', $country) {
@@ -386,7 +423,7 @@ watchdog('fhwalk', "GOOGLE: $location_geocode_gmap_url<br/>$result<br/>" . print
 function _fhwalk_geocode_geonames($city, $country) {
   $location_geonames_org_url = "http://ws.geonames.org/postalCodeSearchJSON?" .
     "placename=$city&country=$country&maxRows=1";
-  $result  = file_get_contents("$location_geonames_org_url");
+//  $result  = file_get_contents("$location_geonames_org_url");
   
   $result_tmp =  substr($result, 1, -1);                // strip curly braces
   $result_array_tmp = split(":", $result_tmp, 2);       // split in two
@@ -653,7 +690,6 @@ global $user;
   }
   $form['H_organiser'] = array('#type' => 'hidden', '#value' => $node->name ? $node->name : '');
   $form['H_coordinator'] = array('#type' => 'hidden', '#value' => $node->cid ? $node->cid : '');
-
   
   // general settings
   $form['title'] = array(
@@ -683,6 +719,7 @@ global $user;
     '#description' => t("Describe the general route for your walk, including approximate length and any landmarks."),
     '#weight' => -6,
   );
+  $form['fhwalk_tid'] = array('#type' => 'hidden', '#value' => $node->fhwalk_tid);
 
 
 // set walk organiser and walk coordinator form
@@ -1288,6 +1325,7 @@ function theme_fhwalk_btn_create($url) {
  * @return HTML code
  */
 function theme_fhwalk_overview_node($fhwalk_overview) {
+global $user;
 
 // Map
   $out = gmap_draw_map($fhwalk_overview['gmap_array']);
@@ -1302,23 +1340,25 @@ function theme_fhwalk_overview_node($fhwalk_overview) {
   $out .= theme('fhwalk_walklist', $fhwalk_overview['walk_list']);
 
 // Create event
-  if($fhwalk_overview['status']==2) {
-    $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
-    if($fhwalk_overview['country']<>'-') {
-      $uri .= '/' . $fhwalk_overview['country'];
-      if($fhwalk_overview['walk_list']) {
-        $create_msg = t("Don't see an event near you?"). "&nbsp;";
+  if(($user->uid) && (user_access('create multiple walks') || (_fhwalk_get_walk_by_id($user->uid,$tid)==0)) ) {
+    if($fhwalk_overview['status']==2) {
+      $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
+      if($fhwalk_overview['country']<>'-') {
+        $uri .= '/' . $fhwalk_overview['country'];
+        if($fhwalk_overview['walk_list']) {
+          $create_msg = t("Don't see an event near you?"). "&nbsp;";
+        } else {
+          $create_msg = t("Don't see an event in this country?"). "&nbsp;";
+        }
       } else {
-        $create_msg = t("Don't see an event in this country?"). "&nbsp;";
+        $create_msg = t("Create an event!"). "&nbsp;";
       }
-    } else {
-      $create_msg = t("Create an event!"). "&nbsp;";
+      $create_link = l(t('Click here to start your own!'),$uri);
+      $out .= $create_msg . $create_link;
+      $out .= theme("fhwalk_btn_create",$uri);
     }
-    $create_link = l(t('Click here to start your own!'),$uri);
-    $out .= $create_msg . $create_link;
-    $out .= theme("fhwalk_btn_create",$uri);
   }
-
+  
   return $out;  
 }
 
@@ -1415,8 +1455,8 @@ function fhwalk_overview($synonym, $tid, $country = '-' ) {
 // Walk status
   $status = variable_get("fhwalk_" . $tid . "_status", 0);
   $fhwalk_overview['status'] = $status;
+  $fhwalk_overview['tid'] = $tid;
 
-  
 // Walk list
   if( $country && $country != '-') {
     $walk_list = _fhwalk_getwalks($tid, $country);

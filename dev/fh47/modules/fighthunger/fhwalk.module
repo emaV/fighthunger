@@ -236,6 +236,15 @@ function fhwalk_menu($may_cache) {
       }
     }    
   } else {
+    $items[] = array(
+      'path' => 'fh_provinces_autocomplete', 
+      'title' => t('provinces autocomplete'),
+      'callback' => 'fhwalk_provinces_autocomplete', 
+      'access' => true, 
+      'type' => MENU_CALLBACK
+    );
+
+
     // Add options for walks
     if (arg(0) == 'node' && is_numeric(arg(1)) && $node = node_load(arg(1))) {
       if (($node->type == 'fhwalk') && ($node->fhwalk_status==2)) {
@@ -797,6 +806,7 @@ global $user;
  * @return provinces array related to the country
  */
 function _fhwalk_countryprovinces($country='zzz') {
+  $options_list = array();
   $province_listing_function = 'location_province_list_'. $country;
   // Trying to return options in case of only 1 country is configured into system or if $country != null
   if (function_exists($province_listing_function)) {
@@ -878,7 +888,12 @@ global $user;
       if( ($country = $form['location']['country']['#default_value']) && $country != '-') {
         $form['location']['province']['#options'] = _fhwalk_countryprovinces($country);
       }
-     
+
+// Set js
+$path = drupal_get_path('module', 'fhwalk');
+drupal_add_js($path . '/fh_provinces.js');
+$form['location']['country']['#attributes']['autocomplete_path'] = url('fh_provinces_autocomplete', NULL,  NULL, TRUE);     
+
       unset( $form['event_start']['date']['start_hour']['#prefix'] );
       unset( $form['event_start']['date']['start_day']['#prefix'] );
       unset( $form['event_end']['date']['end_hour']['#prefix'] );
@@ -1119,6 +1134,12 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
     $node->body_hooked .= $node->body;
     $node->body = '';
   }
+
+// Set js
+  $path = drupal_get_path('module', 'fhwalk');
+  drupal_add_js($path . '/click_info.js');
+  $words = array('walk' => 'rocks');
+  $node->body_plain = click_info_make($node->body_plain, $words);
  
   $node->hook_view_array = $return;
   $node->body = $node->body_plain;
@@ -1249,6 +1270,16 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
   $node->tabs['footer'] = theme('fhwalk_tabs', $footers);
 
 }
+
+function click_info_make($text, $words) {
+  foreach ($words as $word => $message) {
+    $text = str_replace ($word, '<span class="clickInfo" title="' . $message . '">' . $word . '</span>', $text);
+  }
+  return $text;
+}
+
+
+
 
 /**
  * Themed walk list.
@@ -2008,6 +2039,49 @@ function fhwalk_admin_submit($form_id, $form_values) {
 }
 
 /**
+ * list of walk without latitude and longitude
+ *   
+ * @ingroup fhwalk_helpers
+ */  
+function _fhwalk_campaign_NOgeocode_table ($tid) {
+
+  $header = array(
+    array('data' => t('Event'),     'field' => 'title'),
+    array('data' => t('City'),      'field' => 'city'),
+    array('data' => t('Country'),   'field' => 'cname', 'sort' => 'asc')
+  );
+
+  $sql = "SELECT n.nid, n.title, l.city, c.name AS country FROM node n " . 
+    "JOIN term_node tn ON n.nid = tn.nid " .
+    "LEFT JOIN location l ON n.nid = l.oid " .
+    "LEFT JOIN countries c ON UPPER( l.country ) = c.ccid " .
+    "WHERE l.type = 'node' AND " . 
+    "( (l.latitude IS NULL AND l.longitude IS NULL) OR " . 
+    "  (l.latitude =0 AND l.longitude =0) ) AND " .
+    "tid=%d";
+    
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL, $tid);
+  
+  while ($walk = db_fetch_object($result)) {
+    $rows[] = array('data' => array(
+        l($walk->title, 'node/' . $walk->nid),
+        $walk->city,
+        $walk->country));
+  }
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 5));
+  }
+  
+  $output .= '<h2>' . t("Walk you're coordinating") . ': ' . db_num_rows($result) . '</h2>';
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+
+  return $output;
+}
+
+
+/**
  * fhwalk admin page.
  *  
  * @ingroup fhwalk_core
@@ -2191,6 +2265,20 @@ function fhwalk_get_photos($node, $instructions=NULL) {
   }
   return $out;
 }
+
+/**
+ * Get provinces for autocomplete and options
+ * @param   $country
+ * @return  provinces arrays js filtered
+ * @ingroup fhwalk_helpers 
+ *  
+ */
+function fhwalk_provinces_autocomplete($country) {
+  $provinces = (array)_fhwalk_countryprovinces($country);
+  print drupal_to_js($provinces);
+  exit();
+}
+
 
 /* gmap key
 dev.fighthunger.org 

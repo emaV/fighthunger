@@ -24,11 +24,20 @@
   ALTER TABLE `partners_node` ADD `country` CHAR( 2 ) NOT NULL AFTER `paud`;   
  */     
 /*
--- More updates
+-- Add primary key
   ALTER TABLE `partners_node` ADD PRIMARY KEY(nid);
+-- Complete entries in partners_node table  
   INSERT IGNORE INTO partners_node(nid, crmid, ptid, paud, active) 
   SELECT n.nid, 0, 'NGO', 'GLOBAL', 1 FROM node n WHERE n.type = 'partner';
+-- Add field for revenue sharing
+ALTER TABLE `partners_node`
+ ADD COLUMN `revenue` TINYINT  NOT NULL DEFAULT 0 AFTER `active`;
  */
+
+define('PARTNER_AUDIENCE_GLOBAL', 'GLOBAL');
+define('PARTNER_AUDIENCE_COUNTRY', 'COUNTRY');
+define('PARTNER_AUDIENCE_LOCAL', 'LOCAL');
+
 /**
  * Implementation of hook_help().
  */
@@ -98,7 +107,7 @@ function theme_partner_block_content($partners) {
   foreach($partners as $nid => $name) {
     $node = node_load($nid);
     $out .= "<div class='item-partner'><a href='node/$nid'>\n";
-    $out .= "<img src='".$node->logosmall."'><br/>\n";
+    $out .= "<img src='".file_create_url($node->logosmall)."'><br/>\n";
     $out .= "$name\n";
     $out .= "</a></div>\n";
   }
@@ -308,7 +317,15 @@ function fhpartner_form(&$node) {
       '#description' => t('Enter partner country audience.'),
       '#required' => ($audience != 'GLOBAL') // Country required only for LOCAL, COUNTRY partners
   );
-
+  if($audience == PARTNER_AUDIENCE_LOCAL) {
+     $form['ptype']['revenue'] = array('#type' => 'checkbox',
+      '#title' => t('Revenue sharing'),
+      '#default_value' => $node->revenue,
+      '#description' => t('Enable revenue sharing. Only for local partners.')
+    );
+  } else {
+    $form['revenue'] = array('#type' => 'value', '#value' => 0);
+  }
   // Partners status
   $form['active'] = array(
     '#type' => 'radios',
@@ -504,7 +521,7 @@ function fhpartner_load($node) {
 
 function fhpartner_view(&$node, $teaser = FALSE, $page = FALSE) {
   $node->body = "<div class='partner_description'>".
-                "<img src='".$node->logolarge."' class='partnerimage' align='right'>".$node->body.
+                "<img src='".file_create_url($node->logolarge)."' class='partnerimage' align='right'>".$node->body.
                 "</div>";
   
   $rs = db_query("SELECT n.nid FROM {partners_partners} pp LEFT JOIN {node} n ON pp.nid = n.nid WHERE pp.pid=%d",$node->nid);
@@ -769,7 +786,8 @@ function _fhpartner_get_fields() {
     'logolarge' =>  '',
     'startdate' =>  '0000-00-00',
     'enddate' =>  '0000-00-00',
-    'active' =>  '0'
+    'active' =>  '0',
+    'revenue' => '0' // Revenue sharing flag
   );
 }
 
@@ -795,7 +813,7 @@ function theme_fhpartner_list($partners) {
   $out_partners = "<div class=\"partner_list\">";
   if($partners) {
     foreach($partners as $key => $value) {
-      $img = "<img src='$value->logosmall' width='75' height='75' vspace='5' hspace='5'>";
+      $img = "<img src=\"".file_create_url($value->logosmall)."\" width='75' height='75' vspace='5' hspace='5'>";
       $out_partners .= l($img, "node/$key", NULL, NULL, NULL, NULL, TRUE);
       $out_partners .= '<br />';
       $out_partners .= l($value->title, "node/$key");
@@ -807,5 +825,5 @@ function theme_fhpartner_list($partners) {
 
 // Campaign vocabulary
 function _fhpartner_vocabulary() {
-  
+  return variable_get('fhwalk_vocabulary', 0);
 }

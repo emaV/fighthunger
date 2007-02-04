@@ -1,3 +1,5 @@
+// Use table gathering_campaign. Change field
+ALTER TABLE `gathering_campaign` CHANGE `active` `status` INT( 2 ) NOT NULL DEFAULT '0';
 
 
 

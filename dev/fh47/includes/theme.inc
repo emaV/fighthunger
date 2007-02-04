@@ -1,5 +1,5 @@
 <?php
-// $Id: theme.inc,v 1.292.2.6 2006/08/24 00:04:05 unconed Exp $
+// $Id: theme.inc,v 1.292.2.8 2007/01/29 21:39:27 killes Exp $
 
 /**
  * @file
@@ -417,7 +417,7 @@ function theme_page($content) {
   $output .= "\n<!-- end content -->\n";
 
   $output .= '</td></tr></table>';
-  $output .= theme_closure();
+  $output .= theme('closure');
   $output .= '</body></html>';
 
   return $output;
@@ -626,10 +626,10 @@ function theme_form_element($title, $value, $description = NULL, $id = NULL, $re
 
   if ($title) {
     if ($id) {
-      $output .= ' <label for="'. form_clean_id($id) .'">'. t('%title: %required', array('%title' => $title, '%required' => $required)) . "</label>\n";
+      $output .= ' <label for="'. form_clean_id($id) .'">'. t('%title: %required', array('%title' => filter_xss_admin($title), '%required' => $required)) . "</label>\n";
     }
     else {
-      $output .= ' <label>'. t('%title: %required', array('%title' => $title, '%required' => $required)) . "</label>\n";
+      $output .= ' <label>'. t('%title: %required', array('%title' => filter_xss_admin($title), '%required' => $required)) . "</label>\n";
     }
   }
 

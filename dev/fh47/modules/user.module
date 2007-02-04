@@ -1,5 +1,5 @@
 <?php
-// $Id: user.module,v 1.612.2.16 2006/08/02 18:13:27 killes Exp $
+// $Id: user.module,v 1.612.2.28 2007/01/29 19:37:48 killes Exp $
 
 /**
  * @file
@@ -552,10 +552,6 @@ function user_block($op = 'list', $delta = 0, $edit = array()) {
       case 0:
         // For usability's sake, avoid showing two login forms on one page.
         if (!$user->uid && !(arg(0) == 'user' && !is_numeric(arg(1)))) {
-          // Unset the time, if any. This prevents a 404 if a user relogs in
-          // on the page they were sent to when they logged out. See
-          // user_login_submit() for explanation of the time parameter.
-          unset($_GET['time']);
           $form['#action'] = url($_GET['q'], drupal_get_destination());
           $form['#id'] = 'user-login-form';
           $form['name'] = array('#type' => 'textfield',
@@ -566,6 +562,7 @@ function user_block($op = 'list', $delta = 0, $edit = array()) {
           );
           $form['pass'] = array('#type' => 'password',
             '#title' => t('Password'),
+            '#maxlength' => 60,
             '#size' => 15,
             '#required' => TRUE,
           );
@@ -802,7 +799,6 @@ function user_menu($may_cache) {
       'weight' => 10);
   }
   else {
-    /*
     if (arg(0) == 'user' && is_numeric(arg(1)) && arg(1) > 0) {
       $account = user_load(array('uid' => arg(1)));
 
@@ -840,7 +836,6 @@ function user_menu($may_cache) {
         }
       }
     }
-    */
   }
 
   return $items;
@@ -895,10 +890,9 @@ function user_auth_help_links() {
 function user_login($msg = '') {
   global $user, $base_url;
 
-  // If we are already logged on, go to the user
-  // page instead. The added time prevents caching.
+  // If we are already logged on, go to the user page instead
   if ($user->uid) {
-    drupal_goto('user/'. $user->uid, 'time='. time());
+    drupal_goto('user/'. $user->uid);
   }
 
   // Display login form:
@@ -969,13 +963,8 @@ function user_login_submit($form_id, $form_values) {
 
     user_module_invoke('login', $form_values, $user);
 
-    $old_session_id = session_id();
-    session_regenerate_id();
-    db_query("UPDATE {sessions} SET sid = '%s' WHERE sid = '%s'", session_id(), $old_session_id);
-
-    // Create a timestamped final URL so that browsers don't return the user to
-    // a cached page (where it would appear as if they never logged in or out).
-    return array($_REQUEST['destination'], 'time='. time());
+    sess_regenerate();
+    return 'user/'. $user->uid;
   }
 }
 
@@ -1041,8 +1030,7 @@ function user_logout() {
   // We have to use $GLOBALS to unset a global variable:
   $user = user_load(array('uid' => 0));
 
-  // The time prevents caching.
-  drupal_goto(NULL, 'time='. time());
+  drupal_goto();
 }
 
 function user_pass() {
@@ -1182,10 +1170,9 @@ function user_register() {
 
   $admin = user_access('administer users');
 
-  // If we aren't admin but already logged on, go to the
-  // user page instead. The added time prevents caching.
+  // If we aren't admin but already logged on, go to the user page instead.
   if (!$admin && $user->uid) {
-    drupal_goto('user/'. $user->uid, 'time='. time());
+    drupal_goto('user/'. $user->uid);
   }
 
   // Display the registration form.
@@ -1258,6 +1245,8 @@ function user_register_submit($form_id, $form_values) {
     watchdog('security', t('Detected malicious attempt to alter protected user fields.'), WATCHDOG_WARNING);
     return 'user/register';
   }
+  //the unset below is needed to prevent these form values from being saved as user data
+  unset($form_values['form_token'], $form_values['submit'], $form_values['op'], $form_values['notify'], $form_values['form_id'], $form_values['affiliates'], $form_values['destination']);
 
   $account = user_save('', array_merge($form_values, array('pass' => $pass, 'init' => $mail, 'status' => ($admin || variable_get('user_register', 1) == 1))));
   watchdog('user', t('New user: %name %email.', array('%name' => theme('placeholder', $name), '%email' => theme('placeholder', '<'. $mail .'>'))), WATCHDOG_NOTICE, l(t('edit'), 'user/'. $account->uid .'/edit'));
@@ -1460,7 +1449,7 @@ function user_edit_validate($form_id, $form_values) {
 function user_edit_submit($form_id, $form_values) {
   $account = $form_values['_account'];
   $category = $form_values['_category'];
-  unset($form_values['_account'], $form_values['submit'], $form_values['delete'], $form_values['form_id'], $form_values['_category']);
+  unset($form_values['_account'], $form_values['op'], $form_values['submit'], $form_values['delete'], $form_values['form_token'], $form_values['form_id'], $form_values['_category']);
   user_module_invoke('submit', $form_values, $account, $category);
   user_save($account, $form_values, $category);
   // Delete that user's menu cache.
@@ -1686,7 +1675,7 @@ function _user_admin_access_form($edit) {
   $form['status'] = array(
     '#type' => 'radios',
     '#title' => t('Access type'),
-    '#default_value' => 0,
+    '#default_value' => $edit['status'],
     '#options' => array('1' => t('Allow'), '0' => t('Deny')),
   );
   $type_options = array('user' => t('Username'), 'mail' => t('E-mail'), 'host' => t('Host'));
@@ -1775,9 +1764,11 @@ function user_admin_perm($str_rids = NULL) {
   }
 
   // Compile role array:
-  $roles = array();
+  // Add a comma at the end so when searching for a permission, we can
+  // always search for "$perm," to make sure we do not confuse
+  // permissions that are substrings of each other.
   while ($role = db_fetch_object($result)) {
-    $role_permissions[$role->rid] = $role->perm;
+    $role_permissions[$role->rid] = $role->perm .',';
   }
 
   if($rids) {
@@ -1802,7 +1793,7 @@ function user_admin_perm($str_rids = NULL) {
         $form['permission'][$perm] = array('#type' => 'markup', '#value' => t($perm));
         foreach ($role_names as $rid => $name) {
           // Builds arrays for checked boxes for each role
-          if (strstr($role_permissions[$rid], $perm)) {
+          if (strpos($role_permissions[$rid], $perm .',') !== FALSE) {
             $status[$rid][] = $perm;
           }
         }
@@ -1881,67 +1872,72 @@ function user_admin_perm_submit($form_id, $edit) {
  * Menu callback: administer roles.
  */
 function user_admin_role() {
-  $edit = isset($_POST['edit']) ? $_POST['edit'] : '';
-  $op = isset($_POST['op']) ? $_POST['op'] : '';
   $id = arg(4);
-
-  if ($op == t('Save role')) {
-    // Check for a valid form token to protect against cross site request forgeries.
-    if (drupal_valid_token($edit['form_token'], 'user_admin_role', TRUE)) {
-      if ($edit['name']) {
-        db_query("UPDATE {role} SET name = '%s' WHERE rid = %d", $edit['name'], $id);
-        drupal_set_message(t('The changes have been saved.'));
-        drupal_goto('admin/access/roles');
-      }
-      else {
-        form_set_error('name', t('You must specify a valid role name.'));
-      }
-    }
-    else {
-      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
-    }
-  }
-  else if ($op == t('Delete role')) {
-    // Check for a valid form token to protect against cross site request forgeries.
-    if (drupal_valid_token($edit['form_token'], 'user_admin_role', TRUE)) {
-      db_query('DELETE FROM {role} WHERE rid = %d', $id);
-      db_query('DELETE FROM {permission} WHERE rid = %d', $id);
-      // Update the users who have this role set:
-      db_query('DELETE FROM {users_roles} WHERE rid = %d', $id);
-      drupal_set_message(t('The role has been deleted.'));
-      drupal_goto('admin/access/roles');
-    }
-    else {
-      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
-    }
-  }
-  else if ($op == t('Add role')) {
-    // Check for a valid form token to protect against cross site request forgeries.
-    if (drupal_valid_token($edit['form_token'], 'user_admin_new_role', TRUE)) {
-      if ($edit['name']) {
-        db_query("INSERT INTO {role} (name) VALUES ('%s')", $edit['name']);
-        drupal_set_message(t('The role has been added.'));
-        drupal_goto('admin/access/roles');
-      }
-      else {
-        form_set_error('name', t('You must specify a valid role name.'));
-      }
-    }
-    else {
-      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
-    }
-  }
-  else if ($id) {
-    // Display the role form.
+  if ($id) {
+    // Display role edit form.
     $role = db_fetch_object(db_query('SELECT * FROM {role} WHERE rid = %d', $id));
-    $form['name'] = array('#type' => 'textfield', '#title' => t('Role name'), '#default_value' => $role->name, '#size' => 30, '#maxlength' => 64, '#description' => t('The name for this role. Example: "moderator", "editorial board", "site architect".'));
+    $form['name'] = array('#type' => 'textfield', '#title' => t('Role name'), '#default_value' => $role->name, '#size' => 30, '#required' => TRUE, '#maxlength' => 64, '#description' => t('The name for this role. Example: "moderator", "editorial board", "site architect".'));
+    $form['rid'] = array('#type' => 'value', '#value' => $id);
     $form['submit'] = array('#type' => 'submit', '#value' => t('Save role'));
     $form['delete'] = array('#type' => 'submit', '#value' => t('Delete role'));
-    return drupal_get_form('user_admin_role', $form);
+    return drupal_get_form('user_admin_edit_role', $form);
   }
-  $form['name'] = array('#type' => 'textfield', '#size' => 32, '#maxlength' => 64);
-  $form['submit'] = array('#type' => 'submit', '#value' => t('Add role'));
-  return drupal_get_form('user_admin_new_role', $form);
+  else {
+    $form['name'] = array('#type' => 'textfield', '#size' => 32, '#maxlength' => 64);
+    $form['submit'] = array('#type' => 'submit', '#value' => t('Add role'));
+    return drupal_get_form('user_admin_new_role', $form);
+  }
+
+}
+
+function user_admin_edit_role_validate($form_id, $form_values) {
+  if (drupal_valid_token($form_values['form_token'], 'user_admin_edit_role', TRUE)) {
+    if (db_result(db_query("SELECT COUNT(*) FROM {role} WHERE name = '%s' AND rid != %d", $form_values['name'], $form_values['rid']))) {
+      form_set_error('name', t('The role name %name already exists. Please choose another role name.', array('%name' => $form_values['name'])));
+    }
+  }
+  else {
+    form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
+  }
+}
+
+function user_admin_edit_role_submit($form_id, $form_values) {
+  $op = isset($_POST['op']) ? $_POST['op'] : '';
+
+  if ($op == t('Save role')) {
+    db_query("UPDATE {role} SET name = '%s' WHERE rid = %d", $form_values['name'], $form_values['rid']);
+    drupal_set_message(t('The role has been renamed.'));
+  }
+  else if ($op == t('Delete role')) {
+    db_query('DELETE FROM {role} WHERE rid = %d', $form_values['rid']);
+    db_query('DELETE FROM {permission} WHERE rid = %d', $form_values['rid']);
+    // Update the users who have this role set:
+    db_query('DELETE FROM {users_roles} WHERE rid = %d', $form_values['rid']);
+    drupal_set_message(t('The role has been deleted.'));
+  }
+  return 'admin/access/roles';
+}
+
+function user_admin_new_role_validate($form_id, $form_values) {
+  if ($form_values['name']) {
+    if (drupal_valid_token($form_values['form_token'], 'user_admin_new_role', TRUE)) {
+      if (db_result(db_query("SELECT COUNT(*) FROM {role} WHERE name = '%s'", $form_values['name']))) {
+        form_set_error('name', t('The role name %name already exists. Please choose another role name.', array('%name' => $form_values['name'])));
+      }
+    }
+    else {
+      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
+    }
+  }
+  else {
+    form_set_error('name', t('You must specify a valid role name.'));
+  }
+}
+
+function user_admin_new_role_submit($form_id, $form_values) {
+  db_query("INSERT INTO {role} (name) VALUES ('%s')", $form_values['name']);
+  drupal_set_message(t('The role has been added.'));
+  return 'admin/access/roles';
 }
 
 function theme_user_admin_new_role($form) {
@@ -2156,9 +2152,11 @@ function _user_forms(&$edit, $account, $category, $hook = 'form') {
  */
 function user_autocomplete($string) {
   $matches = array();
-  $result = db_query_range("SELECT name FROM {users} WHERE LOWER(name) LIKE LOWER('%s%%')", $string, 0, 10);
-  while ($user = db_fetch_object($result)) {
-    $matches[$user->name] = check_plain($user->name);
+  if ($string) {
+    $result = db_query_range("SELECT name FROM {users} WHERE LOWER(name) LIKE LOWER('%s%%')", $string, 0, 10);
+    while ($user = db_fetch_object($result)) {
+      $matches[$user->name] = check_plain($user->name);
+   }
   }
   print drupal_to_js($matches);
   exit();

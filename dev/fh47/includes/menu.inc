@@ -1,5 +1,5 @@
 <?php
-// $Id: menu.inc,v 1.120.2.5 2006/07/07 08:35:21 killes Exp $
+// $Id: menu.inc,v 1.120.2.8 2006/12/11 17:30:36 killes Exp $
 
 /**
  * @file
@@ -534,7 +534,10 @@ function menu_get_active_breadcrumb() {
     return array();
   }
 
-  $links[] = l(t('Home'), variable_get('site_frontpage', 'node'));
+  // We do *not* want to use "variable_get('site_frontpage', 'node)" here
+  // as that will create the link '/node'. This is unsightly and creates
+  // a second URL for the homepage ('/' *and* '/node').
+  $links[] = l(t('Home'), '');
 
   $trail = _menu_get_active_trail();
   foreach ($trail as $mid) {
@@ -695,7 +698,7 @@ function theme_menu_item($mid, $children = '', $leaf = TRUE) {
  * @ingroup themeable
  */
 function theme_menu_item_link($item, $link_item) {
-  return l($item['title'], $link_item['path'], isset($item['description']) ? array('title' => $item['description']) : array());
+  return l($item['title'], $link_item['path'], !empty($item['description']) ? array('title' => $item['description']) : array());
 }
 
 /**
@@ -853,7 +856,7 @@ function menu_primary_links($start_level = 1, $pid = 0) {
   }
 
   // Special case - provide link to admin/menu if primary links is empty.
-  if (empty($links) && $start_level == 1 && $pid == variable_get('menu_primary_menu', 0)) {
+  if (empty($links) && $start_level == 1 && $pid == variable_get('menu_primary_menu', 0) && user_access('administer menu')) {
     $links['1-1'] = l(t('edit primary links'),'admin/menu');
   }
 

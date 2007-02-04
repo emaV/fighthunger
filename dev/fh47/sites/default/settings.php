@@ -135,6 +135,19 @@ ini_set('session.use_trans_sid',    0);
 ini_set('url_rewriter.tags',        '');
 
 /**
+ * We try to set the correct cookie domain. If you are experiencing problems
+ * try commenting out the code below or specifying the cookie domain by hand.
+ */
+if (isset($_SERVER['HTTP_HOST'])) {
+  $domain = '.'. preg_replace('`^www.`', '', $_SERVER['HTTP_HOST']);
+  // Per RFC 2109, cookie domains must contain at least one dot other than the
+  // first. For hosts such as 'localhost', we don't set a cookie domain.
+  if (count(explode('.', $domain)) > 2) {
+    ini_set('session.cookie_domain', $domain);
+  }
+}
+
+/**
  * Variable overrides:
  *
  * To override specific entries in the 'variable' table for this site,

@@ -5,12 +5,14 @@ if (isJsEnabled()) {
 
 function clickCountryProvince() {
   province = document.getElementById('edit-location-province');
+
   country  = document.getElementById('edit-location-country');
   uri = country.getAttribute("autocomplete_path");
 
   acdb = new ACDB(uri);
 
-  new jsAC(country, province, acdb);
+  ac = new jsAC(country, province, acdb);
+  if(province.selectedIndex<0)  ac.populateProvince();
 }
 
 /**
@@ -52,9 +54,9 @@ jsAC.prototype.found = function (matches) {
   }
   div_province = province.parentNode;
   if(j==0) {
-    div_province.setAttribute("style", "visibility:hidden;");
+    div_province.setAttribute("style", "display:none;");
   } else {
-    div_province.setAttribute("style", "visibility:show;");
+    div_province.setAttribute("style", "display:inline;");
   } 
   
 }

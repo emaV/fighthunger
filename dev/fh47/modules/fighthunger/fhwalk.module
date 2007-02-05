@@ -175,7 +175,10 @@ function fhwalk_access($op, $node) {
       break;
     case 'view':
       return TRUE;
-      break;    
+      break;
+    case 'merge':
+      return (user_access('administer walks') || user_access('coordinate walks'));
+      break;
   }
 }
 
@@ -252,7 +255,7 @@ function fhwalk_menu($may_cache) {
           'path' => 'node/'. arg(1) .'/walk_merge', 
           'title' => t('Walk Merge'),
           'callback' => 'fhwalk_merge',
-          'access' => node_access('delete', $node),
+          'access' => fhwalk_access('merge', $node),
           'weight' => 99,
           'type' => MENU_LOCAL_TASK
         );
@@ -283,14 +286,13 @@ function fhwalk_settings() {
     '#default_value' => variable_get('fhwalk_vocabulary', 0),
     '#options' => $voc_options
   );
-  $form['fhwalk_signup_waiver'] = array(
-    '#title' => t('Walk Standard Waiver'),
-    '#type' => 'textarea',
-    '#cols' => 75,
-    '#rows' => 15,
-    '#default_value' => variable_get('fhwalk_signup_waiver', ''),
-    '#description' => t("Standard insurance waiver text."),
+  $form['fhwalk_signup'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Signup Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
   );
+  $form['fhwalk_signup'][] = fhsignup_settings();
   
   return $form;
 }
@@ -598,10 +600,10 @@ function fhwalk_get_coordinators() {
   $sql = "SELECT DISTINCT u.uid, u.name FROM {users} u " . 
       "JOIN  {users_roles} ur ON u.uid=ur.uid " .
       "JOIN {permission} p ON ur.rid=p.rid " .
-      "WHERE p.perm LIKE '%coordinate fhwalk%'" .
+      "WHERE p.perm LIKE '%coordinate walks%'" .
       "ORDER BY u.name";
   $result = db_query($sql);
-  while($row = db_fetch_array($result)) $coords[$row['uid']] = $row['name'] . ' - ' . $row['uid'];
+  while($row = db_fetch_array($result)) $coords[$row['uid']] = $row['name'];
   return $coords;   
 }
 
@@ -649,35 +651,44 @@ function fhwalk_merge_submit($form_id, $form_values) {
  * @ingroup fhwalk_helpers
  */
 function fhwalk_merge() {
-  $node = node_load(array('nid' => arg(1)));
-  drupal_set_title(t('Merge Walk') . ": " . $node->location['city']);
-
-  $form['delete_merge'] = array(
-    '#type'   => 'fieldset',
-    '#title'  => t('Delete or Merge walk'),
-    '#weight' => 1
-  );
+  $nid = arg(1);
+  $node = node_load($nid);
+  $count = _fhsignup_count($nid);
   
-  $options = array('merge' => t('Merge'), 'delete' => t('Delete'));
-  $form['delete_merge']['action'] = array(
-    '#type' => 'select',
-    '#title' => t('Select action'),
-    '#options' => $options,
-  );
+  if( user_access('administer walks') || user_access('coordinate walks') ) {
+    drupal_set_title(t('Merge Walk') . ": " . $node->location['city']);
   
-  $walk_list = _fhwalk_getwalks($node->fhwalk_tid, $node->location['country']);
-  foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
-  unset($walk_option[$node->nid]);
-  $form['delete_merge']['nid_to'] = array(
-    '#type' => 'select',
-    '#title' => t('Select a walk to merge with.'),
-    '#options' => $walk_option,
-  );
-  $form['delete_merge']['nid_from'] = array('#type' => 'hidden', '#value' => $node->nid); 
-  $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Submit')); 
+    $form['delete_merge'] = array(
+      '#type'   => 'fieldset',
+      '#title'  => t('Delete or Merge walk'),
+      '#weight' => 1
+    );
+    
+    $options = array('merge' => t('Merge'), 'delete' => t('Delete'));
+    $form['delete_merge']['action'] = array(
+      '#type' => 'select',
+      '#title' => t('Select action'),
+      '#options' => $options,
+    );
+    
+    $walk_list = _fhwalk_getwalks($node->fhwalk_tid, $node->location['country']);
+    foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
+    unset($walk_option[$node->nid]);
+    $form['delete_merge']['nid_to'] = array(
+      '#type' => 'select',
+      '#title' => t('Select a walk to merge with.'),
+      '#options' => $walk_option,
+    );
+    $form['delete_merge']['nid_from'] = array('#type' => 'hidden', '#value' => $node->nid); 
+    $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Submit')); 
   
-  $output .= drupal_get_form('fhwalk_merge', $form);
-
+    $output .= drupal_get_form('fhwalk_merge', $form);
+  } elseif ( ($user->uid == $node->uid) && (_fhsignup_count($nid)==0) ) {
+    drupal_goto("node/$nid/delete");
+  } else {
+    drupal_set_message(t("You are not allowed to delete a walk with signups"));
+    drupal_goto("node/$nid/edit");
+  }
   return $output;
 }
 
@@ -1384,9 +1395,9 @@ global $user;
           $create_msg = t("Don't see an event in this country?"). "&nbsp;";
         }
       } else {
-        $create_msg = t("Create an event!"). "&nbsp;";
+        $create_msg = t("Click here to create your own walk!"). "&nbsp;";
       }
-      $create_link = l(t('Click here to start your own!'),$uri);
+      $create_link = l(t('Click here to create your own walk!'),$uri);
       $out .= $create_msg . $create_link;
       $out .= theme("fhwalk_btn_create",$uri);
     }
@@ -1537,7 +1548,7 @@ function fhwalk_overview($synonym, $tid, $country = '-' ) {
   $form['synonym'] = array('#type' => 'hidden', '#value' => $synonym);
   $form['country'] = array(
     '#type' => 'select',
-    '#title' => t('Select a country'),
+    '#title' => t('Select a country to find a walk'),
     '#options' => $country_list,
     '#default_value' => $country,
     '#attributes' => array('onchange' => 'submit()'),

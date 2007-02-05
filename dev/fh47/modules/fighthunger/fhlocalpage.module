@@ -209,7 +209,7 @@ function fhlocalpage_get_nodes($country, $tid) {
  *    language name in local language or translated by drupal t() or in english    
  */
 function _fhlocalpage_getlang($code) {
-  return fhlocalpage_isocodes($code);
+  return _fhlocalpage_isocodes($code);
 }
 
 /**

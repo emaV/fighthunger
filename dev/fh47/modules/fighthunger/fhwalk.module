@@ -407,7 +407,7 @@ function _fhwalk_geocode_google($street='', $city, $province='', $country) {
     $content = array(0,0,0,0,'NO api_key');
   } else {
     $location_geocode_gmap_url = "http://maps.google.com/maps/geo?q=" . 
-          ( ($street)   ? "$street,"   : '') . $city .
+          ( ($street)   ? "$street,"   : '') . "$city," .
           ( ($province) ? "$province," : '') . $country .
           "&output=csv&key=".variable_get('googlemap_api_key', '');
     $result  = file_get_contents("$location_geocode_gmap_url");
@@ -432,7 +432,7 @@ watchdog('fhwalk', "GOOGLE: $location_geocode_gmap_url<br/>$result<br/>" . print
 function _fhwalk_geocode_geonames($city, $country) {
   $location_geonames_org_url = "http://ws.geonames.org/postalCodeSearchJSON?" .
     "placename=$city&country=$country&maxRows=1";
-//  $result  = file_get_contents("$location_geonames_org_url");
+  $result  = file_get_contents("$location_geonames_org_url");
   
   $result_tmp =  substr($result, 1, -1);                // strip curly braces
   $result_array_tmp = split(":", $result_tmp, 2);       // split in two

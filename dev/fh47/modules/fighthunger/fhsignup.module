@@ -134,7 +134,7 @@ function fhsignup_settings() {
     '#cols' => 75,
     '#rows' => 15,
     '#default_value' => variable_get('fhsignup_waiver', ''),
-    '#description' => t("Standard insurance waiver text."),
+    '#description' => t("Standard Term and Conditions for walkers signup."),
   );
   $string_substitution = t('Supported string substitutions: %event, %time, %username, %useremail, %info (user signup information).'); 
   $form['fhsignup_email_confirm'] = array(
@@ -916,7 +916,7 @@ global $user;
       '#cols' => 75,
       '#rows' => 10,
       '#default_value' => $node->signup_waiver,
-      '#description' => t("<strong>If you change T&C signup will be blocked until your coordinator approve your changes.</strong>"),
+      '#description' => t("<strong>If you change the terms and conditions walkers will not be able to sign up to your walk until the coordinator has approved the changes.</strong>"),
     );
   }
   
@@ -1330,7 +1330,7 @@ global $user;
     if($form_values['subject']<>'') {
       $subject = $form_values['subject'];
     } else {
-      $subject = "Invite to walk '" .  $form_values['title'] . "'";
+      $subject = "Invitation to join '" .  $form_values['title'] . "'";
     }
 // Set content 
     $content->title  = $form_values['title'];

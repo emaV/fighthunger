@@ -106,7 +106,8 @@ function fhpartner_menu($may_cache) {
 function theme_partner_block_content($partners) {
   foreach($partners as $nid => $name) {
     $node = node_load($nid);
-    $out .= "<div class='item-partner'><a href='node/$nid'>\n";
+    $url = url("/node/$nid");
+    $out .= "<div class='item-partner'><a href='$url'>\n";
     $out .= "<img src='".file_create_url($node->logosmall)."'><br/>\n";
     $out .= "$name\n";
     $out .= "</a></div>\n";

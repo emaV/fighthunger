@@ -1359,8 +1359,9 @@ function theme_fhwalk_btn_create($url) {
 function theme_fhwalk_overview_node($fhwalk_overview) {
 global $user;
 
+  $out = '<div class="fhoverview">';
 // Map
-  $out = gmap_draw_map($fhwalk_overview['gmap_array']);
+  $out .= gmap_draw_map($fhwalk_overview['gmap_array']);
 
 // Presentation
   $out .= '<div>' . $fhwalk_overview['term']->description . '</div>';
@@ -1390,7 +1391,7 @@ global $user;
       $out .= theme("fhwalk_btn_create",$uri);
     }
   }
-  
+  $out .= "</div>";
   return $out;  
 }
 

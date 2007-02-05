@@ -732,3 +732,7 @@ ul.block_menu li {
   background-color:#ff6600;
   color:#fff;
 }
+
+.fhoverview div {
+ width: 500px;
+}

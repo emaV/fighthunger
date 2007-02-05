@@ -374,6 +374,7 @@ function fhwalk_insert($node) {
   }
 */ 
 //drupal_set_message("fhwalk INSERT: " . print_r($node, true));
+//drupal_set_message("back to page");
 }
 
 /**
@@ -399,7 +400,7 @@ function fhwalk_update($node) {
     if($value<>0) db_query($sql, $node->nid, $key, $value);
   }
 */
-drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
+//drupal_set_message("fhwalk UPDATE: " . print_r($node, true));
 } 
 
 function _fhwalk_geocode_google($street='', $city, $province='', $country) {
@@ -911,9 +912,9 @@ $form['location']['country']['#attributes']['autocomplete_path'] = url('fh_provi
         '#collapsed' => FALSE,
         '#weight' => 1
       );
+      $form['basic']['location']['country']  = $form['location']['country'];
       $form['basic']['location']['city']     = $form['location']['city'];
       $form['basic']['location']['province'] = $form['location']['province'];
-      $form['basic']['location']['country']  = $form['location']['country'];
       $form['basic']['location']['#tree'] = true;
       unset($form['location']['city']);
       unset($form['location']['province']);
@@ -921,7 +922,7 @@ $form['location']['country']['#attributes']['autocomplete_path'] = url('fh_provi
   
       $form['whenwhere'] = array(
         '#type'   => 'fieldset',
-        '#title'  => t('When & Where') . " - " . $node->event_start,
+        '#title'  => t('When & Where'),
         '#collapsible' => TRUE,
         '#collapsed' => FALSE,
         '#weight' => 2
@@ -1679,15 +1680,19 @@ function fhwalk_administer_search_submit($form_id, $form_values) {
  * @return countries array
  */
 function _fhwalk_get_country_campaign($tid) {
-  $sql = "SELECT l.country, c.name FROM {location} l " . 
+  $countries = _location_get_iso3166_list();
+
+  $sql = "SELECT DISTINCT l.country FROM {location} l " . 
     "JOIN {node} n ON n.nid=l.oid " .
-    "JOIN {countries} c ON UPPER(l.country)=c.ccid " .
     "JOIN {term_node} tn ON tn.nid=n.nid " .
-    "WHERE l.type='node' AND tn.tid=%d " .
-    "ORDER BY c.name";
+    "WHERE l.type='node' AND tn.tid=%d;";
   $result=db_query($sql, $tid);
-  while($row = db_fetch_array($result)) $countries[$row['country']] = $row['name'];
-  return $countries;
+  while($row = db_fetch_array($result)) {
+    $country_campaign[$row['country']] = $countries[$row['country']];
+  } 
+  asort($country_campaign);    
+
+  return $country_campaign;
 }
 
 /**

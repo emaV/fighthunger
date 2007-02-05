@@ -1416,7 +1416,7 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
     'control'  => 'Small', 
     'type'     => 'Map',
     'markers'  => array(),
-    'tcontrol' => 'on'
+//    'tcontrol' => 'on'
   );
   
   foreach($walk_list as $key => $value) {
@@ -1455,7 +1455,7 @@ function _fhwalk_get_gmap_array($walk_list, $country) {
 //        'link'       => "/node/$key",
         'latitude'   => $value['latitude'],
         'longitude'  => $value['longitude'],
-        'markername' => 'blue'        
+        'markername' => 'fhwalk'        
       );    
     }
   }

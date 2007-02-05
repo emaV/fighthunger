@@ -94,22 +94,36 @@ function fhcampaign_form_alter($form_id, &$form) {
 
 /**
  * Form callback: after build function for node forms
+ * 
+ * Restricts campaign taxonomy depending on permissions
  */
 function fhcampaign_check_taxonomy($form) {
   // Bypass restrictions for some permissions
   if( user_access('administer walks') ) { 
     // Do nothing
   } elseif(($vid = _fhcampaign_vocabulary()) && isset($form['taxonomy'][$vid])) {
-    // Remove not permitted campaigns
+    // Do not allow editing
     if($form['nid']['#value'] && $current = $form['taxonomy'][$vid]['#default_value']) {
       // Keep current value
-      $options = $form['taxonomy'][$vid]['#options'];
-      $form['taxonomy'][$vid]['#options'] = array();
-      foreach($current as $cid) {
-        $form['taxonomy'][$vid]['#options'][$cid] = $options[$cid];
+      $taxonomy = $form['taxonomy'][$vid];
+      $form['taxonomy'][$vid] = array('#type' => 'value', '#value' => $taxonomy['#default_value']);
+      $display = array();
+      
+      // Just for display
+
+      if(is_array($taxonomy['#default_value'])) {
+        foreach($taxonomy['#default_value'] as $tid) {
+          $display[] = $taxonomy['#options'][$tid];
+        }
       }
+      $form['taxonomy']['campaign'] = array(
+        '#type' => 'item',
+        '#title' => $taxonomy['#title'],
+        '#value' => count($display) ? theme('item_list', $display) : t('None')
+      );
+
     } else {
-      // New node. Restrict to active campaigns
+      // New node, no admin. Restrict to active campaigns
       $form['taxonomy'][$vid]['#options'] = fhcampaign_list(CAMPAIGN_STATUS_ACTIVE);
       // Set default value if in query string
       if(isset($_REQUEST['campaign'])&& $cid = $_REQUEST['campaign']) {
@@ -270,6 +284,9 @@ function fhcampaign_default_date() {
 
 /**
  * Get campaign data
+ * 
+ * @return
+ *   Campaign object
  */
 function fhcampaign_get_campaign($cid) {
   return db_fetch_object(db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.tid = %d", $cid));
@@ -277,6 +294,9 @@ function fhcampaign_get_campaign($cid) {
 
 /**
  * Get all campaigns
+ * 
+ * @return
+ *   Array of campaign objects indexed by camid
  */
 function fhcampaign_get_all_campaigns() {
   $list = array();
@@ -287,6 +307,20 @@ function fhcampaign_get_all_campaigns() {
   return $list;
 }
 
+/**
+ * Get active campaigns
+ * 
+ * @return
+ *   Array of campaign objects indexed by camid
+ */
+function fhcampaign_get_active_campaigns() {
+  $list = array();
+  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE c.status =".CAMPAIGN_STATUS_ACTIVE);
+  while($campaign = db_fetch_object($result)) {
+    $list[$campaign->tid] = $campaign;
+  }
+  return $list;
+}
 /**
  * @} End of "defgroup fh_database".
  */

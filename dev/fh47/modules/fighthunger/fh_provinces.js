@@ -9,16 +9,16 @@ function clickCountryProvince() {
   country  = document.getElementById('edit-location-country');
   uri = country.getAttribute("fh_autocomplete_path");
 
-  acdb = new ACDB(uri);
+  acdb = new fh_ACDB(uri);
 
-  ac = new jsAC(country, province, acdb);
+  ac = new fh_jsAC(country, province, acdb);
   if(province.selectedIndex<0)  ac.populateProvince();
 }
 
 /**
  * An AutoComplete object
  */
-function jsAC(country, province, db) {
+function fh_jsAC(country, province, db) {
   var ac = this;
   this.country  = country;
   this.province = province;
@@ -29,7 +29,7 @@ function jsAC(country, province, db) {
 /**
  * Positions the suggestions popup and starts a search
  */
-jsAC.prototype.populateProvince = function () {
+fh_jsAC.prototype.populateProvince = function () {
 
 	// empty existing items
 	for (i = province.options.length; i >= 0; i--) {
@@ -44,7 +44,7 @@ jsAC.prototype.populateProvince = function () {
 /**
  * Fills the suggestion popup with any matches received
  */
-jsAC.prototype.found = function (matches) {
+fh_jsAC.prototype.found = function (matches) {
 
   j=0;
   var ac = this;
@@ -64,7 +64,7 @@ jsAC.prototype.found = function (matches) {
 /**
  * An AutoComplete DataBase object
  */
-function ACDB(uri) {
+function fh_ACDB(uri) {
   this.uri = uri;
   this.delay = 300;
   this.cache = {};
@@ -73,7 +73,7 @@ function ACDB(uri) {
 /**
  * Performs a cached and delayed search
  */
-ACDB.prototype.search = function(searchString) {
+fh_ACDB.prototype.search = function(searchString) {
 
   this.searchString = searchString;
   if (this.cache[searchString]) {
@@ -93,7 +93,7 @@ ACDB.prototype.search = function(searchString) {
 /**
  * HTTP callback function. Passes suggestions to the autocomplete object
  */
-ACDB.prototype.receive = function(string, xmlhttp, acdb) {
+fh_ACDB.prototype.receive = function(string, xmlhttp, acdb) {
   // Note: Safari returns 'undefined' status if the request returns no data.
   if (xmlhttp.status != 200 && typeof xmlhttp.status != 'undefined') {
     removeClass(acdb.owner.province, 'throbbing');
@@ -111,7 +111,7 @@ ACDB.prototype.receive = function(string, xmlhttp, acdb) {
 /**
  * Cancels the current autocomplete request
  */
-ACDB.prototype.cancel = function() {
+fh_ACDB.prototype.cancel = function() {
   if (this.owner) removeClass(this.owner.province, 'throbbing');
   if (this.timer) clearTimeout(this.timer);
   if (this.transport) {

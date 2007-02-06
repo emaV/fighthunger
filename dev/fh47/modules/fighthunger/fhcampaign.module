@@ -110,7 +110,7 @@ function fhcampaign_check_taxonomy($form) {
     if($node->nid) {
       // Editing node. Keep current value
       $current = $taxonomy['#default_value'];
-    } elseif($camid = $node->fwalk_tid) {
+    } elseif($camid = $node->fhwalk_tid) {
       // New node. Get from parameters
       $current = array($camid);
     } 

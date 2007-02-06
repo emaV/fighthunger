@@ -191,6 +191,14 @@ function fhwalk_menu($may_cache) {
   $items = array();
 
   if ($may_cache) {
+    // Ajax callback
+    $items[] = array(
+      'path' => 'fh_provinces_autocomplete', 
+      'title' => t('provinces autocomplete'),
+      'callback' => 'fhwalk_provinces_autocomplete', 
+      'access' => true, 
+      'type' => MENU_CALLBACK
+    );
     // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache
     $node = new StdClass();
     foreach(fhcampaign_get_all_campaigns() as $campaign) {
@@ -239,15 +247,6 @@ function fhwalk_menu($may_cache) {
       }
     }    
   } else {
-    $items[] = array(
-      'path' => 'fh_provinces_autocomplete', 
-      'title' => t('provinces autocomplete'),
-      'callback' => 'fhwalk_provinces_autocomplete', 
-      'access' => true, 
-      'type' => MENU_CALLBACK
-    );
-
-
     // Add options for walks
     if (arg(0) == 'node' && is_numeric(arg(1)) && $node = node_load(arg(1))) {
       if (($node->type == 'fhwalk') && ($node->fhwalk_status==2)) {
@@ -876,13 +875,9 @@ global $user;
         list($year, $month, $day) = explode("-", fhcampaign_default_date());
       }
       // Further processing will be done on campaign module, after_build hook
-    
 
-/*
-    $form['taxdump2'] = array('#value' => '<hr/>' .  print_r($form['taxonomy'], true) . '<hr/>');  
-    $form['taxdump3'] = array('#value' => "i = $i<hr/>");  
-*/
-
+//      $form['taxdump2'] = array('#value' => '<hr/>' .  print_r($form['location'], true) . '<hr/>');  
+//      $form['taxdump3'] = array('#value' => "i = $i<hr/>");  
 
 // change location form
       $form['location']['name']['#title'] = t('Start Location');  
@@ -978,8 +973,19 @@ $form['location']['country']['#attributes']['fh_autocomplete_path'] = url('fh_pr
       // other location info
       $form['whenwhere']['location']['#tree'] = true;
 
+      // unset latitude and longitud for non admin
+      if(! ( user_access('admininster walks') || 
+             user_access('coordinate walks') ) ) {
+        unset($form['location']['latitude']);
+        unset($form['location']['longitude']);
+        unset($form['location']['map']);
+      }
+    
+      // move location elements to whenwhere
       foreach($form['location'] as $key => $value) {
-        if($key[0]<>'#') $form['whenwhere']['location'][$key] = $value;
+        if($key[0]<>'#') {
+          $form['whenwhere']['location'][$key] = $value;
+        }
         unset($form['location'][$key]);
       }
 
@@ -1183,20 +1189,13 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
         '#weight' => -1,
         '#value'  => fhwalk_get_photos($node)
       );
-
-      // TAF
-      $actions['taf'] = array(
-        '#title'  => t('Tell others about this walk'),
-        '#weight' => 1,
-        '#value'  => $node->hook_view['forward']
-      );
       break;
 
     case 2:  
 
       // Walk History
       $footers['history']  = array(
-        '#title'  => t('Previous Walks'),
+        '#title'  => t('Previous Walks in this country'),
         '#weight' => 1,
         '#value'  => ''
       );
@@ -1238,8 +1237,9 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
 
       // check signup_show
       if($node->signup_show || $node->signup_show_number) {
-        $value  = ($node->signup_show)        ? fhsignup_walk_signup_table($node->nid, $node->signup_show_comments) : '';
-        $value .= ($node->signup_show_number) ? ('<h2>' . t('Signup Count') . ': ' . _fhsignup_count($node->nid) . '</h2>') : '';
+        $count = fhsignup_count($node->nid, $node->signup_status, $node->signup_allow_guest);
+        $value  = ($node->signup_show)        ? fhsignup_walk_signup_table($node->nid, $node->signup_show_comments, $node->signup_allow_guest) : '';
+        $value .= ($node->signup_show_number) ? ('<h2>' . t('Signup Count') . ": $count</h2>") : '';
         $actions['signup_list'] = array(
           '#title'  => t('Signup List'),
           '#weight' => 1,
@@ -1300,7 +1300,7 @@ function click_info_make($text, $words) {
 function theme_fhwalk_walklist($walk_list) {
   $countrywithstate = array('us', 'au', 'br', 'ca');
   if($walk_list) {
-    $out  = '<h4>' . t('events in your country:') . "</h4>\n";
+    $out  = '<h4>' . t('Events in your country:') . "</h4>\n";
     $out .= "<ul>\n";
     foreach($walk_list as $walk) {
       $location = $walk['city'];    

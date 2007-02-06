@@ -526,13 +526,33 @@ $node = node_load($nid);
  * @param $stage user status  
  */
 function _fhsignup_count($nid, $stage=0) {
-  $sql = 'SELECT gs.*, u.name, u.mail ' .
-    'FROM {gathering_signup} gs ' .
-    'JOIN {users} u ON gs.uid = u.uid ' .
-    'WHERE gs.wid=%d';
+  $sql = 'SELECT count(*) FROM {gathering_signup} WHERE wid=%d';
   if($stage<>0) $sql .= ' AND gs.stage=$stage';
 
-  return db_num_rows(db_query($sql, $nid));
+  return db_result(db_query($sql, $nid));
+}
+
+/**
+ * Get signup for a walk WITH GUEST
+ * 
+ * @ingroup fhsignup_helpers
+ * @param $nid one id
+ * @param $stage user status  
+ */
+function fhsignup_count($nid, $status=0, $guest=false) {
+  $select_expression = 'count(*)' . ( ($guest) ? '+sum( guests )' : '' );
+  $where_expression  = 'wid=%d';
+  switch($status) {
+    case 1: // approval required
+      $where_expression .= ' AND (stage=3 OR stage=6)';
+      break;
+    case 2: // only invitation
+      $where_expression .= ' AND stage=6';
+      break;
+  }
+  $sql = "SELECT $select_expression FROM {gathering_signup} WHERE $where_expression";
+  $count = db_result(db_query($sql, $nid));
+  return $count;
 }
 
 /**
@@ -932,80 +952,23 @@ global $user;
 }
 
 /**
- * Login helper for signup form  
- * 
- * @ingroup fhsignup_user
- *
-function _fhsignup_login() {
-  $form['signup'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Signup'),
-    '#collapsible' => TRUE,
-    '#collapsed' => FALSE,
-  );
-  $msg = 'To signup to this event you have to login.<br/>' . 
-    'If you have already an account please Login with your username and password <br/>' .
-    'Otherwise Register for a new account';
-  $form['signup']['info']['#value'] = t($msg);
-  
-//    $form = array('#type' => 'fieldset', '#title' => t('Login'));
-/*
-  $form_login = fhuser_subform_user_login();
-  $form_login['#collapsible'] = TRUE;
-  $form_login['#collapsed'] = TRUE;
-  $form_login['#validate'] = array('fhuser_subform_validate' => array()) + $form['#validate'];
-  $form_login['#submit'] = array('fhuser_subform_submit' => array()) + $form['#submit'];
-  $form['signup']['login']['#value'] = drupal_get_form('tmp1',  $form_login);
-*/
-
-/*
-  $form_register = fhuser_subform_user_register();
-  $form_register['#collapsible'] = TRUE;
-  $form_register['#collapsed'] = TRUE;
-  $form_register['#validate'] = array('fhuser_subform_validate' => array()) + $form['#validate'];
-  $form_register['#submit'] = array('fhuser_subform_submit' => array()) + $form['#submit'];
-  $form['signup']['register']['#value'] = drupal_get_form('tmp2',  $form_register);
-*/ 
-/*
-  $form['signup']['login']['#value'] = "<ul>\n" .
-      "<li>" . l(t('login'),'user') . "</li>\n" . 
-      "<li>" . l(t('register'),'user/register') . "</li>\n" . 
-      "</ul>\n";
-
-  $output =  drupal_get_form('',  $form);
-  return $output;
-  
-/*  
-  $output =  drupal_get_form('user_register',  _fhwalk_signup_form($node));
-    }
-  } else {
-    $output = drupal_get_form('user_login', _fhwalk_signup_login());
-  
-  
-}
-
-
-function _fhsignup_checkuser($nid, $uid) {
-  $sql = 'SELECT * from {gathering_signup} WHERE wid=%d AND uid=%d;';
-  return (db_num_rows(db_query($sql,$nid, $uid))>0);
-}
-
-/**
  * Get signup users table (for walk page)
  * 
  * @ingroup fhsignup_core
  * @param  $nid 
  * @param  $options 
  */
-function fhsignup_walk_signup_table($nid, $show_message) {
+function fhsignup_walk_signup_table($nid, $show_message=0, $show_guests=0) {
 
   $header = array(
     array('data' => t('User'),      'field' => 'u.name'),
     array('data' => t('Role'),      'field' => 'gs.role'),
     array('data' => t('Comment'),   'field' => 'gs.comment'),
     array('data' => t('Date'),      'field' => 'gs.timestamp', 'sort' => 'desc'),
+    array('data' => t('Guests'),    'field' => 'gs.guests'),
   );
-  if($show_message==0) unset($header[2]);
+  if(!$show_guests)  unset($header[4]);
+  if(!$show_message) unset($header[2]);
   
   $sql = 'SELECT gs.*, u.name, u.uid ' .
     'FROM {gathering_signup} gs ' .
@@ -1019,14 +982,16 @@ function fhsignup_walk_signup_table($nid, $show_message) {
           $signup->name,
           $signup->role,
           $signup->opencomment ? $signup->comment : '',
-          date("j M o", strtotime($signup->timestamp)))
-    );
-    if($show_message==0) unset($row['data'][2]);
+          date("j M o", strtotime($signup->timestamp)),
+          $signup->guests,
+      ));
+    if(!$show_guests)  unset($row['data'][4]);
+    if(!$show_message) unset($row['data'][2]);
     $rows[] = $row;
   }
 
   if (!$rows) {
-    $rows[] = array(array('data' => t('No signup available.'), 'colspan' => 4-($show_message==0)));
+    $rows[] = array(array('data' => t('No signup available.'), 'colspan' => 5-(!$show_message)-(!$show_guests) ));
   }
   
   $output .= theme('table', $header, $rows);
@@ -1288,7 +1253,8 @@ global $user;
  */
 function fhsignup_invite_process($code) {
 global $user;
-$nid = arg(1);
+  $nid = arg(1);
+  $url = url("/node/$nid");
 
   if($user->uid) {
     $result = db_query("SELECT * FROM {invite} WHERE reg_code = '%s'", $code);
@@ -1298,14 +1264,13 @@ $nid = arg(1);
       fhsignup_email_notify($nid, $user->uid, 'confirm');
       fhsignup_email_notify($nid, $user->uid, 'notify_invite');
       $msg = t("Invitation processed!");
-      drupal_set_message($msg);
-      drupal_goto("node/$nid");
     }
   } else {
-    $msg = t("You have to login or register before use this invite!");
-    drupal_set_message($msg);
-    drupal_goto('user');
+    $login_array = array('%login' => l(t('login'), 'user/login', array(), $url), '%register' => l(t('register'), 'user/register', array(), $url));
+    $msg = t('Please %login or %register before use this invite!', $login_array) .'</div>';
   }
+  drupal_set_message($msg);
+  drupal_goto($url);
 }
 
 /**
@@ -1509,7 +1474,7 @@ function _fhsignup_organisers_mail_settings($node) {
 function fhsignup_organiser() {
   $node = node_load(array('nid' => arg(1)));
   drupal_set_title(t('Signup Admin') . ": $node->title");
-  $signup_count = _fhsignup_count($node->nid);
+  $signup_count = fhsignup_count($node->nid, $node->signup_status);
 
 // Show walkers table
   $form['volunteer_status'] = array(
@@ -1520,8 +1485,13 @@ function fhsignup_organiser() {
   $form['volunteer_status']['status'] = array(
     '#value' => '<h2>' . t('Signup Approval') . ': ' . _fhsignup_status($node->signup_status) . '</h2>',
   );
+  $count = t('Signup Count') . ": $signup_count";
+  if($node->signup_allow_guest) {
+    $signup_count_guest = fhsignup_count($node->nid, $node->signup_status, true);
+    $count .= ' (' . t('with guests') . ": $signup_count_guest)";
+  }
   $form['volunteer_status']['count'] = array(
-    '#value' => '<h2>' . t('Signup Count') . ": $signup_count</h2>",
+    '#value' => "<h2>$count</h2>",
   );
   $form['volunteer_status']['table'] = array(
     '#value' => _fhsignup_signup_table($node->nid, $node->signup_status),

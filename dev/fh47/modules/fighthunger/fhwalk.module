@@ -1381,24 +1381,30 @@ global $user;
   $out .= theme('fhwalk_walklist', $fhwalk_overview['walk_list']);
 
 // Create event
-  if(($user->uid) && (user_access('create multiple walks') || (_fhwalk_get_walk_by_id($user->uid,$tid)==0)) ) {
-    if($fhwalk_overview['status']==2) {
-      $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
-      if($fhwalk_overview['country']<>'-') {
-        $uri .= '/' . $fhwalk_overview['country'];
-        if($fhwalk_overview['walk_list']) {
-          $create_msg = t("Don't see an event near you?"). "&nbsp;";
+  if($fhwalk_overview['status']==2) {
+    if($user->uid) {
+      $node->fhwalk_tid = $tid;
+      if( fhwalk_access('create', $node) ) { 
+        $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
+        if($fhwalk_overview['country']<>'-') {
+          $uri .= '/' . $fhwalk_overview['country'];
+          if($fhwalk_overview['walk_list']) {
+            $create_msg = t("Don't see an event near you?"). "&nbsp;";
+          } else {
+            $create_msg = t("Don't see an event in this country?"). "&nbsp;";
+          }
         } else {
-          $create_msg = t("Don't see an event in this country?"). "&nbsp;";
+          $create_msg = t("Click here to create your own walk!"). "&nbsp;";
         }
-      } else {
-        $create_msg = t("Click here to create your own walk!"). "&nbsp;";
+        $create_link = l(t('Click here to create your own walk!'),$uri);
+        $out .= $create_msg . $create_link;
+        $out .= theme("fhwalk_btn_create",$uri);
       }
-      $create_link = l(t('Click here to create your own walk!'),$uri);
-      $out .= $create_msg . $create_link;
-      $out .= theme("fhwalk_btn_create",$uri);
+    } else {
+      $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
+      $out .= t('Please %login or %register to create your own walk!', $login_array) .'</div>';
     }
-  }
+  } 
   $out .= "</div>";
   return $out;  
 }

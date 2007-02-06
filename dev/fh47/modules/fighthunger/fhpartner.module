@@ -73,7 +73,7 @@ function fhpartner_menu($may_cache) {
 
   if ($may_cache) {
 	$items[] = array('path' => 'admin/fhpartner', 
-        'title' => t('Administer partners'),
+        'title' => t('partners'),
         'type' => MENU_NORMAL_ITEM,
         'weight' => 0,
         'callback' => 'fhpartner_admin',
@@ -103,16 +103,33 @@ function fhpartner_menu($may_cache) {
  * @param  array of partners
  * @return html 
  */
-function theme_partner_block_content($partners) {
-  foreach($partners as $nid => $name) {
-    $node = node_load($nid);
-    $url = url("/node/$nid");
-    $out .= "<div class='item-partner'><a href='$url'>\n";
-    $out .= "<img src='".file_create_url($node->logosmall)."'><br/>\n";
-    $out .= "$name\n";
-    $out .= "</a></div>\n";
+function theme_partner_block_content($partnerlist) {
+  $out = '';
+  foreach($partnerlist as $nid => $name) {
+    $partner = node_load($nid);
+    $out .= "<div class='item-partner'>";
+    $out .= theme('partner_logo_small', $partner);
+    $out .= l($partner->title, "node/$partner->nid");    
+    $out .= "</div>\n";
   }
   return $out;    
+}
+
+/**
+ * Theming partner logos. 
+ * 
+ * Going through this function will be helpful if we finally use other image method
+ */
+function theme_partner_logo_small($node) {
+  if($node->iid && function_exists('image_display') && $image = node_load($node->iid) ) {
+    print "image $node->iid".$image->images['thumbnail'];
+    $info = image_get_info(file_create_path($image->images['thumbnail']));
+    $output = '';
+    $output .= '<div style="width: '. $info['width'] .'px" class="image-attach-teaser">';
+    $output .= l(image_display($image, 'thumbnail'), "node/$node->nid", array(), NULL, NULL, FALSE, TRUE);
+    $output .= '</div>'."\n";
+    return $output;
+  }
 }
 
 /**
@@ -348,11 +365,13 @@ function fhpartner_form(&$node) {
   $form['date_end']['date'] = fhpartner_date_field('form', 'enddate', $node->enddate);
   
   // Partner logos
+  /*
   $form['logos'] = array('#type' => 'fieldset', '#title' => 'Images', '#collapsible' => TRUE, '#collapsed' => TRUE);
   $form['logos']['small'] = array('#type' => 'fieldset', '#title' => 'Small Logo');
   $form['logos']['small']['logo'] = fhpartner_field_logo('form', 'logosmall', $node);
   $form['logos']['large'] = array('#type' => 'fieldset', '#title' => 'Big Logo');  
   $form['logos']['large']['logo'] = fhpartner_field_logo('form', 'logolarge', $node);
+  */
   return $form;
 }
 
@@ -391,7 +410,7 @@ function fhpartner_validate(&$node, $form) {
     }
   }
   // Type
-  if ($node->paud == 'COUNTRY' && !$node->country) {
+  if ($node->paud != PARTNER_AUDIENCE_GLOBAL && !$node->country) {
     form_set_error('country', t('You must select a country'));
   } 
 }
@@ -456,19 +475,6 @@ function fhpartner_get_partners($audience = 'LOCAL', $conditions = array()) {
 }
 
 /**
- * Get campaign linked with a node
- */
-function fhpartner_node_get_campaign($node) {
-  if (is_int($node)) {
-    $node = node_load($node);
-  }
-  // Return the taxonomy term that is in campaign vocabulary
-  if (is_array($node->taxonomy)) {
-    return db_result(db_query("SELECT tid FROM {term_data} WHERE vid = %d AND tid IN (%s)", variable_get('fhpartner_campaign_vocabulary', 0), implode(',', array_keys($node->taxonomy))));
-  }
-}
-
-/**
  * Implementation of hook_form_alter().
  */
 function fhpartner_form_alter($form_id, &$form) {
@@ -520,12 +526,15 @@ function fhpartner_load($node) {
   return db_fetch_object(db_query('SELECT * FROM {partners_node} WHERE nid= %d', $node->nid));
 }
 
+/**
+ * Implementation of hook_view().
+ */
 function fhpartner_view(&$node, $teaser = FALSE, $page = FALSE) {
   $node->body = "<div class='partner_description'>".
                 "<img src='".file_create_url($node->logolarge)."' class='partnerimage' align='right'>".$node->body.
                 "</div>";
   
-  $rs = db_query("SELECT n.nid FROM {partners_partners} pp LEFT JOIN {node} n ON pp.nid = n.nid WHERE pp.pid=%d",$node->nid);
+  $rs = db_query("SELECT n.nid FROM {partners_partners} pp LEFT JOIN {node} n ON pp.nid = n.nid WHERE pp.pid=%d", $node->nid);
   while ($a = db_fetch_array($rs)){
     $e = node_load(array("nid"=>$a['nid']));
     $title = l($e->title,"node/".$e->nid);

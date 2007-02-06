@@ -41,7 +41,7 @@ function fhlocation_menu($may_cache) {
   if ($may_cache) {
     // Ajax callback
     $items[] = array(
-//      'path' => 'fh_provinces_autocomplete', 
+      'path' => 'fh_provinces_autocomplete', 
       'title' => t('provinces autocomplete'),
       'callback' => '_fhlocation_provinces_autocomplete', 
       'access' => true, 

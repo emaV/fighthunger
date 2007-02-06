@@ -191,6 +191,7 @@ function fhwalk_menu($may_cache) {
   $items = array();
 
   if ($may_cache) {
+/*
     // Ajax callback
     $items[] = array(
       'path' => 'fh_provinces_autocomplete', 
@@ -199,6 +200,7 @@ function fhwalk_menu($may_cache) {
       'access' => true, 
       'type' => MENU_CALLBACK
     );
+*/
     // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache
     $node = new StdClass();
     foreach(fhcampaign_get_all_campaigns() as $campaign) {

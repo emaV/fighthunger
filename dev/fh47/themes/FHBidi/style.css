@@ -59,10 +59,6 @@ a:active { color: #ff6600; }
   background-color:#ff6600;
   color:#fff;
 }
-.form-submit:hover, .form-submit:focus  {
-  background-color:#ff2200;
-  color:#fff;
-}
 
 /* User profile */
 .profile_content {
@@ -735,4 +731,21 @@ ul.block_menu li {
 
 .fhoverview div {
  width: 500px;
+}
+
+/* block on central column */
+.main-content .block {
+  background-color:#ff6600;
+  padding: 5px;
+  width: 50%;
+  float: right;
+}
+
+.main-content .block p {
+  padding: 0px;
+  text-align :  center;
+}
+
+.main-content .block a {
+  color:#fff;
 }

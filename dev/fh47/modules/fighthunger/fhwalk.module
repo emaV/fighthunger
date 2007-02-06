@@ -156,11 +156,11 @@ function fhwalk_access($op, $node) {
   switch ($op) {
     case 'create':
       return (  user_access('administer walks') || 
-                 user_access('coordinate walks') ||
-                 user_access('create multiple walks') ||
-                 (  $node->fhwalk_tid && user_access('create walk') && 
-                    (_fhwalk_get_walk_by_id($user->uid,$node->fhwalk_tid)==0) 
-                 )
+                user_access('coordinate walks') ||
+                user_access('create multiple walks') ||
+                (  $node->fhwalk_tid && user_access('create walk') && 
+                  (_fhwalk_get_walk_by_id($user->uid,$node->fhwalk_tid)==0) 
+                )
               );
       break;
     case 'update':
@@ -1383,8 +1383,8 @@ global $user;
 // Create event
   if($fhwalk_overview['status']==2) {
     if($user->uid) {
-      $node->fhwalk_tid = $tid;
-      if( true ) { 
+      $node->fhwalk_tid = $fhwalk_overview['term']->tid;
+      if( fhwalk_access('create', $node) ) { 
         $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
         if($fhwalk_overview['country']<>'-') {
           $uri .= '/' . $fhwalk_overview['country'];
@@ -1397,7 +1397,6 @@ global $user;
         $create_link = l(t('Click here to create your own walk!'),$uri);
         $out .= $create_msg . $create_link;
         $out .= theme("fhwalk_btn_create",$uri);
-        $out .= "<!-- " . fhwalk_access('create', $node) . " -->";
       }
     } else {
       $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));

@@ -1,0 +1,299 @@
+<?php
+// $Id: fhwalk.module,v 0.1 2007/01/09 09:02:48 ema Exp $
+
+/**
+ * @file
+ * Enables users to manage fh wtw events.
+ *
+ * @defgroup fhlocation_core        Core drupal hooks
+ * @defgroup fhlocation_helpers     various fhwalk helpers
+ * @defgroup fhlocation_theme       theming functions
+ *   
+ ************************************************************************
+ 
+*************************************************************************/
+
+/**
+ * Implementation of hook_help().
+ *  
+ * @ingroup fhwalk_core
+ * @param $section the page which is requesting help
+ * @return the help text
+ */
+function fhlocation_help($section) {
+  switch ($section) {
+    case 'admin/help#fhlocation':
+      return '<p>'. t('The fhlocation is an helper module for fhwalk') .'</p>';
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> fhwalk module location helper. <b>Require fhwalk, location, event, forward</b>');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ *  
+ * @ingroup fhlocation_core
+ *  
+ */
+function fhlocation_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    // Ajax callback
+    $items[] = array(
+//      'path' => 'fh_provinces_autocomplete', 
+      'title' => t('provinces autocomplete'),
+      'callback' => '_fhlocation_provinces_autocomplete', 
+      'access' => true, 
+      'type' => MENU_CALLBACK
+    );
+  }
+  return $items;
+}
+
+
+
+function _fhlocation_geocode_google($street='', $city, $province='', $country) {
+  if(variable_get('googlemap_api_key', '')=='') { 
+    $content = array(0,0,0,0,'NO api_key');
+  } else {
+    $location_geocode_gmap_url = "http://maps.google.com/maps/geo?q=" . 
+          ( ($street)   ? "$street,"   : '') . "$city," .
+          ( ($province) ? "$province," : '') . $country .
+          "&output=csv&key=".variable_get('googlemap_api_key', '');
+    $result  = file_get_contents("$location_geocode_gmap_url");
+    $content = explode(",", $result);
+    $content[4] = 'google';
+  }
+watchdog('fhlocation', "GOOGLE: $location_geocode_gmap_url<br/>$result<br/>" . print_r($content,true));
+  return $content; 
+}
+
+/**
+ *
+ * using geonames - http://www.geonames.org/export/
+ * http://forum.geonames.org/gforum/posts/list/8.page
+ * get URL:
+ * http://ws.geonames.org/postalCodeSearchJSON?placename=Manchester&country=gb&maxRows=1
+ * result JSON: 
+ * {"postalCodes":[{"adminName2":"Greater Manchester","postalCode":"M1","countryCode":"GB","lng":-2.2166667,"placeName":"Manchester","lat":53.5}]}  
+ * Parsing without j-son decode http://it2.php.net/manual/en/function.json-decode.php
+ * 
+ */  
+function _fhlocation_geocode_geonames($city, $country) {
+  $location_geonames_org_url = "http://ws.geonames.org/postalCodeSearchJSON?" .
+    "placename=$city&country=$country&maxRows=1";
+  $result  = file_get_contents("$location_geonames_org_url");
+  
+  $result_tmp =  substr($result, 1, -1);                // strip curly braces
+  $result_array_tmp = split(":", $result_tmp, 2);       // split in two
+  $result_tmp = $result_array_tmp[1];                   // take second part
+  $result_tmp =  substr($result_tmp, 1, -1);            // strip square
+  if($result_tmp) {   // GO AHEAD we have something to parse 
+    $result_tmp =  substr($result_tmp, 1, -1);          // strip curly
+    $result_array_tmp = explode(',', $result_tmp);      // explode all fragments
+    foreach($result_array_tmp as $fragment) {
+      list($key, $val) = explode(':', $fragment);       // explode $key and $value
+      $key = substr($key, 1, -1);                       // strip "
+      $result_array[$key] = $val;
+    }
+    $content[0] = 200;
+    $content[2] = $result_array['lat'];
+    $content[3] = $result_array['lng'];
+    $content[4] = 'geonames';
+  } else {            // STOP !!!
+    $content[0] = 0;
+  }
+watchdog('fhlocation', "GEONAMES: $location_geonames_org_url<br/>$result<br/>" . print_r($content,true));
+  return $content;
+}
+
+/**
+ * Get latitude and longidutude for a given location.
+ * Try with google and geonames 
+ *  
+ * check http://groups.drupal.org/node/781#comment-3908
+ *  
+ * @ingroup fhlocation_helpers
+ * @param $country 
+ * @return provinces array related to the country
+ */
+function fhlocation_get_latlon($location) {
+  
+// urlencode all
+  $street   = urlencode(utf8_encode($location['street']));
+  $city     = urlencode(utf8_encode($location['city']));
+   if($province=$location['province']) {
+    if (strlen($province) && $province != 'xx') {
+      // chop off the 2-letter code and the '-' from the front of the value
+      $province = substr($province, 3);
+    } else {
+      $province ='';
+    }
+  }
+  if($location['country']=='uk') $location['country'] = 'gb';
+  $country = urlencode(utf8_encode(fh_get_country_name($location['country'])));
+  
+// Try fetching GOOGLE street, city, province, country
+  $content = _fhlocation_geocode_google($street, $city, $province, $country);
+
+  if($content[0]<>200) {
+    // Then GOOGLE city, province, country
+    $content = _fhlocation_geocode_google('', $city, $province, $country);
+    if($content[0]<>200) {
+      // Then GOOGLE city, country
+      $content = _fhlocation_geocode_google('', $city, '', $country);
+      if($content[0]<>200) {
+        // Then geonames city, country
+        $content = _fhlocation_geocode_geonames($city, $location['country']);
+      }
+    }
+  }
+watchdog('fhlocation', "geocode: " . print_r($content,true));
+  return $content;
+}
+
+/**
+ * Get provinces for a given country.
+ *  
+ * @ingroup fhlocation_helpers
+ * @param $country 
+ * @return provinces array related to the country
+ */
+function _fhlocation_country_provinces($country='zzz') {
+  $options_list = array();
+  $province_listing_function = 'location_province_list_'. $country;
+  // Trying to return options in case of only 1 country is configured into system or if $country != null
+  if (function_exists($province_listing_function)) {
+    $province_list = $province_listing_function();
+    if (count($province_list)) {
+      $options_list[$country .'000'] = '[ ----- '. t('MAKE A SELECTION') .' ----- ]';
+      asort($province_list);    
+      foreach ($province_list as $province_code => $province_name) {
+        $options_list[$country . '-' . $province_code] = $province_name;
+      }
+    }
+  }
+  return $options_list;
+}
+
+/**
+ * Get gmap array
+ *  
+ * @ingroup fhlocation_helpers
+ * @param $synonym path for campaign
+ * @param $tid taxonomy campaign tid
+ * @param $country optional country 
+ * @return array for gmap module processing
+ */
+function fhlocation_get_gmap_array($walk_list, $country) {
+  $lat_max  = NULL;
+  $long_max = NULL;
+  $lat_min  = NULL;
+  $long_min = NULL;
+
+  $gmap_array =array(
+    'id' => 'map',
+    'width'    => '500px',
+    'height'   => '400px',
+    'control'  => 'Small', 
+    'type'     => 'Map',
+    'markers'  => array(),
+//    'tcontrol' => 'on'
+  );
+  
+  foreach($walk_list as $key => $value) {
+    if(($value['latitude']<>0) && ($value['longitude']<>0)) {
+      $lat_max  = ($lat_max)  ?  max($lat_max,  $value['latitude'])  : $value['latitude'];
+      $long_max = ($long_max) ?  max($long_max, $value['longitude']) : $value['longitude'];
+      $lat_min  = ($lat_min)  ?  min($lat_min,  $value['latitude'])  : $value['latitude'];
+      $long_min = ($long_min) ?  min($long_min, $value['longitude']) : $value['longitude'];
+      $label  = '<h3>' . htmlentities($value['city'], ENT_QUOTES) . '</h3>'; 
+      $label .= htmlentities($value['title'], ENT_QUOTES) . '<br /><br />'; 
+      $label .= '<a href="/' . drupal_get_path_alias("node/$key") . '"><i>' . t('Visit Walk Page') . '</i></a>';
+
+      $gmap_array['markers'][] = array(
+        'label'      => $label,
+        'tooltip'    => $value['city'],
+//        'link'       => "/node/$key",
+        'latitude'   => $value['latitude'],
+        'longitude'  => $value['longitude'],
+        'markername' => 'fhwalk'        
+      );    
+    }
+  }
+  $gmap_array['latitude']  = ($lat_max + $lat_min)/2; 
+  $gmap_array['longitude'] = ($long_max + $long_min)/2;
+  $span = max( ($lat_max - $lat_min)/180, ($long_max - $long_min)/360 );
+//  $span = 0.1;
+  $gmap_array['span'] = $span;
+  $gmap_array['zoom'] = ($country<>'-') ? min(max((int)(floor(5 - $span * 10)) , 1), 5) : 1;
+  
+  return $gmap_array;
+  
+}
+
+/**
+ * list of walk without latitude and longitude
+ *   
+ * @ingroup fhlocation_helpers
+ */  
+function _fhlocation_campaign_NOgeocode_table ($tid) {
+
+  $header = array(
+    array('data' => t('Event'),     'field' => 'title'),
+    array('data' => t('City'),      'field' => 'city'),
+    array('data' => t('Country'),   'field' => 'cname', 'sort' => 'asc')
+  );
+
+  $sql = "SELECT n.nid, n.title, l.city, c.name AS country FROM node n " . 
+    "JOIN term_node tn ON n.nid = tn.nid " .
+    "LEFT JOIN location l ON n.nid = l.oid " .
+    "LEFT JOIN countries c ON UPPER( l.country ) = c.ccid " .
+    "WHERE l.type = 'node' AND " . 
+    "( (l.latitude IS NULL AND l.longitude IS NULL) OR " . 
+    "  (l.latitude =0 AND l.longitude =0) ) AND " .
+    "tid=%d";
+    
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL, $tid);
+  
+  while ($walk = db_fetch_object($result)) {
+    $rows[] = array('data' => array(
+        l($walk->title, 'node/' . $walk->nid),
+        $walk->city,
+        $walk->country));
+  }
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 5));
+  }
+  
+  $output .= '<h2>' . t("Walk you're coordinating") . ': ' . db_num_rows($result) . '</h2>';
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+
+  return $output;
+}
+
+
+/**
+ * Get provinces for autocomplete and options
+ *  
+ * @ingroup fhlocation_helpers 
+ * @param   $country
+ * @return  provinces arrays js filtered
+ */
+function fhlocation_provinces_autocomplete($country) {
+  $provinces = (array)_fhwalk_countryprovinces($country);
+  print drupal_to_js($provinces);
+  exit();
+}
+
+/* gmap key
+dev.fighthunger.org 
+ABQIAAAAbfOVykIDfWkLXGy0_OSL9BT-NiS1gmUMH_veYwnhh1Z0wNDNpBRzS1akGbaMeYKibiyI1jmmBu83RA
+
+www.fighthunger.org 
+ABQIAAAAbfOVykIDfWkLXGy0_OSL9BRgf3C9hf3-9QMTBHhlaRzlk7IiGRSANts4wuV54Vxca7J9SJp4BcALeQ
+*/
+

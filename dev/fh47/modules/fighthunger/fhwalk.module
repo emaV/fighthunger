@@ -195,7 +195,7 @@ function fhwalk_menu($may_cache) {
     $items[] = array(
       'path' => 'fh_provinces_autocomplete', 
       'title' => t('provinces autocomplete'),
-      'callback' => 'fhwalk_provinces_autocomplete', 
+      'callback' => 'fhlocation_provinces_autocomplete', 
       'access' => true, 
       'type' => MENU_CALLBACK
     );
@@ -580,7 +580,7 @@ function fhwalk_submit(&$node) {
 
   // get latitude and longitude from google
   if( !($node->location['latitude'] && $node->location['longitude']) ) {
-    $coordinate = fhwalk_get_latlon($node->location);
+    $coordinate = fhlocation_get_latlon($node->location);
     if($coordinate[0]==200) {
       $node->location['latitude']  = $coordinate[2];
       $node->location['longitude'] = $coordinate[3];
@@ -1527,7 +1527,7 @@ function fhwalk_overview($synonym, $tid, $country = '-' ) {
     "|markers=blue::$gmap_markers]";
 */ 
 
-  $gmap_array = _fhwalk_get_gmap_array($walk_list, $country);
+  $gmap_array = fhlocation_get_gmap_array($walk_list, $country);
   $fhwalk_overview['gmap_array'] = $gmap_array ;
 //  $fhwalk_overview['gmap'] = gmap_draw_map($fhwalk_overview['gmap_array']);
 

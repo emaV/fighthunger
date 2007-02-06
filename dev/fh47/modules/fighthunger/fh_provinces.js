@@ -7,7 +7,7 @@ function clickCountryProvince() {
   province = document.getElementById('edit-location-province');
 
   country  = document.getElementById('edit-location-country');
-  uri = country.getAttribute("autocomplete_path");
+  uri = country.getAttribute("fh_autocomplete_path");
 
   acdb = new ACDB(uri);
 

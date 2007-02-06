@@ -54,9 +54,12 @@ fh_jsAC.prototype.found = function (matches) {
   }
   div_province = province.parentNode;
   if(j==0) {
-    div_province.setAttribute("style", "display:none;");
+//    div_province.setAttribute("style", "display:none;");
+// fix for IE http://www.webmasterworld.com/forum91/5025.htm
+    div_province.style.display = "none";
   } else {
-    div_province.setAttribute("style", "display:inline;");
+//    div_province.setAttribute("style", "display:inline;");
+    div_province.style.display = "inline";
   } 
   
 }

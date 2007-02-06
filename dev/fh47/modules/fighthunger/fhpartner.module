@@ -122,7 +122,6 @@ function theme_partner_block_content($partnerlist) {
  */
 function theme_partner_logo_small($node) {
   if($node->iid && function_exists('image_display') && $image = node_load($node->iid) ) {
-    print "image $node->iid".$image->images['thumbnail'];
     $info = image_get_info(file_create_path($image->images['thumbnail']));
     $output = '';
     $output .= '<div style="width: '. $info['width'] .'px" class="image-attach-teaser">';

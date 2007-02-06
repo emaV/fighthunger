@@ -825,6 +825,7 @@ function _fhwalk_countryprovinces($country='zzz') {
     $province_list = $province_listing_function();
     if (count($province_list)) {
       $options_list[$country .'000'] = '[ ----- '. t('MAKE A SELECTION') .' ----- ]';
+      asort($province_list);    
       foreach ($province_list as $province_code => $province_name) {
         $options_list[$country . '-' . $province_code] = $province_name;
       }
@@ -2288,13 +2289,9 @@ function fhwalk_get_photos($node, $instructions=NULL) {
  */
 function fhwalk_provinces_autocomplete($country) {
   $provinces = (array)_fhwalk_countryprovinces($country);
-  asort($provinces);    
-  
-watchdog('fhwalk', "ac provinces: $country - " . print_r($provinces, true));
   print drupal_to_js($provinces);
   exit();
 }
-
 
 /* gmap key
 dev.fighthunger.org 

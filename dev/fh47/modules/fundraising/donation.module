@@ -656,18 +656,22 @@ function donation_transaction($donation, $success) {
 function _donation_list($key = NULL) {
   $list[0] = t('None');
   $list['plain'] = t('Plain donation');
-  $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");
-  while($campaign = db_fetch_object($result)) {
-    $list['c' . $campaign->camid] = t('Campaign') . ": $campaign->name";
-    $resultE = db_query("SELECT n.nid, n.title, g.city, g.country " .
-        "FROM {donation_node} d " . 
-        "INNER JOIN {node} n ON d.nid = n.nid " .
-        "LEFT JOIN {gathering_node} g ON n.nid = g.nid " .
-        "WHERE d.type IN ('event') AND g.camid = %d", $campaign->camid);
-    while($event = db_fetch_object($resultE)) {
-      $list[$event->nid]  = t('Event') . ": $event->title";
-      $list[$event->nid] .= ($event->city)  ? " @ $event->city"  : '';
-      $list[$event->nid] .= ($event->country) ? " ($event->country)" : '';
+  // $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");
+  if ($active = module_invoke('fhcampaign', 'get_active_campaigns')) {
+    foreach($active as $campaign) {
+      $list['c' . $campaign->camid] = t('Campaign') . ": $campaign->name";
+      // Objects linked through taxonomy now
+      $result = db_query("SELECT n.nid, n.title, l.city, l.country " .
+          " FROM {node} n " .
+          " INNER JOIN {donation_node} d ON d.nid = n.nid " .
+          " INNER JOIN {term_node} tn ON n.nid = tn.nid " .
+          " LEFT JOIN {location} l ON n.nid = l.oid AND l.type = 'node' ".
+          " WHERE d.type = 'event' AND tn.tid = %d", $campaign->camid);
+      while($event = db_fetch_object($result)) {
+        $list[$event->nid]  = t('Event') . ": $event->title"
+         . (($event->city)  ? " @ $event->city"  : '')
+         . (($event->country) ? " ($event->country)" : '');
+      }
     }
   }
   return ($key) ? $list[$key] : $list;

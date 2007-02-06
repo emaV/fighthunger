@@ -55,7 +55,7 @@ a:active { color: #ff6600; }
   -moz-border-radius: 5px;
   border: solid 1px #ddd;
 }
-.form-submit {
+.form-submit, .form-submit:hover, .form-submit:focus  {
   background-color:#ff6600;
   color:#fff;
 }

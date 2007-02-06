@@ -295,7 +295,7 @@ global $user;
   _fhsignup_user_add($form_values['nid'], $form_values['uid'], $role, $stage, 
     $form_values['comment'], $form_values['opencomment'], $form_values['guests']);
 
-  drupal_set_message($msg . print_r($form_values, true));
+//  drupal_set_message($msg . print_r($form_values, true));
 }
 
 function fhsignup_user_form_validate($form_id, $form_values) {

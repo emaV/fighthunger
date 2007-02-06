@@ -98,45 +98,43 @@ function fhcampaign_form_alter($form_id, &$form) {
  * Restricts campaign taxonomy depending on permissions
  */
 function fhcampaign_check_taxonomy($form) {
+  $node = $form['#node'];
   // Bypass restrictions for some permissions
   if( user_access('administer walks') ) { 
     // Do nothing
+    return $form;
   } elseif(($vid = _fhcampaign_vocabulary()) && isset($form['taxonomy'][$vid])) {
     // Do not allow editing
-    if($form['nid']['#value'] && $current = $form['taxonomy'][$vid]['#default_value']) {
-      // Keep current value
-      $taxonomy = $form['taxonomy'][$vid];
-      $form['taxonomy'][$vid] = array('#type' => 'value', '#value' => $taxonomy['#default_value']);
-      $display = array();
-      
+    $taxonomy = $form['taxonomy'][$vid];
+    $campaigns = $taxonomy['#options']; // Quick. Get campaigns from form
+    if($node->nid) {
+      // Editing node. Keep current value
+      $current = $taxonomy['#default_value'];
+    } elseif($camid = $node->fwalk_tid) {
+      // New node. Get from parameters
+      $current = array($camid);
+    } 
+    // Check and display
+    if ($current) {
+      $form['taxonomy'][$vid] = array('#type' => 'value', '#value' => $current);
       // Just for display
-
-      if(is_array($taxonomy['#default_value'])) {
-        foreach($taxonomy['#default_value'] as $tid) {
-          $display[] = $taxonomy['#options'][$tid];
-        }
+      $display = array();
+      foreach($current as $tid) {
+        $display[] = $campaigns[$tid];
       }
       $form['taxonomy']['campaign'] = array(
         '#type' => 'item',
         '#title' => $taxonomy['#title'],
         '#value' => count($display) ? theme('item_list', $display) : t('None')
       );
+      return $form;
 
     } else {
-      // New node, no admin. Restrict to active campaigns
-      $form['taxonomy'][$vid]['#options'] = fhcampaign_list(CAMPAIGN_STATUS_ACTIVE);
-      // Set default value if in query string
-      if(isset($_REQUEST['campaign'])&& $cid = $_REQUEST['campaign']) {
-        $options = $form['taxonomy'][$vid]['#options'];
-        foreach($options as $key => $value) {
-          if($key != $cid) {
-            unset($form['taxonomy'][$vid]['#options'][$key]);
-          }
-        }
-      }
+      // Missing value. Error. Break form by no return.
+      drupal_set_message(t('Missing campaign parameter'), 'error');      
     }
   }
-  return $form;
+  // If we reach here, something is wrong, no form displayed anyway
 }
 
 /**

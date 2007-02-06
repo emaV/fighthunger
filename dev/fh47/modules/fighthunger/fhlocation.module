@@ -43,7 +43,7 @@ function fhlocation_menu($may_cache) {
     $items[] = array(
       'path' => 'fh_provinces_autocomplete', 
       'title' => t('provinces autocomplete'),
-      'callback' => '_fhlocation_provinces_autocomplete', 
+      'callback' => 'fhlocation_provinces_autocomplete', 
       'access' => true, 
       'type' => MENU_CALLBACK
     );

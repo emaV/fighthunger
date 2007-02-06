@@ -1393,8 +1393,6 @@ global $user;
           } else {
             $create_msg = t("Don't see an event in this country?"). "&nbsp;";
           }
-        } else {
-          $create_msg = t("Click here to create your own walk!"). "&nbsp;";
         }
         $create_link = l(t('Click here to create your own walk!'),$uri);
         $out .= $create_msg . $create_link;

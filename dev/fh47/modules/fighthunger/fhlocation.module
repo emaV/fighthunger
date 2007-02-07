@@ -284,11 +284,23 @@ function _fhlocation_campaign_NOgeocode_table ($tid) {
  * @return  provinces arrays js filtered
  */
 function fhlocation_provinces_autocomplete($country) {
-  $provinces = (array)_fhwalk_countryprovinces($country);
+  $provinces = (array)_fhlocation_country_provinces($country);
   print drupal_to_js($provinces);
   exit();
 }
 
+/**
+ * Rewrite location forms for dynamic province selection
+ */
+function fhlocation_form_rewrite(&$form, $field = 'location') {
+  // Set js
+  drupal_add_js(drupal_get_path('module', 'fhlocation') . '/fh_provinces.js');
+  $form[$field]['country']['#attributes']['fh_autocomplete_path'] = url('fh_provinces_autocomplete', NULL,  NULL, TRUE);     
+  if(($country = $form['location']['country']['#default_value']) && $country != '-') {
+    $form[$field]['province']['#options'] = _fhlocation_country_provinces($country);
+  }
+  
+}
 /* gmap key
 dev.fighthunger.org 
 ABQIAAAAbfOVykIDfWkLXGy0_OSL9BT-NiS1gmUMH_veYwnhh1Z0wNDNpBRzS1akGbaMeYKibiyI1jmmBu83RA

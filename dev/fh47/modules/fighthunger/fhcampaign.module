@@ -46,7 +46,7 @@ function fhcampaign_form_alter($form_id, &$form) {
     $campaign = $campaign ? (array)$campaign : array();
     $form['campaign']['shortname'] = array(
       '#type' => 'textfield', 
-      '#title' => t('Short name') . $tid, 
+      '#title' => t('Short name'), 
       '#default_value' => $campaign['shortname'], 
       '#maxlength' => 64, 
       '#required' => TRUE
@@ -70,7 +70,16 @@ function fhcampaign_form_alter($form_id, &$form) {
       '#default_value' => $campaign['status'], 
       '#description' => $status_help
     );
-    
+    $form['campaign']['longname'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('Long name'), 
+      '#default_value' => $campaign['longname'], 
+    );
+    $form['campaign']['longdesc'] = array(
+      '#type' => 'textarea', 
+      '#title' => t('Long description'), 
+      '#default_value' => $campaign['longdesc'], 
+    );    
   } elseif (isset($form['type']) && $type = $form['type']['#value']) {
     switch ($form_id) {
       case $type.'_node_settings':
@@ -99,20 +108,21 @@ function fhcampaign_form_alter($form_id, &$form) {
  */
 function fhcampaign_check_taxonomy($form) {
   $node = $form['#node'];
+  $vid = _fhcampaign_vocabulary();
   // Bypass restrictions for some permissions
   if( user_access('administer walks') ) { 
     // Do nothing
     return $form;
-  } elseif(($vid = _fhcampaign_vocabulary()) && isset($form['taxonomy'][$vid])) {
+  } elseif(isset($form['taxonomy'][$vid])) {
     // Do not allow editing
     $taxonomy = $form['taxonomy'][$vid];
     $campaigns = $taxonomy['#options']; // Quick. Get campaigns from form
     if($node->nid) {
       // Editing node. Keep current value
       $current = $taxonomy['#default_value'];
-    } elseif($camid = $node->fhwalk_tid) {
+    } elseif($node->camid) {
       // New node. Get from parameters
-      $current = array($camid);
+      $current = array($node->camid);
     } 
     // Check and display
     if ($current) {
@@ -269,7 +279,7 @@ function fhcampaign_country_list($tid) {
 function fhcampaign_save_campaign($campaign) {
   $campaign = (array)$campaign;
   db_query("DELETE FROM {gathering_campaign} WHERE camid = %d", $campaign['tid']);
-  db_query("INSERT INTO {gathering_campaign} (camid, shortname, startdate, enddate, status) VALUES(%d, '%s', '%s', '%s', '%d')", $campaign['tid'], $campaign['shortname'], $campaign['startdate'], $campaign['enddate'], $campaign['status']);
+  db_query("INSERT INTO {gathering_campaign} (camid, shortname, startdate, enddate, status, longname, longdesc) VALUES(%d, '%s', '%s', '%s', '%d', '%s', '%s')", $campaign['tid'], $campaign['shortname'], $campaign['startdate'], $campaign['enddate'], $campaign['status'], $campaign['longname'], $campaign['longdesc']);
   drupal_set_message(t('The campaign data has been updated.'));
 }
 

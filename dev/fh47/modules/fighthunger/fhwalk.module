@@ -22,7 +22,7 @@ After installation:
 - SQL queries
 
 1 - change module weight 
-UPDATE `system` SET `weight` = '1' WHERE `filename` = 'modules/fighthunger/fhwalk.module'; 
+UPDATE `system` SET `weight` = '1' WHERE type='module' AND name='fhwalk'; 
 
 2 - add taxonomy information in term_node table
 
@@ -88,6 +88,10 @@ CREATE TABLE `fh_history` (
 );
 
 *************************************************************************/
+// Walk status definition
+define('WALK_STATUS_CLOSED', 0);
+define('WALK_STATUS_POST', 1);
+define('WALK_STATUS_ACTIVE', 2);
 
 /**
  * Implementation of hook_help().
@@ -147,21 +151,37 @@ function _fhwalk_get_walk_by_id($uid,$tid) {
 }
 
 /**
+ * Check wether normal user can create walk for campaign
+ */
+function _fhwalk_user_can_create($uid, $camid = NULL) {
+  if($camid) {
+    // Check walks for this user, this campaign
+    $count = db_result(db_query("SELECT COUNT(n.nid) from {node} n " .
+      " INNER JOIN {term_node} tn ON n.nid = tn.nid " .
+      " WHERE n.type = 'fhwalk' AND n.uid = %d AND tn.tid =%d", $uid, $camid));
+    return !$count;
+  } else {
+    // Check active campaigns with no walks for this user
+    $count = db_result(db_query("SELECT COUNT(*) FROM {gathering_campaign} c ".
+      " WHERE c.status =". CAMPAIGN_STATUS_ACTIVE.
+      " AND c.camid NOT IN (SELECT tn.tid FROM {term_node} tn INNER JOIN {node} n ON tn.nid = n.nid WHERE n.type = 'fhwalk' AND tn.tid = c.camid) "));
+      return $count;
+  }
+}
+/**
  * Implementation of hook_access().
  *  
  * @ingroup fhwalk_core
  */
 function fhwalk_access($op, $node) {
   global $user;
-
+  
   switch ($op) {
     case 'create':
       return (  user_access('administer walks') || 
                 user_access('coordinate walks') ||
                 user_access('create multiple walks') ||
-                (  $node->fhwalk_tid && user_access('create walk') && 
-                  (_fhwalk_get_walk_by_id($user->uid,$node->fhwalk_tid)==0) 
-                )
+                (user_access('create walk') && _fhwalk_user_can_create($user->uid, isset($node->camid) ? $node->camid : NULL))
               );
       break;
     case 'update':
@@ -192,8 +212,16 @@ function fhwalk_menu($may_cache) {
   $items = array();
 
   if ($may_cache) {
-    // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache
+    // Generic create walk
     $node = new StdClass();
+    $node->type = 'fhwalk';
+    $items[] = array(
+          'path' => "node/add/fhwalk", 
+          'title' => t('walk'),
+          'callback' => 'fhwalk_add',
+          'access' => fhwalk_access('create', $node)
+    );
+    // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache          
     foreach(fhcampaign_get_all_campaigns() as $campaign) {
       $items[] = array(
         'path' => $campaign->shortname,
@@ -212,13 +240,6 @@ function fhwalk_menu($may_cache) {
       );
       // More tabs for active campaigns
       if ($campaign->status == CAMPAIGN_STATUS_ACTIVE) {
-        $node->fhwalk_tid = $campaign->tid;
-        $items[] = array(
-          'path' => "node/add/fhwalk/" . $campaign->tid, 
-          'title' => t('walk'),
-          'callback' => 'fhwalk_add',
-          'access' => fhwalk_access('create', $node)
-        );    
         $items[] = array(
           'path' => "$campaign->shortname/coordinate",
           'callback' => 'fhwalk_coordinate',
@@ -242,7 +263,7 @@ function fhwalk_menu($may_cache) {
   } else {
     // Add options for walks
     if (arg(0) == 'node' && is_numeric(arg(1)) && $node = node_load(arg(1))) {
-      if (($node->type == 'fhwalk') && ($node->fhwalk_status==2)) {
+      if (($node->type == 'fhwalk') && ($node->fhwalk_status == WALK_STATUS_ACTIVE)) {
         $items[] = array(
           'path' => 'node/'. arg(1) .'/walk_merge', 
           'title' => t('Walk Merge'),
@@ -290,28 +311,43 @@ function fhwalk_settings() {
 }
 
 /**
- * Implementation of node_add().
- *  
- * @ingroup fhwalk_core
- */ 
-function fhwalk_add() {
+ * Present a node submission form or a set of links to such forms.
+ */
+function fhwalk_add($camid = NULL, $country = '') {
   global $user;
-  $output = '';
-  
-  if (arg(3)) {
-    $fhwalk_tid = arg(3);
-    // Initialize settings
-    $node = array(
-      'uid' => $user->uid,
-      'cid' => variable_get('fhsignup_coordinator_default', ''), 
-      'name' => $user->name, 
-      'fhwalk_tid' => $fhwalk_tid,
-      'type' => 'fhwalk'
-    );
-
+  $node = new StdClass();
+  $node->type = 'fhwalk';
+  $node->camid = $camid; 
+  // If a node type has been specified, validate its existence.
+  if ($camid && fhwalk_access('create', $node)) {
+    // Initialize settings:
+    $node = array('uid' => $user->uid, 'name' => $user->name, 'type' => 'fhwalk', 
+      'camid' => $camid, 'cid' => variable_get('fhsignup_coordinator_default', ''), 'country' => $country);
+    // Check country
+    
     $output = node_form($node);
     drupal_set_title(t('Submit %name', array('%name' => node_get_name($node))));
   }
+  else {
+    // If no (valid) campaign has been provided, display campaign overview.
+    foreach (fhcampaign_get_active_campaigns() as $campaign) {
+      $node->camid = $campaign->camid;
+      if (fhwalk_access('create', $node)) {
+        $out = '<dt>'. l($campaign->name, "node/add/fhwalk/$campaign->camid", array('title' => t('Add a new walk for %s.', array('%s' => $campaign->name)))) .'</dt>';
+        $out .= '<dd>'. $campaign->description .'</dd>';
+        $item[$campaign->camid] = $out;
+      }
+    }
+
+    if (isset($item)) {
+      // uksort($item, 'strnatcasecmp');
+      $output = t('Choose the appropriate campaign from the list:') .'<dl>'. implode('', $item) .'</dl>';
+    }
+    else {
+      $output = t('You are not allowed to create walks.');
+    }
+  }
+
   return $output;
 }
 
@@ -340,7 +376,7 @@ function fhwalk_load($node) {
   // Load campaign data.
 
   if ($campaign = array_shift(fhcampaign_node_get_campaigns($node))) {
-    $additions->fhwalk_tid = $campaign->tid;
+    $additions->camid = $campaign->tid;
     $additions->fhwalk_status = $campaign->status;
     $additions->campaign = $campaign;
   }
@@ -389,7 +425,7 @@ function fhwalk_update($node) {
   if($rid) db_query("DELETE FROM {fh_history} fh WHERE rid = %d;", $rid);
 
   $sql = "INSERT INTO {fh_history} (rid, tid, nid) VALUES (%d, %d, %d)";
-  db_query($sql, $node->nid, $node->fhwalk_tid, $node->nid);
+  db_query($sql, $node->nid, $node->camid, $node->nid);
   foreach($node->history as $key => $value) {
     if($value<>0) db_query($sql, $node->nid, $key, $value);
   }
@@ -481,7 +517,7 @@ function fhwalk_submit(&$node) {
 
   // get latitude and longitude from google
   if( !($node->location['latitude'] && $node->location['longitude']) ) {
-    $coordinate = fhlocation_get_latlon($node->location);
+    $coordinate = module_invoke('fhlocation', 'get_latlon', $node->location);
     if($coordinate[0]==200) {
       $node->location['latitude']  = $coordinate[2];
       $node->location['longitude'] = $coordinate[3];
@@ -571,7 +607,7 @@ function fhwalk_merge() {
       '#options' => $options,
     );
     
-    $walk_list = _fhwalk_getwalks($node->fhwalk_tid, $node->location['country']);
+    $walk_list = _fhwalk_getwalks($node->camid, $node->location['country']);
     foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
     unset($walk_option[$node->nid]);
     $form['delete_merge']['nid_to'] = array(
@@ -598,21 +634,15 @@ function fhwalk_merge() {
  * @ingroup fhwalk_core
  */
 function fhwalk_form(&$node) {
-global $user;
+  global $user;
 
 // Little occitan trick
   $op = isset($_POST['op']) ? $_POST['op'] : '';
   if($op==t('Delete Walk')) drupal_goto("node/$node->nid/walk_merge");
 
-// callback parameters
-  if(arg(1)=='add') {
-    // $form['H_tid'] = array('#type' => 'hidden', '#value' => (arg(3) ? arg(3) : 0) );
-    $form['H_country'] = array('#type' => 'hidden', '#value' => (arg(4) ? arg(4) : '-') );
-  }
-  $form['H_organiser'] = array('#type' => 'hidden', '#value' => $node->name ? $node->name : '');
-  $form['H_coordinator'] = array('#type' => 'hidden', '#value' => $node->cid ? $node->cid : '');
-  
-  // general settings
+  // Parameters for new nodes $node->camid, $node->cid, $node->country
+
+  // Regular fields
   $form['title'] = array(
     '#type' => 'textfield',
     '#title' => t('Title'),
@@ -640,7 +670,7 @@ global $user;
     '#description' => t("Describe the general route for your walk, including approximate length and any landmarks."),
     '#weight' => -6,
   );
-  $form['fhwalk_tid'] = array('#type' => 'hidden', '#value' => $node->fhwalk_tid);
+  $form['camid'] = array('#type' => 'hidden', '#value' => $node->camid);
 
 
 // set walk organiser and walk coordinator form
@@ -723,6 +753,7 @@ global $user;
     case 'fhwalk_node_form':
       // Get some parameters
       $node = $form['#node'];
+      $vid = variable_get('fhwalk_vocabulary', 0);
       $campaign = $node->campaign;
       
       if (isset($form['delete'])) {
@@ -730,12 +761,12 @@ global $user;
         $form['delete']['#value'] = t('Delete Walk');
       }
     
-/*
-    $form['taxdump1'] = array('#value' => '<hr/>' . print_r($form['taxonomy'] , true).'<hr/>');  
-*/  
-
-
+      // Set tid from parameters
+      if(isset($node->camid)) {
+        $form['taxonomy'][$vid]['#default_value'] = $node->camid;
+      }
       // recover $tid and reset $form['taxonomy'][$vid]
+      
       if($campaign) {
         $tid = $campaign->tid;
         // Parse ISO date
@@ -767,17 +798,15 @@ global $user;
       unset($form['location']['additional']['#suffix']);
       unset($form['location']['additional']['#size']);
       unset($form['location']['additional']['#maxlength']);
-      if(isset($form['H_country'])) {
-        $form['location']['country']['#default_value'] = $form['H_country']['#value'];
+      
+      // Only set country if passed as argument
+      if(!$node->nid && $node->country) {
+        $form['location']['country']['#default_value'] = $node->country;
       }
-      if( ($country = $form['location']['country']['#default_value']) && $country != '-') {
-        $form['location']['province']['#options'] = _fhwalk_countryprovinces($country);
+      // Location rewriting
+      if (function_exists('fhlocation_form_rewrite')) {
+        fhlocation_form_rewrite($form, 'location');
       }
-
-// Set js
-$path = drupal_get_path('module', 'fhwalk');
-drupal_add_js($path . '/fh_provinces.js');
-$form['location']['country']['#attributes']['fh_autocomplete_path'] = url('fh_provinces_autocomplete', NULL,  NULL, TRUE);     
 
       unset( $form['event_start']['date']['start_hour']['#prefix'] );
       unset( $form['event_start']['date']['start_day']['#prefix'] );
@@ -1148,7 +1177,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
 
 // Fetch LCP nids and titles and theme
 
-  $LCP_list = fhlocalpage_get_nodes($node->location['country'], $node->fhwalk_tid);
+  $LCP_list = fhlocalpage_get_nodes($node->location['country'], $node->camid);
   $node->tabs['LCP'] = theme('fhwalk_LCP',$LCP_list);
 
  
@@ -1260,7 +1289,7 @@ global $user;
 // Create event
   if($fhwalk_overview['status']==2) {
     if($user->uid) {
-      $node->fhwalk_tid = $fhwalk_overview['term']->tid;
+      $node->camid = $fhwalk_overview['term']->tid;
       if( fhwalk_access('create', $node) ) { 
         $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
         if($fhwalk_overview['country']<>'-') {
@@ -1328,7 +1357,7 @@ function fhwalk_overview($synonym, $tid, $country = '-' ) {
     "|markers=blue::$gmap_markers]";
 */ 
 
-  $gmap_array = fhlocation_get_gmap_array($walk_list, $country);
+  $gmap_array = module_invoke('fhlocation', 'get_gmap_array', $walk_list, $country);
   $fhwalk_overview['gmap_array'] = $gmap_array ;
 //  $fhwalk_overview['gmap'] = gmap_draw_map($fhwalk_overview['gmap_array']);
 
@@ -1832,14 +1861,19 @@ global $user;
  * @param $sid  status id
  * @return status or array of status (if $sid=-1)
  */ 
-function _fhwalk_status($sid=-1) {
-  $status_options = array( 0=>"Closed", 1=>"Post Action", 2=>"Active" );
-  if($sid>=0) {
-    return $status_options[$sid];
-  } else {
+function _fhwalk_status( $sid= FALSE ) {
+  $status_options = array(
+    WALK_STATUS_CLOSED => t('Closed'),
+    WALK_STATUS_POST => t('Post Action'),
+    WALK_STATUS_ACTIVE => t('Active')
+  );
+  if ($sid === FALSE) {
     return $status_options;
-  }
+  } else {
+    return $status_options[$sid];
+  } 
 }
+
 
 /**
  * Process admin page.

@@ -1,6 +1,9 @@
 // Use table gathering_campaign. Change field
 ALTER TABLE `gathering_campaign` CHANGE `active` `status` INT( 2 ) NOT NULL DEFAULT '0';
 
+ALTER TABLE `gathering_campaign` 
+ CHANGE COLUMN `name` `longname` VARCHAR(64)  CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT '',
+ CHANGE COLUMN `description` `longdesc` MEDIUMTEXT  CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL DEFAULT '';
 
 
 /* Not needed anymore. Reusing gathering_campaign

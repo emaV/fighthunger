@@ -261,7 +261,7 @@ function fhcampaign_menu($may_cache) {
           'callback' => 'fhcampaign_administer',
           'callback arguments' => array($campaign->shortname, $campaign->tid),
           'title' => t('Administer'),
-          'access' => user_access('admininster walks'),
+          'access' => user_access('administer walks'),
           'weight' => 2,
           'type' => MENU_LOCAL_TASK
         );

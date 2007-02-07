@@ -1737,7 +1737,7 @@ class PHPMailer
      * @return void
      */
     function AddCustomHeader($custom_header) {
-        $this->CustomHeader[] = explode(":", $custom_header, 2);
+      if($custom_header) $this->CustomHeader[] = explode(":", $custom_header, 2);
     }
 }
 

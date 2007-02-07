@@ -3,7 +3,8 @@
 
 /**
  * @file
- * Enables users to manage fh wtw events.
+ * Enables users to manage fh local pages.
+ *
  */
 
 /**
@@ -58,8 +59,18 @@ function fhlocalpage_menu($may_cache) {
   $items = array();
 
   if ($may_cache) {
-    $items[] = array('path' => 'node/add/localpage', 'title' => t('local page'),
-      'access' => user_access('create local pages'));
+    $items[] = array(
+      'path' => 'node/add/localpage', 
+      'title' => t('local page'),
+      'access' => user_access('create local pages')
+    );
+  } else {
+    $items[] = array(
+      'title' => t('localpage'),
+      'path' => 'admin/localpage',
+      'callback' => 'fhlocalpage_admin',
+      'access' => user_access('administer local pages')
+    );
   }
 
   return $items;
@@ -108,6 +119,7 @@ function fhlocalpage_form(&$node) {
 /**
  * Custom edit form
  */
+/*
 function fhlocalpage_form_alter($form_id, &$form) {
   switch ($form_id) {
     case 'forward_form':
@@ -118,20 +130,21 @@ function fhlocalpage_form_alter($form_id, &$form) {
 
   return $form;
 }
-
+*/
 /**
  * Implementation of hook_validate()
  */
 function fhlocalpage_validate($node) {
   $vid = variable_get('fhwalk_vocabulary', 0);
-  $tid      = $node->taxonomy[$vid];
+  $tid = $node->taxonomy[$vid];
 
   $sql = 'SELECT n.nid, n.title FROM {node} n ' .
         'JOIN {term_node} tn ON tn.nid=n.nid ' .
         'JOIN {location} l ON l.oid=n.nid ' .
         'JOIN {i18n_node} i18n ON n.nid=i18n.nid ' .
         "WHERE i18n.language='%s' AND l.country='%s' AND tn.tid=%d";
-  if($node = db_fetch_object(db_query($sql, $node->language, $node->country, $tid))) {
+  $check_node = db_fetch_object(db_query($sql, $node->language, $node->country, $tid)); 
+  if( !$node->nid && $check_node ) {
     form_set_error('localpage', t('There is already a Local Country Page in this language for this campaign. See %node.', array('%node' => l($node->title, 'node/'.$node->nid))));
     form_set_error('country');
     form_set_error('language');
@@ -164,11 +177,175 @@ function fhlocalpage_update($node) {
   db_query("UPDATE {location} SET country = '%s' WHERE oid = %d AND type = 'node'", $node->country, $node->nid, 'node');
 }
 
+
+/**
+ * Present a node submission form or a set of links to such forms.
+ */
+function fhlocalpage_add($node) {
+  global $user;
+  $node = (object)$node;
+  $node->type = 'fhwalk';
+  if(!$node->uid) $node->uid = $user->uid;
+
+  $output = print_r($node, true);
+
+/* 
+  if (fhlocalpage_access('create', $node)) {
+    $node = array(
+      'uid' => $user->uid, 
+      'name' => $user->name, 
+      'type' => 'fhwalk', 
+      'camid' => $camid, 
+      'cid' => variable_get('fhsignup_coordinator_default', ''), 
+      'country' => $country);
+      // Check country
+    
+    $output = node_form($node);
+
+    drupal_set_title(t('Submit %name', array('%name' => node_get_name($node))));
+  } else {
+    $output = t('You are not allowed to create walks.');
+  }
+*/
+  return $output;
+}
+
+
 /**
  * Implementation of hook_view()
  */
 function fhlocalpage_view(&$node, $teaser = FALSE, $page = FALSE) {
+  $node->teaser = $node->body;
   $node = node_prepare($node, $teaser);
+}
+
+/**
+ * Implementation of hook_link().
+ */
+function fhlocalpage_link($type, $node = 0, $main = 0) {
+  $links = array();
+
+  if (fhlocalpage_access('update', $node)) {
+    $links[] = l(t('edit local page'), "node/$node->nid/edit");
+  }
+  return $links;
+}
+
+function fhlocalpage_create_submit($form_id, $form_values) {
+  $msg = print_r($form_values, true);
+  drupal_set_message("pippo dice: $msg");
+  return fhlocalpage_add($form_values);
+}
+
+function fhlocalpage_admin_campaign($tid, $country='') {
+
+  $campaign = fhcampaign_get_campaign($tid);
+  drupal_set_title(t('Local Country Pages') . ": $campaign->name");
+
+  $header = array(
+    array('data' => t('Country'),    'field' => 'country', 'sort' => 'asc'),
+    array('data' => t('Language'),   'field' => 'language'),
+    array('data' => t('Title'),      'field' => 'title'),
+    array('data' => t('Owner'),      'field' => 'name'),
+    array('data' => t('Status'),     'field' => 'status'),
+    array('data' => t('Operations'), ''),
+  );
+  $sql = "SELECT l.country, i18n.language, n.nid, n.title, n.status, u.name FROM {node} n " .
+    "INNER JOIN {term_node} tn ON tn.nid = n.nid " .
+    "LEFT JOIN {location} l ON n.nid = l.oid " .
+    "LEFT JOIN {i18n_node} i18n ON n.nid = i18n.nid " .
+    "INNER JOIN {users} u ON n.uid=u.uid " .
+    "WHERE n.type = 'fhlocalpage' AND l.type = 'node' "  .
+    "AND l.country LIKE '%%%s%%' AND tn.tid=%d";
+ 
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL, $country, $tid);
+  
+  while ($LCP = db_fetch_object($result)) {
+    $operation = array();
+    $operation[] = l(t('edit'),   "node/$LCP->nid/edit",   array(), drupal_get_destination());
+    $operation[] = l(t('delete'), "node/$LCP->nid/delete", array(), drupal_get_destination());
+    $operations = implode(' | ', $operation);
+    $rows[] = array(
+      'data' => array(
+          $LCP->country,
+          _fhlocalpage_getlang($LCP->language),
+          l($LCP->title, 'node/' . $LCP->nid),
+          $LCP->name,
+          ($LCP->status) ? t('published') : t('unpublished'),
+          $operations));
+  }
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No LCP available.'), 'colspan' => 4));
+  }
+  
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+  
+  // Create a LCP
+  $form['create'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Create LCP'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#weight' => 1,
+  );
+
+  // Countries with campaigns
+  $countries = fhcampaign_get_campaign_countries($tid);
+  $form['create']['country'] = array(
+    '#type' => 'select',
+    '#title' => t("Country"),
+    '#options' => $countries,
+    '#required' => TRUE
+  );
+  // Language field
+  $form['create']['language'] = array(
+    '#title' => t('Language'),
+    '#type' => 'select',
+    '#options' => _fhlocalpage_isocodes(),
+    '#required' => TRUE
+  );
+  $form['create']['name'] = array(
+    '#title' => t('Owner'),
+    '#type' => 'textfield',
+    '#autocomplete_path' => 'user/autocomplete',
+  );
+  $vid = _fhcampaign_vocabulary();
+  $form['create']['taxonomy'] = array('7' => array('#type' => 'hidden', '#value' => $tid), '#tree'=>true);
+  $form['create']['moderate'] = array('#type' => 'hidden', '#value' => 1);
+  $form['create']['title'] = array('#type' => 'hidden', '#value' => 'LCP');
+  $form['create']['body']  = array('#type' => 'hidden', '#value' => 'edit this');
+
+
+  $form['create']['submit'] = array('#type' => 'submit', '#value' => t('Submit'));
+  $form['#action'] = url('/node/add/fhlocalpage', drupal_get_destination() );
+//  $form['#redirect'] = drupal_get_destination();
+  $output .= drupal_get_form('fhlocalpage_node_form', $form);
+  
+  return $output;
+}
+
+/**
+ * fhlocal admin page.
+ *  
+ * @ingroup fhlocalpage_core
+ */  
+function fhlocalpage_admin($campaign='', $country='') {
+
+  if($campaign) {
+    $out = fhlocalpage_admin_campaign($campaign, $country);
+  } else {
+    drupal_set_title(t('Local Country Pages'));
+    $campaigns = fhcampaign_get_all_campaigns();
+    $out = '<ul class="menu">';
+    foreach($campaigns as $campaign) {
+      $out .= '<li class="leaf">' . l($campaign->name, "/admin/localpage/$campaign->tid") . '</li>';
+    }
+    $out .= '</ul>';
+  }   
+
+  return $out;
 }
 
 /**

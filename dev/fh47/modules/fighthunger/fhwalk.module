@@ -1263,7 +1263,7 @@ global $user;
       }
     } else {
       $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
-      $out .= t('Please %login or %register to create your own walk!', $login_array) .'</div>';
+      $out .= t('Please %login or %register to create your own walk!', $login_array);
     }
   } 
   $out .= "</div>";

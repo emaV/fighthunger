@@ -221,45 +221,7 @@ function fhwalk_menu($may_cache) {
           'callback' => 'fhwalk_add',
           'access' => fhwalk_access('create', $node)
     );
-    // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache          
-    foreach(fhcampaign_get_all_campaigns() as $campaign) {
-      $items[] = array(
-        'path' => $campaign->shortname,
-        'callback' => 'fhwalk_overview',
-        'callback arguments' => array($campaign->shortname, $campaign->tid),
-        'access' => TRUE
-      );
-      $items[] = array(
-        'path' => "$campaign->shortname/overview",
-        'callback' => 'fhwalk_overview',
-        'callback arguments' => array($campaign->shortname, $campaign->tid),
-        'title' => t('Overview'),
-        'type' => MENU_DEFAULT_LOCAL_TASK,
-        'weight' => 0,
-        'access' => TRUE
-      );
-      // More tabs for active campaigns
-      if ($campaign->status == CAMPAIGN_STATUS_ACTIVE) {
-        $items[] = array(
-          'path' => "$campaign->shortname/coordinate",
-          'callback' => 'fhwalk_coordinate',
-          'callback arguments' => array($campaign->shortname, $campaign->tid),
-          'title' => t('Coordinate'),
-          'access' => user_access('coordinate campaigns'),
-          'weight' => 1,
-          'type' => MENU_LOCAL_TASK
-        );
-        $items[] = array(
-          'path' => "$campaign->shortname/administer",
-          'callback' => 'fhwalk_administer',
-          'callback arguments' => array($campaign->shortname, $campaign->tid),
-          'title' => t('Administer'),
-          'access' => user_access('admininster campaigns'),
-          'weight' => 2,
-          'type' => MENU_LOCAL_TASK
-        );
-      }
-    }    
+  
   } else {
     // Add options for walks
     if (arg(0) == 'node' && is_numeric(arg(1)) && $node = node_load(arg(1))) {
@@ -607,7 +569,7 @@ function fhwalk_merge() {
       '#options' => $options,
     );
     
-    $walk_list = _fhwalk_getwalks($node->camid, $node->location['country']);
+    $walk_list = fhwalk_get_walks($node->camid, $node->location['country']);
     foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
     unset($walk_option[$node->nid]);
     $form['delete_merge']['nid_to'] = array(
@@ -722,7 +684,7 @@ function fhwalk_form(&$node) {
     $synonyms = taxonomy_get_synonyms($term->tid);
     $synonym = $synonyms[0];
     if( variable_get($status_variable, 0)<2) {
-      $walk_list = _fhwalk_getwalks($term->tid, $node->location['country']);
+      $walk_list = fhwalk_get_walks($term->tid, $node->location['country']);
       if($walk_list) {
         $walk_option[0] = t('Select a walk');
         foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
@@ -1112,7 +1074,7 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
         //$synonyms = taxonomy_get_synonyms($term->tid);
         //$synonym = $synonyms[0];
         if($campaign->status < CAMPAIGN_STATUS_ACTIVE) {
-          $walk_list = _fhwalk_getwalks($campaign->tid, $node->location['country']);
+          $walk_list = fhwalk_get_walks($campaign->tid, $node->location['country']);
           if($walk_list) {
             $form = array();
             $walk_option = array();
@@ -1221,11 +1183,6 @@ function theme_fhwalk_walklist($walk_list) {
   return $out;
 }
 
-// CHECK IF NEEDED !!!!
-function fhwalk_overview_submit($form_id, $form_values) {
-  return $form_values['synonym'] . '/' . $form_values['country'];  
-}
-
 /**
  * Get walk for a given campaign.
  *  
@@ -1234,7 +1191,7 @@ function fhwalk_overview_submit($form_id, $form_values) {
  * @param $country (optional) country to look for
  * @return the walks array
  */
-function _fhwalk_getwalks($tid, $country='%') {
+function fhwalk_get_walks($tid, $country='%') { // Was _fhwalk_getwalks
   $sql = "SELECT n.nid, n.title, l.city, l.province, l.country, l.latitude, l.longitude " .
          "FROM {node} n " .
          "LEFT JOIN {location} l ON n.nid = l.oid " . 
@@ -1313,115 +1270,7 @@ global $user;
   return $out;  
 }
 
-/**
- * Walk campaign home page
- *  
- * @ingroup fhwalk_core
- * @param $synonym path for campaign
- * @param $tid taxonomy campaign tid
- * @param $country optional country 
- * @return overview campaign page
- */  
-function fhwalk_overview($synonym, $tid, $country = '-' ) {
 
-  $term = taxonomy_get_term($tid);
-  drupal_set_title($term->name);
-
-// Walk status
-  $status = variable_get("fhwalk_" . $tid . "_status", 0);
-  $fhwalk_overview['status'] = $status;
-  $fhwalk_overview['tid'] = $tid;
-
-// Walk list
-  if( $country && $country != '-') {
-    $walk_list = _fhwalk_getwalks($tid, $country);
-    $fhwalk_overview['walk_list'] = $walk_list;
-  } else {
-    $walk_list = _fhwalk_getwalks($tid);
-  }
-
-// Map
-  $lat_max  = NULL;
-  $long_max = NULL;
-  $lat_min  = NULL;
-  $long_min = NULL;
-  foreach($walk_list as $key => $value) {
-    $lat_max  = ($lat_max)  ?  max($lat_max,  $value['latitude'])  : $value['latitude'];
-    $long_max = ($long_max) ?  max($long_max, $value['longitude']) : $value['longitude'];
-    $lat_min  = ($lat_min)  ?  min($lat_min,  $value['latitude'])  : $value['latitude'];
-    $long_min = ($long_min) ?  min($long_min, $value['longitude']) : $value['longitude'];
-  }
-/*      
-  $gmap_string = "[gmap |id=map |center=$gmap_center_lat, $gmap_center_long " .
-    "|zoom=$gmap_zoom |width=500px |height=400px |control=Small |type=Map " .
-    "|markers=blue::$gmap_markers]";
-*/ 
-
-  $gmap_array = module_invoke('fhlocation', 'get_gmap_array', $walk_list, $country);
-  $fhwalk_overview['gmap_array'] = $gmap_array ;
-//  $fhwalk_overview['gmap'] = gmap_draw_map($fhwalk_overview['gmap_array']);
-
-// Term
-  $fhwalk_overview['term'] = $term;
-
-// Country selection ONLY COUNTRIES WITH WALKS
-/*
-  if( $fhwalk_overview['status']==2 ) {
-    $country_list = fh_get_country_list();
-  } else {
-    $country_list = array('' => '--') + _fhwalk_get_country_campaign($tid);
-  }
-*/
-  $country_list = array('' => '--') + _fhwalk_get_country_campaign($tid);
-
-
-  $form['tid'] = array('#type' => 'hidden', '#value' => $tid);
-  $form['synonym'] = array('#type' => 'hidden', '#value' => $synonym);
-  $form['country'] = array(
-    '#type' => 'select',
-    '#title' => t('Select a country to find a walk'),
-    '#options' => $country_list,
-    '#default_value' => $country,
-    '#attributes' => array('onchange' => 'submit()'),
-  );
-  $form['submit'] = array(
-    '#type' => 'submit', 
-    '#value' => t('Submit'), 
-    '#attributes' => array( 'style' => 'visibility:hidden' ) //trick to use fhwalk_overview_submit
-  );
-  $fhwalk_overview['country'] = $country;
-  $fhwalk_overview['country_search_form'] = $form;
-  $fhwalk_overview['country_search'] = drupal_get_form('fhwalk_overview', $form);
-    
-
-// print node
-//  $out .= gmap_draw_map($gmap_array);
-
-//  $out .= $term->description;
-//  $out .= $country_search;
-//  $out .= theme('fhwalk_walklist', $walk_list);
-
-  $out = theme('fhwalk_overview_node', $fhwalk_overview);     
-    
-// debug
-
-//  $out .= "<hr />" . htmlentities($gmap_string) . "";
-//  $out .= '<hr />$gmap_array: ' . htmlentities( print_r($gmap_array, true) );
-/*
-  $out .= "<hr />lat_max $lat_max, long_max $long_max, lat_min $lat_min, long_min $long_min";
-  $span_lat = ($lat_max - $lat_min) / 180;
-  $span_long = ($long_max - $long_min) / 360;
-  $out .= '<hr />' . "span_lat: $span_lat, span_long: $span_long";
-  $out .= '<br/> zoom: ' . $gmap_array['zoom'] . ' - ' . $gmap_array['span'];
-*/ 
-
-/*
-  $out .= '<hr />' . "tid: $tid";
-  $out .= '<hr />' . "country: $country";
-  $out .= '<hr />' . "fhwalk_overview: " . print_r($fhwalk_overview, true);
-*/  
-  return $out;
-}
 
 /**********************
  *
@@ -1494,128 +1343,10 @@ function _fhwalk_administer_get_walk($tid, $sql_array) {
   return $output;
 }
 
-/**
- * Process administer search form.
- * Convert POST request value in GET value 
- *  
- * @ingroup fhwalk_administer
- * @param $form_id 
- * @param $form_values
- */
-function fhwalk_administer_search_submit($form_id, $form_values) {
-  $msg = print_r($form_values, true);
 
-  $get = array();
-  if($form_values['country']<>'') $get['country'] = $form_values['country'];
-  if($form_values['coordinator']<>'all') $get['coord']   = $form_values['coordinator'];
-  unset($get[0]);
-  $URLquerystring = drupal_query_string_encode($get);
-  $url = $form_values['syn'] . '/administer';
 
-	drupal_goto($url, $URLquerystring);
-}
 
-/**
- * Get a list of country for a given campaign
- *  
- * @ingroup fhwalk_helpers
- * @param $tid taxonomy campaign tid
- * @return countries array
- */
-function _fhwalk_get_country_campaign($tid) {
-  $countries = _location_get_iso3166_list();
 
-  $sql = "SELECT DISTINCT l.country FROM {location} l " . 
-    "JOIN {node} n ON n.nid=l.oid " .
-    "JOIN {term_node} tn ON tn.nid=n.nid " .
-    "WHERE l.type='node' AND tn.tid=%d;";
-  $result=db_query($sql, $tid);
-  while($row = db_fetch_array($result)) {
-    $country_campaign[$row['country']] = $countries[$row['country']];
-  } 
-  asort($country_campaign);    
-
-  return $country_campaign;
-}
-
-/**
- * Walk campaign administrator page.
- * (param come from callback on menu hook) 
- *  
- * @ingroup fhwalk_administer
- * @param $synonym campaign path
- * @param $tid taxonomy campaign tid
- */  
-function fhwalk_administer($synonym, $tid) {
-global $user;
-
-//  array_intersect_key() only in php 5.1
-//  $search_keys = array('coord'=> 1, 'country' => 2);
-//  $sql_array = ($_REQUEST) ? array_intersect_key($_REQUEST, $search_keys) : array();
-  $sql_array = array();
-  if($_REQUEST['coord'])   $sql_array['coord']   = $_REQUEST['coord'];
-  if($_REQUEST['country']) $sql_array['country'] = $_REQUEST['country'];
-
-  $term = taxonomy_get_term($tid);
-  drupal_set_title(t('Administer') . ": $term->name");
-  
-// Get list of walk coordinated
-  $form['walk_status'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Walk List'),
-    '#collapsible' => TRUE,
-    '#collapsed' => FALSE,
-    '#weight' => -1
-  );
-
-  $form['walk_status']['list'] = array(
-    '#value' => _fhwalk_administer_get_walk($tid, $sql_array),
-  );
-  
-  $form['walk_status']['search'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Search'),
-    '#collapsible' => TRUE,
-    '#collapsed' => (count($sql_array)===0),
-    '#weight' => 1
-  );
-
-// fetch only country with a campaign
-  $countries = _fhwalk_get_country_campaign($tid);
-  $countries[''] = '< ALL >';
-  $form['walk_status']['search']['country'] = array(
-    '#type' => 'select',
-    '#title' => t("Country"),
-    '#options' => $countries,
-    '#default_value' => ($sql_array['country'] ? $sql_array['country'] : ''), 
-  );
-  
-  $coords = fhwalk_get_coordinators();
-  $coords['all'] = '< ALL >'; 
-  $coords['none'] = '< WITHOUT COORDINATOR >';
-//  $coords = array_merge($coords, fhwalk_get_coordinators());
-
-  $form['walk_status']['search']['coordinator'] = array(
-    '#type' => 'select',
-    '#title' => t("Coordinator"),
-    '#options' => $coords, 
-    '#default_value' => ($sql_array['coord'] ? $sql_array['coord'] : 'all'),
-  );
-  $form['walk_status']['search']['syn'] = array('#type' => 'hidden', '#value' => $synonym);
-  $form['walk_status']['search']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Search')
-  );
-  
-  $output = drupal_get_form('fhwalk_administer_search', $form);
-
-/*
-  $output .= "pippo dice ciao a tutti e stampa la request: $request";
-  $output .= "e stampa la post: $post";
-  $output .= "e stampa i coord: " . print_r(fhwalk_get_coordinators(), true);
-*/
-  return $output;
-}
 
 /**********************
  *
@@ -1819,39 +1550,6 @@ global $user;
   return drupal_get_form('fhwalk_coordinate_email', $form);
 }
 
-/**
- * Walk campaign coordinate page
- * (param come from callback on menu hook)
- *  
- * @ingroup fhwalk_coordinate
- * @param $synonym campaign path
- * @param $tid taxonomy campaign tid
- */  
-function fhwalk_coordinate($synonym, $tid) {
-global $user;
-
-  $term = taxonomy_get_term($tid);
-  drupal_set_title(t('Coordinate') . ": $term->name");
-
-// Get list of walk coordinated
-  $form['walk_status'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Organiser Status') . $user->uid,
-    '#collapsible' => TRUE,
-    '#collapsed' => FALSE,
-    '#weight' => -1
-  );
-  $form['walk_status']['list'] = array(
-    '#value' => _fhwalk_coordinate_get_walk($tid, $user->uid),
-  );
-  $output = drupal_get_form('', $form);
-
-// Get email form
-  $output .= fhwalk_coordinate_email_form($term);
-
-
-  return $output;
-}
 
 
 /**

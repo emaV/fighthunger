@@ -361,11 +361,12 @@ function fhlocalpage_admin($campaign='', $country='') {
  * Note: moved from fhwalk
  */
 function fhlocalpage_get_nodes($country, $tid) {
-  $sql = 'SELECT n.nid, n.title, i18n.language FROM {node} n ' .
-    ' INNER JOIN term_node tn ON tn.nid = n.nid ' .
-    " INNER JOIN location l ON l.oid = n.nid AND l.type = 'node'" .
-    ' INNER JOIN i18n_node i18n ON n.nid = i18n.nid ' .
-    "WHERE n.type = 'fhlocalpage' AND l.country='%s' AND tn.tid=%d";
+  $sql = "SELECT n.nid, n.title, i18n.language FROM {node} n " .
+    "INNER JOIN {term_node} tn ON tn.nid = n.nid " .
+    "INNER JOIN {location} l ON l.oid = n.nid AND l.type = 'node'" .
+    "INNER JOIN {i18n_node} i18n ON n.nid = i18n.nid " .
+    "WHERE n.type = 'fhlocalpage' AND n.status=1 " .
+    "AND l.country='%s' AND tn.tid=%d";
   $result=db_query($sql, $country, $tid);
   $nodes = array();
   while($row=db_fetch_array($result)) {

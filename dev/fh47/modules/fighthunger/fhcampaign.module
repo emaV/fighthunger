@@ -357,7 +357,13 @@ function fhcampaign_overview($camid, $country = '-' ) { // Was fhwalk_overview
 
   // Get walk list
   if( $country && $country != '-') {
-    $walk_list = module_invoke('fhwalk','get_walks',$camid, $country);
+    $walk_list = module_invoke('fhwalk','get_walks', $camid, $country);
+    $fhwalk_overview['LCP']  = module_invoke('fhlocalpage','get_nodes', $country, $camid);
+    $conditions = array(
+      'audience' => 'COUNTRY',
+      'country'  => $country,
+      'tid'      => $camid);
+    $fhwalk_overview['CP'] = module_invoke('fhpartner','node_get_partners', NULL, $conditions);
   } else {
     $walk_list = module_invoke('fhwalk','get_walks', $camid);
   }

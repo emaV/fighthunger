@@ -1138,10 +1138,8 @@ function fhwalk_view($node, $teaser = FALSE, $page = FALSE) {
   $node->CP = theme('fhpartner_list', $node->partners_country); 
 
 // Fetch LCP nids and titles and theme
-
   $LCP_list = fhlocalpage_get_nodes($node->location['country'], $node->camid);
   $node->tabs['LCP'] = theme('fhwalk_LCP',$LCP_list);
-
  
 // Set footer tabs (only history now)
   $node->tabs['footer'] = theme('fhwalk_tabs', $footers);
@@ -1267,6 +1265,14 @@ global $user;
     }
   } 
   $out .= "</div>";
+  
+  // Get Country Partners
+  $out .= theme('fhpartner_list', $fhwalk_overview['CP']); 
+
+  // Get LCPs
+  $out .= theme('fhwalk_LCP', $fhwalk_overview['LCP']);
+
+  
   return $out;  
 }
 

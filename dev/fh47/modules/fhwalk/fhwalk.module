@@ -164,7 +164,7 @@ function _fhwalk_user_can_create($uid, $camid = NULL) {
     // Check active campaigns with no walks for this user
     $count = db_result(db_query("SELECT COUNT(*) FROM {gathering_campaign} c ".
       " WHERE c.status =". CAMPAIGN_STATUS_ACTIVE.
-      " AND c.camid NOT IN (SELECT tn.tid FROM {term_node} tn INNER JOIN {node} n ON tn.nid = n.nid WHERE n.type = 'fhwalk' AND tn.tid = c.camid) "));
+      " AND c.camid NOT IN (SELECT tn.tid FROM {term_node} tn INNER JOIN {node} n ON tn.nid = n.nid WHERE n.type = 'fhwalk' AND tn.tid = c.camid AND n.uid = %d) ", $uid));
       return $count;
   }
 }
@@ -236,7 +236,6 @@ function fhwalk_menu($may_cache) {
         );
       }
     }
-
   }
   return $items;
 }

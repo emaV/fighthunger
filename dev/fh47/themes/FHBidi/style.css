@@ -734,18 +734,19 @@ ul.block_menu li {
 }
 
 /* block on central column */
-.main-content .block {
+.main-content div.block {
   background-color:#ff6600;
+  margin-top : 1em;
   padding: 5px;
-  width: 50%;
-  float: right;
+  width: 20em;
+  float: left;
 }
 
-.main-content .block p {
+.main-content div.block p {
   padding: 0px;
   text-align :  center;
 }
 
-.main-content .block a {
+.main-content div.block a {
   color:#fff;
 }

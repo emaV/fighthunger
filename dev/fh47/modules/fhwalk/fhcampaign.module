@@ -212,7 +212,7 @@ function fhcampaign_admin() {
     $header = array(t('Campaign'), t('Status'), t('Operations'));
     $rows = array();
     foreach(fhcampaign_get_all_campaigns() as $campaign) {
-      $ops = array(l(t('edit'), 'taxonomy/edit/term/'.$campaign->tid));
+      $ops = array(l(t('edit'), 'admin/taxonomy/edit/term/'.$campaign->tid));
       if($campaign->status == CAMPAIGN_STATUS_ACTIVE) {
         $ops[] = l(t('administer'), $base.'/'.$campaign->shortname);
       }
@@ -339,6 +339,63 @@ function fhcampaign_country_list($tid) {
 }
 
 /**
+ * Themed overview page.
+ *  
+ * @ingroup fhwalk_theme
+ * @param $fhwalk_overview array with data to render
+ * @return HTML code
+ */
+function theme_fhcampaign_overview_node($fhwalk_overview) {
+global $user;
+
+  $out = '<div class="fhoverview">';
+// Map
+  $out .= gmap_draw_map($fhwalk_overview['gmap_array']);
+
+// Presentation
+  $out .= '<div>' . $fhwalk_overview['term']->description . '</div>';
+
+// Country search
+  $out .= $fhwalk_overview['country_search'];
+  
+// Country event list
+  $out .= theme('fhwalk_walklist', $fhwalk_overview['walk_list']);
+
+// Create event
+  if($fhwalk_overview['status']==2) {
+    if($user->uid) {
+      $node->camid = $fhwalk_overview['term']->tid;
+      if( fhwalk_access('create', $node) ) { 
+        $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
+        if($fhwalk_overview['country']<>'-') {
+          $uri .= '/' . $fhwalk_overview['country'];
+          if($fhwalk_overview['walk_list']) {
+            $create_msg = t("Don't see an event near you?"). "&nbsp;";
+          } else {
+            $create_msg = t("Don't see an event in this country?"). "&nbsp;";
+          }
+        }
+        $create_link = l(t('Click here to create your own walk!'),$uri);
+        $out .= $create_msg . $create_link;
+        $out .= theme("fhwalk_btn_create",$uri);
+      }
+    } else {
+      $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
+      $out .= t('Please %login or %register to create your own walk!', $login_array);
+    }
+  } 
+  $out .= "</div>";
+  
+  // Get Country Partners
+  $out .= theme('fhpartner_list', $fhwalk_overview['CP']); 
+
+  // Get LCPs
+  $out .= theme('fhwalk_LCP', $fhwalk_overview['LCP']);
+  
+  return $out;  
+}
+
+/**
  * Walk campaign home page
  *  
  * @ingroup fhwalk_core
@@ -358,16 +415,16 @@ function fhcampaign_overview($camid, $country = '-' ) { // Was fhwalk_overview
   // Get walk list
   if( $country && $country != '-') {
     $walk_list = module_invoke('fhwalk','get_walks', $camid, $country);
-    $fhwalk_overview['LCP']  = module_invoke('fhlocalpage','get_nodes', $country, $camid);
     $conditions = array(
       'audience' => 'COUNTRY',
       'country'  => $country,
       'tid'      => $camid);
+    $fhwalk_overview['walk_list'] = $walk_list;
     $fhwalk_overview['CP'] = module_invoke('fhpartner','node_get_partners', NULL, $conditions);
+    $fhwalk_overview['LCP']  = module_invoke('fhlocalpage','get_nodes', $country, $camid);
   } else {
     $walk_list = module_invoke('fhwalk','get_walks', $camid);
   }
-  $fhwalk_overview['walk_list'] = $walk_list;
 // Map
   $lat_max  = NULL;
   $long_max = NULL;
@@ -411,7 +468,7 @@ function fhcampaign_overview($camid, $country = '-' ) { // Was fhwalk_overview
   $fhwalk_overview['country_search_form'] = $form;
   $fhwalk_overview['country_search'] = drupal_get_form('fhcampaign_overview', $form);
 
-  $out = theme('fhwalk_overview_node', $fhwalk_overview);     
+  $out = theme('fhcampaign_overview_node', $fhwalk_overview);     
     
   return $out;
 }

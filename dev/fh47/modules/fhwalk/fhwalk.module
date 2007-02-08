@@ -1217,66 +1217,6 @@ function theme_fhwalk_btn_create($url) {
   return $out;
 }
 
-/**
- * Themed overview page.
- *  
- * @ingroup fhwalk_theme
- * @param $fhwalk_overview array with data to render
- * @return HTML code
- */
-function theme_fhwalk_overview_node($fhwalk_overview) {
-global $user;
-
-  $out = '<div class="fhoverview">';
-// Map
-  $out .= gmap_draw_map($fhwalk_overview['gmap_array']);
-
-// Presentation
-  $out .= '<div>' . $fhwalk_overview['term']->description . '</div>';
-
-// Country search
-  $out .= $fhwalk_overview['country_search'];
-  
-// Country event list
-  $out .= theme('fhwalk_walklist', $fhwalk_overview['walk_list']);
-
-// Create event
-  if($fhwalk_overview['status']==2) {
-    if($user->uid) {
-      $node->camid = $fhwalk_overview['term']->tid;
-      if( fhwalk_access('create', $node) ) { 
-        $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
-        if($fhwalk_overview['country']<>'-') {
-          $uri .= '/' . $fhwalk_overview['country'];
-          if($fhwalk_overview['walk_list']) {
-            $create_msg = t("Don't see an event near you?"). "&nbsp;";
-          } else {
-            $create_msg = t("Don't see an event in this country?"). "&nbsp;";
-          }
-        }
-        $create_link = l(t('Click here to create your own walk!'),$uri);
-        $out .= $create_msg . $create_link;
-        $out .= theme("fhwalk_btn_create",$uri);
-      }
-    } else {
-      $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
-      $out .= t('Please %login or %register to create your own walk!', $login_array);
-    }
-  } 
-  $out .= "</div>";
-  
-  // Get Country Partners
-  $out .= theme('fhpartner_list', $fhwalk_overview['CP']); 
-
-  // Get LCPs
-  $out .= theme('fhwalk_LCP', $fhwalk_overview['LCP']);
-
-  
-  return $out;  
-}
-
-
-
 /**********************
  *
  * ADMINISTER TAB

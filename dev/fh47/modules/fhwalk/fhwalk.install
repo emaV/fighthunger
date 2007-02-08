@@ -1,0 +1,121 @@
+<?php
+
+/*
+ * Schema change 1: Update to UTF8
+ */
+function fhwalk_update_1() {
+  return _system_update_utf8(array('gathering_node'));
+}
+
+/*
+ * Schema changes 2: change module weight
+ */
+function fhwalk_update_2() {
+  
+  $ret = array();
+  
+  $sql = "UPDATE {system} SET weight = '1' WHERE type='module' AND name='fhwalk'";
+  $ret[] = update_sql($sql);
+  
+  return $ret;
+}
+
+/*
+ * Schema changes 3: add taxonomy information in term_node table
+ */
+function fhwalk_update_3() {
+  $ret = array();
+  
+  $terms = taxonomy_get_tree(variable_get('fhwalk_vocabulary', 0));
+  foreach($terms as $term) {
+    $sql = "INSERT INTO {term_node} SELECT nid, " . $term->tid . " AS tid FROM {node} WHERE type = 'gathering-" . ($term->weight - 4) . "'";
+    $ret[] = update_sql($sql);
+  }
+  return $ret;
+}
+
+/*
+ * Schema changes 4: change gathering-n to fhwalk
+ */
+function fhwalk_update_4() {
+  $ret = array();
+  
+  $sql = "UPDATE {node} SET type='fhwalk' WHERE type LIKE 'gather%'";
+  $ret[] = update_sql($sql);
+
+  return $ret;
+}
+
+/*
+ * Schema changes 5: altering walk data (coordinator field)
+ */
+function fhwalk_update_5() {
+  $ret = array();
+  
+  $sql = "ALTER TABLE {gathering_node} ADD cid INT( 10 ) NULL AFTER nid";
+  $ret[] = update_sql($sql);
+
+  return $ret;
+}
+
+/*
+ * Schema changes 6: move data from gathering-1 and 2 to event!!
+ * (but we have to check for time zone of ewh servers!!!) 
+ * 2006-05-21 10:00:00 convert to 1148220000 ewhserver
+ *                      should be 1148202000 so we have to subtract 18000
+ */
+function fhwalk_update_6() {
+  $ret = array();
+  
+  // FIRST check for enddate on gatherning_node some record is 0000-00-00                      
+  $sql = "UPDATE {gathering_node} SET enddate=startdate WHERE enddate='0000-00-00'";
+  $ret[] = update_sql($sql);
+
+  // SECOND generate timestamp
+  $offset = strtotime(gmdate("M d Y H:i:s"))-strtotime(date("M d Y H:i:s"));
+  $offset = ($offset>=0) ? "- $offset" : '+ ' . (-$offset);
+  $sql = "INSERT INTO {event} (nid, event_start, event_end)
+            SELECT nid, 
+              UNIX_TIMESTAMP( ADDTIME( startdate , starttime )) $offset AS event_start, 
+              UNIX_TIMESTAMP( ADDTIME( enddate   , endtime   )) $offset AS event_end 
+              FROM {gathering_node}";
+  $ret[] = update_sql($sql);
+ 
+  return $ret;
+}
+
+/*
+ * Schema changes 7: update data to location
+ * (and FIX uk to gb)
+ */
+function fhwalk_update_7() {
+  $ret = array();
+  
+  $sql = "UPDATE {gathering_node} SET country = 'GB' WHERE country = 'UK'";
+  $ret[] = update_sql($sql);
+
+  $sql = "UPDATE {location} l, {gathering_node} gn " .
+    "SET l.name = gn.address1, l.street = gn.address2, " .
+    "l.additional = gn.directions, l.country = LOWER(gn.country) " . 
+    "WHERE l.oid = gn.nid AND l.type = 'node'";
+  $ret[] = update_sql($sql);
+
+  return $ret;
+}
+
+/*
+ * Schema changes 8: move gathering_node.description to node_revision.body
+ * (ALL gathering node are without body!!!!)
+ */
+function fhwalk_update_8() {
+  $ret = array();
+  
+  $sql = "UPDATE {node_revisions} nr, {gathering_node} gn " .
+    "SET nr.body=gn.description, nr.format=3 " . 
+    "WHERE nr.nid=gn.nid AND gn.description<>''";
+  $ret[] = update_sql($sql);
+
+  return $ret;
+}
+
+?>

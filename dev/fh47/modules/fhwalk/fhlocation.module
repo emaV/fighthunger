@@ -97,10 +97,14 @@ function _fhlocation_geocode_geonames($city, $country) {
       $key = substr($key, 1, -1);                       // strip "
       $result_array[$key] = $val;
     }
-    $content[0] = 200;
-    $content[2] = $result_array['lat'];
-    $content[3] = $result_array['lng'];
-    $content[4] = 'geonames';
+    if( ($result_array['lat']<>'') && ($result_array['lng']<>'') ) {
+      $content[0] = 200;
+      $content[2] = $result_array['lat'];
+      $content[3] = $result_array['lng'];
+      $content[4] = 'geonames';
+    } else {
+      $content[0] = 0;
+    }
   } else {            // STOP !!!
     $content[0] = 0;
   }

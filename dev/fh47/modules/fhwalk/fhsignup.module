@@ -1017,9 +1017,9 @@ function _fhsignup_signup_table($nid, $status) {
   $result = pager_query($sql . $tablesort, 20, 0, NULL, $nid);
  
   while ($signup = db_fetch_object($result)) {
-    $user_unsub = "<a href='signup_user/$signup->uid/unsubscribe'>" . t('Unsubscribe') . '</a>';
-    $user_deny = "<a href='signup_user/$signup->uid/approve'>" . t('Approve') . '</a>';
-    $user_approve = "<a href='signup_user/$signup->uid/deny'>" . t('Deny') . '</a>';
+    $user_unsub   = "<a href='signup_user/$signup->uid/unsubscribe'>" . t('Unsubscribe') . '</a>';
+    $user_approve = "<a href='signup_user/$signup->uid/approve'>" . t('Approve') . '</a>';
+    $user_deny    = "<a href='signup_user/$signup->uid/deny'>" . t('Deny') . '</a>';
     $operations = array();
     switch ($status) {
       case 0: // no approval required

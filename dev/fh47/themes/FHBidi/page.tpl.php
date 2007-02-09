@@ -106,7 +106,18 @@
   print "\t<!-- \$_GET['q']: " . $_GET['q'] . " -->\n";
   print "\t<!-- \$node->type: " . $node->type . " -->\n";
   print "\t<!-- arg(0): " . arg(0) . " -->\n\n";
+// gorup check  
+//  $group_nid = key(og_get_node_groups($node));
+//  $group_term = key(taxonomy_node_get_terms_by_vocabulary($group_nid, 6));
+  
+//  print "\t<!-- \$node->groups: " . print_r(og_get_node_groups($node), true) . " -->\n";
+//  print "\t<!-- \group_nid: $group_nid -->\n";
+//  print "\t<!-- \group_term: $group_term -->\n";
+  
   $template_content = "page-default.tpl.php";
+//  if (($group_term) == 25) {
+//    $template_content = "page-gap.tpl.php";
+//  }
   if (($node->type) == 'gathering-2') {
     $template_content = "page-gathering.tpl.php";
   }

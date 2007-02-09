@@ -4,7 +4,8 @@
  * Schema change 1: Update to UTF8
  */
 function fhsignup_update_1() {
-  return _system_update_utf8(array('gathering_signup'));
+  // Moved to fhupdate module
+  //return _system_update_utf8(array('gathering_signup'));
 }
 
 /*

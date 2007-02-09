@@ -129,6 +129,7 @@ function fhcampaign_check_taxonomy($form) {
       $form['taxonomy'][$vid] = array('#type' => 'value', '#value' => $current);
       // Just for display
       $display = array();
+      $current = is_array($current) ? $current : array($current);      
       foreach($current as $tid) {
         $display[] = $campaigns[$tid];
       }

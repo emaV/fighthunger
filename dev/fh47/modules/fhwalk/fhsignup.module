@@ -1323,7 +1323,7 @@ global $user;
       $code = _invite_create_regcode();  
       $invite_url = 'node/'. $form_values['nid'] . "/signup_invite/$code";
       $invite = "<p>To accept this invite, <a href='http://www.fighthunger.org/user>login or register</a> on fightunger.org " .
-        "then click on this <a href='$invite_url'>link</a><p>";
+        "then click on this <a href='$invite_url'>link</a></p>";
       $vars['forward_ad_footer'] = $invite;
    
 // Theming body

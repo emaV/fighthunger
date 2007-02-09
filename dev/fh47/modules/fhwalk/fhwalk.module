@@ -304,7 +304,7 @@ function fhwalk_update($node) {
 // UPDATE in gathering_node
   $fields = "cid=%d, route = '%s'";
   $sql = "UPDATE {gathering_node} SET $fields WHERE nid = %d";
-  db_query($sql, $node->cid, $node->route);
+  db_query($sql, $node->cid, $node->route, $node->nid);
 
 // UPDATE in fh_history
 /*
@@ -411,6 +411,7 @@ function fhwalk_submit(&$node) {
       $node->location['longitude'] = $coordinate[3];
     } else {
       watchdog('fhwalk', "Error fetching lat lon from google: " . print_r($coordinate, true) , WATCHDOG_WARNING);
+drupal_set_message("Your walk will show shortly on the map.");
     }
   }
 }
@@ -560,38 +561,6 @@ function fhwalk_form(&$node) {
   );
   $form['camid'] = array('#type' => 'hidden', '#value' => $node->camid);
 
-
-// set walk organiser and walk coordinator form
-  if (user_access('coordinate fhwalk')) {
-    $form['organise'] = array(
-      '#type' => 'fieldset', 
-      '#title' => t('Organising information'),
-      '#collapsible' => TRUE, 
-      '#collapsed' => TRUE, 
-      '#weight' => 0);
-    $form['organise']['name'] = array(
-      '#type' => 'textfield', 
-      '#title' => t('Organiser'), 
-      '#maxlength' => 60, 
-      '#autocomplete_path' => 'user/autocomplete', 
-      '#default_value' => $node->name ? $node->name : '',
-      '#weight' => -2,
-      '#description' => t('Enter walk organiser'));
-        
-    // Special data for administrators     
-    if (user_access('admin fhwalk')) {
-      $coords = fhwalk_get_coordinators(); 
-      $coords[-1] = '[ MAKE A SELECTION ]';
-      $form['organise']['cid'] = array(
-        '#type' => 'select', 
-        '#title' => t('Coordinator'), 
-        '#options' => $coords, 
-        '#default_value' => $node->cid ? $node->cid : -1, 
-        '#weight' => -1, 
-        '#description' => t('Enter walk coordinator')
-      );
-    }
-  }
 // history
 /*
   $form['history'] = array(
@@ -647,6 +616,42 @@ global $user;
       if (isset($form['delete'])) {
 //        $form['merge'] = array('#type' => 'button', '#value' => t('Merge Walk'), '#weight' => 51);
         $form['delete']['#value'] = t('Delete Walk');
+      }
+
+// set walk organiser and walk coordinator form
+      if (user_access('coordinate walks') || user_access('administer walks')) {
+        $form['organise'] = array(
+          '#type' => 'fieldset', 
+          '#title' => t('Organising information'),
+          '#collapsible' => TRUE, 
+          '#collapsed' => TRUE, 
+          '#weight' => 0);
+        $form['organise']['name'] = $form['author']['name'];
+        $form['organise']['name']['#title'] = t('Organiser');
+        $form['organise']['name']['#weight'] = -2;
+        $form['organise']['name']['#description'] = t('Enter walk organiser');
+        $form['organise']['date'] = $form['author']['date'];
+        // unset Authoring info
+        unset($form['author']);
+      }
+            
+      // Special data for administrators     
+      if (user_access('administer walks')) {
+        $coords = fhwalk_get_coordinators(); 
+        $coords[-1] = '[ MAKE A SELECTION ]';
+        $form['organise']['cid'] = array(
+          '#type' => 'select', 
+          '#title' => t('Coordinator'), 
+          '#options' => $coords, 
+          '#default_value' => $node->cid,
+          '#weight' => -1, 
+          '#description' => t('Enter walk coordinator')
+        );
+      } else {
+        $form['cid'] = array(
+          '#type' => 'hidden', 
+          '#value' => $node->cid ? $node->cid : variable_get('fhsignup_coordinator_default', ''),
+        );
       }
     
       // Set tid from parameters
@@ -788,9 +793,6 @@ global $user;
 
       // fhsignup
       $form['signup']['#weight'] = 6;
-
-      // unset Authoring info
-      unset($form['author']);
 
       // unset event.module forms
       unset($form['event_start']);

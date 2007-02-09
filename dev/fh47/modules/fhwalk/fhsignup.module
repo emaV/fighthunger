@@ -1254,8 +1254,8 @@ global $user;
 function fhsignup_invite_process($code) {
 global $user;
   $nid = arg(1);
-  $url = url("/node/$nid");
-
+  $url = "node/$nid";
+drupal_set_message("URL: $nid - $url - $code");
   if($user->uid) {
     $result = db_query("SELECT * FROM {invite} WHERE reg_code = '%s'", $code);
     if ($registration = db_fetch_object($result)) {

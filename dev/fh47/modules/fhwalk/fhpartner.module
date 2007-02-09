@@ -224,7 +224,7 @@ function fhpartner_access($op, $node) {
     return TRUE;
   } elseif (($op == 'update' || $op == 'delete') && user_access("edit own partners") && ($user->uid == $node->uid)) {
       return TRUE;
-  } else {
+  } elseif($op != 'view') {
     switch ($node->paud) {
       case 'GLOBAL':
         return user_access('manage global partners');

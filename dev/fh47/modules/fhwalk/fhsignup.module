@@ -274,6 +274,7 @@ global $user;
   if($form_values['signup_status']==0) {
     $stage = 3;
     fhsignup_email_notify($nid, $user->uid, 'confirm');
+    fhsignup_email_notify($nid, $user->uid, 'notify_organiser');
     $msg = t('Subscribed to this event');
   } else {
     $stage = 2;
@@ -655,7 +656,7 @@ function fhsignup_email_notify($nid, $uid, $op, $add_msg='') {
 global $user;
   $node = node_load($nid);
   $signup        = db_fetch_object(db_query("SELECT name, mail FROM {users} WHERE uid=%d", $uid));
-  $organiser     = db_fetch_object(db_query("SELECT name, mail FROM {users} WHERE uid=%d", $user->uid));
+  $organiser     = db_fetch_object(db_query("SELECT name, mail FROM {users} WHERE uid=%d", $node->uid));
 
   $trans['%event']      = $node->title;               // %event
   $trans['%event_link'] = url("node/$nid/signup_admin",NULL,NULL,true);   //%event_link  
@@ -702,7 +703,7 @@ global $user;
       $subject = t("You've beeen denied for %event!", $trans);
       $message = t($node->signup_email_deny, $trans);
       $to   = $signup->mail;
-      $from = $organisermail;
+      $from = $organiser->mail;
       break;
     case 'wait':
       $subject = t("You've been placed on the waiting list for %event", $trans);

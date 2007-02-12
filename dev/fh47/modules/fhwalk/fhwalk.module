@@ -209,8 +209,13 @@ function fhwalk_add($camid = NULL, $country = '') {
   // If a node type has been specified, validate its existence.
   if ($camid && fhwalk_access('create', $node)) {
     // Initialize settings:
-    $node = array('uid' => $user->uid, 'name' => $user->name, 'type' => 'fhwalk', 
-      'camid' => $camid, 'cid' => variable_get('fhsignup_coordinator_default', ''), 'country' => $country);
+    $node = array(
+      'uid' => $user->uid, 
+      'name' => $user->name, 
+      'type' => 'fhwalk', 
+      'camid' => $camid, 
+      'cid' => variable_get('fhsignup_coordinator_default', ''), 
+      'country' => $country);
     // Check country
     
     $output = node_form($node);
@@ -332,13 +337,15 @@ function fhwalk_update($node) {
  * @ingroup fhwalk_helpers
  * @param $sString string to clean
  * @return string cleaned
+ * test string:
+ * ÁÂäåáã Èéëêè íïì Ôóôõòöø Üüù Ýý ññçðßþ
  */
 function getRewriteString($sString) {
-   $string = strtolower(htmlentities($sString));
+   $string = strtolower(htmlentities($sString, ENT_QUOTES , UTF));
    $string = preg_replace("/&(.)(uml);/", "$1e", $string);
    $string = preg_replace("/&(.)(acute|cedil|circ|ring|tilde|uml);/", "$1", $string);
    $string = preg_replace("/([^a-z0-9]+)/", "_", html_entity_decode($string));
-   $string = trim($string, "-");
+   $string = trim($string, "_");
    return $string;
 }
 
@@ -367,7 +374,7 @@ function _fhwalk_get_alias($node) {
   } else {
       $campaign = array_shift(fhcampaign_node_get_campaigns($node));
       $prefix = $campaign->shortname;
-      $country = getRewriteString(fh_get_country_name($node->location['country']));
+      $country = $node->location['country'];
       $city = getRewriteString($node->location['city']);
       
       if($prefix && $country && $city) {
@@ -394,6 +401,17 @@ function _fhwalk_get_alias($node) {
  *  
  * @ingroup fhwalk_core
  */ 
+function fhwalk_validate($node, $form = array()) {
+  if( ($node->end_hour <= $node->start_hour) && ($node->end_minute <= $node->start_minute) ) {
+    form_set_error('whenwhere', t('End time for the walk that is before the start time'));
+  }
+}
+
+/**
+ * Implementation of hook_submit().
+ *  
+ * @ingroup fhwalk_core
+ */ 
 function fhwalk_submit(&$node) {
   // recover end date
   $node->end_day  =  $node->start_day;
@@ -410,8 +428,8 @@ function fhwalk_submit(&$node) {
       $node->location['latitude']  = $coordinate[2];
       $node->location['longitude'] = $coordinate[3];
     } else {
-      watchdog('fhwalk', "Error fetching lat lon from google: " . print_r($coordinate, true) , WATCHDOG_WARNING);
-drupal_set_message("Your walk will show shortly on the map.");
+      watchdog('fhwalk', "Error fetching lat lon: " . print_r($coordinate, true) , WATCHDOG_WARNING);
+      drupal_set_message(t("Your walk will show shortly on the map."));
     }
   }
 }
@@ -442,11 +460,27 @@ function fhwalk_get_coordinators() {
 function fhwalk_merge_events($nid_from, $nid_to) {
   $node_from = node_load($nid_from);
   $node_to   = node_load($nid_to);
-  
-  $msg = "Signup from walk in <b>" . $node_from->location['city'] . "</b> ($node_from->title) " . 
-    "merged with signup for walk in <b>" . $node_to->location['city'] . "</b> ($node_to->title)."; 
-//  $msg = "$node_from->title -> $node_to->title";
-  drupal_set_message(t($msg));
+  if( $list = fhsignup_walk_signup_list($nid_from) ) {
+    foreach($list as $uid => $signup) {
+      _fhsignup_user_remove($nid_from, $uid);
+      _fhsignup_user_add($nid_to, $uid, $signup['role'], $signup['stage'], 
+        $signup['comment'],$signup['opencomment'], $signup['guests']);
+    }
+    $vars = array(
+      '%from_city'  => $node_from->location['city'],
+      '%from_title' => $node_from->title,
+      '%to_city'    => $node_to->location['city'], 
+      '%to_title'   => $node_to->title,
+      '%walk_no'    => count($list));
+    $msg = "Signup from walk in <b>%from_city</b> (%from_title) " . 
+      "merged with signup for walk in <b>%to_city</b> (%to_title)<br/>" .
+      "Walkers moved: %walk_no"; 
+    drupal_set_message(t($msg, $vars));
+    $msg = "Now you can safely delete the walk <b>%from_title</b> " .
+      "and you'll be redirected to the walk <b>%to_title</b>"; 
+    drupal_set_message(t($msg, $vars));
+  }
+
 }
 
 /**
@@ -455,17 +489,30 @@ function fhwalk_merge_events($nid_from, $nid_to) {
  * @ingroup fhwalk_helpers
  */
 function fhwalk_merge_submit($form_id, $form_values) {
-//  $msg = print_r($form_values, true);
-//  drupal_set_message("pippo dice: $msg");
+
   switch($form_values['action']) {
     case 'merge':
-      fhwalk_merge_events($form_values['nid_from'], $form_values['nid_to']);
-      
-      drupal_goto('node/' . $form_values['nid_to']);
-//      drupal_goto('node/'. $form_values['nid_from'] .'/delete');
+      $node_from = node_load($form_values['nid_from']);
+      $node_to   = node_load($nid_to);
+      $vars = array(
+        '%from_city'  => $node_from->location['city'],
+        '%from_title' => $node_from->title,
+        '%to_city'    => $node_to->location['city'], 
+        '%to_title'   => $node_to->title);
+      $node_from->merge_destination = $form_values['nid_to'];
+      $node_from->merge_email = $form_values['email'];
+      node_invoke_nodeapi($node_from, 'merge');
+      $destination = 'destination='. urlencode('node/' . $form_values['nid_to']); 
+      $msg = "Now you can safely delete the walk <b>%from_title</b> " .
+        "and you'll be redirected to the walk <b>%to_title</b>"; 
+      drupal_set_message(t($msg, $vars));
+      drupal_goto('node/'. $form_values['nid_from'] .'/delete', $destination);
       break;
     case 'delete':
-      drupal_goto('node/'. $form_values['nid_from'] .'/delete');
+      $node = node_load(array('nid' => $form_values['nid_from']));
+      $node->signup_email_unsubscribe = $form_values['email'];
+      $destination = 'destination='. urlencode($node->campaign->shortname); 
+      drupal_goto('node/'. $form_values['nid_from'] .'/delete', $destination);
       break;
   }
 }
@@ -489,23 +536,38 @@ function fhwalk_merge() {
       '#weight' => 1
     );
     
-    $options = array('merge' => t('Merge'), 'delete' => t('Delete'));
-    $form['delete_merge']['action'] = array(
-      '#type' => 'select',
-      '#title' => t('Select action'),
-      '#options' => $options,
-    );
-    
     $walk_list = fhwalk_get_walks($node->camid, $node->location['country']);
-    foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
-    unset($walk_option[$node->nid]);
-    $form['delete_merge']['nid_to'] = array(
-      '#type' => 'select',
-      '#title' => t('Select a walk to merge with.'),
-      '#options' => $walk_option,
+    if(count($walk_list)>1) {
+      $options = array('merge' => t('Merge'), 'delete' => t('Delete'));
+      foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
+      unset($walk_option[$node->nid]);
+      $form['delete_merge']['action'] = array(
+        '#type' => 'select',
+        '#title' => t('Select action'),
+        '#options' => $options,
+        '#weight' => -1
+      );
+      $form['delete_merge']['nid_to'] = array(
+        '#type' => 'select',
+        '#title' => t('Select a walk to merge with.'),
+        '#options' => $walk_option,
+      );
+    } else {
+      $form['delete_merge']['action'] = array('#type' => 'hidden', '#value' => 'delete');
+    }
+    $string_substitution = t('Supported string substitutions: %event, %time, %username, %useremail, %info (user signup information).'); 
+    $form['delete_merge']['email'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Notification email text'),
+      '#cols' => 75,
+      '#rows' => 5,
+      '#description' => t("This text will be sent to all walkers.") . " - <i>$string_substitution</i>",
+      '#required' => TRUE,
     );
+
     $form['delete_merge']['nid_from'] = array('#type' => 'hidden', '#value' => $node->nid); 
     $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Submit')); 
+
   
     $output .= drupal_get_form('fhwalk_merge', $form);
   } elseif ( ($user->uid == $node->uid) && (_fhsignup_count($nid)==0) ) {

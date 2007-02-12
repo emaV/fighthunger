@@ -85,7 +85,7 @@ function fhsignup_menu($may_cache) {
   } else {
     if (arg(0) == 'node' && is_numeric(arg(1))) {
       $node = node_load(arg(1));
-      if (($node->type=='fhwalk') && ($node->fhwalk_status == 2)) {
+      if (($node->type=='fhwalk') && ($node->fhwalk_status == WALK_STATUS_ACTIVE)) {
         $items[] = array(
           'path' => 'node/'. arg(1) .'/signup_admin', 
           'title' => t('Signup Admin'),
@@ -104,7 +104,7 @@ function fhsignup_menu($may_cache) {
         $items[] = array(
           'path' => 'node/'. arg(1) .'/signup_user', 
           'callback' => 'fhsignup_organiser_user',
-          'access' => _fhsignup_access('admin signup', 1),
+          'access' => _fhsignup_access('admin signup', arg(1)),
           'type' => MENU_CALLBACK
         );
 
@@ -248,7 +248,68 @@ global $user;
       break;
     case 'view':
       $node->body .= _fhsignup_nodeapi_view($node);
-    break;
+      break;
+    case 'delete':
+      fhsignup_users_delete($node);
+      break;
+    case 'merge':
+      fhsignup_users_merge($node);
+      break;
+  }
+}
+
+/**
+ * Merge walks
+ *  
+ * @ingroup fhsignup_helpers
+ * @param $node 
+ */
+function fhsignup_users_merge($node) {
+  $nid_from  = $node->nid;
+  $node_from = $node;
+  $nid_to    = $node->merge_destination;
+  $node_to   = node_load($node->merge_destination);
+  if( $list = fhsignup_walk_signup_list($nid_from) ) {
+    foreach($list as $uid => $signup) {
+      _fhsignup_user_remove($nid_from, $uid);
+      _fhsignup_user_add($nid_to, $uid, $signup['role'], $signup['stage'], 
+        $signup['comment'],$signup['opencomment'], $signup['guests']);
+      fhsignup_email_notify($node_from, $uid, 'merge walk', $node->merge_email);
+    }
+    $vars = array(
+      '%from_city'  => $node_from->location['city'],
+      '%from_title' => $node_from->title,
+      '%to_city'    => $node_to->location['city'], 
+      '%to_title'   => $node_to->title,
+      '%walk_no'    => count($list));
+    $msg = "Signup from walk in <b>%from_city</b> (%from_title) " . 
+      "merged with signup for walk in <b>%to_city</b> (%to_title). <br/>" .
+      "Walkers moved: %walk_no"; 
+    drupal_set_message(t($msg, $vars));
+  }
+}
+
+/**
+ * Delete walk signup
+ *  
+ * @ingroup fhsignup_helpers
+ * @param $node 
+ */
+function fhsignup_users_delete($node) {
+  $nid_from  = $node->nid;
+  $node_from = $node;
+  if( $list = fhsignup_walk_signup_list($nid_from) ) {
+    foreach($list as $uid => $signup) {
+      _fhsignup_user_remove($nid_from, $uid);
+      fhsignup_email_notify($nid_from, $uid, 'delete walk', $node->signup_email_unsubscribe);
+    }
+    $vars = array(
+      '%from_city'  => $node_from->location['city'],
+      '%from_title' => $node_from->title,
+      '%walk_no'    => count($list));
+    $msg = "Signup from walk in <b>%from_city</b> (%from_title) deleted.<br/>" . 
+      "Walkers removed: %walk_no"; 
+    drupal_set_message(t($msg, $vars));
   }
 }
 
@@ -260,6 +321,18 @@ global $user;
 function fhsignup_user_unsubscribe_submit($form_id, $form_values) {
   _fhsignup_user_remove($form_values['nid'], $form_values['uid']);
   drupal_set_message(t('You unsubscribed from this event'));
+}
+
+function fhsignup_user_unsubscribe($user_status) {
+  $output  = '<h3>' .  t('Your signup information') . '</h3>';
+  $output .= '<p><b>' . t('Role')   . ':</b> ' . $user_status['role'] . '</p>';
+  $output .= '<p><b>' . t('Status') . ':</b> ' . _fhsignup_stages($user_status['stage']) . '</p>';
+  // create remove form
+  $form['unsubscribe']['submit'] = array('#type' => 'submit', '#value' => t('Unsubscribe from this event'));
+  $form['unsubscribe']['nid']    = array('#type' => 'hidden', '#value' => $user_status['wid']);
+  $form['unsubscribe']['uid']    = array('#type' => 'hidden', '#value' => $user_status['uid']);
+  $output .= drupal_get_form('fhsignup_user_unsubscribe', $form);  
+  return $output; 
 }
 
 /**
@@ -367,52 +440,45 @@ global $user;
  */
 function _fhsignup_nodeapi_view($node) {
 global $user;
-
+  $user_status = fhsignup_user_status($node->camid, $user->uid); 
   switch ($node->signup_status) {
     case 0: // no approval required
-    case 1: // approval required
-      
-      if ($user->uid == 0) {  //this is an anonymous user, then display the login link
+    case 1: // approval required      
+      if ($user->uid == 0) {  
+      //this is an anonymous user, then display the login link
         $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
         $output .= '<div class="signup_anonymous_login">'. t('Please %login or %register to sign up for this event.', $login_array) .'</div>';
-      } else {               //this is not an anonymous user, then display the signup form
-
-        //check here to see if the user is already signed up for this node
-        if($check = _fhsignup_user_check($node->nid, $user->uid)) {
-          $output  = '<h2>' .  t('Your signup information') . '</h2>';
-          $output .= '<p><b>' . t('Role')   . ':</b> ' . $check['role'] . '</p>';
-          $output .= '<p><b>' . t('Status') . ':</b> ' . _fhsignup_stages($check['stage']) . '</p>';
-
-          // create remove form
-          $form['unsubscribe']['submit'] = array('#type' => 'submit', '#value' => t('Unsubscribe from this event'));
-          $form['unsubscribe']['nid']    = array('#type' => 'hidden', '#value' => $node->nid);
-          $form['unsubscribe']['uid']    = array('#type' => 'hidden', '#value' => $user->uid);
-          $output .= drupal_get_form('fhsignup_user_unsubscribe', $form); 
-
-        } else {
-          $output  = '<h2>' .  t('Signup for this event') . '</h2>';
-          if($node->signup_status==1) {
-            $msg = t('Your subscription need to be approved by the organiser');
-            $output  .= "<p><strong>$msg</strong></p>";
-          }
-          $output  .= fhsignup_user_form($node);
-        } 
-/*
-$check = _fhsignup_user_check($node->nid, $user->uid);    
-$output  = '<h2>' .  t('Signup for this event or register') . '</h2>';
-$output  .= print_r($check, true);
-$output  .= "($node->nid, $user->uid)";*/
-      }
-
+      } elseif($user_status) {
+      //this user already signup for a walk in this campaign
+        if( ($user_status['wid']==$node->nid) ) {
+        // user already signed up for this node
+          $output  = fhsignup_user_unsubscribe($user_status);
+        } else {  
+        // user already signed for another walk
+          $walk = node_load($user_status['wid']);
+          $output  = '<h3>' .  t('You signed up for another walk') . '</h3>';
+          $output .= '<p><b>' . l($walk->title, "node/$walk->nid") . '</b></p>';
+        }          
+      } else {    
+      // OK user can subscribe
+        $output  = '<h3>' .  t('Signup for this event') . '</h3>';
+        if($node->signup_status==1) {
+          $msg = t('Your subscription need to be approved by the organiser');
+          $output  = "<p><strong>$msg</strong></p>";
+        }
+        $output  .= fhsignup_user_form($node);
+      } 
       break;
-    
     case 2: // only invitation
     case 3: // closed event
-      $output = '<h3>' . t('Signups closed for this event') . '</h3>';
-      break;
-  
+      if( ($user_status['wid']==$node->nid) ) {
+      // user already signed up for this node
+        $output = fhsignup_user_unsubscribe($user_status);
+      } else {  
+        $output = '<h3>' . t('Signups closed for this event') . '</h3>';
+      }
+      break;  
   }
-
   return $output;
 }
 
@@ -557,6 +623,14 @@ function _fhsignup_user_check($nid, $uid) {
   return db_fetch_array(db_query($sql, $nid, $uid));
 }    
 
+function fhsignup_user_status($tid, $uid) {
+  $sql = "SELECT gs.* FROM {gathering_signup} gs " .
+    "JOIN {gathering_node} gn ON gn.nid=gs.wid " .
+    "JOIN {term_node} tn ON tn.nid=gn.nid " .
+    "WHERE tn.tid=%d AND gs.uid=%d";
+  return db_fetch_array(db_query($sql, $tid, $uid));
+}    
+
 /**
  * Add signup to walk
  * 
@@ -611,11 +685,6 @@ function _fhsignup_user_update($nid, $uid, $stage) {
  */
 function _fhsignup_user_remove($nid, $uid) {
   $sql = "DELETE FROM {gathering_signup} WHERE wid=%d AND uid=%d;";
-/*
-  if( db_query($sql, $nid, $uid) ) {
-    drupal_set_message( t('User Signup Removed!') );
-  }
-*/
   return db_query($sql, $nid, $uid);
 }    
 
@@ -652,9 +721,9 @@ function _fhsignup_email_strtr($nid, $uid, $content) {
  * @param    $op
  * @return   content with substitutions
  */
-function fhsignup_email_notify($nid, $uid, $op, $add_msg='') {
+function fhsignup_email_notify($node, $uid, $op, $add_msg='') {
 global $user;
-  $node = node_load($nid);
+  if(is_numeric($node)) $node = node_load($node);
   $signup        = db_fetch_object(db_query("SELECT name, mail FROM {users} WHERE uid=%d", $uid));
   $organiser     = db_fetch_object(db_query("SELECT name, mail FROM {users} WHERE uid=%d", $node->uid));
 
@@ -714,6 +783,18 @@ global $user;
     case 'remind':
       $subject = $subject = t("Reminder about %event", $trans);
       $message = t($node->signup_email_remind, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'merge walk':
+      $subject = $subject = t("Merge notification: %event", $trans);
+      $message = t($node->merge_email, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'delete walk':
+      $subject = $subject = t("Cancel notification: %event", $trans);
+      $message = t($node->signup_email_unsubscribe, $trans);
       $to   = $signup->mail;
       $from = $organiser->mail;
       break;
@@ -941,6 +1022,28 @@ global $user;
 }
 
 /**
+ * Get signup list
+ * 
+ * @ingroup fhsignup_helpers
+ * @param  $nid 
+ * @param  $options 
+ */
+function fhsignup_walk_signup_list($nid) {
+
+  $sql = 'SELECT gs.*, u.name, u.uid ' .
+    'FROM {gathering_signup} gs ' .
+    'JOIN {users} u ON gs.uid = u.uid ' .
+    'WHERE gs.wid=%d';
+    
+  $result = db_query($sql, $nid);
+  while ($signup = db_fetch_array($result)) {
+    $list[$signup['uid']] = $signup;
+  }
+
+  return $list;
+}
+
+/**
  * Get signup users table (for walk page)
  * 
  * @ingroup fhsignup_core
@@ -962,7 +1065,7 @@ function fhsignup_walk_signup_table($nid, $show_message=0, $show_guests=0) {
   $sql = 'SELECT gs.*, u.name, u.uid ' .
     'FROM {gathering_signup} gs ' .
     'JOIN {users} u ON gs.uid = u.uid ' .
-    'WHERE gs.wid=%d';
+    'WHERE gs.wid=%d AND (gs.stage=3 OR gs.stage=6)';
     
   $tablesort = tablesort_sql($header);
   $result = pager_query($sql . $tablesort, 20, 0, NULL, $nid);

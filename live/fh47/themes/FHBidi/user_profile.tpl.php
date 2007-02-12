@@ -48,6 +48,7 @@ if($fields['donation_obj']) {
   print "  <h3 class='profile'>Donate to Help Child Hunger with me!</h3>";
 //print donation_form($fields['donation_obj'], array('donation_source' => $user->uid)); 
     $form_don  = theme('donation_presentation', $fields['donation_obj']);
+    $form_don  = "<div style='clear:both;'></div>";
     $form_don .= theme('donation_btn_donate');
 //  $form_don .= form_hidden('amount', 10);
     $form_don  = form($form_don, 'post', 'donation/' . $fields['donation_obj']->nid);

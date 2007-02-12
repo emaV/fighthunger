@@ -1,5 +1,5 @@
 <?php
-// $Id: form.inc,v 1.112.2.14 2006/07/04 09:23:19 killes Exp $
+// $Id: form.inc,v 1.112.2.20 2007/01/29 21:39:27 killes Exp $
 
 /**
  * @defgroup form Form generation
@@ -85,7 +85,11 @@ function drupal_get_form($form_id, &$form, $callback = NULL) {
   }
   else if ($user->uid) {
     $form['#token'] = $form_id;
-    $form['form_token'] = array('#type' => 'token', '#default_value' => drupal_get_token($form['#token']));
+    $form['form_token'] = array(
+      '#id' => 'edit-'. str_replace('_', '-', $form_id) .'-form-token',
+      '#type' => 'token',
+      '#default_value' => drupal_get_token($form['#token']),
+    );
   }
 
   if (isset($form_id)) {
@@ -243,13 +247,13 @@ function _form_validate($elements, $form_id = NULL) {
           foreach ($value as $v) {
             if (!isset($options[$v])) {
               form_error($elements, t('An illegal choice has been detected. Please contact the site administrator.'));
-              watchdog('form', t('Illegal choice %choice in %name element.', array('%choice' => theme('placeholder', check_plain($v)), '%name' => theme_placeholder(empty($elements['#title']) ? $elements['#parents'][0] : $elements['#title']))), WATCHDOG_ERROR);
+              watchdog('form', t('Illegal choice %choice in %name element.', array('%choice' => theme('placeholder', check_plain($v)), '%name' => theme('placeholder', empty($elements['#title']) ? $elements['#parents'][0] : $elements['#title']))), WATCHDOG_ERROR);
             }
           }
         }
         elseif (!isset($options[$elements['#value']])) {
           form_error($elements, t('An illegal choice has been detected. Please contact the site administrator.'));
-          watchdog('form', t('Illegal choice %choice in %name element.', array('%choice' => theme_placeholder(check_plain($v)), '%name' => theme('placeholder', empty($elements['#title']) ? $elements['#parents'][0] : $elements['#title']))), WATCHDOG_ERROR);
+          watchdog('form', t('Illegal choice %choice in %name element.', array('%choice' => theme('placeholder', $elements['#value']), '%name' => theme('placeholder', empty($elements['#title']) ? $elements['#parents'][0] : $elements['#title']))), WATCHDOG_ERROR);
         }
       }
     }
@@ -529,8 +533,10 @@ function form_render(&$elements) {
     if (isset($elements['#theme']) && !$elements['#theme_used']) {
       $elements['#theme_used'] = TRUE;
 
-      $previous_value = $elements['#value'];
-      $previous_type = $elements['#type'];
+      $previous = array();
+      foreach (array('#value', '#type', '#prefix', '#suffix') as $key) {
+        $previous[$key] = isset($elements[$key]) ? $elements[$key] : NULL;
+      }
       // If we rendered a single element, then we will skip the renderer.
       if (empty($children)) {
         $elements['#printed'] = TRUE;
@@ -540,11 +546,12 @@ function form_render(&$elements) {
       }
       $elements['#type'] = 'markup';
 
+      unset($elements['#prefix'], $elements['#suffix']);
       $content = theme($elements['#theme'], $elements);
 
-      $elements['#value'] = $previous_value;
-      $elements['#type'] = $previous_type;
-      unset($elements['#prefix'], $elements['#suffix']);
+      foreach (array('#value', '#type', '#prefix', '#suffix') as $key) {
+        $elements[$key] = isset($previous[$key]) ? $previous[$key] : NULL;
+      }
     }
     /* render each of the children using form_render and concatenate them */
     if (!isset($content) || $content === '') {
@@ -675,7 +682,7 @@ function form_select_options($element, $choices = NULL) {
       else {
         $selected = '';
       }
-      $options .= '<option value="'. $key .'"'. $selected .'>'. check_plain($choice) .'</option>';
+      $options .= '<option value="'. check_plain($key) .'"'. $selected .'>'. check_plain($choice) .'</option>';
     }
   }
   return $options;
@@ -718,7 +725,7 @@ function theme_radio($element) {
   $output = '<input type="radio" ';
   $output .= 'name="' . $element['#name'] .'" ';
   $output .= 'value="'. $element['#return_value'] .'" ';
-  $output .= ($element['#value'] == $element['#return_value']) ? ' checked="checked" ' : ' ';
+  $output .= (check_plain($element['#value']) == $element['#return_value']) ? ' checked="checked" ' : ' ';
   $output .= drupal_attributes($element['#attributes']) .' />';
   if (!is_null($element['#title'])) {
     $output = '<label class="option">'. $output .' '. $element['#title'] .'</label>';
@@ -902,7 +909,7 @@ function expand_radios($element) {
   if (count($element['#options']) > 0) {
     foreach ($element['#options'] as $key => $choice) {
       if (!isset($element[$key])) {
-        $element[$key] = array('#type' => 'radio', '#title' => $choice, '#return_value' => $key, '#default_value' => $element['#default_value'], '#attributes' => $element['#attributes'], '#parents' => $element['#parents'], '#spawned' => TRUE);
+        $element[$key] = array('#type' => 'radio', '#title' => $choice, '#return_value' => check_plain($key), '#default_value' => $element['#default_value'], '#attributes' => $element['#attributes'], '#parents' => $element['#parents'], '#spawned' => TRUE);
       }
     }
   }
@@ -1100,9 +1107,9 @@ function theme_markup($element) {
 */
 function theme_password($element) {
   $size = $element['#size'] ? ' size="'. $element['#size'] .'" ' : '';
-
+  $maxlength = $element['#maxlength'] ? ' maxlength="'. $element['#maxlength'] .'" ' : '';
   _form_set_class($element, array('form-text'));
-  $output = '<input type="password" maxlength="'. $element['#maxlength'] .'" name="'. $element['#name'] .'" id="'. $element['#id'] .'" '. $size . drupal_attributes($element['#attributes']) .' />';
+  $output = '<input type="password" name="'. $element['#name'] .'" id="'. $element['#id'] .'" '. $maxlength . $size . drupal_attributes($element['#attributes']) .' />';
 
   return theme('form_element', $element['#title'], $output, $element['#description'], $element['#id'], $element['#required'], form_get_error($element));
 }

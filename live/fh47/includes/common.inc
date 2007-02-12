@@ -1,5 +1,5 @@
 <?php
-// $Id: common.inc,v 1.537.2.6 2006/07/18 10:46:23 unconed Exp $
+// $Id: common.inc,v 1.537.2.21 2007/01/27 16:18:52 killes Exp $
 
 /**
  * @file
@@ -128,6 +128,9 @@ function drupal_clear_path_cache() {
 
 /**
  * Set an HTTP response header for the current page.
+ *
+ * Note: when sending a Content-Type header, always include a 'charset' type
+ * too. This is necessary to avoid security bugs (e.g. UTF-7 XSS).
  */
 function drupal_set_header($header = NULL) {
   // We use an array to guarantee there are no leading or trailing delimiters.
@@ -162,8 +165,6 @@ function drupal_get_headers() {
  *   The array to be processed e.g. $_GET
  * @param $exclude
  *   The array filled with keys to be excluded. Use parent[child] to exclude nested items.
- * @param $urlencode
- *   If TRUE, the keys and values are both urlencoded.
  * @param $parent
  *   Should not be passed, only used in recursive calls
  * @return
@@ -208,8 +209,8 @@ function drupal_get_destination() {
     return 'destination='. urlencode($_REQUEST['destination']);
   }
   else {
-    // Use $_REQUEST here to retrieve the original path.
-    $path = isset($_REQUEST['q']) ? $_REQUEST['q'] : '';
+    // Use $_GET here to retrieve the original path in source form.
+    $path = isset($_GET['q']) ? $_GET['q'] : '';
     $query = drupal_query_string_encode($_GET, array('q'));
     if ($query != '') {
       $path .= '?'. $query;
@@ -242,7 +243,7 @@ function drupal_get_destination() {
  * statement in your menu callback.
  *
  * @param $path
- *   A Drupal path.
+ *   A Drupal path or a full URL.
  * @param $query
  *   The query string component, if any.
  * @param $fragment
@@ -252,10 +253,10 @@ function drupal_get_destination() {
  */
 function drupal_goto($path = '', $query = NULL, $fragment = NULL) {
   if (isset($_REQUEST['destination'])) {
-    extract(parse_url($_REQUEST['destination']));
+    extract(parse_url(urldecode($_REQUEST['destination'])));
   }
   else if (isset($_REQUEST['edit']['destination'])) {
-    extract(parse_url($_REQUEST['edit']['destination']));
+    extract(parse_url(urldecode($_REQUEST['edit']['destination'])));
   }
 
   $url = url($path, $query, $fragment, TRUE);
@@ -491,11 +492,16 @@ function drupal_http_request($url, $headers = array(), $method = 'GET', $data = 
  *  1 = Log errors to database and to screen.
  */
 function error_handler($errno, $message, $filename, $line) {
+  // If the @ error suppression operator was used, error_reporting is temporarily set to 0
+  if (error_reporting() == 0) {
+    return;
+  }
+
   if ($errno & (E_ALL ^ E_NOTICE)) {
     $types = array(1 => 'error', 2 => 'warning', 4 => 'parse error', 8 => 'notice', 16 => 'core error', 32 => 'core warning', 64 => 'compile error', 128 => 'compile warning', 256 => 'user error', 512 => 'user warning', 1024 => 'user notice', 2048 => 'strict warning');
     $entry = $types[$errno] .': '. $message .' in '. $filename .' on line '. $line .'.';
 
-    // Note: force display of error messages in update.php
+    // Force display of error messages in update.php
     if (variable_get('error_level', 1) == 1 || strstr($_SERVER['PHP_SELF'], 'update.php')) {
       drupal_set_message($entry, 'error');
     }
@@ -514,6 +520,24 @@ function _fix_gpc_magic(&$item) {
 }
 
 /**
+ * Helper function to strip slashes from $_FILES skipping over the tmp_name keys
+ * since PHP generates single backslashes for file paths on Windows systems.
+ *
+ * tmp_name does not have backslashes added see
+ * http://us2.php.net/manual/en/features.file-upload.php#42280
+ */
+function _fix_gpc_magic_files(&$item, $key) {
+  if ($key != 'tmp_name') {
+    if (is_array($item)) {
+      array_walk($item, '_fix_gpc_magic_files');
+    }
+    else {
+      $item = stripslashes($item);
+    }
+  }
+}
+
+/**
  * Correct double-escaping problems caused by "magic quotes" in some PHP
  * installations.
  */
@@ -524,6 +548,7 @@ function fix_gpc_magic() {
     array_walk($_POST, '_fix_gpc_magic');
     array_walk($_COOKIE, '_fix_gpc_magic');
     array_walk($_REQUEST, '_fix_gpc_magic');
+    array_walk($_FILES, '_fix_gpc_magic_files');
     $fixed = true;
   }
 }
@@ -646,7 +671,7 @@ function valid_email_address($mail) {
  *   TRUE if the URL is in a valid format.
  */
 function valid_url($url, $absolute = FALSE) {
-  $allowed_characters = '[a-z0-9\/:_\-_\.\?\$,~=#&%\+]';
+  $allowed_characters = '[a-z0-9\/:_\-_\.\?\$,;~=#&%\+]';
   if ($absolute) {
     return preg_match("/^(http|https|ftp):\/\/". $allowed_characters ."+$/i", $url);
   }
@@ -764,7 +789,7 @@ function format_xml_elements($array) {
         }
 
         if ($value['value'] != '') {
-          $output .= '>'. (is_array($value['value']) ? format_xml_tags($value['value']) : check_plain($value['value'])) .'</'. $value['key'] .">\n";
+          $output .= '>'. (is_array($value['value']) ? format_xml_elements($value['value']) : check_plain($value['value'])) .'</'. $value['key'] .">\n";
         }
         else {
           $output .= " />\n";
@@ -772,7 +797,7 @@ function format_xml_elements($array) {
       }
     }
     else {
-      $output .= ' <'. $key .'>'. (is_array($value) ? format_xml_tags($value) : check_plain($value)) ."</$key>\n";
+      $output .= ' <'. $key .'>'. (is_array($value) ? format_xml_elements($value) : check_plain($value)) ."</$key>\n";
     }
   }
   return $output;
@@ -980,7 +1005,7 @@ function url($path = NULL, $query = NULL, $fragment = NULL, $absolute = FALSE) {
   $colonpos = strpos($path, ':');
   if ($colonpos !== FALSE && !preg_match('![/?#]!', substr($path, 0, $colonpos)) && filter_xss_bad_protocol($path, FALSE) == check_plain($path)) {
     // Split off the fragment
-    if (strpos($path, '#')) {
+    if (strpos($path, '#') !== FALSE) {
       list($path, $old_fragment) = explode('#', $path, 2);
       if (isset($old_fragment) && !isset($fragment)) {
         $fragment = '#'. $old_fragment;
@@ -988,7 +1013,7 @@ function url($path = NULL, $query = NULL, $fragment = NULL, $absolute = FALSE) {
     }
     // Append the query
     if (isset($query)) {
-      $path .= (strpos($path, '?') ? '&' : '?') . $query;
+      $path .= (strpos($path, '?') !== FALSE ? '&' : '?') . $query;
     }
     // Reassemble
     return $path . $fragment;
@@ -1319,7 +1344,7 @@ function drupal_urlencode($text) {
                        urlencode($text));
   }
   else {
-    return str_replace('%2F', '/', urlencode($text));    
+    return str_replace('%2F', '/', urlencode($text));
   }
 }
 

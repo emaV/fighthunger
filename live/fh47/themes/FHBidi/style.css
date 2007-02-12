@@ -51,9 +51,13 @@ a:active { color: #ff6600; }
   margin: 5px;
   background: #efefef;
   width: auto;
-  float: right;
+  float: left;
   -moz-border-radius: 5px;
   border: solid 1px #ddd;
+}
+.form-submit, .form-submit:hover, .form-submit:focus  {
+  background-color:#ff6600;
+  color:#fff;
 }
 
 /* User profile */
@@ -192,6 +196,7 @@ input, textarea {
   color: inherit;
   border: 1px solid #777;
 }
+
 select {
   background: #ffffff;
   color: #000;
@@ -721,5 +726,27 @@ ul.block_menu li {
 
 #fhbat_page .form-submit {
   background-color:#ff6600;
+  color:#fff;
+}
+
+.fhoverview div {
+ width: 500px;
+}
+
+/* block on central column */
+.main-content div.block {
+  background-color:#ff6600;
+  margin-top : 1em;
+  padding: 5px;
+  width: 20em;
+  float: left;
+}
+
+.main-content div.block p {
+  padding: 0px;
+  text-align :  center;
+}
+
+.main-content div.block a {
   color:#fff;
 }

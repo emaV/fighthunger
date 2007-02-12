@@ -1,5 +1,5 @@
 <?php
-// $Id: bootstrap.inc,v 1.96.2.4 2006/07/27 08:34:40 killes Exp $
+// $Id: bootstrap.inc,v 1.96.2.8 2007/01/01 17:52:00 killes Exp $
 
 /**
  * @file
@@ -167,7 +167,7 @@ function conf_init() {
     // Create base URL
     $base_root = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') ? 'https' : 'http';
     $base_url = $base_root .= '://'. $_SERVER['HTTP_HOST'];
-    if ($dir = trim(dirname($_SERVER['SCRIPT_NAME']), '\,/')) {
+    if ($dir = trim(dirname($_SERVER['PHP_SELF']), '\,/')) {
       $base_path = "/$dir";
       $base_url .= $base_path;
       $base_path .= '/';
@@ -495,6 +495,15 @@ function drupal_load($type, $name) {
 
 /**
  * Set HTTP headers in preparation for a page response.
+ * 
+ * The general approach here is that anonymous users can keep a local cache of
+ * the page, but must revalidate it on every request. Then, they are given a
+ * '304 Not Modified' response as long as they stay logged out and the page
+ * has not been modified.
+ * This prevents authenticated users seeing locally cached pages that show them
+ * as logged out.
+ * Authenticated users are always given a 'no-cache' header set, and will fetch
+ * a fresh page on every request.
  *
  * @see page_set_cache
  */
@@ -524,7 +533,10 @@ function drupal_page_header() {
     // Send appropriate response:
     header("Last-Modified: $date");
     header("ETag: $etag");
-
+    // The following headers force validation of cache
+    header("Expires: Sun, 19 Nov 1978 05:00:00 GMT");
+    header("Cache-Control: must-revalidate");
+      
     // Determine if the browser accepts gzipped data.
     if (@strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') === false && function_exists('gzencode')) {
       // Strip the gzip header and run uncompress.

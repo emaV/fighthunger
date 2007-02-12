@@ -1,5 +1,5 @@
 <?php
-// $Id: database.pgsql.inc,v 1.29.2.1 2006/05/24 20:47:13 killes Exp $
+// $Id: database.pgsql.inc,v 1.29.2.4 2006/11/15 21:51:38 killes Exp $
 
 /**
  * @file
@@ -31,15 +31,24 @@ function db_connect($url) {
   }
 
   $url = parse_url($url);
+  $conn_string = '';
 
   // Decode url-encoded information in the db connection string
-  $url['user'] = urldecode($url['user']);
-  $url['pass'] = urldecode($url['pass']);
-  $url['host'] = urldecode($url['host']);
-  $url['path'] = urldecode($url['path']);
-
-  $conn_string = ' user='. $url['user'] .' dbname='. substr($url['path'], 1) .' password='. $url['pass'] . ' host=' . $url['host'];
-  $conn_string .= isset($url['port']) ? ' port=' . $url['port'] : '';
+  if (isset($url['user'])) {
+    $conn_string .= ' user=' . urldecode($url['user']);
+  }
+  if (isset($url['pass'])) {
+    $conn_string .= ' password=' . urldecode($url['pass']);
+  }
+  if (isset($url['host'])) {
+    $conn_string .= ' host=' . urldecode($url['host']);
+  }
+  if (isset($url['path'])) {
+    $conn_string .= ' dbname=' . substr(urldecode($url['path']), 1);
+  }
+  if (isset($url['port'])) {
+    $conn_string .= ' port=' . urldecode($url['port']);
+  }
 
   // pg_last_error() does not return a useful error message for database
   // connection errors. We must turn on error tracking to get at a good error
@@ -50,6 +59,7 @@ function db_connect($url) {
   $connection = @pg_connect($conn_string);
   if (!$connection) {
     drupal_maintenance_theme();
+    drupal_set_header('HTTP/1.1 503 Service Unavailable');
     drupal_set_title('Unable to connect to database');
     print theme('maintenance_page', '<p>This either means that the database information in your <code>settings.php</code> file is incorrect or we can\'t contact the PostgreSQL database server. This could mean your hosting provider\'s database server is down.</p>
 <p>The PostgreSQL error was: '. theme('placeholder', decode_entities($php_errormsg)) .'</p>
@@ -350,6 +360,25 @@ function db_check_setup() {
   if (!in_array(strtolower($encoding), array('unicode', 'utf8'))) {
     drupal_set_message(t('Your PostgreSQL database is set up with the wrong character encoding (%encoding). It is possible it will not work as expected. It is advised to recreate it with UTF-8/Unicode encoding. More information can be found in the <a href="%url">PostgreSQL documentation</a>.', array('%encoding' => $encoding, '%url' => 'http://www.postgresql.org/docs/7.4/interactive/multibyte.html')), 'status');
   }
+}
+
+/**
+ * Wraps the given table.field entry with a DISTINCT(). The wrapper is added to
+ * the SELECT list entry of the given query and the resulting query is returned.
+ * This function only applies the wrapper if a DISTINCT doesn't already exist in
+ * the query.
+ *
+ * @param $table Table containing the field to set as DISTINCT
+ * @param $field Field to set as DISTINCT
+ * @param $query Query to apply the wrapper to
+ * @return SQL query with the DISTINCT wrapper surrounding the given table.field.
+ */
+function db_distinct_field($table, $field, $query) {
+  $field_to_select = 'DISTINCT ON ('. $table .'.'. $field .") $table.$field";
+  // (?<!text) is a negative look-behind (no need to rewrite queries that already use DISTINCT).
+  $query = preg_replace('/(SELECT.*)('. $table .'\.)?(?<!DISTINCT\()(?<!DISTINCT\('. $table .'\.)'. $field .'(.*FROM )/AUsi', '\1'. $field_to_select .'\3', $query);
+  $query = preg_replace('/(ORDER BY )(?!'.$table.'\.'.$field.')/', '\1'."$table.$field, ", $query);
+  return $query;
 }
 
 /**

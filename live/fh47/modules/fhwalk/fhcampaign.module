@@ -706,10 +706,11 @@ function fhcampaign_get_campaign_countries($tid) {  // Was _fhwalk_get_country_c
     "JOIN {term_node} tn ON tn.nid=n.nid " .
     "WHERE l.type='node' AND tn.tid=%d;";
   $result=db_query($sql, $tid);
+  $country_campaign = array();
   while($row = db_fetch_array($result)) {
     $country_campaign[$row['country']] = $countries[$row['country']];
   } 
-  asort($country_campaign);    
+  if($country_campaign) asort($country_campaign);    
 
   return $country_campaign;
 }

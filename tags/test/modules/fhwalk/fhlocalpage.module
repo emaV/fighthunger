@@ -225,8 +225,10 @@ function fhlocalpage_view(&$node, $teaser = FALSE, $page = FALSE) {
 function fhlocalpage_link($type, $node = 0, $main = 0) {
   $links = array();
 
-  if (fhlocalpage_access('update', $node)) {
-    $links[] = l(t('edit local page'), "node/$node->nid/edit");
+  if($type=='fhlocalpage') {
+    if (fhlocalpage_access('update', $node)) {
+      $links[] = l(t('edit local page'), "node/$node->nid/edit");
+    }
   }
   return $links;
 }

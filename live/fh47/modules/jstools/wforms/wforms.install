@@ -1,0 +1,13 @@
+<?php
+// $Id: wforms.install,v 1.1 2006/06/02 15:32:10 nedjo Exp $
+
+/** 
+  * Implementation of hook_install(). 
+  */
+function wforms_install() {
+  // Ensure the required files are present.
+  $path = drupal_get_path('module', 'wforms');
+  if (!file_exists($path . '/wforms.js')) {
+    drupal_set_message(t('To use wforms, you must <a href="%file">download</a> the <a href="%site">wForms library</a> and copy all its files to %path/lib.', array('%file' => 'http://www.formassembly.com/wForms/v2.0/packed/wForms_2_0p.zip', '%site' => 'http://www.formassembly.com/wForms/', '%path' => $path)), 'error');
+  }
+}

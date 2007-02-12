@@ -47,7 +47,7 @@ define( 'CIVICRM_UF_URLVAR'        , 'q'  );
  *      define( 'CIVICRM_UF_DSN', 'mysql://cms_db_username:cms_db_password@db_server/cms_database?new_link=true');
  */
 //define( 'CIVICRM_UF_DSN'           , 'mysql://DBUSER:PASSWORD@HOSTNAME/DATABASE?new_link=true' );
-define( 'CIVICRM_UF_DSN', 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47__www?new_link=true' 
+define( 'CIVICRM_UF_DSN', 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm?new_link=true' 
 );
 
 /** 
@@ -122,7 +122,7 @@ define( 'CIVICRM_UF_USERSTABLENAME', 'users' );
  *      define( 'CIVICRM_CUSTOM_FILE_UPLOADDIR', '/var/crm_docs/' );
  */
 global $civicrm_root;
-$site_root = '/var/www/vhosts_balanced/live47.fighthunger.org';
+$site_root = '/var/www/vhosts_balanced/backup47.fighthunger.org';
 $civicrm_root = "$site_root/modules/civicrm/";
 define( 'CIVICRM_TEMPLATE_COMPILEDIR'  , "$site_root/files/crm_files/templates_c/" );
 define( 'CIVICRM_UPLOADDIR'            , "$site_root/files/crm_files/upload/" );

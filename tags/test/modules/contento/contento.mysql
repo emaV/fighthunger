@@ -1,0 +1,12 @@
+CREATE TABLE  `content_type` (
+  `name` varchar(32) NOT NULL default '',
+  `base` varchar(32) NOT NULL default '',
+  `label` varchar(255) NOT NULL default '',
+  `description` mediumtext NOT NULL,
+  `help` mediumtext NOT NULL,
+  `has_title` tinyint(3) unsigned NOT NULL default '0',
+  `title_label` varchar(255) NOT NULL default '',
+  `has_body` tinyint(3) unsigned NOT NULL default '0',
+  `body_label` varchar(255) NOT NULL default '',
+  PRIMARY KEY  (`name`)
+);

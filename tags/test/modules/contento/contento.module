@@ -1,0 +1,312 @@
+<?php
+// $Id: contento.module,v 1.1 2006/06/07 16:19:21 jareyero Exp $
+
+/**
+ * @file
+ * Allows administrators to define new content types
+ * 
+ * Jose A. Reyero, http://www.reyero.net
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function contento_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Allows administrators to define new simple, story like, content types.');
+  }
+
+  if (strpos($section, 'node/add#') === 0 && $type = contento_get_type(substr($section, 9))) {
+    return t($type->description);
+  } elseif(strpos($section, 'node/add/') === 0 && $type = contento_get_type(substr($section, 9))) {
+    return t($type->help);
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function contento_perm() {
+  $perms = array('administer content types');
+  foreach (contento_type_list() as $name => $type) {
+    $perms[] = "create $name content";
+    $perms[] = "edit own $name content";
+    $perms[] = "administer $name content";
+  }
+  return $perms;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function contento_menu($may_cache) {
+  $items = array();
+  $access = user_access('administer content types');
+
+  if ($may_cache) {
+    /*
+    $items[] = array('path' => 'admin/settings/content-types', 'title' => t('content types'),
+      'callback' => 'contento_admin_types_overview', 'access' => $access);
+		*/
+		$items[] = array('path' => 'admin/settings/content-types/node', 'title' => t('content types'),
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+      'weight' => 0,
+      'access' => $access);
+
+    $items[] = array('path' => 'admin/settings/content-types/add', 'title' => t('add content type'),
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 10,
+      'callback' => 'contento_admin_type_add', 'access' => $access);
+      
+    $items[] = array('path' => 'admin/settings/content-types/delete', 'title' => t('delete content type'),
+      'type' => MENU_CALLBACK,
+      'weight' => 10,
+      'callback' => 'contento_admin_type_delete', 'access' => $access);
+		
+    foreach (contento_type_list() as $name => $type) {
+      $items[] = array('path' => "node/add/$name", 'title' => t($type['label']),
+        'access' => user_access("create $name content"));
+    }
+  }
+  return $items;
+}
+
+/**
+ * Return a list of all content types.
+ */
+function contento_type_list() {
+  static $content_type;
+
+  if (!isset($content_type)) {
+    $content_type = array();
+    $result = db_query('SELECT * FROM {content_type} nt ORDER BY nt.name ASC');
+    while ($type= db_fetch_array($result)) {
+      $content_type[$type['name']] = $type;
+    }
+  }
+
+  return $content_type;
+}
+
+/**
+ * Returns content type data as object
+ */
+function contento_get_type($type){
+  $content_type = contento_type_list();
+  return isset($content_type[$type]) ? (object)$content_type[$type] : NULL;
+}
+
+/**
+ * Hooks for node system
+ */
+ 
+/**
+ * Implementation of hook_access().
+ */
+function contento_access($op, $node) {
+  global $user;
+  $type = is_string($node) ? $node : (is_array($node) ? $node['type'] : $node->type);
+  
+  if(user_access("administer $type content")){
+    return TRUE;
+  } elseif ($op == 'create') {
+    return user_access("create $type content");
+  } elseif ($op == 'update' || $op == 'delete') {
+    if (user_access("edit own $type content") && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}
+/**
+ * Implementation of hook_node_info().
+ */
+function contento_node_info() {
+  return contento_type_list();
+}
+/**
+ * Implementation of hook_form().
+ */
+function contento_form(&$node) {
+  $type = contento_get_type($node->type);
+  $form['title'] = array('#type' => 'textfield', '#title' => t($type->title_label), '#required' => TRUE, '#default_value' => $node->title, '#weight' => -5);
+  $form['body_filter']['body'] = array('#type' => 'textarea', '#title' => t($type->body_label), '#default_value' => $node->body, '#rows' => 20, '#required' => TRUE);
+  $form['body_filter']['format'] = filter_form($node->format);
+  return $form;
+}
+
+/**
+ * Content type administration
+ */
+
+/**
+ * Menu callback: Add new content type
+ */
+function contento_admin_type_add(){
+  $form = contento_type_form();
+
+  return drupal_get_form('contento_type_add', $form);
+}
+
+/**
+ * Forms API callback
+ */
+function contento_type_add_submit($form_id, $form_values){
+  $values = $form_values['content'];
+  db_query("INSERT INTO {content_type}(name, base, label, description, help, title_label, body_label) VALUES('%s', '%s', '%s', '%s', '%s', '%s',  '%s')", $values['name'], $values['base'], $values['label'], $values['description'], $values['help'], $values['title_label'], $values['body_label']);
+  // node_type_cache_clear();
+  drupal_set_message(t('Added new content type %type.', array('%type' => theme('placeholder', $values['name']))));
+  // Rebuild the menu to reflect new content type
+  menu_rebuild();
+  return 'admin/settings/content-types';
+}
+
+/**
+ * Add content type settings
+ */
+function contento_form_alter($form_id, &$form){
+	// Content type settings
+	if (isset($form['type']) && $form['type']['#value'] .'_node_settings' == $form_id && $type = contento_get_type($form['type']['#value']) ) {
+    $form += contento_type_form($type);
+    $form['#submit']['contento_type_configure_submit'] = NULL;
+  }
+}
+
+function contento_type_configure_submit($form_id, $form_values) {
+  $values = $form_values['content'];
+  db_query("UPDATE {content_type} SET label = '%s', description = '%s', help = '%s', title_label = '%s', body_label = '%s' WHERE name = '%s'", $values['label'], $values['description'], $values['help'], $values['title_label'], $values['body_label'], $values['name']);
+  //node_type_cache_clear();
+  unset($form_values['content']);
+  // system_settings_form_submit($form_id, $form_values);
+  return 'admin/settings/content-types';
+}
+
+/**
+ * Delete content types
+ */
+
+function contento_admin_type_delete($type) {
+  $edit = isset($_POST['edit']) ? $_POST['edit'] : array();
+
+  if ($edit['confirm']) {
+    contento_admin_type_delete_action($type, $edit['delete-content']);
+    drupal_set_message(t('Deletion complete.'));
+    drupal_goto('admin/settings/content-types');
+  }
+  else {
+    $type = contento_get_type($type);
+    $options = array(t('Delete this content type but preserve data of this content type in the database'), t('Delete this content type and all data of this content type'));
+    $form['delete-content'] = array(
+      '#type' => 'radios',
+      '#options' => $options,
+      '#title' => t('Delete all content of type %content-type', array('%content-type' => theme('placeholder', $type->label)) ),
+      '#default_value' => 0
+    );
+    return confirm_form(
+    	'content_type_delete',
+      $form,
+      t('Are you sure you want to delete the content type %content-type?', array('%content-type' => theme('placeholder', $type->label))),
+    	'admin/node/content-types',
+      t('This action cannot be undone.'),
+      t('Delete'),
+      t('Cancel')
+    );
+  }
+}
+
+/**
+ * Delete content type and/or all data of that type.
+ * 
+ * TO-DO: If there are too many nodes this could take too long
+ */
+function contento_admin_type_delete_action($type, $delete_content = FALSE) {
+  db_query("DELETE FROM {content_type} WHERE name = '%s'", $type);
+  if ($delete_content) {
+    $result = db_query("SELECT nid FROM {node} WHERE type = '%s'", $type);
+    while ($data = db_fetch_object($result)) {
+      node_delete($data->nid);
+    }
+  }
+  menu_rebuild();
+}
+ 
+function contento_type_form($type = NULL) {
+  if (isset($type)) {
+    // Configuring an existing content type
+    $form['content'] = array(
+    	'#type' => 'fieldset', '#tree' => TRUE,
+      '#title' => t('Configurable content type settings'),
+    	'#collapsible' => TRUE, '#collapsed' => TRUE,
+      '#weight' => -10
+    );
+	  $form['content']['name'] = array(
+	    '#type' => 'value',
+	    '#value' => $type->name,
+	  );    
+	  //$form['content']['delete'] = array('#type' => 'submit', '#value' => t('Remove this content type'), '#weight' => 10 );
+	  $form['content']['delete'] = 
+    array(
+	  	'#value' => l(t('Delete this content type'), 'admin/settings/content-types/delete/'.$type->name), 
+	  	'#weight' => 10 );
+    
+  } else {
+    // Creating a new content type   
+    $type = new stdClass();
+    $type->title_label = t('Title');
+    $type->body_label = t('Body');
+    $form['content'] = array('#type' => 'fieldset', '#tree' => TRUE);
+	  $form['content']['name'] = array(
+	    '#title' => t('System Name'),
+	    '#type' => 'textfield',
+	    '#description' => t('The low level name of this content type. Only alphabetic -English- characters, hyphen and underscore are allowed. No spaces.'),
+	    '#required' => TRUE,
+	    '#weight' => -10
+	  );
+	  $form['content']['base'] = array(
+	    '#type' => 'value',
+	    '#value' => 'contento',
+	  );  
+	  $form['buttons']['submit'] = array('#type' => 'submit', '#value' => t('Add content type') );
+  }
+  $form['content']['label'] = array(
+    '#title' => t('Label'),
+    '#type' => 'textfield',
+    '#default_value' => $type->label,
+    '#description' => t('The human-readable name of this content type.'),
+    '#required' => TRUE,
+  );
+  
+  $form['content']['title_label'] = array(
+    '#title' => t('Title field label'),
+    '#type' => 'textfield',
+    '#default_value' => $type->title_label,
+    '#description' => t('The label for the title field.'),
+  );
+  
+  $form['content']['body_label'] = array(
+    '#title' => t('Body field label'),
+    '#type' => 'textfield',
+    '#default_value' => $type->body_label,
+    '#description' => t('The label for the body field.'),
+  );
+  
+  $form['content']['description'] = array(
+    '#title' => t('Description'),
+    '#type' => 'textarea',
+    '#default_value' => $type->description,
+    '#rows' => 10,
+    '#description' => t('A brief description of the content type.'),
+  );
+  $form['content']['help'] = array(
+    '#title' => t('Help text'),
+    '#type' => 'textarea',
+    '#default_value' => $type->help,
+    '#rows' => 10,
+    '#description' => t('Instructions to present to the user when adding new content of this type.'),
+  );
+
+
+  return $form;
+}
+
+?>

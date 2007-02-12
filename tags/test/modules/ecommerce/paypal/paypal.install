@@ -1,0 +1,28 @@
+<?php
+// $Id: paypal.install,v 1.3 2006/05/09 12:23:36 gordon Exp $
+
+/**
+ * E-Commerce paypal module schema
+ */
+function paypal_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_paypal} (
+        txnid int(11) NOT NULL default '0',
+        ppid varchar(30) NOT NULL default '0',
+        fee decimal(10,2) NOT NULL default '0.00',
+        PRIMARY KEY  (ppid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_paypal} (
+        txnid integer NOT NULL default '0',
+        ppid varchar(30) NOT NULL default '0',
+        fee decimal(10,2) NOT NULL default '0.00',
+        PRIMARY KEY (ppid)
+      )");
+      break;
+  }
+}
+

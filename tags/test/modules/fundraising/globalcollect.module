@@ -1,0 +1,537 @@
+<?php
+// $Id: globalcollect.module,v 1.167 2005-04-01 15:55:01 jose Exp $
+
+/**
+ * @file
+ * GlobalCollect payment system for fundrising.
+ * 
+ * Developed by Jose A. Reyero for FightHunger.org
+ * http://www.reyero.net
+ */
+ 
+/**
+ * Implementation of hook_cron()
+ * Updates transactions 
+ */
+function globalcollect_cron(){
+  if($number = variable_get('globalcollect_cron', 10)){
+    $timeout = variable_get('globalcollect_payment_timeout', 0);
+    $result = db_query_range("SELECT * FROM {donation} WHERE status IN ('pending','accepted') AND changed < %d ORDER BY changed", time() - $timeout, 0, $number);
+    while($donation = db_fetch_object($result)){
+      $donation->data = $donation->data ? unserialize($donation->data) : array();
+      // Second parameter to true, to update timed out
+      globalcollect_check_status($donation, FALSE);
+    }
+  }
+}
+
+/**
+ * Implementation of hook_help()
+ */
+function globalcollect_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Interface with GlobalCollect payment system for donations.');
+  }
+}
+/**
+ * Implementation of hook_menu().
+ */
+// TO-DO: Remove testing page
+function globalcollect_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'globalcollect/paymentstatus', 'title' => 'globalcollect',
+      'type' => MENU_CALLBACK,
+      'callback' => 'globalcollect_paymentstatus',
+      'access' => TRUE);
+    $items[] = array('path' => 'globalcollect/finishedpayment', 'title' => 'finished payment',
+      'type' => MENU_CALLBACK,
+      'callback' => 'globalcollect_finished_payment',
+      'access' => TRUE);
+    $items[] = array('path' => 'globalcollect/test', 'title' => t('test'),
+      'type' => MENU_CALLBACK,
+      'callback' => 'globalcollect_test',
+      'access' => user_access('administer donations'));     
+  }
+  return $items;
+}
+/**
+ * Implementation of hook_settings()
+ */
+function globalcollect_settings(){
+
+  // Note: default is test server
+  $form['globalcollect_merchantid'] = array('#type' => 'textfield', '#title' => t('Merchant Id'), '#default_value' => variable_get('globalcollect_merchantid', ''), '#size' => 10, '#maxlength' => 10);
+  $form['globalcollect_paymentserver_url'] = array('#type' => 'textfield', '#title' => t('Payment server URL'), '#default_value' => variable_get('globalcollect_paymentserver_url', 'https://ps.gcsip.nl/hpp/hpp'), '#size' => 100, '#maxlength' => 100, '#description' => t("Webcollect Customer Link. It should be <strong>https://ps.gcsip.com/hpp/hpp</strong> for Production and <strong>https://ps.gcsip.nl/hpp/hpp</strong> for Testing. Default is testing."));
+  $form['globalcollect_cron'] = array('#type' => 'textfield', '#title' => t('Process step on cron'), '#default_value' => variable_get('globalcollect_cron', 10), '#size' => 10, '#maxlength' => 10, '#description' =>t("Number of transactions to process on each cron execution. Zero to disable."));
+  $form['globalcollect_payment_timeout'] = array('#type' => 'textfield', '#title' => t('Payment timeout'), '#default_value' => variable_get('globalcollect_payment_timeout', 0), '#size' => 10, '#maxlength' => 10, '#description' =>t("Time, in seconds, after which pending donations will be checked again."));
+  $form['globalcollect_local_ip'] = array('#type' => 'textfield', '#title' => t('Local IP address'), '#default_value' => variable_get('globalcollect_local_ip', ''), '#size' => 20, '#maxlength' => 20, '#description' =>t("Local IP address to be sent to Globalcollect server. This server's IP is %ip_address", array('%ip_address' => $_SERVER['SERVER_ADDR'])));
+  /*
+  $form .= form_textfield(t('Merchant Id'), 'globalcollect_merchantid', variable_get('globalcollect_merchantid', ''), 10, 10);
+  $form .= form_textfield(t('Payment server URL'), 'globalcollect_paymentserver_url', variable_get('globalcollect_paymentserver_url', 'https://paymentserver.globalcollect.nl/hpp/hpp'), 100, 100);
+  $form .= form_textfield(t('Process step on cron'), 'globalcollect_cron', variable_get('globalcollect_cron', 10), 10, 10, t("Number of transactions to process on each cron execution. Zero to disable."));
+  $form .= form_textfield(t('Payment timeout'), 'globalcollect_payment_timeout', variable_get('globalcollect_payment_timeout', 0), 10, 10, t("Time, in seconds, after which pending donations will be checked again."));
+  $form .= form_textfield(t('Local IP address'), 'globalcollect_local_ip', variable_get('globalcollect_local_ip', $_SERVER['SERVER_ADDR']), 20, 20, t("Local IP address to be sent to Globalcollect server."));
+	*/
+  return $form;
+}
+
+
+/**
+ * Pament API
+ * TO-DO: More watchdog messages
+ */
+function globalcollect_proceed($donation){
+  // Communication with payment server
+  $params = globalcollect_create_order_params($donation);
+  $request = globalcollect_prepare_request('INSERT_ORDER', $params);
+  $result = globalcollect_request($request);
+  // DEBUG: Log all messages
+  watchdog('globalcollect', 'GlobalCollect response<br/>'.debug_xml($result, 'Returned XML'));
+  // Process response
+  if( $response = globalcollect_response($result) ){
+    // We have a valid response. Check returned parameters
+    if(_globalcollect_response_ok($response)){
+      $params = $response->row[0];
+      if($params->ref && $params->mac) {
+        // Everything seems ok. Go ahead with payment
+        globalcollect_donation_update($donation, (array)$response->row[0]);
+        return globalcollect_goto($params); 
+        // This may issue a page redirect or return some message
+      } 
+    } 
+    // Something has gone wrong 
+    $error_message = _globalcollect_response_error($response);
+    $output = t('<p>Cannot proceed with payment</p>');
+    $output .= "<p>$error_message</p>\n";
+    $output .= t("<p>Please, contact the site administrator.</p>");
+    watchdog('globalcollect', 'GlobalCollect response not OK<br/>'.debug_xml($result, 'Returned XML'), WATCHDOG_ERROR);
+  } else {
+  	// Failed request
+  	$error_message = 'Communication with GlobalCollect server failed';
+    watchdog('globalcollect', $error_message, WATCHDOG_ERROR);
+    $output = t('Please try again later.');
+  }
+  // Default message. Payment has failed
+  drupal_set_message(t('Communication with payment provider failed'), 'error');
+  // Update donation status
+  $donation->status = 'error';
+  globalcollect_donation_update($donation, array('error_message' => $error_message));
+
+  // DEBUG: Print response object
+  // $output .= debug_xml($result, 'HTTP Response');
+  return $output;
+}
+
+/**
+ * Check && update the status of the donation.
+ * @param $cancel = Set to cancelled if status is not completed
+ */
+function globalcollect_check_status($donation, $cancel = FALSE){
+  // DEBUG
+  //print "<br/> DEBUG: Checking status for donation $donation->trid..";
+  // Request
+  $order = array('ORDERID' => $donation->trid);
+  $params = array('ORDER' => $order);
+  $request = globalcollect_prepare_request('GET_ORDERSTATUS', $params);
+  $fullresponse = globalcollect_request($request);
+  // Process response
+  $response = globalcollect_response($fullresponse);
+  if(_globalcollect_response_ok($response)){
+    $params = $response->row[0];
+    if($params && $status = _globalcollect_status($params->statusid) ) {
+      // Cancel pending donations if $cancel
+      if($status == 'pending' && $cancel) {
+        $donation->status = 'timeout';
+      } else {
+        $donation->status = $status;
+      }
+      // Update status and data 
+      globalcollect_donation_update($donation, (array)$params);
+      watchdog('globalcollect', "Status for donation $donation->trid : $param->statusid = $status", WATCHDOG_NOTICE, 'admin/donation/'.$donation->trid);
+    }
+    // DEBUG
+    // print "status= $params->statusid $status <br/>";
+  } else {
+    $error = _globalcollect_response_error($response);
+    watchdog('globalcollect', "Status for donation $donation->trid : $error", WATCHDOG_ERROR, 'admin/donation/'.$donation->trid);
+    // If there's been a response, update donation
+    if($response){
+      $donation->status = 'error';
+      globalcollect_donation_update($donation, array('error_message' => $error));
+    }
+    //print debug_xml($fullresponse, "RESPONSE ERROR");
+    //print debug_array($response, "Response object");
+  }
+  return $status;
+}
+
+// Translates globalcollect status into our transaction status
+function _globalcollect_status($statusid){
+  switch($statusid){
+    case 0: // Created
+    case 600: // PENDING VERIFICATION    
+      return 'pending';
+    case 800: // READY
+    case 850: // MARKED FOR SENDING
+    case 900: // SENT, PROCESSED
+      return 'accepted';
+    case 1000: // PAID
+    case 1010: // ACCOUNT DEBITED
+      return 'cleared';
+    case 100: // REJECTED
+    case 1100: // REJECTED
+      return 'rejected';
+    case 1500: // CHARGED BACK BY CONSUMER
+    case 1510: // REVERSAL BY CONSUMER
+    case 1520: // REVERSED
+    case 1800: // REFUNDED
+      return 'reversed';
+    default:
+      return 'unknown';
+  }
+}
+// Returns true if response OK and has data
+function _globalcollect_response_ok($response){
+  if($response->result == 'OK' && isset($response->row) && is_array($response->row)){
+    return TRUE;
+  }
+}
+// Returns readable error
+function _globalcollect_response_error($response){
+    if($response->result == 'NOK' && $error = $response->error[0]){
+      return "$error->code - $error->message"; // Should we translate the error message ?
+    } else {
+      return t('Undefined error');
+    }
+  
+}
+/**
+ * Implementation of GlobalCollect protocol
+ * 
+ */
+
+/**
+ * Redirect user to the payment server
+ */
+function globalcollect_goto($params){
+  $url = variable_get('globalcollect_paymentserver_url', '');
+  $url .= "?ACTION=PAY&REF=$params->ref&MAC=".urlencode($params->mac);
+  // Before the redirect, allow modules to react to the end of the page request.
+  module_invoke_all('exit', $url);
+  // Redirect
+  header('Location: '. $url);
+  exit();
+  // For debugging or when Redirect doesn't happen
+  $output = t('<p>Redirect URL</p>');
+  $output .= l($url, $url);
+  return $output;
+}
+
+function globalcollect_donation_update($donation, $data = array()) {
+  if( isset($donation->data) && is_array($donation->data)) {
+    $donation->data = array_merge($donation->data, $data);
+  } else {
+    $donation->data = $data;
+  }
+  return donation_save($donation);
+}
+
+/**
+ * Process messages from Payment Status Communicator
+ * TO-DO: Check additional parameters
+ * TO-DO: Check https and server
+ */
+function globalcollect_paymentstatus(){
+  $data = $_POST;
+  // DEBUG
+  watchdog('globalcollect', "Payment Status Communicator ".debug_array($data));
+  // isset() and $_SERVER["HTTPS"] == 'on'
+  $transaction = donation_load(array('trid' => $data['ORDERID']));
+  if( $transaction && globalcollect_process_paymentstatus($transaction, $data) ){
+    print("OK\n");
+  } else {
+    // Always OK, for debug
+    //print("NOK\n");
+    print("OK\n");
+  }
+  exit();
+}
+
+// TO-DO: Update our order status
+function globalcollect_process_paymentstatus($transaction, $data){
+  if( $transaction->trid == $data['ORDERID'] &&
+      $transaction->status == 'pending' &&
+      $data['AMOUNT'] == 100 * $transaction->amount &&
+      $data['CURRENCYCODE'] == $transaction->currency ) 
+  {
+      //Save al data submitted
+      $transaction->data = array_merge($transaction->data, $data);
+      // Process order status
+      // We should update the status of the order according to the STATUSID
+      donation_save($transaction);
+      return TRUE;
+  } else {
+    return FALSE;
+  }
+}
+
+/**
+ * User is back in our site after the payment
+ * 
+ * Security note: data may be forged so we cannot use it to update status
+ */
+function globalcollect_finished_payment($trid=NULL){
+  $data = $_POST;
+  $output = t('Thanks for your donation.');
+  // DEBUG
+  // $output .= debug_array($data, "Data");
+  
+  return $output;  
+}
+
+/**
+ * DEBUG: Callback for testing
+ */
+function globalcollect_test($trid = 0, $action='status'){
+  $output = '';
+  switch($action) {
+    case 'status':
+      $output = globalcollect_test_status($trid);
+      break;
+    case 'insert':
+      $output = globalcollect_test_order($trid);
+      break;
+  }
+  return $output;
+}
+
+function globalcollect_test_order($trid = 0){
+  $output = '';
+  if( $donation = donation_load(array('trid' => $trid)) ) {
+    $params = globalcollect_create_order_params($donation);
+    $request = globalcollect_prepare_request('INSERT_ORDER', $params);
+    $response = globalcollect_request($request);
+    
+    $fullresponse = $response;
+    $response = xml_extract($response, "RESPONSE");
+    $output .= debug_xml($response, "RESPONSE");
+
+    $response = xml2object($response);
+    $output .= debug_array($response, "Response");
+
+    $output .= debug_array($response->result, "Result");
+    $output .= debug_array($response->error[0], "Error");
+    
+    $output .= debug_xml($fullresponse, "Full Response");
+    $output .= debug_array($donation, 'Donation');
+    $output .= debug_xml($request, "Request");
+  } else {
+    $output = 'Donation not found';
+  }
+  return $output;
+}
+
+function globalcollect_test_status($trid = 0){
+  $output = '';
+  if( $donation = donation_load(array('trid' => $trid)) ) {
+    $order = array('ORDERID' => $trid);
+    $action = 'GET_ORDERSTATUS';
+    $params = array('ORDER' => $order);
+    $request = globalcollect_prepare_request($action, $params);
+    $response = globalcollect_request($request);
+    
+    $fullresponse = $response;
+    $response = xml_extract($response, "RESPONSE");
+    $output .= debug_xml($response, "RESPONSE");
+
+    $response = xml2object($response);
+    $output .= debug_array($response, "Response");
+
+    $output .= debug_array($response->result, "Result");
+    $output .= debug_array($response->error[0], "Error");
+    
+    $output .= debug_xml($fullresponse, "Full Response");
+    $output .= debug_array($donation, 'Donation');
+    $output .= debug_xml($request, "Request");
+  } else {
+    $output = 'Donation not found';
+  }
+  return $output;
+}
+
+function globalcollect_request($data){
+  $url = variable_get('globalcollect_paymentserver_url', '');
+  $headers = array("Content-Type" => "text/xml");
+  // Fetch data using curl
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $url);
+  curl_setopt($ch, CURLOPT_POST, 1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, "IN=$data");
+  //curl_setopt($sessions,CURLOPT_FOLLOWLOCATION,0);
+  //curl_setopt($sessions, CURLOPT_HEADER , 1);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $result = curl_exec($ch);  
+  curl_close($ch);
+  return $result;
+}
+
+// Parses xml response into an object
+function globalcollect_response($data){
+  if( $data && $response = xml_extract($data, "RESPONSE") ){
+    return xml2object($response);
+  } else {
+    return NULL;
+  }
+}
+
+function globalcollect_create_order_params($donation) {
+  $params['ORDER'] = globalcollect_create_order($donation);
+  $params['ORDERLINES']['ORDERLINE'] = globalcollect_create_orderline($donation);
+  return $params;
+}
+
+function globalcollect_create_order($donation){
+  $order = new StdClass();
+  $order->ORDERID = $donation->trid;
+  $order->ORDERTYPE = 1;
+  $order->AMOUNT = 100 * $donation->amount; // Only numbers
+  $order->CURRENCYCODE = $donation->currency;
+  $order->LANGUAGECODE = 'en';
+  $order->IPADDRESSCUSTOMER = $_SERVER['REMOTE_ADDR'];
+  $order->COUNTRYCODE = strtoupper($donation->country);
+  // Additional user data
+  $order->EMAIL = $donation->mail;
+  return $order;
+}
+
+/**
+ * Create an order line
+ * Format of description:
+ * 		Decription(116)
+ * 		Number of items(4)
+ *    Price per item(12)
+ */
+function globalcollect_create_orderline($donation, $linenumber = 1){
+  $line = new StdClass();
+  $line->LINENUMBER = $linenumber;
+  $line->AMOUNTSIGN = '+';                                                                                 
+  $line->LINEAMOUNT = 100 * $donation->amount;
+  // Line date, with some padding (GC requirement)
+  $description = t("Your donation to %site_name", array('%site_name' => variable_get('site_name', 'Walk the World')));
+  if(strlen($description) > 116 ) {
+    $description = substr($description, 0, 116);
+  }
+  $line->INVOICELINEDATA = str_pad($description, 116).
+    str_pad('1', 4, ' ', STR_PAD_LEFT).
+    str_pad($line->LINEAMOUNT, 12, ' ', STR_PAD_LEFT);
+  return $line;
+}
+
+function globalcollect_prepare_request($action, $params){
+  // Prepare data
+  $data = new StdClass();
+  $data->ACTION = $action;
+  $data->META = array(
+  	'MERCHANTID' => variable_get('globalcollect_merchantid', ''),
+    'IPADDRESS' => variable_get('globalcollect_local_ip', $_SERVER['SERVER_ADDR']),
+    'VERSION' => '1.0'
+    );
+  $data->PARAMS = $params;
+  
+  // Build xml request
+  $out = '<XML><REQUEST>';
+  $out .= data2xml($data);
+  $out .= '</REQUEST></XML>';
+  return $out;
+}
+
+/**
+ * Mini XML Library
+ * 
+ * Data conversion functions and very basic xml parser. 
+ * It wont handle attributes.
+ */
+
+function data2xml($data){
+  if(is_object($data)){
+    return array2xml(get_object_vars($data));
+  } elseif(is_array($data)){
+    return array2xml($data);
+  } else {
+    return $data;
+  }
+}
+
+function array2xml($data){
+  $out = '';
+  foreach($data as $name => $value){
+      $out .= "<$name>".data2xml($value)."</$name>";
+  }
+  return $out;
+}
+
+function xml_extract($data, $tag, $single = TRUE){
+  $data = str_replace("\n", '', $data);
+  if(preg_match_all("/(<$tag>.*<\/$tag>)/m", $data, $matches) ) { // Ungreedy, multiline
+    return $single ? $matches[1][0] : $matches[1];
+  }
+}
+/**
+ * Convert xml in PHP object
+ * TO-DO: Check for xml errors
+ */
+function xml2object($data){
+  $parser = xml_parser_create();
+  xml_parse_into_struct($parser, $data, $values, $index);
+  xml_parser_free($parser);
+  //print debug_array($index, "Index array");;
+  //print debug_array($values, "Vals array");
+  
+  // Fetch values array into object
+  $current = NULL;
+  $stack = array();
+  $level = 1;
+  foreach($values as $item){
+    if($item['level'] == 1) continue; // This is the top level enclosing tag
+    $name = strtolower($item['tag']);
+    switch($item['type']){
+      case 'open':
+          array_push($stack, $current);
+          $current = new StdClass();
+        break;
+      case 'complete';
+        $current->$name = $item['value'];
+        break;
+      case 'close';
+        $parent = array_pop($stack);
+        isset($parent->$name) ? array_push($parent->$name, $current) : $parent->$name = array($current);
+        $current = $parent;
+        break;
+    }
+  } 
+  return $current; 
+}
+
+/**
+ * Debugging
+ * TO-DO: Remove
+ */
+function debug_array($data, $title = 'array'){
+  $output ="<h2>$title</h2>";
+  $output .= '<pre>';
+  $output .= print_r($data, TRUE);
+  $output .= '</pre>';
+  return $output;
+}
+
+function debug_xml($data, $title = 'xml'){
+  $output ="<h2>$title</h2>";
+  $data = str_replace('>', "> ", $data);
+  $output .= htmlentities($data);
+  return $output;
+}
+
+?>

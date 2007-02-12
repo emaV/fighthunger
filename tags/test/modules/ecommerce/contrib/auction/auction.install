@@ -1,0 +1,41 @@
+<?php
+// $Id: auction.install,v 1.1 2006/05/31 13:13:29 sime Exp $
+
+/**
+ * E-Commerce auction module schema
+ */
+function auction_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_product_auction} (
+        nid int(10) unsigned NOT NULL default '0',
+        expires int(11) NOT NULL default '0',
+        PRIMARY KEY  (nid)
+      ) TYPE=MyISAM;");
+      db_query("CREATE TABLE {ec_auction_bid} (
+        nid int(10) unsigned NOT NULL default '0',
+        uid int(10) unsigned NOT NULL default '0',
+        bid decimal(10,2) NOT NULL default '0.00',
+        created int(11) unsigned NOT NULL default '0',
+        KEY nid (nid)
+      ) TYPE=MyISAM;");
+      drupal_set_message(t('Auction module has been installed.'));
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_product_auction} (
+        nid integer NOT NULL default '0',
+        expires integer NOT NULL default '0',
+        PRIMARY KEY  (nid)
+      )");
+      db_query("CREATE TABLE {ec_auction_bid} (
+        nid integer NOT NULL default '0',
+        uid integer NOT NULL default '0',
+        bid decimal(10,2) NOT NULL default '0.00',
+        created integer NOT NULL default '0',
+        KEY nid (nid)
+      )");
+      drupal_set_message(t('Auction module has been installed.'));
+      break;
+  }
+}

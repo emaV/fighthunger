@@ -1,0 +1,1927 @@
+<?php
+// $Id: subproducts.module,v 1.21.2.10 2006/10/02 00:33:21 gordon Exp $
+
+/**
+ * @file
+ * This module adds subproducts and variations functionality to Drupal's
+ * E-Commerce package.
+ *
+ * Subproducts functionality is divided into two distinct types:
+ * variations and base products.
+ *
+ * Variation-type products are products that have subproducts that
+ * are defined by a combination of attributes--for example, a color
+ * (blue) and a size (small). Product types that return themselves
+ * as part of the 'subproduct_types' productapi option are considered
+ * to support variation-type subproducts. An example is the apparel
+ * module in ecommerce/contrib.
+ *
+ * Product variations and attribute data are stored in dedicated tables
+ * and accessed and updated through a user interface, similar to (and 
+ * based on) the UI in Drupal core for administering the forum module's
+ * vocabulary and terms. Before users can create subproducts, a site
+ * administrator must first designate available variations and their 
+ * attributes.
+ *
+ * The second type of subproduct is the base-type. In this case, a
+ * subproduct is not itself a combination of attributes, but is a reference
+ * to a product that has such attributes. For example, a logo (the parent
+ * product) might be available printed on a small, blue shirt (the 
+ * subproduct). Product types that return product types other than 
+ * themselves as part of the 'subproduct_types' productapi option are
+ * considered to support base-type subproducts. An example is the
+ * custom module in ecommerce/contrib.
+ */
+
+/***
+ * Implementation of _nodeapi hook.
+ *
+ * Variation-type functionality is implemented in the first half of
+ * subproducts_nodeapi().
+ * 
+ * Base-type functionality is implemented in the second half of
+ * subproducts_nodeapi().
+ */
+function subproducts_nodeapi(&$node, $op, $arg) {
+  // Only act on nodes with product type set.
+  if(!((isset($node->ptype)) && isset($node->nid))) {
+    return;
+  }
+
+  // Provide variations functionality.
+  if ($variations = subproducts_get_variations($node->ptype)) {
+    switch ($op) {
+      case 'load':
+        if ($node->pparent) {
+          return array('variations' => subproducts_get_node_variations($node->nid));
+        }
+        else {
+          return array('children' => subproducts_get_children($node));
+        }
+      case 'view':
+        if (count($node->children)) {
+          $items = cart_get_items();
+          $child_variations = subproducts_get_child_attributes($node);
+          $form['#method'] = 'post';
+          $form['#action'] = url("cart/add/$node->nid", "destination=node/$node->nid");
+          $form['#tree'] = TRUE;
+          foreach ($variations as $variation) {
+            $options = array();
+            foreach($variation->attributes as $attribute) {
+              if (in_array($attribute->aid, $child_variations)) {
+                $options[$attribute->aid] = subproducts_surcharge_extra($attribute);
+              }
+            }
+            $form['variations'][$variation->vid] = array(
+              '#type' => 'select',
+              '#title' => $variation->name,
+              '#default_value' => $node->variations[$variation->vid],
+              '#options' => $options,
+              '#description' => t('The %name of this product', array('%name' => theme('placeholder', $variation->name)))
+            );
+          }
+          $form['add_to_cart'] = array(
+            '#type' => 'submit',
+            '#value' => t('add to cart')
+          );
+          $output .= drupal_get_form('subproducts_add_to_cart', $form);
+
+          /* search for subproducts in the cart and display table */
+          $subproducts = $node->children;
+    
+          foreach ($items as $snid => $item) {
+            if (in_array($snid, $subproducts)) {
+              $product = node_load($snid);
+              $rows[] = array(
+                array('data' => $product->title),
+                array('data' => $item->qty, 'align' => 'right'),
+                array('data' => l(t('add'), "cart/add/$product->nid", array(), "destination=node/$product->pparent"))
+              );
+            }
+          }
+    
+          if ($rows) {
+            $header = array(
+              array('data' => t('product')),
+              array('data' => t('quantity')),
+              array('data' => ''),
+            );
+    
+            $table = theme('table', $header, $rows);
+            $output .= theme('subproducts_in_cart', $table);
+          }
+          $node->subproduct_options = $output;
+          $node->body = theme('subproducts_product_options', $node);
+        }
+        else if ($node->pparent) {
+          if ($node->variations) {
+            foreach ($node->variations as $aid) {
+              $wheres[] = 'a.aid = ' . $aid;
+            }
+            $attributes = array();
+            $result = db_query('SELECT a.*, v.name AS variation FROM {ec_attribute} a INNER JOIN {ec_variation} v ON a.vid = v.vid WHERE ' . implode(' OR ', $wheres) . ' ORDER BY a.weight, a.name');
+            while ($attribute = db_fetch_object($result)) {
+              $attributes[] = $attribute;
+              // This will automate the price setting, so that prices don't need to be updated every time a surcharge is changed.
+              //$node->price += $attribute->surcharge;
+            }
+            $node->body .= theme('subproducts_attribute_items', $attributes);
+          }
+        }
+        return;
+      case 'form post':
+        if ($node->pparent || ((arg(3) == 'parent') && ($node->pparent = arg(4)))) {
+          $form['#tree'] = TRUE;
+          $form['variations'] = array(
+            '#type' => 'fieldset',
+            '#title' => t('Variations')
+          );
+          foreach ($variations as $variation) {
+            $options = array();
+            foreach($variation->attributes as $attribute) {
+              $options[$attribute->aid] = subproducts_surcharge_extra($attribute);
+            }
+            $form['variations'][$variation->vid] = array(
+              '#type' => 'select',
+              '#title' => $variation->name,
+              '#default_value' => $node->variations[$variation->vid],
+              '#options' => $options,
+              '#description' => t('The %name of this product', array('%name' => theme('placeholder', $variation->name))),
+            );
+          }
+          $output = drupal_get_form('subproducts_variations_form_post', $form);
+        }
+        return $output;
+      case 'validate':
+        if ($node->pparent && $node->variations) {
+          // Check if a subproduct with these variations, and, if we're editing, that it's not the one being edited.
+          if ($nid = subproducts_get_variations_subproduct($node->pparent, $node->variations)) {
+            if ($nid != $node->nid) {
+              form_set_error('variations', t('A subproduct with these variations already exists.'));
+            }
+          }
+        }
+        return;
+      case 'submit':
+        if ($node->nid && !$node->pparent) {
+          $existing_node = node_load($node->nid);
+          if ($node->price != $existing_node->price) {
+            $node->reprice_subproducts = TRUE;
+            $node->old_price = $existing_node->price;
+          }
+          if ($node->title != $existing_node->title) {
+            $node->retitle_subproducts = TRUE;
+          }
+          if ($node->status != $existing_node->status) {
+            $node->update_subproducts_status = TRUE;
+          }
+        }
+        return;
+      case 'update':
+        if (!$node->variations) {
+          // If price has changed for a parent product, update price of subproducts.
+          if ($node->reprice_subproducts) {
+            $count = 0;
+            foreach (subproducts_get_children($node) as $nid) {
+              $subproduct = node_load($nid);
+              subproducts_reset_price_variation($subproduct, $node);
+              unset($subproduct[0]);
+              node_save($subproduct);
+              $count++;
+            }
+            drupal_set_message(format_plural($count, '%count subproduct price updated.', '%count subproduct prices updated.'));
+          }
+          // If title has changed for a parent product, update title of subproducts.
+          if ($node->retitle_subproducts) {
+            $count = 0;
+            foreach (subproducts_get_children($node) as $nid) {
+              $subproduct = node_load($nid);
+              $attributes = subproducts_get_node_variations_string($nid);
+              $subproduct->title = $node->title . ' ' . implode(' ', $attributes);
+              node_save($subproduct);
+              $count++;
+            }
+            drupal_set_message(format_plural($count, '%count subproduct title updated.', '%count subproduct titles updated.'));
+          }
+          // If the product has been unpublished, unpublish all subproducts.
+          if ($node->update_subproducts_status && count($node->children)) {
+            db_query('UPDATE {node} SET status = %d WHERE nid IN('. implode(',', $node->children) .')', $node->status);
+          }
+          return;
+        }
+        else {
+          db_query("DELETE FROM {ec_product_attribute} WHERE nid = %d", $node->nid);
+        }
+        // Having removed obsolete values, we continue on to insert.
+      case 'insert':
+        if ($node->variations) {
+          foreach ($node->variations as $variation) {
+            db_query("INSERT INTO {ec_product_attribute} (nid, aid) VALUES (%d, %d)", $node->nid, $variation);
+          }
+        }
+        elseif (subproducts_access('administer', $node)) {
+          $_REQUEST['edit']['destination'] = "node/$node->nid/subproducts/generate";
+        }
+        return;
+      case 'delete':
+        // Delete any subproducts.
+        if (variable_get('subproducts_delete_children', 1) && count($node->children)) {
+          foreach ($node->children as $nid) {
+            node_delete($nid);
+          }
+        }
+        // Delete any products that have this as a base product.
+        $result = db_query("SELECT product FROM {ec_product_base} WHERE base = %d", $node->nid);
+        if (db_num_rows($result)) {
+          while($product = db_fetch_object($result)) {
+            node_delete($product->product);
+          }
+        }
+        db_query("DELETE FROM {ec_product_attribute} WHERE nid = %d", $node->nid);
+        return;
+    }
+  }
+
+  // Provide base product functionality.
+  if ($bases = subproducts_base_product_types($node->ptype)) {
+    switch ($op) {
+      case 'load':
+        if ($node->pparent) {
+          return db_fetch_array(db_query('SELECT b.base, p.price AS base_price FROM {ec_product_base} b INNER JOIN {ec_product} p ON b.base = p.nid WHERE b.product = %d', $node->nid));
+        }
+        else {
+          $price_type = db_query('SELECT type AS price_type FROM {ec_subproduct_pricing} WHERE nid = %d', $node->nid);
+          $children = subproducts_get_children($node);
+          if (db_num_rows($price_type)) { 
+            return array_merge(db_fetch_array($price_type), array('children' => $children));
+          }
+          else {
+            return array('children' => $children);
+          }
+        }
+      case 'view':
+        if (count($node->children) && (arg(0) == 'node' || arg(0) == 'send')) {
+          $items = cart_get_items();
+          $subproducts = $node->children;
+          if ($base_attributes = subproducts_get_base_attributes($node)) {
+            $ptypes = module_invoke('product', 'get_ptypes');
+
+            // This variable is used to generate data to be read in through javascript on the client side.
+            $products = array();
+
+            $form['#method'] = 'post';
+            $form['#action'] = url("cart/add/$node->nid", "destination=node/$node->nid");
+            $form['#tree'] = TRUE;
+
+            foreach($bases as $ptype) {
+              $wheres = array();
+              $options = array();
+
+              // Find all published parents of published base products of subproducts of the current node.
+              $base_parents = subproducts_get_base_data($node);
+
+              $products[$ptype] = array();
+              $products[$ptype]['products'] = array();
+
+              $group = '<h3>' . $ptypes[$ptype] . '</h3>';
+
+              // Find all available customizable products.
+              foreach($base_parents as $base_parent => $base_children) {
+
+                $product = node_load($base_parent);
+                $options[$product->nid] = $product->title;
+
+                // Structure product listings as javascript object.
+            
+                // Load data on variations.
+                $products[$ptype]['products'][$product->nid] = array();
+                $products[$ptype]['products'][$product->nid]['children'] = array();
+                $price_reset = FALSE;
+                foreach ($base_children as $nid) {
+
+                  $model = db_fetch_object(db_query("SELECT p1.nid, p1.price, p2.pparent FROM {ec_product} p1 INNER JOIN {ec_product_base} b ON p1.nid = b.product INNER JOIN {ec_product} p2 ON p2.nid = b.base WHERE b.base = %d AND p1.pparent = %d", $nid, $node->nid));
+                  if (!$price_reset) {
+                    // Set the node's price to be the same as the default/first shown subproduct.
+                    $node->price = $model->price;
+                    $price_reset = TRUE;
+                  }
+                  $child_data = array('variations' => subproducts_get_node_variations($nid), 'price' => $model->price, 'model' => $model->nid, 'model_parent' => $model->pparent);
+
+                  $products[$ptype]['products'][$product->nid]['children'][$nid] = $child_data;
+                }
+              }
+              $variations = subproducts_get_variations($ptype);
+              $vids = array_keys($variations);
+              $products[$ptype]['variations'] = $vids;
+              $form['pparent'] = array(
+                '#type' => 'hidden',
+                '#value' => $node->nid,
+              );
+              $form['ptype'] = array(
+                '#type' => 'hidden',
+                '#value' => $ptype,
+              );
+              $form[$ptype]['base_parent'] = array(
+                '#type' => 'select',
+                '#title' => t('Model'),
+                '#default_value' => current($options),
+                '#options' => $options,
+                '#description' => t('Select a model'),
+                '#attributes' => array(
+                  'class' => 'product-select',
+                  'data' => 'edit-' . $ptype . '-variations-' . $vids[0]
+                )
+              );
+
+              // Cycle through by array key, so that we can keep track of the ordered index.
+              foreach ($vids as $index => $vid) {
+                $options = array();
+                foreach($variations[$vid]->attributes as $attribute) {
+                  if (in_array($attribute->aid, $base_attributes)) {
+                    $options[$attribute->aid] = subproducts_surcharge_extra($attribute);
+                  }
+                }
+                // Only add the javascript caller class if we're not at the last in the variation array, because the last one
+                // has no subsequent select to call.
+                $extra = array('class' => 'attribute-select');
+                if($index != count($vids) - 1) {
+                  $extra['data'] = 'edit-' . $ptype . '-variations-' . $vids[$index + 1];
+                }
+                $form[$ptype]['variations'][$variations[$vid]->vid] = array(
+                  '#type' => 'select',
+                  '#title' => $variations[$vid]->name,
+                  '#default_value' => $node->variations[$variations[$vid]->vid],
+                  '#options' => $options,
+                  '#description' => t('Select a %name', array('%name' => $variations[$vid]->name)),
+                  '#attributes' => $extra
+                );
+              }
+              $form['add_to_cart'] = array(
+                '#type' => 'submit',
+                '#value' => t('add to cart')
+              );
+              $output .= drupal_get_form('subproducts_add_to_cart', $form);
+            }
+            // Load required js file.
+            $path = drupal_get_path('module', 'subproducts');
+            drupal_add_js($path . '/subproducts.js');
+            $script = '
+<script type="text/javascript">
+  var productData = parseJson(\'' . drupal_to_js($products) . '\');
+</script>';
+            drupal_set_html_head($script);
+          }
+
+          /* search for subproducts in the cart and display table */
+
+          foreach ($items as $snid => $item) {
+            if (in_array($snid, $subproducts)) {
+              $product = node_load($snid);
+              $rows[] = array(
+                array('data' => $product->title),
+                array('data' => $item->qty, 'align' => 'right'),
+                array('data' => l(t('add'), "cart/add/$product->nid", array(), "destination=node/$product->pparent"))
+              );
+            }
+          }
+          if ($rows) {
+            $header = array(
+              array('data' => t('product')),
+              array('data' => t('quantity')),
+              array('data' => ''),
+            );
+
+            $table = theme('table', $header, $rows);
+            $output .= theme('subproducts_in_cart', $table);
+          }
+    
+          $node->subproduct_options = $output;
+          $node->body = theme('subproducts_product_options', $node);
+        }
+        else if (count($node->children)) {
+          // We are displaying a listing where the teaser will be used, so don't need to add to the node body.
+          $first_child = db_fetch_object(db_query('SELECT price FROM {ec_product} WHERE nid = %d', $node->children[0]));
+          $node->price = $first_child->price;
+        }
+        else if ($node->pparent && $node->base) {
+          $base = node_load($node->base);
+          $node->body .= '<p>' . t('Based on <a href="%url">%title</a>.', array('%url' => url('node/' . $node->base), '%title' => $base->title)) . '</p>';
+        }
+        return;
+      case 'form post':
+        if ($node->pparent || ((arg(3) == 'parent') && ($node->pparent = arg(4)))) {
+          $form['group'] = array(
+            '#type' => 'fieldset',
+            '#title' => t('Base')
+          );
+          if ($node->base) {
+            $base = node_load($node->base);
+            $based_on = t('Based on <a href="%url">%title</a>.', array('%url' => url('node/' . $node->base), '%title' => $base->title));
+            $form['group']['based_on'] = array('#type' => 'markup', '#value' => $based_on);
+            $form['group']['base'] = array(
+              '#type' => 'hidden',
+              '#value' => $node->base,
+            );
+          }
+          else {
+            $form['group']['no_interface'] = array('#type' => 'markup', '#value' => t('No interface yet for manually selecting base products.'));
+          }
+          $output = drupal_get_form('subproducts_base_form', $form);
+        }
+        return $output;
+      case 'validate':
+        // This validation is not yet used, as we don't manually generate new subproducts.
+        // Before being used, it would need to be adapted to work for node updates as well as inserts.
+        // See the attribute version of validation, above.
+        if (!$node->nid && $node->base) {
+          if (db_num_rows(db_query("SELECT * FROM {ec_product_base} WHERE product IN (%s) AND base = %d", implode(',', $node->children), $node->base))) {
+            form_set_error('variations', t('A subproduct with this base already exists.'));
+          }
+        }
+        return;
+      case 'submit':
+        if($node->nid && !$node->base) {
+          // Determine whether a new price or a new price type has been assigned to a parent product.
+          // If so, set a property that will be referenced when the node is updated.
+          $existing_node = node_load($node->nid);
+          if (($node->price != $existing_node->price) || (isset($node->price_type) && ($node->price_type != $existing_node->price_type))) {
+            $node->reprice_subproducts = TRUE;
+          }
+          if ($node->title != $existing_node->title) {
+            $node->retitle_subproducts = TRUE;
+          }
+          if ($node->status != $existing_node->status) {
+            $node->update_subproducts_status = TRUE;
+          }
+        }
+        return;
+      case 'update':
+        if (!$node->base) {
+          // If price has changed for a parent product, update price of subproducts.
+          if ($node->reprice_subproducts) {
+            $count = 0;
+            foreach (subproducts_get_children($node) as $nid) {
+              $subproduct = node_load($nid);
+              subproducts_reset_price_base($subproduct, $node);
+              node_save($subproduct);
+              $count++;
+            }
+            drupal_set_message(format_plural($count, '%count subproduct price updated.', '%count subproduct prices updated.'));
+  
+            // We can put this update operation here because it will be called if there has been a data change.
+            if (isset($node->price_type)) {
+              db_query("UPDATE {ec_subproduct_pricing} SET type = '%d' WHERE nid = '%d'", $node->price_type, $node->nid);
+            }
+          }
+          // If title has changed for a parent product, update title of subproducts.
+          if ($node->retitle_subproducts) {
+            $count = 0;
+            foreach (subproducts_get_children($node) as $nid) {
+              $subproduct = node_load($nid);
+              $base = db_fetch_object(db_query('SELECT title FROM {node} WHERE nid = %d', $subproduct->base));
+              $subproduct->title = $node->title . ' ' . $base->title;
+              node_save($subproduct);
+              $count++;
+            }
+            drupal_set_message(format_plural($count, '%count subproduct title updated.', '%count subproduct titles updated.'));
+          }
+          // If the product has been unpublished, unpublish all subproducts.          
+          if ($node->update_subproducts_status && count($node->children)) {
+            db_query('UPDATE {node} SET status = %d WHERE nid IN('. implode(',', $node->children) .')', $node->status);
+          }
+          return;
+        }
+        else {
+          db_query("DELETE FROM {ec_product_base} WHERE product = %d", $node->nid);
+        }
+        // Having removed obsolete values, we continue on to insert.
+      case 'insert':
+        if ($node->base) {
+          db_query("INSERT INTO {ec_product_base} (product, base) VALUES (%d, %d)", $node->nid, $node->base);
+        }
+        elseif (subproducts_access('administer', $node)) {
+          $_REQUEST['edit']['destination'] = "node/$node->nid/subproducts/generate";
+        }
+        if (isset($node->price_type)) {
+          db_query("INSERT INTO {ec_subproduct_pricing} (nid, type) VALUES ('%d', '%d')", $node->nid, $node->price_type);
+        }
+        return;
+      case 'delete':
+        // Delete any subproducts.
+        if (variable_get('subproducts_delete_children', 1) && count($node->children)) {
+          foreach ($node->children as $nid) {
+            node_delete($nid);
+          }
+        }
+        db_query("DELETE FROM {ec_product_base} WHERE product = %d", $node->nid);
+        db_query('DELETE FROM {ec_subproduct_pricing} WHERE nid = %d', $node->nid);
+        return;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function subproducts_perm() {
+  return array('administer variations', 'administer subproducts', 'administer own subproducts');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function subproducts_access($op, $node) {
+  global $user;
+
+  if (user_access('administer products')) {
+    return TRUE;
+  }
+  if ($op == 'administer') {
+    // Must have create access to product type.
+    $access = module_invoke('product', 'access', 'create', $node);
+    if ($access == TRUE) {
+      // In addition, must have permission to administer subproducts.
+      if (user_access('administer subproducts') || (user_access('administer own subproducts') && ($user->uid == $node->uid))) {
+        return TRUE;
+      }
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Implementation of hook_menu().
+ *
+ * Users with the 'administer variations' permission have access to
+ * a UI for creating and editing variations and attributes associated
+ * with given product types. This UI is accessed through a navigation
+ * menu item administer > product variations.
+ *
+ * Users with permissions to administer subproducts have access to
+ * a 'subproducts' tab when viewing (potential) parent nodes. Sub-tabs
+ * are 'add' (for variation-type subproducts) or 'select bases' for 
+ * base-type ones and 'list' if subproducts are already registered.
+ */
+function subproducts_menu($may_cache) {
+
+  $items = array();
+
+  if ($may_cache) {
+  }
+  else {
+    if ($ptypes = subproducts_variations_product_types()) {
+      $access = user_access('administer variations');
+      $items[] = array('path' => 'admin/store/settings/variation', 'title' => t('product variations'),
+        'callback' => 'subproducts_admin',
+        'access' => $access,
+        'type' => MENU_NORMAL_ITEM);
+      $default = current($ptypes);
+      $types = module_invoke('product', 'get_ptypes');
+      foreach ($ptypes as $ptype) {
+        $items[] = array('path' => 'admin/store/settings/variation/' . $ptype, 'title' => $types[$ptype],
+          'access' => $access,
+          'type' => ($ptype == $default) ? MENU_DEFAULT_LOCAL_TASK : MENU_LOCAL_TASK, 'weight' => ($ptype == $default) ? -10 : 0);
+        $items[] = array('path' => 'admin/store/settings/variation/' . $ptype . '/list', 'title' => t('list'),
+          'access' => $access,
+          'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
+        $items[] = array('path' => 'admin/store/settings/variation/' . $ptype . '/add/variation', 'title' => t('add variation'),
+          'access' => $access,
+          'type' => MENU_LOCAL_TASK, 'weight' => -5);
+        // Only display add attribute option if there is already at least one variation.
+        if (db_num_rows(db_query("SELECT vid FROM {ec_variation} WHERE ptype = '%s'", $ptype))) {
+          $items[] = array('path' => 'admin/store/settings/variation/' . $ptype . '/add/attribute', 'title' => t('add attribute'),
+            'access' => $access,
+            'type' => MENU_LOCAL_TASK);
+        }
+        $items[] = array('path' => 'admin/store/settings/variation/' . $ptype . '/edit/variation', 'title' => t('edit variation'),
+          'access' => $access,
+          'type' => MENU_CALLBACK);
+        $items[] = array('path' => 'admin/store/settings/variation/' . $ptype . '/edit/attribute', 'title' => t('edit attribute'),
+          'access' => $access,
+          'type' => MENU_CALLBACK);
+      }
+    }
+
+    if ((arg(0) == 'node' || arg(0) == 'send') && is_numeric(arg(1))) {
+      $node = node_load(arg(1));
+      
+      if ($access = subproducts_access('administer', $node) && is_array($node->children)) {
+        $items[] = array(
+          'path' => 'node/' . arg(1) . '/subproducts',
+          'title' => t('subproducts'),
+          'callback' => 'subproducts_list',
+          'access' => $access,
+          'type' => MENU_LOCAL_TASK, 'weight' => 3
+        );
+        $items[] = array(
+          'path' => 'node/' . arg(1) . '/subproducts/generate',
+          'title' => count($node->children) ? t('add') : t('generate'),
+          'callback' => 'subproducts_generate',
+          'access' => $access,
+          'type' => MENU_LOCAL_TASK, 'weight' => 1
+        );
+        $items[] = array('path' => 'node/' . arg(1) . '/subproducts/list',
+          'title' => t('list'),
+          'callback' => 'subproducts_list',
+          'access' => $access,
+          'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => 0
+        );
+      }
+    }
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_help()
+ */
+function subproducts_help($section) {
+
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Handles subproducts and product variations, including the automated generation of subproducts.');
+    case 'admin/help#subproducts':
+      return t('
+      <h3>Administering variations and attributes</h3>
+      <p>Definitions</p>
+      <dl>
+        <dt><strong>variation</strong></dt>
+        <dd>A parameter by which a product varies, e.g., "size", "color"</dd>
+        <dt><strong>attribute</strong></dt>
+        <dd>One of the options available for a particular variation. E.g., for "color", attributes might be "blue", "red", and "orange".</dd>
+      </dl>
+      <p>After enabling at least one product module that supports variations, you can define variations and their attributes.
+      You do this in <a href="%variation_url">administer >> store >> settings >> product variations</a>. Here, for each product type supporting 
+      variations, you can define a list of variations and then give each of them attributes. The interface is based on the forum adminstration interface,
+      so should be familiar to anyone who has created forum containers and forums.</p>
+      <h3>Example</h3>
+      <p>This assumes you have enabled the apparel product.  You will then need to browse to <a href="%variation_url">administer >> store >> settings >> product variations</a>
+      and select the apparel tab.  It may be the only one available if apparel is the only product installed that supports variations.</p>
+      <ol>
+        <li><strong>Creating Variations:</strong> Your apparel products may vary by size and shape.  On the product variation page select the "add variation" action and create the 
+        variations "size" and "color".</li>
+        <li><strong>Creating Attributes</strong> Your attributes for "size" might be "small", "medium", and "large"; attributes for "color" might be "blue", "red", and "orange".
+        Select the <em>add attributes</em> action and each attribute, selecting the appropriate variation from the drop down box.  You may add any surcharge associated with a variation
+        here such as an extra $2.00 for a large shirt.</li>
+      </ol>
+      <h3>Genarating subproducts</h3>
+      <p>When you have variations and their attributes defined for a particular product type, you can automatically generate subproducts.
+      To do so, create a new product, view it, and click the "subproducts" tab.</p>
+      <p>From here, generating the subproducts is a two-step process.</p>
+      <ul>
+        <li><p>The first screen lists all available variation parameters.  Here, you select which apply to this 
+            product, and set values inventory.  So, for example, if a particular product only comes in black,
+            you would uncheck all other colours.</p>
+            <p>The stock inventory values here will be summed up to create default values for particular subproducts.</p>
+            <p>Before submitting this page, you can choose whether to keep these settings as defaults for next time.</p></li>
+        <li><p>The next page presents all combinations of the selected variations. 
+            On this page you select which variations to generate, and you can tweak the stock amounts.  When you submit,
+            you\'re redirected to the subproducts tab listing the newly generated subproducts.</p></li>
+      </ul>
+      <h3>Developers: Enabling variations for product types</h3>
+      <p>To have variations, a product type needs to register itself as supporting subproducts of its own product type.  This is done through a <code>_productapi()</code> hook with $op = \'subproduct_types\'.
+      For example, to enable variations for a product type "sandwich", you would include the following lines in <code>function sandwich_productapi()</code> within the <code>switch($op)</code> block:
+      <pre>
+        case \'subproduct_types\':
+          return array(\'sandwich\');
+      </pre>
+      </p>
+      ', array('%variation_url' => url('admin/store/settings/variation')));
+  }
+}
+
+/**
+ * Return an array of children for a given product.
+ *
+ * This method is called by the 'load' option of nodeapi to add
+ * subproduct information to parent products, and can also be
+ * called in other situations where a node has not undergone a
+ * full node_load and so lacks this property or when subproduct
+ * data may have changed since a node was last loaded.
+ *
+ * @param $node
+ *   A node object representing a parent product.
+ * @return
+ *   Array of nids of child products.
+ */
+function subproducts_get_children($node) {
+  $result = db_query(db_rewrite_sql("SELECT n.nid FROM {node} n INNER JOIN {ec_product} p ON n.vid = p.vid WHERE p.pparent = %d"), $node->nid);
+  $children = array();
+  while ($subproduct = db_fetch_object($result)) {
+    $children[] = $subproduct->nid;
+  }
+  return $children;
+}
+
+/**
+ * Menu callback; administration page for maintaining product variations.
+ * 
+ * Similar to (and based on) Forum module's UI for administering forum
+ * containers and forums.
+ */
+function subproducts_admin() {
+  $op = $_POST['op'];
+  $edit = $_POST['edit'];
+
+  if (empty($op)) {
+    $op = arg(5);
+  }
+
+  switch ($op) {
+    case 'add':
+      if (arg(6) == 'attribute') {
+        $output = subproducts_form_attribute(array('ptype' => arg(4)));
+      }
+      else if (arg(6) == 'variation') {
+        $output = subproducts_form_variation(array('ptype' => arg(4)));
+      }
+      break;
+    case 'edit':
+      if (arg(6) == 'attribute') {
+        $edit = (array) subproducts_get_attribute(arg(7));
+        $edit = $edit + array('ptype' => arg(4));
+        $output = subproducts_form_attribute($edit);
+      }
+      else if (arg(6) == 'variation') {
+         $output = subproducts_form_variation((array) subproducts_get_variation(arg(7)));
+      }
+      break;
+    case t('Delete'):
+      if (!$edit['confirm']) {
+        if (arg(6) == 'attribute') {
+          $output = _subproducts_confirm_attribute_delete($edit['aid']);
+          break;
+        }
+        else if (arg(6) == 'variation') {
+          $output = _subproducts_confirm_variation_delete($edit['vid']);
+          break;
+        }
+      }
+      else {
+        $edit['name'] = 0;
+      }
+    case t('Submit'):
+      switch (arg(6)) {
+        case 'attribute':
+          if (!$edit['confirm'] && !subproducts_attribute_form_validate($edit)) {
+            drupal_goto($edit['aid'] ? 'admin/store/settings/variation/' . $edit['ptype'] . '/edit/attribute/' . $edit['aid'] : 'admin/store/settings/variation/' . $edit['ptype'] . '/add/attribute/');
+          }
+          else {
+            subproducts_save_attribute($edit);
+          }
+          break;
+        case 'variation':
+          subproducts_save_variation($edit);
+          break;
+      }
+      drupal_goto('admin/store/settings/variation/' . $edit['ptype']);
+      break;
+    default:
+      $output = subproducts_variations_overview();
+  }
+
+  return $output;
+}
+
+/**
+ * Recalculate the price of a variation-type subproduct after a change in price of its parent
+ * or its parent's pricing type.
+ *
+ * @param $subproduct
+ *   A node object representing a subproduct, passed by reference.
+ * @param $parent
+ *   A node object representing the subproduct's parent product.
+ */
+function subproducts_reset_price_variation(&$subproduct, $parent) {
+  $subproduct->price = $parent->price;
+  $variations = subproducts_get_node_variations($subproduct->nid);
+  foreach ($variations as $aid) {
+    $attribute = subproducts_get_attribute($aid);
+    $subproduct->price = floatval($subproduct->price) + floatval($attribute->surcharge);
+  }
+}
+
+/**
+ * Recalculate the price of a base-type subproduct after a change in price of its parent
+ * or its parent's pricing type.
+ *
+ * The price of a base-type subproduct reflects 
+ *
+ * @param $subproduct
+ *   A node object representing a subproduct, passed by reference.
+  * @param $parent
+ *   A node object representing the subproduct's parent product.
+ */
+function subproducts_reset_price_base(&$subproduct, $parent) {
+  // Enable other modules to adjust the price.
+  $surcharges = module_invoke_all('subproducts_alter_price', $subproduct);
+  foreach ($surcharges as $surcharge) {
+    $subproduct->base_price += $surcharge;
+  }
+  switch($parent->price_type) {
+    case 0:
+      // Set markup
+      $subproduct->price = floatval($subproduct->base_price) + floatval($parent->price);
+      break;
+    case 1:
+      // Percentage markup
+      $subproduct->price = floatval($subproduct->base_price) + (floatval($subproduct->base_price) * (floatval($parent->price) * 0.01));
+      break;
+    case 2:
+      // Set price
+      if ($parent->price > $subproduct->base_price) {
+        $subproduct->price = $parent->price;
+      }
+      else {
+        $subproduct->price = $subproduct->base_price;
+        drupal_set_message(t('The price of %title has been set at the cost of the base product.', array('%title' => $parent->title)));
+      }
+      break;
+  }
+  module_invoke_all('productapi', 'adjust_subproduct_price', $subproduct, NULL);
+}
+
+/**
+ * Fetch product types supporting variations.
+ *
+ * @return
+ *   Array of product types.
+ */
+function subproducts_variations_product_types() {
+  $node = NULL;
+  $ptypes = module_invoke('product', 'get_ptypes');
+  if (empty($ptypes)) {
+    return FALSE;
+  }
+  asort($ptypes);
+  foreach (array_keys($ptypes) as $ptype) {
+    $subtypes = module_invoke($ptype, 'productapi', $node, 'subproduct_types');
+    if (!is_array($subtypes) || !in_array($ptype, $subtypes)) {
+      unset($ptypes[$ptype]);
+    }
+  }
+  return !empty($ptypes) ? array_keys($ptypes) : FALSE;
+}
+
+/**
+ * Set the matching subproduct for a set of product variation attributes.
+ *
+ * This function should be called in _productapi hooks with op = 'cart add item'
+ * for products supporting subproducts with variations. When called, the
+ * function will search for a matching subproduct and, if found, set the
+ * $node object to that subproduct (rather than the parent product). Since
+ * the node is passed by reference, the cart module will receive a valid
+ * subproduct reference.
+ *
+ * @param $node
+ *   A node object representing a parent product.
+ * @param $data
+ *   An object with properties representing, in this case, subproduct attributes.
+ * @return
+ *   Boolean indicating success or failure in setting a subproduct.
+ */
+function subproducts_cart_set_subproduct_variation(&$node, $data) {
+  if ((arg(0) == 'cart') && (arg(1) == 'add') && !$data->variations) {
+    // We already know the product.
+    return TRUE;
+  }
+  if ($nid = subproducts_get_variations_subproduct($node->nid, $data->variations)) {
+    $node = node_load($nid);
+    return TRUE;
+  }
+  else {
+    drupal_set_message(t('Unable to find the correct product based upon the variation combination.'));
+    return FALSE;
+  }
+}
+
+/**
+ * Set the matching subproduct for a set of base product variation attributes.
+ *
+ * This function should be called in _productapi hooks with op = 'cart add item'
+ * for products supporting subproducts with base products. When called, the
+ * function will search for a matching subproduct and, if found, set the
+ * $node object to that subproduct (rather than the parent product). Since
+ * the node is passed by reference, the cart module will receive a valid
+ * subproduct reference.
+ *
+ * @param $node
+ *   A node object representing a parent product.
+ * @param $data
+ *   An object with properties representing, in this case, subproduct attributes
+ *   and a parent base product.
+ * @return
+ *   Boolean indicating success or failure in setting a subproduct.
+ */
+function subproducts_cart_set_subproduct_base(&$node, $data) {
+  $ptype = $data->ptype;
+  if ($ptype && is_array($data->$ptype)) {
+    foreach ($data->$ptype as $key => $value) {
+      switch ($key) {
+        case 'variations':
+          $variations = $value;
+          break;
+        case 'base_parent':
+          $base_parent = $value;
+          break;
+      }
+    }
+  }
+  if ((arg(0) == 'cart') && (arg(1) == 'add') && !$variations) {
+    // We already know the product.
+    return TRUE;
+  }
+  // First we search for a base product matching the requested attributes.
+  if ($base = subproducts_get_variations_subproduct($base_parent, $variations)) {
+    $match = db_fetch_object(db_query("SELECT pb.product FROM {ec_product_base} pb INNER JOIN {ec_product} p ON pb.product = p.nid WHERE pb.base = %d AND p.pparent = %d", $base, $data->pparent));
+    $node = node_load($match->product);
+    return TRUE;
+  }
+  else {
+    drupal_set_message(t('Unable to find the correct product based upon the combination of attributes.'));
+    return FALSE;
+  }
+}
+
+/**
+ * Fetch the list of foreign subproduct types for a given product type.
+ *
+ * This method allows us to determine, for a given product type, whether it
+ * supports base-type subproducts, and, if so, which product types its
+ * subproducts are based on.
+ *
+ * @param $ptype
+ *   A product type.
+ * @return
+ *   Array of product types, or boolean FALSE if none is found.
+ */
+function subproducts_base_product_types($ptype) {
+  $node = NULL;
+  $subtypes = module_invoke($ptype, 'productapi', $node, 'subproduct_types');
+
+  // We're looking for types not the same as the parent type, so if it is the same unset it.
+  if (is_array($subtypes) && in_array($ptype, $subtypes)) {
+    foreach ($subtypes as $key => $value) {
+      if ($value == $ptype) {
+        unset($subtypes[$key]);
+        break;
+      }
+    }
+  }
+  return !empty($subtypes) ? $subtypes : FALSE;
+}
+
+/**
+ * Menu callback; generate subproducts of a given product based on variations.
+ *
+ * We use a multi-stage process for generating variation-type subproducts.
+ */
+function subproducts_generate() {
+  $op = $_POST['op'];
+
+  if (empty($op)) {
+    $op = 'wizard1';
+  }
+
+  include_once(drupal_get_path('module', 'subproducts'). '/subproducts.inc');
+
+  $node = node_load(arg(1));
+  $variation_type = ($node->ptype && !$node->pparent && (in_array($node->ptype, subproducts_variations_product_types())));
+  $base_type = ($node->ptype && !$node->pparent && ($ptypes = subproducts_base_product_types($node->ptype)));
+
+  if($variation_type || $base_type) {
+    switch($op) {
+      case 'wizard1':
+        return $variation_type ? subproducts_generate_wizard1($node) : subproducts_select_bases_wizard1($node);
+      case t('Review options'):
+        return $variation_type ? subproducts_generate_wizard2($node) : subproducts_select_bases_wizard2($node);
+      case t('Generate'):
+        return $variation_type ? subproducts_generate_wizard3($node) : subproducts_select_bases_wizard3($node);
+    }
+  }
+}
+
+/**
+ * Return appropriate sql clause giving admins access to unpublished nodes.
+ */
+function subproducts_admin_sql() {
+  return user_access('administer nodes') ? '' : 'n.status = 1 AND ';
+}
+
+/**
+ * Find all the permutations of a given set of arrays.
+ *
+ * This helper function is used to generate all the possible combinations
+ * (permutations) of a set of attributes. In this way, we generate
+ * lists of potential subproducts, from which users can select which
+ * ones to generate.
+ *
+ * @param $array
+ *   Structured array of attributes.
+ * @param $start
+ *   Used internally, should not be passed in.
+ * @param $value
+ *   Used internally, should not be passed in.
+ * @param $results
+ *   Used internally, should not be passed in.
+ */
+function subproducts_permute($array, $start = 0, $value = array(), $results = array()) {
+  $keys = array_keys($array);
+  $number = count($keys) - 1;
+  foreach ($array[$keys[$start]] as $value[$start] ) {
+    if ($start < $number) {
+      $results = subproducts_permute($array, $start + 1, $value, $results);
+    }
+    else {
+      $values = array();
+      for ($i = 0; $i <= $number; $i++){
+        $values[$keys[$i]] = $value[$i] ;
+      }
+      $results[] = $values;
+    }
+  }
+  return $results;
+}
+
+/**
+ * Menu callback; list subproducts for a specified product.
+ *
+ * The page includes admin functions for mass handling of a
+ * product's subproducts (publish, unpublish, delete).
+ */
+function subproducts_list() {
+
+  $node = node_load(arg(1));
+  drupal_set_title(t('%title: subproducts', array('%title' => theme('placeholder', $node->title))));
+
+  /*
+  ** Operations
+  */
+
+  $operations = array(
+    'publish' =>   array(t('Publish the selected subproducts'), 'UPDATE {node} SET status = 1 WHERE nid = %d'),
+    'unpublish' => array(t('Unpublish the selected subproducts'), 'UPDATE {node} SET status = 0 WHERE nid = %d'),
+    'delete' =>    array(t('Delete the selected subproducts'), '')
+  );
+
+  // Handle operations
+  $op = $_POST['op'];
+
+  $edit = $_POST['edit'];
+  if (($op == t('Update') || $op == t('Delete all')) && isset($edit['operation']) && isset($edit['nodes'])) {
+    $edit['nodes'] = array_diff($edit['nodes'], array(0));
+    if (count($edit['nodes']) == 0) {
+      form_set_error('', t('Please select some items to perform the update on.'));
+    }
+    else {
+      if ($operations[$edit['operation']][1]) {
+        // Flag changes
+       $operation = $operations[$edit['operation']][1];
+        foreach ($edit['nodes'] as $nid => $value) {
+          if ($value) {
+            db_query($operation, $nid);
+          }
+        }
+        drupal_set_message(t('The update has been performed.'));
+      }
+      else if ($edit['operation'] == 'delete') {
+        // Mass delete
+        if ($edit['confirm']) {
+          foreach ($edit['nodes'] as $nid => $value) {
+            node_delete($nid);
+          }
+          // Refresh $node->children to reflect what's been deleted.
+          $node->children = subproducts_get_children($node);
+
+          drupal_set_message(t('The items have been deleted.'));
+        }
+        else {
+          $form['#tree'] = TRUE;
+          $message = '<ul>';
+          foreach ($edit['nodes'] as $nid => $value) {
+            if ($value) {
+              $title = db_result(db_query('SELECT title FROM {node} WHERE nid = %d', $nid));
+              $form['nodes'][$nid] = array(
+                '#type' => 'hidden',
+                '#value' => 1
+              );
+              $message .= '<li>'. check_plain($title) .'</li>';
+            }
+          }
+          $message .= '</ul>';
+          $form['operation'] = array(
+            '#type' => 'hidden',
+            '#value' => 'delete'
+          );
+          $output = confirm_form('confirm_delete_subproducts', $form, t('Are you sure you want to delete these items?'), "node/$node->nid/subproducts/list",  $message . t('This action cannot be undone.'), t('Delete all'), t('Cancel'));
+          return $output;
+        }
+      }
+    }
+  }
+
+  foreach ($node->children as $nid) {
+    $product = node_load($nid);
+    $form['#tree'] = TRUE;
+    $form['nodes'][$product->nid] = array(
+      '#type' => 'checkbox',
+      '#title' => NULL,
+      '#return_value' => 1,
+      '#default_value' => 0
+    );
+    $form['title'][$product->nid] = array(
+      '#type' => 'markup',
+      '#value' => $product->title
+    );
+    $form['status'][$product->nid] = array(
+      '#type' => 'markup',
+      '#value' => $product->status ? t('published') : t('unpublished')
+    );
+  }
+  
+  $form['operations'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Update options'),
+    '#prefix' => '<div class="container-inline">',
+    '#suffix' => '</div>',
+    '#tree' => FALSE
+  );
+
+  $options = array();
+  foreach ($operations as $key => $value) {
+    $options[$key] = $value[0];
+  }
+  $form['operations']['operation'] = array(
+    '#type' => 'select',
+    '#title' => NULL,
+    '#default_value' => 'publish',
+    '#options' => $options
+  );
+  $form['operations']['op'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update')
+  );
+  $form['destination'] = array(
+    '#type' => 'hidden',
+    '#value' => "node/$node->nid/subproducts/list"
+  );
+  return drupal_get_form('subproducts_list', $form);
+}
+
+/**
+ * Theme a list of subproducts.
+ */
+function theme_subproducts_list($form) {
+  $headers = array(
+    NULL,
+    array('data' => t('title')),
+    array('data' => t('status')),
+    array('data' => t('operations'), 'colspan' => 2)
+  );
+  $rows = array();
+  if (isset($form['title']) && is_array($form['title'])) {
+    foreach (element_children($form['nodes']) as $nid) {
+      $rows[] = array(
+        array('data' => form_render($form['nodes'][$nid])),
+        array('data' => form_render($form['title'][$nid])),
+        array('data' => form_render($form['status'][$nid])),
+        array('data' => l(t('view'), "node/$nid")),
+        array('data' => l(t('edit'), "node/$nid/edit", array(), drupal_get_destination())),
+      );
+    }
+  }
+  else {
+    $rows[] = array(array('data' => t('No subproducts available.'), 'colspan' => '5'));
+  }
+  $output = form_render($form['operations']);
+  $output .= theme('table', $headers, $rows);
+  $output .= form_render($form);
+  return $output;
+}
+
+/**
+ * Fetch all available variations for a specified product type, or for all product types.
+ *
+ * @param $ptype
+ *   A product type, or NULL for all product types.
+ * @return
+ *   Array of variations for the given product type, or for all product types.
+ */
+function subproducts_get_variations($ptype = NULL) {
+  static $variations = array();
+
+  if ($ptype) {
+    if ($variations[$ptype] === NULL) {
+      $result = db_query("SELECT * FROM {ec_variation} WHERE ptype = '%s' ORDER BY weight, name", $ptype);
+      $variations[$ptype] = array();
+      while ($variation = db_fetch_object($result)) {
+        $variations[$ptype][$variation->vid] = $variation;
+        $variations[$ptype][$variation->vid]->attributes = subproducts_get_attributes($variation->vid);
+      }
+    }
+    return empty($variations[$ptype]) ? FALSE : $variations[$ptype];
+  }
+  else {
+    $result = db_query('SELECT * FROM {ec_variation} ORDER BY weight, name');
+    while ($variation = db_fetch_object($result)) {
+      $variations[$variation->ptype][$variation->vid] = $variation;
+      $variations[$variation->ptype][$variation->vid]->attributes = subproducts_get_attributes($variation->vid);
+    }
+    return $variations;
+  }
+}
+
+/**
+ * Return the variation object matching a variation ID.
+ *
+ * @param $vid
+ *   The id of a variation.
+ * @return
+ *   Object including all properties of the variation.
+ */
+function subproducts_get_variation($vid) {
+  return db_fetch_object(db_query('SELECT * FROM {ec_variation} WHERE vid = %d', $vid));
+}
+
+/**
+ * Return the attribute object matching a attribute ID.
+ *
+ * @param $aid
+ *   The id of an attribute.
+ * @return
+ *   Object including all properties of the attribute.
+ */
+function subproducts_get_attribute($aid) {
+  return db_fetch_object(db_query('SELECT * FROM {ec_attribute} WHERE aid = %d', $aid));
+}
+
+/**
+ * Return an array of variations for a (subproduct) node.
+ *
+ * This method is used when we want to load the attribute
+ * data of a subproduct. Because the data are returned in id
+ * format, they are useful when we are storing or analyzing data.
+ * If we need only to display data - e.g., output the size and 
+ * color of a shirt - we use subproducts_get_node_variations_string
+ * instead.
+ *
+ * @param $nid
+ *   The id of a subproduct node.
+ * @return
+ *   Array with keys of variation ids and values of attribute ids.
+ */
+function subproducts_get_node_variations($nid) {
+  $attributes = array();
+  $result = db_query("SELECT a.vid, p.aid FROM {ec_product_attribute} p INNER JOIN {ec_attribute} a ON p.aid = a.aid WHERE p.nid = %d", $nid);
+  while ($match = db_fetch_object($result)) {
+    $attributes[$match->vid] = $match->aid;
+  }
+  return $attributes;
+}
+
+/**
+ * Return an array of strings representing the variations for a (subproduct) node.
+ *
+ * This method is handy for producing strings used to describe a subproduct.
+ *
+ * @param $nid
+ *   The id of a subproduct node.
+ * @return
+ *   Array with keys of variation names and values of attribute names.
+ */
+function subproducts_get_node_variations_string($nid) {
+  $attributes = array();
+  $result = db_query("SELECT v.name AS variation, a.name AS attribute FROM {ec_product_attribute} p INNER JOIN {ec_attribute} a ON p.aid = a.aid INNER JOIN {ec_variation} v ON a.vid = v.vid WHERE p.nid = %d", $nid);
+  while ($match = db_fetch_object($result)) {
+    $attributes[$match->variation] = $match->attribute;
+  }
+  return $attributes;
+}
+
+/**
+ * Return the id of the base product for a given node.
+ *
+ * @param $nid
+ *   The id of a subproduct node.
+ * @return
+ *   Integer id of the subproduct's base product.
+ */
+function subproducts_get_node_base($nid) {
+  $base = db_fetch_object(db_query("SELECT product FROM {ec_product_base} WHERE base = %d", $nid));
+  return $base->product;
+}
+
+/**
+ * Return all parents of base products of a product's subproducts.
+ *
+ * For a given parent product that has base-type subproducts, this method
+ * fetches the set of products that those subproducts are based on.
+ *
+ * @param $node
+ *   Node object representing the parent product.
+ * @param $ptype
+ *   A product type, or NULL for all product types.
+ * @return
+ *   Array of product ids.
+ */
+function subproducts_get_base_parents($node, $ptype = NULL) {
+  $products = array();
+  $result = db_query('SELECT DISTINCT(p1.pparent) FROM {ec_product} p1 INNER JOIN {node} n1 ON p1.pparent = n1.nid INNER JOIN {ec_product_base} pb ON p1.nid = pb.base INNER JOIN {ec_product} p2 ON pb.product = p2.nid INNER JOIN {node} n2 ON p1.nid = n2.nid WHERE n1.status = 1 AND n2.status = 1 AND p2.pparent = %d ' . ($ptype ? 'AND p1.ptype = "%s"' : "") . ' ORDER BY n1.sticky DESC, n1.title ASC', $node->nid, $ptype);
+  while ($product = db_fetch_object($result)) {
+    $products[] = $product->pparent;
+  }
+  return $products;
+}
+
+/**
+ * Return structured base product information for a given parent product.
+ *
+ * @param $node
+ *   Node object representing the parent product.
+ * @return
+ *   Array with keys of parent base products and values of arrays of child base products.
+ */
+function subproducts_get_base_data($node, $ptype = NULL) {
+  $products = array();
+  $result = db_query('SELECT p1.nid, p1.pparent FROM {ec_product} p1 INNER JOIN {node} n1 ON p1.pparent = n1.nid INNER JOIN {ec_product_base} pb ON p1.nid = pb.base INNER JOIN {ec_product} p2 ON pb.product = p2.nid INNER JOIN {node} n2 ON p1.nid = n2.nid WHERE n1.status = 1 AND n2.status = 1 AND p2.pparent = %d ' . ($ptype ? 'AND p1.ptype = "%s"' : "") . ' ORDER BY n1.sticky DESC, n1.title ASC', $node->nid, $ptype);
+  while ($product = db_fetch_object($result)) {
+    if (!isset($products[$product->pparent])) {
+      $products[$product->pparent] = array();
+    }
+    $products[$product->pparent][] = $product->nid;
+  }
+  return $products;
+}
+
+/**
+ * Return the parent of a subproduct's base product.
+ *
+ * @param $node
+ *   Subproduct node object.
+ * @return
+ *   Node id.
+ */
+function subproducts_get_base_parent($node) {
+  $products = array();
+  $product = db_fetch_object(db_query('SELECT p.pparent FROM {ec_product} p INNER JOIN {ec_product_base} b ON p.nid = b.base WHERE b.product = %d', $node->nid));
+  return $product->pparent;
+}
+
+/**
+ * Find all attributes associated with a given variation.
+ *
+ * This method loads all attributes of a variation. For example, given
+ * a variation id representing 'size', it would load data on all available sizes.
+ *
+ * @param $vid
+ *   The id of a variation.
+ * @return
+ *   Array with keys of attribute ids and values of attribute objects.
+ */
+function subproducts_get_attributes($vid) {
+  static $attributes = array();
+
+  if ($attributes[$vid] === NULL) {
+    $result = db_query('SELECT * FROM {ec_attribute} WHERE vid = %d ORDER BY weight, name', $vid);
+    $attributes[$vid] = array();
+    while ($attribute = db_fetch_object($result)) {
+      $attributes[$vid][$attribute->aid] = $attribute;
+    }
+  }
+  return empty($attributes[$vid]) ? FALSE : $attributes[$vid];
+}
+
+/**
+ * Find the subproduct matching a set of variations.
+ *
+ * Given a set of variations and the id of a parent product, this method
+ * allows us to find the corresponding subproduct, if any. One application
+ * of this method is to determine which product to return when a user
+ * has selected from a list of available attributes. E.g., when selecting a
+ * shirt, the user may have selected 'large' and 'white', resulting in
+ * those attributes' ids being passed. Here we determine if a large, white
+ * shirt of the specified type exists, and, if so, return its id.
+ *
+ * @param $nid
+ *   The id of a parent product.
+ * @param $variations
+ *   Array of attributes.
+ * @return
+ *   Node id of the matching subproduct, or FALSE if none found.
+ */
+function subproducts_get_variations_subproduct($nid, $variations) {
+  $joins = array();
+  $wheres = array();
+  foreach ($variations as $index => $aid) {
+    $joins[] = 'INNER JOIN {ec_product_attribute} a'. $index .' ON p.nid = a'. $index .'.nid';
+    $wheres[] = 'a'. $index .'.aid = ' . $aid;
+  }
+  $result = db_query(db_rewrite_sql('SELECT DISTINCT(n.nid) FROM {node} n INNER JOIN {ec_product} p ON n.nid = p.nid ' . implode(' ', $joins) . ' WHERE ' . implode(' AND ', $wheres) . ' AND p.pparent = %d'), $nid);
+  if (db_num_rows($result)) {
+    $product = db_fetch_object($result);
+    return $product->nid;
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Returns a confirmation page for deleting an attribute
+ *
+ * @param $aid
+ *   ID of the attribute to be deleted.
+ * @return
+ *   String representation of confirmation form.
+ */
+function _subproducts_confirm_attribute_delete($aid) {
+  $attribute = subproducts_get_attribute($aid);
+  $form['aid'] = array(
+    '#type' => 'hidden',
+    '#value' => $aid
+  );
+  $output = confirm_form('confirm_delete_attribute', $form, t('Are you sure you want to delete the attribute %name?', array('%name' => theme('placeholder', $attribute->name))), 'admin/store/variation/' . arg(2) . '/edit/attribute',  t('Deleting a attribute will delete all products based on the attribute. This action cannot be undone.'), t('Delete'), t('Cancel'));
+  return $output;
+}
+
+/**
+ * Returns a confirmation page for deleting a variation
+ *
+ * @param $vid
+ *   ID of the variation to be deleted.
+ * @return
+ *   String representation of confirmation form.
+ */
+function _subproducts_confirm_variation_delete($vid) {
+  $variation = subproducts_get_variation($vid);
+  $form['vid'] = array(
+    '#type' => 'hidden',
+    '#value' => $vid
+  );
+  $output = confirm_form('confirm_delete_attribute', $form, t('Are you sure you want to delete the variation %name?', array('%name' => theme('placeholder', $variation->name))), 'admin/store/variation/' . arg(2). '/edit/variation',  t('Deleting a variation will delete all of its attributes, and any products based on those attributes. This action cannot be undone.'), t('Delete'), t('Cancel'));
+  return $output;
+}
+
+/**
+ * Returns a form for adding a variation.
+ *
+ * @param $edit
+ *   Associative array containing a variation be added or edited.
+ * @return
+ *   String representation of editing form.
+ */
+function subproducts_form_variation($edit = array()) {
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Variation name'),
+    '#default_value' => $edit['name'],
+    '#size' => 50,
+    '#maxlength' => 64,
+    '#description' => t('The variation name is used to identify a group of attributes.'),
+    '#attributes' => NULL,
+    '#required' => TRUE,
+  );
+  $form['weight'] = array(
+    '#type' => 'weight',
+    '#title' => t('Weight'),
+    '#default_value' => $edit['weight'],
+    '#delta' => 10,
+    '#description' => t('In listings, the heavier terms (with a larger weight) will sink and the lighter terms will be positioned nearer the top.'),
+  );
+  $form['ptype'] = array(
+    '#type' => 'hidden',
+    '#value' => $edit['ptype'],
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  if ($edit['vid']) {
+    $form['delete'] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete'),
+    );
+    $form['vid'] = array(
+      '#type' => 'hidden',
+      '#value' => $edit['vid'],
+    );
+  }
+
+  return drupal_get_form('variation', $form);
+}
+
+/**
+ * Returns the form elements for pricing.
+ *
+ * @param $node
+ *   node object.
+ * @return
+ *   String representation of form.
+ */
+function subproducts_price_elements($node) {
+  $form['price'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Price'),
+    '#default_value' => $node->price,
+    '#size' => 5,
+    '#maxlength' => 10
+  );
+  if (!$node->pparent) {
+    // The following line is hard-coded for goodstorm.  We should at least provide a setting (or maybe automatically generate a price chart).
+    $form['price_type'] = array(
+      '#type' => 'radios',
+      '#title' => '',
+      '#default_value' => $node->price_type,
+      '#options' => array(t('I want to mark up each shirt\'s base price by this many dollars.'), t('I want to mark up each shirt price by this percent of the base price.'), t('I want to sell all my shirts at this exact price.')),
+      '#description' => t('(must be higher than the base price, see our <a href="%url" target="_blank">price chart</a> for details)', array('%url' => url(variable_get('subproducts_price_chart', 'faq/selling#5a'))))
+    );
+  }
+  return drupal_get_form('variation', $form);
+}
+
+/**
+ * Returns a form for adding an attribute.
+ *
+ * @param $edit
+ *   Associative array containing an attribute to be added or edited.
+ * @return
+ *   String representation of editing form.
+ */
+function subproducts_form_attribute($edit = array()) {
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Attribute name'),
+    '#default_value' => $edit['name'],
+    '#size' => 50,
+    '#maxlength' => 64,
+    '#description' => t('The name is used to identify the attribute.'),
+    '#attributes' => NULL,
+    '#required' => TRUE,
+  );
+  $options = array();
+  $result = db_query("SELECT vid, name FROM {ec_variation} WHERE ptype = '%s' ORDER BY weight, name", $edit['ptype']);
+  while ($variation = db_fetch_object($result)) {
+    $options[$variation->vid] = $variation->name;
+  }
+  $form['vid'] = array(
+    '#type' => 'select',
+    '#title' => t('Variation'),
+    '#default_value' => $edit['vid'],
+    '#options' => $options,
+  );
+  $form['weight'] = array(
+    '#type' => 'weight',
+    '#title' => t('Weight'),
+    '#default_value' => $edit['weight'],
+    '#delta' => 10,
+    '#description' => t('In listings, the heavier (with a higher weight value) attributes will sink and the lighter attributes will be positioned nearer the top.'),
+  );
+  $form['surcharge'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Surcharge'),
+    '#default_value' => $edit['surcharge'] ? $edit['surcharge'] : '0.00',
+    '#size' => 25,
+    '#maxlength' => 50,
+    '#description' => t('What is the amount added to the price of a product of this attribute?'),
+  );
+  $form['ptype'] = array(
+    '#type' => 'hidden',
+    '#value' => $edit['ptype'],
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  if ($edit['aid']) {
+    $form['delete'] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete'),
+    );
+    $form['aid'] = array(
+      '#type' => 'hidden',
+      '#value' => $edit['aid'],
+    );
+  }
+
+  return drupal_get_form('attribute', $form);
+}
+
+/**
+ * Create, update, or delete a variation.
+ *
+ * If we delete a variation, any attributes it has are also deleted.
+ *
+ * @param $edit
+ *   Associative array containing a variation to be added, edited, or deleted.
+ * @return
+ *   Array representing the variation.
+ */
+function subproducts_save_variation($edit) {
+  if ($edit['vid'] && $edit['name']) {
+    db_query("UPDATE {ec_variation} SET name = '%s', weight = %d WHERE vid = %d", $edit['name'], $edit['weight'], $edit['vid']);
+    $message = t('The variation %variation has been updated.', array('%variation' => theme('placeholder', $edit['name'])));
+  }
+  else if ($edit['vid']) {
+    db_query('DELETE FROM {ec_variation} WHERE vid = %d', $edit['vid']);
+    $message = t('The variation was deleted.');
+    // Delete any attributes in this variation.
+    $edit['variation_delete'] = TRUE;
+    $result = db_query('SELECT aid FROM {ec_attribute} WHERE vid = %d', $edit['vid']);
+    while ($attribute = db_fetch_array($result)) {
+      subproducts_save_attribute($attribute);
+    }
+    subproducts_remove_duplicates();
+  }
+  else {
+    $edit['vid'] = db_next_id('{ec_variation}_vid');
+    db_query("INSERT INTO {ec_variation} (vid, name, weight, ptype) VALUES (%d, '%s', %d, '%s')", $edit['vid'], $edit['name'], $edit['weight'], $edit['ptype']);
+    $message = t('Created new variation %variation.', array('%variation' => theme('placeholder', $edit['name'])));
+  }
+
+  drupal_set_message($message);
+  return $edit;
+}
+
+/**
+ * Validate an attribute before it is saved.
+ *
+ * @param $edit
+ *   Associative array containing an attribute to be added or edited.
+ * @return
+ *   Boolean representing success or failure of validation.
+ */
+function subproducts_attribute_form_validate($edit) {
+  $edit = (object) $edit;
+  $errors = array();
+
+  /* Remove the currency symbol at the beginning of the surcharge if it exists */
+  if (isset($edit->surcharge)) {
+    if (substr($edit->surcharge, 0, 1) == variable_get('payment_symbol', '$')) {
+      $edit->surcharge = substr($edit->surcharge, count(variable_get('payment_symbol', '$')));
+    }
+    $edit->surcharge = str_replace(',', '', $edit->surcharge);
+    if (!is_numeric($edit->surcharge)) {
+      $errors['surcharge'] = t('Please enter a numeric value for the attribute surcharge.');
+    }
+  }
+  if ($edit->name == '') {
+    $errors['name'] = t('Please enter name for the attribute.');
+  }
+
+  foreach ($errors as $name => $message) {
+    form_set_error($name, $message);
+  }
+
+  return ((form_get_errors()) ? FALSE : TRUE);
+}
+
+/**
+ * Create, update, or delete an attribute.
+ *
+ * If we delete an attributes, any products based on it are also deleted--
+ * unless this call is originated by a variation delete, in which case 
+ * the variation code will handle resulting duplicates.
+ *
+ * @param $edit
+ *   Associative array containing an attribute to be added, edited, or deleted.
+ * @return
+ *   Array representing the attribute.
+ */
+function subproducts_save_attribute($edit) {
+  if ($edit['aid'] && $edit['name']) {
+    db_query("UPDATE {ec_attribute} SET vid = %d, name = '%s', weight = %d, surcharge = '%s' WHERE aid = %d", $edit['vid'], $edit['name'], $edit['weight'], $edit['surcharge'], $edit['aid']);
+    $message = t('The attribute %attribute has been updated.', array('%attribute' => theme('placeholder', $edit['name'])));
+  }
+  else if ($edit['aid']) {
+    db_query('DELETE FROM {ec_attribute} WHERE aid = %d', $edit['aid']);
+    db_query('DELETE FROM {ec_product_attribute} WHERE aid = %d', $edit['aid']);
+    $message = t('The attribute was deleted.');
+    // If we're deleting a variation, subproducts_save_variation() will call subproducts_remove_duplicates().
+    if (!$edit['variation_delete']) {
+      // Delete any subproducts based on this attribute.
+      $result = db_query("SELECT nid FROM {ec_product_attribute} WHERE aid = %d", $edit['aid']);
+      while($product = db_fetch_object($result)) {
+        node_delete($product->nid);
+      }
+    }
+  }
+  else {
+    $edit['aid'] = db_next_id('{ec_attribute}_aid');
+    db_query("INSERT INTO {ec_attribute} (aid, vid, name, weight, surcharge) VALUES (%d, %d, '%s', %d, %d)", $edit['aid'], $edit['vid'], $edit['name'], $edit['weight'], $edit['surcharge']);
+    $message = t('Created new attribute %attribute.', array('%attribute' => theme('placeholder', $edit['name'])));
+  }
+
+  drupal_set_message($message);
+  return $edit;
+}
+
+/**
+ * Deletes any subproducts that duplicate the attribute combinations of another subproduct.
+ *
+ * This method is called when we delete a variation, so that we don't end up with
+ * subproducts representing identical attribute combinations.
+ */
+function subproducts_remove_duplicates() {
+  $unique = array();
+  // Find all products with attributes.
+  $result = db_query("SELECT DISTINCT(nid) FROM {ec_product_attribute}");
+  while ($product = db_fetch_object($result)) {
+    $attributes = implode(',', subproducts_get_node_variations($product->nid));
+    if (in_array($attributes, $unique)) {
+      node_delete($product->nid);
+    }
+    else {
+      $unique[] = $attributes;
+    }
+  }
+}
+
+/**
+ * Menu callback; return an overview list of existing attributes and variations
+ */
+function subproducts_variations_overview() {
+  $ptypes = subproducts_variations_product_types();
+  $ptype = arg(4) ? arg(4) : current($ptypes);
+
+  $header = array(t('Name'), t('Operations'));
+
+  if ($variations = subproducts_get_variations($ptype)) {
+    foreach ($variations as $variation) {
+      $rows[] = array(check_plain($variation->name), l(t('edit variation'), 'admin/store/settings/variation/' . $ptype . '/edit/variation/' . $variation->vid));
+      if ($variation->attributes) {
+        foreach ($variation->attributes as $attribute) {
+          $rows[] = array('-- ' . check_plain($attribute->name), l(t('edit attribute'), 'admin/store/settings/variation/' . $ptype . '/edit/attribute/' . $attribute->aid));
+        }
+      }
+    }
+  }
+  else {
+    $rows[] = array(array('data' => '<em>' . t('There are no existing variations or attributes. To add some, first select a product type.') . '</em>', 'colspan' => 2));
+  }
+  return theme('table', $header, $rows);
+}
+
+/**
+ * Implementation of hook_ec_settings().
+ */
+function subproducts_ec_settings() {
+  $form['subproducts_delete_children'] = array(
+    '#type' => 'select',
+    '#title' => t('Delete child products'),
+    '#default_value' => variable_get('subproducts_delete_children', 1),
+    '#options' => array(t('Disabled'), t('Enabled')),
+    '#description' => t('Enable this setting to have subproducts automatically deleted when their parent product is deleted.'),
+  );
+
+  // Define optional aggregation variation fields.
+  if($ptypes = subproducts_variations_product_types()) {
+    $aggregation = variable_get('subproducts_aggregation', array());
+    $types = module_invoke('product', 'get_ptypes');
+    $variations = subproducts_get_variations();
+    $form['subproducts_aggregation'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Aggregation parameters')
+    );
+    $message = '<p>' . t('You may optionally choose to aggregate product variations by selecting an aggregation field here.  If you had apparel products that varied by manufacture, color, and size, choosing to aggregate by size would mean that users would select from available manufacture and color options, and then be offered available sizes on a subsequent screen.') . '</p>'; 	 
+    $message .= '<p>' . t('Note: aggregation not yet implemented!');
+    $form['subproducts_aggregation']['message'] = array(
+      '#type' => 'markup',
+      '#value' => $message
+    );
+    foreach ($ptypes as $ptype) {
+      $options = array('0' => t('none'));
+      foreach ($variations[$ptype] as $variation) {
+        $options[$variation->vid] = $variation->name;
+      }
+      $form['subproducts_aggregation'][$ptype] = array(
+        '#type' => 'select',
+        '#title' => $types[$ptype],
+        '#default_value' => array_key_exists($ptype, $aggregation) ? $aggregation[$ptype] : 0,
+        '#options' => $options
+      );
+    }
+  }
+  return $form;
+}
+
+/**
+ * Find all the attributes of a product's subproducts.
+ *
+ * @param $node
+ *   Node object representing a parent product.
+ * @return
+ *   Array of attribute ids.
+ */
+function subproducts_get_child_attributes($node) {
+  $attributes = array();
+  $result = db_query("SELECT a.aid FROM {ec_product_attribute} a INNER JOIN {ec_product} p ON a.nid = p.nid INNER JOIN {node} n ON p.nid = n.nid WHERE n.status = 1 AND p.pparent = %d", $node->nid);
+  while ($attribute = db_fetch_object($result)) {
+    $attributes[] = $attribute->aid;
+  }
+  return $attributes;
+}
+
+/**
+ * Find all the attributes of a product's subproducts' base products.
+ *
+ * For a product with base-type subproducts, this method finds all the
+ * attributes of the products that its subproducts are based on. For example,
+ * if a logo product was available on a large white and a small white shirt,
+ * an array of the attribute ids for small, large, and white would be returned.
+ *
+ * @param $node
+ *   Parent product node object.
+ * @return
+ *   Array of attributes.
+ */
+function subproducts_get_base_attributes($node) {
+  $attributes = array();
+  // Find all base products.
+  $bases = array();
+  $result = db_query("SELECT b.base FROM {ec_product_base} b INNER JOIN {ec_product} p ON b.product = p.nid INNER JOIN {node} n ON p.nid = n.nid WHERE n.status = 1 AND p.pparent = %d", $node->nid);
+  if (!db_num_rows($result)) {
+    return FALSE;
+  }
+  while ($product = db_fetch_object($result)) {
+    $wheres[] = '(nid = ' . $product->base . ')';
+  }
+  $wheres = implode(' OR ', $wheres);
+  $result = db_query('SELECT DISTINCT(aid) FROM {ec_product_attribute} WHERE ' . $wheres);
+  if (!db_num_rows($result)) {
+    return FALSE;
+  }
+  while ($attribute = db_fetch_object($result)) {
+    $attributes[] = $attribute->aid;
+  }
+  return $attributes;
+}
+
+/**
+ * If there is a surcharge, add information about it to an attribute's display text.
+ *
+ * As the attribute UI allows the setting of surcharges for attributes (e.g. size 'extra
+ * large' might cost $2 extra), this function allows the display of such surcharge
+ * information.
+ *
+ * @param $attribute
+ *   Attribute object.
+ * @param $override
+ *   Boolean allowing the overriding of this behavior.
+ * @return
+ *   String representation of attribute name and any surcharge.
+ */
+function subproducts_surcharge_extra($attribute, $override = FALSE) {
+  return ((variable_get('subproducts_dynamic_pricing', 0) || $override) && ($attribute->surcharge != 0)) ? t('%name (+ %surcharge)', array('%name' => $attribute->name, '%surcharge' => module_invoke('payment', 'format', $attribute->surcharge))) : $attribute->name;
+}
+
+/**
+ * @defgroup subproducts_themes Themable functions controlling the display of subproducts
+ */
+
+/**
+ * Theme a list of product attributes
+ *
+ * @ingroup subproducts_themes
+ * @return
+ *   Formatted HTML
+ */
+function theme_subproducts_attribute_items($attributes) {
+  $title = t('Attributes');
+  $items = array();
+  foreach ($attributes as $attribute) {
+    $items[] = '<em>' . $attribute->variation . '</em>: ' . $attribute->name;
+  }
+  return theme('item_list', $items, $title);
+}
+
+/**
+ * Adds subproduct options to node_body.
+ *
+ * @ingroup subproducts_themes
+ * @return
+ *   Formatted HTML
+ */
+function theme_subproducts_product_options (&$node){
+  $content  = $node->body . $node->subproduct_options;
+  return $content;
+}
+/**
+ * Theme to allow the removal of the add to cart form, useful when displaying 
+ * subproduct options within other forms
+ * @ingroup subproducts_themes
+ * @return
+ *   Formatted HTML
+ */
+function theme_subproducts_add_to_cart($form) {
+  return theme('fieldset', array('#title' => t('Variations'), '#children' => form_render($form)));
+}
+/**
+ * Provides a display of the shopping cart, themed to allow removal of the cart display
+ * @ingroup subproducts_themes
+ * @return
+ *   Formatted HTML
+ */
+function theme_subproducts_in_cart($table) {
+  return theme('fieldset', array('#title' => t('Products in cart'), '#children' => $table));
+}

@@ -1,0 +1,528 @@
+<?php
+// $Id: coupon.module,v 1.6.2.2 2006/10/02 00:33:19 gordon Exp $
+
+/**
+ * Implementation of hook_help()
+ */
+function coupon_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Allows users to enter discount coupons/gift certificates when making a purchase.');
+      break;
+    
+    case 'node/add/product#coupon':
+      return t("Creates Gift Certificates for customers to use for later purchases.");
+      break;
+
+    case 'node/add/product/coupon':
+      return t('If a value of $0.00 is nominated then users will have a form which allow the entry of the value of the Gift Certificate. If an amount is nominated then this will be to value that is added.');
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function coupon_menu($may_cache) {
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'admin/store/coupon',
+      'title' => t('coupons'),
+      'callback' => 'coupon_admin_list'
+    );
+    $items[] = array(
+      'path' => 'admin/store/coupon/list',
+      'title' => t('list'),
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+    );
+    $items[] = array(
+      'path' => 'admin/store/coupon/create',
+      'title' => t('create'),
+      'callback' => 'coupon_admin_create',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 1,
+    );
+    $items[] = array(
+      'path' => 'cart/checkout/coupon/remove',
+      'title' => 'remove coupon from order',
+      'callback' => 'coupon_cart_remove',
+      'type' => MENU_CALLBACK,
+    );
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_ec_settings()
+ */
+function coupon_ec_settings() {
+  return store_email_form('coupon', 'coupon', t('Coupon e-mail'), t('This text will be emailed to customer after they buy a coupon.'));
+}
+
+/**
+ * Implementation of hook_productapi()
+ */
+function coupon_productapi(&$node, $op, $subop = null) {
+  switch ($op) {
+    case 'wizard_select':
+      return array('coupon' => t('Gift Certificate'));
+      break;
+
+    case 'attributes':
+      return array('in_stock', 'no_quantity', 'no_discounts');
+      break;
+
+    case 'adjust_price':
+      if (!((float)$node->price)) {
+        return $node->gc_price;
+      }
+      break;
+      
+    case 'transaction':
+      if ($subop == 'load') {
+        $extra['data'] = array();
+
+        $result = db_query('SELECT * FROM {ec_coupon} WHERE created_txnid = %d AND created_vid = %d', $node->txnid, $node->vid);
+        while ($coupon = db_fetch_object($result)) {
+          $extra['data']['Coupon Purchased'] = _coupon_format($coupon->coupon);
+          $extra['coupon'][] = $coupon;
+        }
+        return $extra;
+      }
+      break;
+      
+    case 'on payment completion':
+      $txn = store_transaction_load($node->txnid);
+      $coupon = array(
+        'coupon' => _coupon_create(),
+        'operator' => '+',
+        'operand' => $node->price,
+        'created' => time(),
+        'created_txnid' => $node->txnid,
+        'created_vid' => $node->vid,
+      );
+      db_query("INSERT INTO {ec_coupon} (coupon, operator, operand, created, created_txnid, created_vid) VALUES ('%s', '%s', %f, %d, %d, %d)", $coupon);
+
+      $vars = array(
+        '%coupon_number' => _coupon_format($coupon['coupon']),
+        '%discount_amount' => payment_format($coupon['operand']),
+        '%billing_name' => ucfirst($node->txn->address['billing']->firstname). ' '. ucfirst($node->txn->address['billing']->lastname),
+        '%site' => variable_get("site_name", "drupal"),
+      );
+
+      $message = store_email_text('coupon', 'coupon', $vars);
+
+      $from = variable_get("site_mail", ini_get("sendmail_from"));
+      $mail = $txn->mail;
+      if (!$mail && $txn->uid && $account = user_load(array('uid' => $txn->uid))) {
+        $mail = $account->mail;
+      }
+      if ($mail && valid_email_address($mail)) {
+        store_email_send($from, $mail, $message->subject, $message->body);
+      }
+      break;
+  }
+}
+
+function theme_product_coupon_view(&$node, $teaser = 0, $page = 0) {
+  if (!$teaser && (!((float)$node->price))) {
+    $items = cart_get_items();
+
+    if ($items[$node->nid]->qty) {
+      drupal_set_message(t('<p>This item is in <a href="%cart_view">your shopping cart</a>.</p>', array('%cart_view' => url('cart/view'))));
+    }
+    $form['gc'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Options'),
+    );
+    $form['gc']['gc_price'] = array(
+      '#type' => 'product_price',
+      '#title' => t('Amount'),
+      '#default_value' => number_format($items[$node->nid]->gc_price, 2),
+      '#size' => 10,
+      '#maxlength' => 10,
+      '#description' => t('How much would you like the Gift Certificate to be?'),
+      '#required' => true,
+    );
+    $form['nid'] = array(
+      '#type' => 'hidden',
+      '#value' => $node->nid,
+    );
+    $form[] = array(
+      '#type' => 'submit',
+      '#value' => t('add to cart'),
+    );
+    $form['#method'] = 'post';
+    $form['#action'] = url('cart/add/' .$node->nid, drupal_get_destination());
+    $output = drupal_get_form('coupon_gc_form', $form);
+    $node->body .= $output;
+  }
+  elseif ((float)$node->price) {
+    $price_string = '<div class="price"><strong>'. t('Price') .'</strong>: ' . module_invoke('payment', 'format', product_adjust_price($node)) . '</div>';
+    if ($node->is_recurring) {
+      $price_string .= '<div class="recurring-details">'. product_recurring_nice_string($node) . '</div>';
+    }
+    $node->teaser .= $price_string;
+    $node->body .= $price_string;
+  }
+  return $node;
+}
+
+/**
+ * Implementation of hook_checkoutapi()
+ */
+function coupon_checkoutapi(&$txn, $op, $arg3 = null, $arg4 = null) {
+  if ($txn == 'coupon' && $op == 'review') {
+    return 'coupon';
+  }
+  
+  $output = '';
+  switch ($op) {
+    case 'review':
+      if (is_array($txn->coupon)) {
+        foreach ($txn->coupon as $key => $coupon) {
+          $form['coupons'][$key] = array(
+            'coupon_no' => array('#value' => _coupon_format($coupon['coupon'])),
+            'discount' => array('#value' => payment_format($coupon['discount'])),
+            'options' => array('#value' => l(t('remove'), "cart/checkout/coupon/remove/$key", array(), drupal_get_destination())),
+          );
+        }
+      }
+      $form['new_coupon'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Coupon/Gift Certificate Number'),
+        '#size' => 20,
+        '#maxlength' => 20,
+      );
+      $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('Add'),
+      );
+      return $form;
+      break;
+
+    case 'review_validate':
+      $error = t('Invalid or Previously Used Coupon/Gift Certificate');
+
+      if ($txn->new_coupon) {
+        $new_coupon = str_replace('-', '', $txn->new_coupon);
+        if ($txn->coupon[$new_coupon]) {
+          form_set_error('new_coupon', t('Coupon/Gift Certificate has already been added to this order'));
+        }
+        elseif ($coupon = db_fetch_object(db_query("SELECT c.*, tc.txnid, SUM(tc.discount) as coupon_discount FROM {ec_coupon} c LEFT JOIN {ec_transaction_coupon} tc ON c.coupon = tc.coupon WHERE c.coupon = '%s' GROUP BY c.coupon, c.operator, c.operand, c.created, c.created_txnid, c.created_vid, tc.txnid", $new_coupon))) {
+          if (($coupon->operator == '%' && $coupon->txnid) || ($coupon->txnid && ($coupon->operand * ($coupon->operator == '+' ? 1 : -1)) <= (float)$coupon->coupon_discount)) {
+            form_set_error('new_coupon', $error);
+          }
+        }
+        else {
+          form_set_error('new_coupon', $error);
+        }
+      }
+      break;
+
+    case 'review_submit':
+      if ($txn->new_coupon) {
+        $new_coupon = str_replace('-', '', $txn->new_coupon);
+        $txn->coupon[$new_coupon] = array(
+          'coupon' => $new_coupon,
+        );
+      }
+      if (is_array($txn->coupon)) {
+        $total_discount = 0;
+        $gross = store_transaction_calc_gross($txn);
+        if (is_array($txn->misc)) {
+          foreach ($txn->misc as $misc) {
+            if ($misc->type == 'coupon') {
+              $gross-= $misc->price;
+            }
+          }
+        }
+        
+        foreach ($txn->coupon as $key => $value) {
+          if ($coupon = db_fetch_object(db_query("SELECT c.*, tc.txnid, SUM(tc.discount) as coupon_discount FROM {ec_coupon} c LEFT JOIN {ec_transaction_coupon} tc ON c.coupon = tc.coupon WHERE c.coupon = '%s' GROUP BY c.coupon, c.operator, c.operand, c.created, c.created_txnid, c.created_vid, tc.txnid", str_replace('-', '', $value['coupon'])))) {
+            $discount = 0;
+            if ($coupon->operator == '%') {
+              $points = $coupon->operand/100;
+              foreach ($txn->items as $item) {
+                if (function_exists('bcadd')) {
+                  $discount = bcadd($discount, bcmul($item->price, (float)$points, 2), 2);
+                }
+                else {
+                  $discount+= $item->price * $points;
+                }
+              }  
+            }
+            else {
+              $discount = $coupon->operator == '+' ? $coupon->operand : $coupon->operand*-1;
+              $discount_avaliable = $discount - $coupon->coupon_discount;
+              if ($discount > $discount_avaliable) {
+                $discount = $discount_avaliable;
+              }
+            }
+            if ($discount+$total_discount > $gross) {
+              $discount = $gross - $total_discount;
+            }
+            $total_discount+= $discount;
+            $txn->coupon[$key]['discount'] = $discount;
+          }
+        }
+        if ($total_discount) {
+          if (($key = store_search_misc(array('type' => 'coupon'), $txn)) !== false) {
+            $txn->misc[$key]->price = $total_discount*-1;
+          }
+          else {
+            $misc = new StdClass;
+            $misc->type = 'coupon';
+            $misc->description = 'Discount';
+            $misc->price = $total_discount*-1;
+            $txn->misc[] = $misc;
+          }
+        }
+      }
+      break;
+  }
+}
+
+function theme_coupon_review_form($form) {
+  if ($form['coupons']) {
+    $header = array(
+      array('data' => t('Coupon No.')),
+      array('data' => t('Discount')),
+      '',
+    );
+    foreach (element_children($form['coupons']) as $key) {
+      $rows[] = array(
+        array('data' => form_render($form['coupons'][$key]['coupon_no'])),
+        array('data' => form_render($form['coupons'][$key]['discount']), 'align' => 'right'),
+        array('data' => form_render($form['coupons'][$key]['options'])),
+      );
+    }
+    $output.= theme('table', $header, $rows);
+  }
+  $output.= '<div class="container-inline">';
+  $output.= form_render($form);
+  $output.= '</div>';
+  return theme('box', t('Redeem Coupon/Gift Certificates'), $output);
+}
+
+/**
+ * Implementation of hook_ec_transactionapi()
+ */
+function coupon_ec_transactionapi(&$txn, $op, $arg3 = null, $arg4 = null) {
+  switch ($op) {
+    case 'load':
+      $result = db_query('SELECT * FROM {ec_transaction_coupon} WHERE txnid = %d', $txn->txnid);
+      while ($data = db_fetch_array($result)) {
+        $extra['coupon'][] = $data;
+      }
+      if ($extra) {
+        return $extra;
+      }
+      break;
+    case 'insert':
+    case 'update':
+      if ($txn->coupon) {
+        foreach ($txn->coupon as $coupon) {
+          if (db_result(db_query("SELECT COUNT(*) FROM {ec_transaction_coupon} WHERE txnid = %d AND coupon = '%s'", $txn->txnid, $coupon['coupon']))) {
+            db_query("UPDATE {ec_transaction_coupon} SET discount = %f WHERE txnid = %d AND coupon = '%s'", $txn->txnid, (float)$coupon['discount'], $coupon['coupon']);
+          }
+          else {
+            db_query("INSERT INTO {ec_transaction_coupon} (txnid, coupon, discount) VALUES (%d, '%s', %f)", $txn->txnid, $coupon['coupon'], (float)$coupon['discount']);
+          }
+        }
+      }
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_store_email_text()
+ */
+function coupon_store_email_text($message_id) {
+  if ($message_id == 'coupon') {
+    return array(
+      'subject' => t('Gift Certificate for %site'),
+      'body' => t("Dear %billing_name\n\nHere are your gift certificate.\nTo redeem this Certificate please the following number during your next purchase to get a discount of up to %discount_amount.\n\n%coupon_number"),
+      'variables' => array('%coupon_number', '%discount_amount', '%billing_name', '%site')
+    );
+  }
+}
+
+/**
+ * Callbacks
+ */
+/**
+ * Remove a coupon from the cart
+ */
+function coupon_cart_remove($coupon = false) {
+  if ($coupon !== false && ($txn = ec_checkout_get_data())) {
+    if ($txn->coupon[$coupon]) {
+      unset($txn->coupon[$coupon]);
+
+      $total_discount = 0;
+      foreach ($txn->coupon as $coupon) {
+        $total_discount+= $coupon['discount'];
+      }
+      if (($misc = store_search_misc(array('type' => 'coupon'), $txn)) !== false) {
+        if ($total_discount) {
+          $txn->misc[$misc]->price = $total_discount*-1;
+        }
+        else {
+          unset($txn->misc[$misc]);
+        }
+      }
+      elseif ($total_discount) {
+        $misc_item = new StdClass;
+        $misc_item->type = 'coupon';
+        $misc_item->description = 'Discount';
+        $misc_item->price = $total_discount*-1;
+        $txn->misc[] = $misc_item;
+      }
+      ec_checkout_hide_data($txn);
+    }
+  }
+  drupal_goto();
+}
+
+/**
+ * List Coupons
+ */
+function coupon_admin_list($created = null, $method = 0) {
+  if ($method == 2) {
+    header('Content-Type: ', 'application/x-csv');
+    header('Content-Disposition: attachment; filename="coupons.csv"' );
+  }
+  else {
+    $head = array(
+      array('data' => t('Coupon'), 'field' => 'coupon'),
+      array('data' => t('Type of Discount')),
+      array('data' => t('Discount Paid'), 'field' => 'coupon_discount'),
+      array('data' => t('Discount Available')),
+      array('data' => t('Created'), 'field' => 'created'),
+      array('data' => t('Transaction'), 'field' => 'created_txnid')
+    );
+  }
+  $sql = "SELECT c.*, SUM(tc.discount) as coupon_discount FROM {ec_coupon} c LEFT JOIN {ec_transaction_coupon} tc ON c.coupon = tc.coupon";
+  if ($created) {
+    $sql.= " WHERE created = $created";
+  }
+  $sql.= " GROUP BY c.coupon, c.operator, c.operand, c.created, c.created_txnid, c.created_vid";
+  if ($method) {
+    $result = db_query($sql);
+  }
+  else {
+    $result = pager_query($sql. tablesort_sql($head), 50);
+  }
+  while ($coupon = db_fetch_object($result)) {
+    if ($method == 2) {
+      printf("\"%s\",\"%s\",%d\n\r", _coupon_format($coupon->coupon), ($coupon->operator == '%' ? "{$coupon->operand}% discount" : "\${$coupon->operator}{$coupon->operand} discount"), $coupon->created);
+    }
+    else {
+      $rows[] = array(
+        array('data' => _coupon_format($coupon->coupon)),
+        array('data' => ($coupon->operator == '%' ? "{$coupon->operand}% discount" : "\${$coupon->operator}{$coupon->operand} discount")),
+        array('data' => payment_format($coupon->coupon_discount), 'align' => 'right'),
+        array('data' => $coupon->operator != '%' ? payment_format(($coupon->operand * ($coupon->operator == '+' ? 1 : -1)) - $coupon->coupon_discount) : '', 'align' => 'right'),
+        array('data' => format_date($coupon->created, 'small')),
+        array('data' => user_access('administor store') ? l($coupon->created_txnid, "store/transaction/view/{$coupon->created_txnid}") : $coupon->created_txnid),
+      );
+    }
+  }
+  if ($method == 2) {
+    exit();
+  }
+
+  if ($method == 1) {
+    foreach ($head as $key => $value) {
+      unset($head[$key]['field']);
+    }
+  }
+  
+  $output.= theme('table', $head, $rows);
+  if ($method == 1) {
+    print $output;
+    exit();
+  }
+  $output.= theme('pager', 50);
+
+  return $output;
+}
+
+/**
+ * Create Coupons
+ */
+function coupon_admin_create() {
+  $form['coupon_value'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Value of Coupons'),
+    '#size' => 12,
+    '#maxlength' => 12,
+    '#description' => t('Enter the value of the coupons to be created. eg. 10%, a set value of 5.00'),
+  );
+  $form['coupon_count'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Number of Coupons to Create'),
+    '#size' => 5,
+    '#maxlength' => 10,
+  );
+  $form['coupon_output'] = array(
+    '#type' => 'radios',
+    '#title' => t('Select output method'),
+    '#options' => array(t('Show on Page'), t('Printable Page'), t('CSV File')),
+  );
+  $form[] = array(
+    '#type' => 'submit',
+    '#value' => t('Create Coupons'),
+  );
+  return drupal_get_form('coupon_admin_create', $form);
+}
+
+function coupon_admin_create_validate($form_id, $form_values) {
+  if (!$form_values['coupon_value']) {
+    form_set_error('coupon_value', t('Coupon Value is a required field'));
+  }
+  elseif ($form_values['coupon_value'] && !preg_match('/^[+]?[\d]*([.][\d]{0,2})?[%]?$/i', $form_values['coupon_value'])) {
+    form_set_error('coupon_value', t('Coupon Value is not in a valid format'));
+  }
+
+  if (!$form_values['coupon_count'] || !is_numeric($form_values['coupon_count']) || $form_values['coupon_count'] < 1) {
+    form_set_error('coupon_count', t('Coupon Count is a required field and must be a positive numeric'));
+  }
+}
+
+function coupon_admin_create_submit($form_id, $form_values) {
+  $coupon = array(
+    'created' => time()
+  );
+  preg_match('/^([+]?)([\d]*([.][\d]{0,2})?)([%]?)$/i', $form_values['coupon_value'], $match);
+  if ($match[4] == '%') {
+    $coupon['operator'] = '%';
+  }
+  else {
+    $coupon['operator'] = $match[1] == '-' ? '-' : '+';
+  }
+  $coupon['operand'] = (float)$match[2];
+
+  for ($i=0; $i<$form_values['coupon_count'];$i++) {
+    $coupon['coupon'] = _coupon_create();
+    db_query("INSERT INTO {ec_coupon} (coupon, operator, operand, created) VALUES ('%s', '%s', %d, %d)", $coupon['coupon'], $coupon['operator'], $coupon['operand'], $coupon['created']);
+  }
+
+  return "admin/store/coupon/{$coupon['created']}/{$form_values['coupon_output']}";
+}
+
+/**
+ * private functions
+ */
+function _coupon_create() {
+  do {
+    $num = mt_rand(1000000000, 9999999999);
+    $num.= sprintf('%02d', $num%97);
+  }
+  while (db_result(db_query("SELECT COUNT(*) FROM {ec_coupon} WHERE coupon = '%s'", $num)));
+  return $num;
+}
+
+function _coupon_format($coupon) {
+  return preg_replace('/(\d{4})(\d{4})(\d{4})/', '$1-$2-$3', $coupon);
+}

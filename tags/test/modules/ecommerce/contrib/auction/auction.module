@@ -1,0 +1,534 @@
+<?php
+/* $Id: auction.module,v 1.19.2.3 2006/10/02 00:33:19 gordon Exp $ */
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+/**
+ * Implementation of hook_help().
+ */
+function auction_help($section = 'admin/help#auction') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Create auction products. Dependency: product.module');
+    case 'node/add/product#auction':
+      return t('A product that can be auctioned for a fixed period, and then sold to the highest bidder.');
+  }
+}
+
+/**
+ * Implementation of ecommerce' hook_ec_settings().
+ */
+function auction_ec_settings() {
+
+  $form['auction_days'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Default Auction Length'),
+    '#description' => t('When a new auction is created, the expiry date will default to this number of days into the future.'),
+    '#default_value' => variable_get('auction_days', 1),
+    '#size' => 10,
+    '#maxlength' => 2,
+    '#required' => TRUE,
+  );
+  return $form;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function auction_menu($may_cache) {
+  $items = array();
+
+  if (!$may_cache) {
+    if (arg(0) == 'auction' && is_numeric(arg(1))) {
+      $items[] = array('path' => 'auction', 'title' => t('bid'), 'callback' => 'auction_page',
+          'access' => user_access('access content'), 'type' => MENU_CALLBACK);
+    }
+    $items[] = array('path' => 'auction/checkout', 'title' => t('checkout'), 'callback' => 'auction_checkout_page',
+          'access' => user_access('place bids'), 'type' => MENU_CALLBACK);
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function auction_perm() {
+  return array('create auction items', 'edit own auction items', 'place bids');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function auction_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('create auction items');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own auction items') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_link().
+ */
+function auction_link($type, $node = NULL, $teaser = FALSE) {
+  $links = array();
+
+  if ($type == 'node' && user_access('access content') && $teaser && $node->ptype == 'auction') {
+    if (time() > $node->expires) {
+      $links[] = '<span class="bid-link">'. t('Bidding closed') . '</span>';
+    }
+    else {
+      $links[] = l(t('Bid now'), "node/$node->nid", array('title' => t('Place your bid for this item'), 'class' => 'bid-link'));
+    }
+  }
+  return $links;
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function auction_user($type, &$edit, &$user, $category = NULL) {
+  if ($type == 'view' && $GLOBALS['user']->uid == $user->uid) {
+    $orders[] = array(
+      'class' => 'item',
+      'title' => t('Auction Items'),
+      'value' => l(t('Pay for your winning auction items'), 'auction/checkout')
+     );
+    return array(t('History') => $orders);
+  }
+}
+
+function auction_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  switch ($op) {
+    /* Due to the way we have to build our node, we have to pass an array of values this module collects. */
+    case 'fields':
+      return array('expires' => $node->expires, 'bid_history' => $node->bid_history);
+
+    case 'validate':
+      if (isset($node->expires)) {
+        $node->expires = strtotime($node->expires);
+        if (!$node->expires || $node->expires < 1) {
+          form_set_error('expires', t('Invalid date specified.'));
+        }
+      }
+      else {
+        form_set_error('expires', t('Please enter an expiration date.'));
+      }
+      break;
+
+    case 'wizard_select':
+      return array('auction' => t('auction item'));
+
+    case 'adjust_price':
+      $high_bidder = auction_bid_current($node->nid);
+      return ($high_bidder['bid']) ? $high_bidder['bid'] : $node->price;
+
+    case 'cart add item':
+      /* This is not currently called internally. */
+      global $user;
+      $expired = (time() > $node->expires) ? true : false;
+      $buyer = db_result(db_query_range('SELECT uid FROM {ec_auction_bid} WHERE uid = %d ORDER BY created DESC', $user->uid, 0, 1));
+      return (($buyer && $expired) ? true : false);
+
+    case 'form':
+      if (!$node->expires) {
+        $node->expires = time() + (variable_get('auction_days', 1) * 24 * 60 * 60);
+      }
+      $node->expires = format_date($node->expires, 'custom', 'Y-m-d H:i O');
+      $form['expires'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Expiration date'),
+        '#default_value' => $node->expires,
+        '#size' => 30,
+        '#maxlength' => 50,
+        '#description' => t('Enter the date this product is no longer open for bidding.'),
+      );
+      return $form;
+
+      /* Similar to node_load */
+    case 'load':
+      return db_fetch_object(db_query('SELECT * FROM {ec_product_auction} WHERE nid = %d', $node->nid));
+
+    /* Node has been saved, write to product tables. */
+    case 'insert':
+      if (!is_numeric($node->expires)) {
+        $node->expires = strtotime($node->expires);
+      }
+      return db_query('INSERT INTO {ec_product_auction} (nid, expires) VALUES (%d, %d)', $node->nid, $node->expires);
+
+    case 'attributes':
+      return array('in_stock', 'is_shippable');
+
+    case 'update':
+
+    if (!is_numeric($node->expires)) {
+      $node->expires = strtotime($node->expires);
+    }
+      return db_query('UPDATE {ec_product_auction} SET expires = %d WHERE nid = %d', $node->expires, $node->nid);
+
+    case 'delete':
+      db_query('DELETE FROM {ec_product_auction} WHERE nid = %d', $node->nid);
+      db_query('DELETE FROM {ec_auction_bid} WHERE nid = %d', $node->nid);
+  }
+}
+
+function auction_page($nid, $action) {
+  $edit = $_POST['edit'];
+  $op   = $_POST['op'];
+
+  global $user;
+
+  if (!user_access('place bids') && $user->uid < 1) {
+    drupal_goto('user/register');
+  }
+
+  if (user_access('place bids')) {
+    switch ($op ? $op : $action) {
+      case t('Confirm bid'):
+        if (auction_bid_validate($edit)) {
+          auction_bid_save($edit);
+          drupal_goto('node/'. $edit['nid']);
+        }
+        else {
+          $output = auction_bid_form($edit);
+        }
+        break;
+
+      case t('Pay for your items'):
+        drupal_goto('cart/'. $edit['nid']. '/add');
+        break;
+
+      case t('bid'):
+        if (arg(3) == 'history') {
+          $output = auction_bid_history($nid);
+        }
+        else {
+          $edit['nid'] = $nid;
+          $output = auction_bid_form($edit);
+        }
+        break;
+
+      default:
+        $edit['nid'] = $nid;
+        $output = auction_bid_form($edit);
+        break;
+    }
+    return $output;
+  }
+  else {
+    drupal_set_message(t('You are not authorised to bid.'));
+    return $output;
+  }
+}
+
+/*
+ * Hard to say what's going on here, and what is supposed to be returned
+ * via $output. Is the cart across the board for anyone with 'place bids'
+ * access?.. even though their cart items might not be auction items.
+ *
+ */
+function auction_checkout_page() {
+  $edit = $_POST['edit'];
+  $op   = $_POST['op'];
+
+  global $user;
+
+  if ($user->uid < 1) {
+    drupal_goto('user/login');
+  }
+
+  if (user_access('place bids')) {
+    $title = t('Checkout');
+    switch ($op) {
+      default:
+        $result = db_query('SELECT bid.* FROM {ec_auction_bid} bid INNER JOIN {ec_product_auction} auc ON bid.nid = auc.nid WHERE bid.uid = %d AND auc.expires < %d', $user->uid, time());
+        while ($item = db_fetch_object($result)) {
+          if (!db_result(db_query("SELECT qty FROM {ec_cart} WHERE cookie_id = '%s' AND nid = '%d'", cart_get_id(), $item->nid))) {
+            cart_add_item($item->nid, 1, null);
+          }
+        }
+        drupal_goto('cart/checkout');
+        break;
+    }
+    return $output;
+  }
+}
+
+/**
+ * Supposed to return TRUE if the auction item has already been paid for.
+ * But between you and me, I am suspicious of the logic.
+ *
+ */
+function auction_item_paid_for($nid) {
+  global $user;
+
+  $result = db_query('SELECT DISTINCT nid FROM {ec_auction_bid} WHERE nid = %d ORDER BY nid', $nid);
+  if (!$result) {
+    while ($data = db_fetch_object($result)) {
+      $item = db_fetch_object(db_query('SELECT nid, bid, uid FROM {ec_auction_bid} WHERE nid = %d ORDER BY created DESC', $data->nid));
+      if ($item->uid == $user->uid) {
+        $nids[] = $item->nid;
+      }
+    }
+    return db_result(db_query('SELECT COUNT(t.txnid) FROM {ec_transaction_product} tp, {ec_transaction} t WHERE t.payment_status = %d AND t.txnid = tp.txnid AND t.uid = %d AND nid IN (%s)', payment_get_status_id('completed'), $user->uid, implode(',', $nids)));
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * When passed a node id, returns the current bid, bidder, date and number of bids.
+ *
+ */
+function auction_bid_current($nid) {
+  $result = db_query('SELECT * FROM {ec_auction_bid} WHERE nid = %d ORDER BY created DESC', $nid);
+  $high_bid = db_fetch_array($result);
+  $high_bid['count'] = db_num_rows($result);
+  return $high_bid;
+}
+
+/**
+ * Displays a bidding history for the passed node id. Currently displays that
+ * data in a table with no option to retheme in anything but a table.
+ *
+ */
+function auction_bid_history($nid) {
+  $product = node_load($nid);
+  drupal_set_title(t('Bid history for  &quot;%product-name&quot;', array('%product-name' => $product->title)));
+
+  $header = array(t('User'), t('Bid'), t('Date of bid'));
+  $result = db_query('SELECT u.name, b.* FROM {ec_auction_bid} b INNER JOIN {users} u ON u.uid = b.uid  WHERE b.nid = %d ORDER BY b.created DESC', $nid);
+  while ($data = db_fetch_object($result)) {
+    $rows[] = array($data->name, payment_format($data->bid), format_date($data->created));
+  }
+
+  if ($rows) {
+    $output = theme('table', $header, $rows);
+  }
+  return $output;
+}
+
+/**
+ * Checks that a new bid is valid. Currently, it simply checks that the bid
+ * is a number and is higher than the previous bid.
+ *
+ */
+function auction_bid_validate($edit) {
+
+  $errors = array();
+  if (isset($edit['bid'])) {
+
+    if (is_numeric($edit['bid'])) {
+      if ($edit['price']) {
+        if ($edit['bid'] <= $edit['price']) {
+          $errors['bid'] = t('You must bid more than %current-price.', array('%current-price' => payment_format($edit['price'])));
+        }
+      }
+      else {
+        $errors['bid'] = t('Script error.');
+      }
+    }
+    else {
+      $errors['bid'] = t('You must enter a price.');
+    }
+  }
+  foreach ($errors as $name => $message) {
+    form_set_error($name, $message);
+  }
+  return count($errors) == 0;
+}
+
+function auction_bid_save($edit) {
+  global $user;
+  db_query('INSERT INTO {ec_auction_bid} (nid, uid, bid, created) VALUES (%d, %d, %f, %d)', $edit['nid'], $user->uid, $edit['bid'], time());
+  drupal_set_message(t('Your bid of %bid-amount has been placed.', array('%bid-amount' => payment_format($edit['bid']))));
+}
+
+/**
+ * Generates the HTML elements required for an auction bidding form. You can
+ * retheme this form by overriding theme_auction_bid_form().
+ *
+ * @param $edit
+ *   Object. A replica of the current node for editing.
+ */
+function auction_bid_form($edit) {
+  $product = node_load($edit['nid']);
+
+  if (time() > $product->expires) {
+    drupal_set_message(t('This auction has ended.'));
+    drupal_goto("node/$product->nid");
+  }
+
+  $form['theme'] = array();
+  $form['theme']['#high_bid'] = auction_bid_current($edit['nid']);
+  $form['theme']['#current_bid'] = ($form['theme']['#high_bid']['bid']) ? $form['theme']['#high_bid']['bid'] : $product->price;
+  $form['bid'] = array(
+    '#type' => 'textfield',
+    '#title' => '',
+    '#default_value' => $edit['bid'],
+    '#size' => 10,
+    '#maxlength' => 50,
+    '#description' => t('Enter an amount above %base-bid-amount.', array('%base-bid-amount' => $form['theme']['#current_bid'])),
+    '#attributes' => null,
+    '#required' => true,
+  );
+  $form['nid'] = array(
+    '#type' => 'hidden',
+    '#value' => $edit['nid'],
+  );
+  $form['price'] = array(
+    '#type' => 'hidden',
+    '#value' => $form['theme']['#current_bid'],
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Confirm bid'),
+  );
+  return drupal_get_form('auction_bid_form', $form);
+}
+
+/**
+ * Formats the HTML elements that you see when you _Bid_ on an auction.
+ * You can override this function. Refer to Theming at http://drupal.org/node/55126.
+ * Called indirectly by theme_product_auction_view()
+ *
+ * @param $form
+ *   A formapi array which contains the form elements.
+ *
+ */
+function theme_auction_bid_form($form) {
+
+  drupal_set_title(t('Place a Bid'));
+
+  $header = array();
+  $rows[] = array(t('Current bid:'), payment_format($form['theme']['#current_bid']));
+  $rows[] = array(t('Your bid:'), form_render($form['bid']));
+  $rows[] = array('&nbsp;', form_render($form['submit']));
+
+  $output = theme('table', $header, $rows);
+  $output .= form_render($form);
+
+  return $output;
+}
+
+/**
+ * Called via product_view() which is an implementation of hook_view().
+ * Generates the HTML elements required to view an auction. Contrary to
+ * its name, do not retheme this function. Please theme theme_product_auction_form()
+ * instead.
+ *
+ * @param $node
+ *   Object. The node being displayed.
+ * @param $tease
+ *   Boolean. Whether we are to generate a "teaser" or summary of the node, rather than
+ *   display the whole thing.
+ * @param $page
+ *   Boolean. Whether the node is being displayed as a standalone page. If this is TRUE,
+ *   the node title should not be displayed, as it will be printed automatically by the
+ *   theme system. Also, the module may choose to alter the default breadcrumb trail in this case.
+ */
+function theme_product_auction_view($node, $teaser = 0, $page = 0) {
+
+  global $user;
+  if ($teaser) { return $node; }
+
+  /* Build some variables for theming. */
+  $high_bid = auction_bid_current($node->nid);
+  $form['theme'] = array();
+  $form['theme']['#nid'] = $node->nid;
+  $form['theme']['#expire_time'] = (is_numeric($node->expires)) ? $node->expires : strtotime($node->expires);
+  $form['theme']['#high_bid'] = $high_bid;
+  if ($high_bid['bid']) {
+    $form['theme']['#high_bid_amount'] = payment_format($high_bid['bid']);
+    $form['theme']['#high_bid_name'] = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $high_bid['uid']));
+  }
+  else {
+    $form['theme']['#high_bid_amount'] = payment_format($node->price);
+    $form['theme']['#high_bid_name'] = t('No bids');
+  }
+  /* Determine the required function. */
+  if (time() < $node->expires) {
+    /* Auction is active. */
+    if ($high_bid['uid'] == $user->uid) {
+      /* User is the highest bidder. */
+      $form['theme']['#form'] = FALSE;
+      $form['theme']['#message'] = t('You are currently the highest bidder.');
+    }
+    elseif (user_access('place bids')) {
+      /* User is allowed to bid. */
+      $form['theme']['#form'] = TRUE;
+      $form['theme']['#message'] = t('You may place a bid.');
+      $form['submit'] = array('#type' => 'submit', '#value' => t('Place Bid'));
+      $form['nid'] =  array('#type' => 'hidden', '#value' => $node->nid);
+      $form['#action'] = url("auction/$node->nid/bid");
+    }
+    else {
+      /* User is not allowed to bid. */
+      $form['theme']['#form'] = FALSE;
+      $form['theme']['#message'] = t('You are not authorised to bid.');
+    }
+  }
+  else {
+    /* Auction has expired. */
+    if ($high_bid['uid'] != $user->uid) {
+      /* User is NOT the highest bidder. */
+      $form['theme']['#form'] = FALSE;
+      $form['theme']['#message'] = t('This auction is over.');
+    }
+    elseif (auction_item_paid_for($node->nid)) {
+      /* User IS the highest bidder AND has paid. */
+      $form['theme']['#form'] = FALSE;
+      $form['theme']['#message'] = t('You have paid for this item.');
+    }
+    else {
+      /* User IS the highest bidder AND still has to pay */
+      $form['theme']['#form'] = TRUE;
+      $form['theme']['#message'] = t('You\'ve won this auction!');
+      $form['submit'] = array('#type' => 'submit', '#value' => t('Proceed to Checkout'));
+      $form['nid'] =  array('#type' => 'hidden', '#value' => $node->nid);
+      $form['#action'] = url("auction/checkout");
+    }
+  }
+  $output = '<h3>'. check_plain($node->title) .'</h3>';
+  $output .= drupal_get_form('product_auction_form', $form);
+  $node->body = $output . $node->body;
+  return $node;
+}
+
+/**
+ * Formats the HTML elements that you see when you _View_ an auction.
+ * You can override this function. Refer to Theming at http://drupal.org/node/55126.
+ * Called indirectly by theme_product_auction_view()
+ *
+ * @param $form
+ *   A formapi array which contains the form elements (eg. the 'Place Bid'
+ *   submit element). $form['theme'] contains the non-form data.
+ *
+ */
+function theme_product_auction_form($form) {
+
+  drupal_set_title(t('Bidding History'));
+  $output = '<p class="auction-message">'. $form['theme']['#message'] .'</p>';
+
+  $header = array();
+  $rows[] = array(t('Time left:'), format_interval($form['theme']['#expire_time'] - time()));
+  $rows[] = array(t('Current bid:'), $form['theme']['#high_bid_amount']);
+  $rows[] = array(t('High bidder:'), $form['theme']['#high_bid_name']);
+  $bid_history = t('(<a href="%bid-history-link">%num-bids</a>)', array('%bid-history-link' => url('auction/'. $form['theme']['#nid'] .'/bid/history'), '%num-bids' => format_plural($form['theme']['#high_bid']['count'], '1 bid', '%count bids')));
+  $rows[] = array(t('Bid history'), $bid_history);
+  if ($form['theme']['#form']) {$rows[] = array(NULL,form_render($form['submit'])); }
+
+  $output .= theme('table', $header, $rows);
+  $output .= form_render($form);
+  return $output;
+}

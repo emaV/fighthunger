@@ -1,0 +1,48 @@
+<?php
+// $Id: coupon.install,v 1.2 2006/05/09 13:44:31 gordon Exp $
+
+/**
+ * E-Commerce coupon module schema
+ */
+function coupon_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_coupon} (
+          coupon varchar(20) NOT NULL default '',
+          operator enum('+','-','%') NOT NULL default '+',
+          operand decimal(10,2) NOT NULL default '0.00',
+          created int(10) NOT NULL default '0',
+          created_txnid int(10) unsigned default NULL,
+          created_vid int(10) unsigned default NULL,
+          PRIMARY KEY  (coupon),
+          KEY created_txnid (created_txnid, created_vid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_transaction_coupon} (
+        txnid int(10) NOT NULL,
+        coupon varchar(20) NOT NULL,
+        discount decimal(10,2) NOT NULL,
+        PRIMARY KEY  (txnid,coupon)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_coupon} (
+          coupon varchar(20) NOT NULL default '',
+          operator varchar(1) check (operator in ('+','-','*')) NOT NULL default '+',
+          operand decimal(10,2) NOT NULL default '0.00',
+          created integer NOT NULL default '0',
+          created_txnid integer default NULL,
+          created_vid integer default NULL,
+          PRIMARY KEY  (coupon)
+      )");
+      db_query("CREATE INDEX {ec_coupon}_created_txnid ON {ec_coupon} (created_txnid, created_vid)");
+      db_query("CREATE TABLE {ec_transaction_coupon} (
+        txnid integer NOT NULL,
+        coupon varchar(20) NOT NULL,
+        discount decimal(10,2) NOT NULL,
+        PRIMARY KEY  (txnid,coupon)
+      )");
+     break;
+  }
+}
+

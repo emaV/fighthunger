@@ -1,0 +1,252 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce 4.6.0 - Shipping module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2006-01-17 11:56+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: shipping.module:14
+msgid "Enable a shipping module API for ecommerce."
+msgstr "ilita un modulo API di spedizione per il commercio elettronico."
+
+#: shipping.module:16
+msgid "First, choose a method to calculate shipping costs, then configure the shipping details for the method selected."
+msgstr "Per prima cosa scegli un metodo per calcolare le spese di spedizione, quindi configurane i dettagli."
+
+#: shipping.module:18
+msgid "Shipping calculation methods are <a href=\"%shipping_calc_url\">here</a>."
+msgstr "I metodi per il calcolo delle spese di spedizione sono <a href=\"%shipping_calc_url\">qui</a>."
+
+#: shipping.module:19
+#: ;47;190
+msgid "Shipping email"
+msgstr "E-mail di notifica spedizione"
+
+#: shipping.module:20
+msgid ""
+"Hello %first_name,\n"
+"\n"
+"We have shipped the following item(s) from Order #%txnid, received  %order_date.\n"
+"\n"
+"Items(s) Shipped:\n"
+"%items\n"
+"%shipping_to\n"
+"Questions about your order? Please contact us at %email.\n"
+"\n"
+"Thanks for shopping at %site.  We hope to hear from you again real soon!\n"
+"\n"
+"%uri"
+msgstr ""
+"Gentile %first_name,\n"
+"\n"
+"siamo lieti di inviarti questa notifica di spedizione in relazione al tuo acquisto su %site.\n"
+"Abbiamo spedito i seguenti articoli relativi all'ordine #%txnid, ricevuto il %order_date.\n"
+"\n"
+"Articolo(i) inviato(i):\n"
+"%items\n"
+"%shipping_to\n"
+"\n"
+"L'ordine è stato spedito ed il prodotto verrà consegnato all'indirizzo da te indicato.\n"
+"Tenga presente che la stima dei tempi di consegna è effettuata sui giorni lavorativi ed è indicativa.\n"
+"\n"
+"Se sono necessarie informazioni aggiuntive relative al tuo ordine per favore contattaci all'indirizzo %email.\n"
+"\n"
+"Grazie per aver acquistato su %site. Speriamo che tornerai a farci visita presto!\n"
+"\n"
+"%uri"
+
+#: shipping.module:33
+#: ;36;0
+msgid "shipping"
+msgstr "spedizione"
+
+#: shipping.module:46
+msgid "Subject of shipping e-mail"
+msgstr "Oggetto dell'e-mail di spedizione"
+
+#: shipping.module:46
+#: ;189
+msgid "Your %site order has shipped (#%txnid)"
+msgstr "Il tuo ordine %site è stato consegnato (#%txnid)"
+
+#: shipping.module:47
+msgid "This text will be emailed to customers after their order has been shipped."
+msgstr "Questo testo verr&agrave; inviato per email ai clienti dopo che i loro ordini verranno spediti."
+
+#: shipping.module:64
+#: ;120
+msgid "Save configuration"
+msgstr "Salva la configurazione"
+
+#: shipping.module:66
+msgid "shipping options have been saved"
+msgstr "le opzioni di spedizione sono state salvate"
+
+#: shipping.module:70
+#: ;130
+msgid "Save shipping details"
+msgstr "Salva i dettagli di spedizione"
+
+#: shipping.module:81
+msgid "Shipping notification"
+msgstr "Notifica di spedizione"
+
+#: shipping.module:85
+#: ;210
+msgid "Send shipping notification"
+msgstr "Invia la notifica di spedizione"
+
+#: shipping.module:87
+msgid "Shipping notification has been sent."
+msgstr "La notifica di spedizione &egrave; stata inviata."
+
+#: shipping.module:93
+msgid "Unable to send email."
+msgstr "Impossibile inviare l'e-mail."
+
+#: shipping.module:112
+msgid "Shipping costs are calculated on a <strong>per product</strong> basis."
+msgstr "Le spese di spedizione sono calcolate sulla base di ogni <strong>singolo prodotto</strong>."
+
+#: shipping.module:116
+msgid "Shipping costs are calculated based on the <strong>total cost of items</strong> in the cart."
+msgstr "Le spese di spedizione sono calcolate in base al <strong>costo totale degli articoli</strong> presenti nel carrello."
+
+#: shipping.module:117
+msgid "Do not calculate shipping costs."
+msgstr "Non calcolare le spese di spedizione."
+
+#: shipping.module:119
+msgid "Choose one"
+msgstr "Scegline uno"
+
+#: shipping.module:121
+msgid "Shipping calculation methods"
+msgstr "Metodi per il calcolo delle spese di spedizione"
+
+#: shipping.module:131
+msgid "Shipping details"
+msgstr "Dettagli della spedizione"
+
+#: shipping.module:143
+msgid "Shipping to:\n"
+msgstr "Spedire a:\n"
+
+#: shipping.module:163
+msgid "%order of %title at %price each"
+msgstr "%order di %title a %price ciascuno"
+
+#: shipping.module:193
+msgid "<p>This is a preview of the message to be sent.</p>"
+msgstr "<p>Questa &egrave; un'anteprima del messaggio che verr&agrave; inviato.</p>"
+
+#: shipping.module:194
+msgid "To: "
+msgstr "A:"
+
+#: shipping.module:195
+msgid "From: "
+msgstr "Da:"
+
+#: shipping.module:198
+msgid "<p><strong>Note:</strong> Sending this email will change the transaction workflow to <strong>%new_workflow</strong>.</p>"
+msgstr "<p><strong>Nota:</strong> inviando questa e-mail verr&agrave; cambiato l'evoluzione della transazione in <strong>%new_workflow</strong>.</p>"
+
+#: shipping.module:208
+msgid "Subject"
+msgstr "Oggetto"
+
+#: shipping.module:209
+msgid "E-mail content"
+msgstr "Contenuto dell'e-mail"
+
+#: shipping.module:307
+msgid "Shipping costs are calculated based on the <strong>total quantity of items</strong> in the cart."
+msgstr "Le spese di spedizione sono calcolate in base alla <strong>quantit&agrave; totale di articoli</strong> presenti nel carrello."
+
+#: shipping.module:368
+msgid "One of the subtotal columns contain an invalid format."
+msgstr "Una delle colonne di subtotali contiene un formato non valido."
+
+#: shipping.module:371
+msgid "One of the item quantities columns contain an invalid format."
+msgstr "Una delle colonne relative alla quantit&agrave; degli articoli contiene un formato non valido."
+
+#: shipping.module:392
+msgid "Please enter a numeric value for the shipping cost."
+msgstr "Per favore, inserisci un valore numerico per le spese di spedizione."
+
+#: shipping.module:396
+msgid "You need to enter a value for both columns of a row and not just one of the fields."
+msgstr "&Egrave; necessario inserire un valore per entrambe le colonne di una riga e non in un solo campo."
+
+#: shipping.module:414
+msgid "Subtotal"
+msgstr "Subtotale"
+
+#: shipping.module:415
+msgid "A subtotal of "
+msgstr "Un subtotale di"
+
+#: shipping.module:416
+msgid "costs "
+msgstr "costi"
+
+#: shipping.module:417
+msgid "Enter the subtotals a customer should have for a given shipping cost to be applied.  This can be a single price (e.g. 1.00, 2.99, 5.34) or a range (e.g. 1.00-3.99, 4.00-10.26). Then, enter the cost of shipping for that subtotal (e.g. .99, 5.00). If conflicting shipping rules exist, the last rule that matches will always be executed. Only hyphens, dots and numbers are allowed."
+msgstr "Inserisci i subtotali sui quali calcolare le spese di spedizione. Pu&ograve; trattarsi di un singolo prezzo (ad esempio 1.00, 2.99, 5.34) o un range (ad esempio 1.00-3.99, 4.00-10.26). Quindi, inserisci il costo per quel subtotale (ad esempio .99, 5.00). Nel caso si riscontrasse un conflitto nelle regole di spedizione, sar&agrave; tenuta in considerazione l'ultima regola corretta. Sono consentiti solo trattini, punti e numeri."
+
+#: shipping.module:420
+msgid "Item quantity"
+msgstr "Quantit&agrave; articolo"
+
+#: shipping.module:421
+msgid "A quantity of "
+msgstr "Una quantit&agrave; di"
+
+#: shipping.module:422
+msgid "items cost "
+msgstr "costo degli articoli"
+
+#: shipping.module:423
+msgid "Enter the number of items a customer should have for a given shipping cost to be applied.  This can be a single digit (e.g. 1, 2, 5) or a range (e.g. 1-3, 4-10, 5-100). Then, enter the cost of shipping for that quantity (e.g. .99, 5.00). If conflicting shipping rules exist, the last rule that matches will always be executed. Only hyphens, dots and numbers are allowed."
+msgstr "Inserisci il numero di articoli sui quali calcolare le spese di spedizione. Pu&ograve; trattarsi di un singolo numero (ad esempio 1, 2, 5) o un range (ad es. 1-3, 5-100). Quindi, inserisci il costo di spedizione per quella quantit&agrave; (ad esempio .99, 5.00). Nel caso si riscontrasse un conflitto nelle regole di spedizione, sar&agrave; tenuta in considerazione l'ultima regola corretta. Sono consentiti solo trattini, punti e numeri."
+
+#: shipping.module:426
+msgid "Shipping cost"
+msgstr "Spese di spedizione"
+
+#: shipping.module:431
+msgid "in shipping."
+msgstr "in spedizione."
+
+#: shipping.module:459
+msgid "the shipping options have been saved"
+msgstr "le opzioni di spedizione sono state salvate"
+
+#: shipping.module:500
+msgid "Shipping charge"
+msgstr "Spese di spedizione"
+
+#: shipping.module:500
+msgid "Enter any shipping or handling charges for this product here."
+msgstr "Inserisci qui il costo di spedizione di questo prodotto."
+
+#: shipping.module:504
+msgid "You must enter a numeric value for the shipping fee."
+msgstr "Devi inserire un valore numerico per le spese di spedizione."
+
+#: shipping.module:163
+msgid "1 order"
+msgid_plural "%count orders"
+msgstr[0] "1 ordine"
+msgstr[1] "%count ordini"
+

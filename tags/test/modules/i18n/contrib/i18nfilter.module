@@ -1,0 +1,49 @@
+<?php
+// $Id: i18nblocks.module,v 1.3 2006/05/12 00:41:58 jareyero Exp $
+
+/**
+ * Internationalization (i18n) submodule: Content filter by language
+ * 
+ * You can add the lang="xx" attribute to any html element and it will be filter out if it's not the right language
+ *
+ * @author Jose A. Reyero, 2005
+ */
+/**
+ * Implementation of hook_help()
+ */ 
+function i18nfilter_help($section = 'admin/help#i18nfilter' ) {
+  switch ($section) {
+    case 'admin/modules#description' :
+      return t('Provides a content filter based on language. <b>Requires i18n module</b>' );
+  }
+}
+
+function i18nfilter_filter($op, $delta = 0, $format = -1, $text = '') {
+  switch ($op) {
+    case 'no cache':
+      return TRUE;
+    case 'list':
+      return array(0 => t('Language filter'));
+
+    case 'description':
+      return t('Filters content with language attributes: [language:xx]...xx is the language code...[language:end].');
+
+    case 'prepare':
+      // Note: we use the bytes 0xFE and 0xFF to replace < > during the filtering process.
+      // These bytes are not valid in UTF-8 data and thus least likely to cause problems.
+      // $text = preg_replace('@<code>(.+?)</code>@se', "'\xFEcode\xFF'. codefilter_escape('\\1') .'\xFE/code\xFF'", $text);
+      // $text = preg_replace('@<(\?(php)?|%)(.+?)(\?|%)>@se', "'\xFEphp\xFF'. codefilter_escape('\\3') .'\xFE/php\xFF'", $text);
+      return $text;
+
+    case "process":
+      $language = i18n_get_lang();
+      // Removes tag for current language
+      $text = preg_replace('@\[language:'.$language.'\](.*)\[language:end\]@sU', "$1", $text);
+      // Filter out other languages
+      $text = preg_replace('@\[language.*\[language:end\]@sU', "", $text);
+      return $text;
+
+    default:
+      return $text;
+  }
+} 

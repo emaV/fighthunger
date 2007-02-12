@@ -1,0 +1,32 @@
+<?php
+// $Id: ccard.install,v 1.5 2006/05/19 01:35:45 gordon Exp $
+
+/**
+ * E-Commerce paypal module schema
+ */
+function ccard_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      break;
+    case 'pgsql':
+      break;
+  }
+}
+
+function ccard_update_1() {
+  return _system_update_utf8(array('ec_ccard'));
+}
+
+function ccard_update_2() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = db_query("ALTER TABLE {ec_ccard} CHANGE amount cc_amount DECIMAL(10,2), CHANGE orderno cc_ordernum VARCHAR(32), CHANGE refnum cc_refnum VARCHAR(32), CHANGE reason cc_reason VARCHAR(128)");
+      $ret[] = db_query("ALTER TABLE {ec_ccard} RENAME TO {ec_credit_card}");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}

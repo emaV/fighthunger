@@ -1,0 +1,59 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce 4.6.0 - Parcel module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2006-01-12 19:20+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: parcel.module:14
+msgid "Create packages of ecommerce items. Dependency: product.module"
+msgstr "Crea un insieme di prodotti (o un pacchetto prodotti). Dipendenza: product.module"
+
+#: parcel.module:17
+msgid "<p>This module provides a way for you to create a package of products. First, individually create the products and then create a product package and add those items. These actions can be done using any of the options under <a href=\"%node_add\">create content</a>.</p>"
+msgstr "<p>Questo modulo ti consente di creare un pacchetto che contiene pi&ugrave; prodotti. Attraverso questo modulo puoi creare un prodotto per volta, e poi raggrupparli tutti in un unico pacchetto. Quindi prima crea i singoli prodotti ed annota l'ID di ogni prodotto. Solo in seguito crei un pacchetto che contenga i prodotti. Durante la creazione del pacchetto prodotti noterai un campo denominato IDs: &egrave; qui che dovrai inserire gli ID dei prodotti che formeranno il pacchetto prodotti.<br />Nota: l'ID di un prodotto lo puoi facilmente individuare cliccando sul prodotto stesso. Nella barra degli indirizzi del tuo browser vedrai una stringa del tipo 'q=node/2' dove 2 rappresenta l'ID del prodotto.</p>"
+
+#: parcel.module:34
+msgid "You must add at least one existing product to this group of products to sell."
+msgstr "Devi inserire almeno un ID di un prodotto esistente."
+
+#: parcel.module:37
+msgid "Please enter only numeric values or commas in the product IDs field."
+msgstr "Per favore nel campo IDs inserisci solamente gli ID dei vari prodotti separati dalla virgola."
+
+#: parcel.module:43
+msgid "collection of products"
+msgstr "pacchetto di prodotti"
+
+#: parcel.module:94
+msgid "Product IDs"
+msgstr "Gli ID dei prodotti (IDs)"
+
+#: parcel.module:94
+msgid "Enter a comma separated list of product ids (nid) to add to this transaction. Here is a <a href=\"%product_quicklist\" onclick=\"window.open(this.href, '%product_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); return false\">list of all products</a>."
+msgstr "Inserisci una lista di ids-prodotto separati dalla virgola da aggiungere a questa transazione. Questa &egrave; una <a href=\"%product_quicklist\" onclick=\"window.open(this.href, '%product_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); return false\">lista di tutti i prodotti</a>."
+
+#: parcel.module:95
+msgid "Products"
+msgstr "Prodotti"
+
+#: parcel.module:140
+msgid "Price"
+msgstr "Prezzo"
+
+#: parcel.module:155
+msgid "This product contains the following items"
+msgstr "Questo prodotto contiene i seguenti pezzi"
+
+#: parcel.module:0
+msgid "parcel"
+msgstr "pacchetto"
+

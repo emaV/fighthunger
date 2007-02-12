@@ -1,0 +1,29 @@
+<?php
+// $Id: toc.module,v 1.1 2006/04/03 21:53:15 nedjo Exp $
+
+/**
+ * @file
+ * Adds tables of contents to content.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function toc_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Experimental library for adding tables of contents to content based on headlines (all h2 tags in a post become TOC entries).');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function toc_menu($may_cache) {
+  if (!$may_cache) {
+    $path = drupal_get_path('module', 'toc');
+    drupal_add_js('misc/collapse.js');
+    drupal_add_js($path . '/toc.js');
+  }
+}
+

@@ -1,0 +1,80 @@
+<?php
+// $Id: subproducts.install,v 1.2.2.1 2006/06/20 12:05:17 gordon Exp $
+
+/**
+ * E-Commerce subproducts module schema
+ */
+function subproducts_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_variation} (
+        vid int(10) NOT NULL auto_increment,
+        ptype varchar(255) default NULL,
+        name varchar(255) default NULL,
+        weight tinyint(4) NOT NULL default '0',
+        PRIMARY KEY (vid),
+        KEY ptype (ptype)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_attribute} (
+        aid int(10) NOT NULL auto_increment,
+        vid int(10) NOT NULL,
+        name varchar(255) default NULL,
+        weight tinyint(4) NOT NULL default '0',
+        surcharge decimal(10,2) NOT NULL default '0.00',
+        PRIMARY KEY (aid),
+        KEY vid (vid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_product_attribute} (
+        nid int(10) NOT NULL default '0',
+        aid int(10) NOT NULL default '0',
+        PRIMARY KEY (nid,aid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_product_base} (
+        product int(10) NOT NULL default '0',
+        base int(10) NOT NULL default '0',
+        PRIMARY KEY (product,base)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_subproduct_pricing} (
+        nid int(10) NOT NULL default '0',
+        type tinyint NOT NULL default '0',
+        PRIMARY KEY (nid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_variation} (
+        vid serial,
+        ptype varchar(255) default NULL,
+        name varchar(255) default NULL,
+        weight integer NOT NULL default '0',
+        PRIMARY KEY (vid)
+      )");
+      db_query("CREATE INDEX {ec_variation}_ptype ON {ec_variation} (ptype)");
+      db_query("CREATE TABLE {ec_attribute} (
+        aid serial,
+        vid integer NOT NULL,
+        name varchar(255) default NULL,
+        weight integer NOT NULL default '0',
+        surcharge decimal(10,2) NOT NULL default '0.00',
+        PRIMARY KEY (aid)
+      )");
+      db_query("CREATE INDEX {ec_attribute}_vid ON {ec_attribute} (vid)");
+      db_query("CREATE TABLE {ec_product_attribute} (
+        nid integer NOT NULL default '0',
+        aid integer NOT NULL default '0',
+        PRIMARY KEY (nid,aid)
+      )");
+      db_query("CREATE TABLE {ec_product_base} (
+        product integer NOT NULL default '0',
+        base integer NOT NULL default '0',
+        PRIMARY KEY (product,base)
+      )");
+      db_query("CREATE TABLE {ec_subproduct_pricing} (
+        nid integer NOT NULL default '0',
+        type integer NOT NULL default '0',
+        PRIMARY KEY (nid)
+      )");
+      break;
+  }
+}
+

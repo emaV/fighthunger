@@ -1,0 +1,127 @@
+<?php
+// $Id: jscalendar.module,v 1.5.2.6 2006/10/06 04:27:08 nedjo Exp $
+
+/**
+ * @file
+ * Provide popup calendar.
+ *
+ * Usage:
+ *
+ * <code>
+ * $form['date'] = array(
+ *   '#type' => 'textfield',
+ *   '#attributes' => array('class' => 'jscalendar')
+ * );
+ *
+ * // Optionally, set startup parameters.
+ * // E.g., don't show time.
+ * $form['#jscalendar_showsTime'] = 'false';
+ * </code>
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function jscalendar_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enables popup calendars for selecting dates using the jscalendar library.');
+  }
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function jscalendar_form_alter($form_id, &$form) {
+  foreach (element_children($form) as $key) {
+    if (isset($form[$key]) && isset($form[$key]['#attributes']) && isset($form[$key]['#attributes']['class']) && !(strpos($form[$key]['#attributes']['class'], 'jscalendar') === FALSE)) {
+      jscalendar_load();
+      $settings = array('ifFormat', 'showsTime', 'timeFormat');
+      foreach ($settings as $setting) {
+        if (isset($form[$key]['#jscalendar_' . $setting])) {
+          $form[$key.'_jscalendar']['#tree'] = TRUE;
+          $form[$key.'_jscalendar'][$setting] = array(
+            '#type' => 'hidden',
+            '#value' => $form[$key]['#jscalendar_' . $setting]
+          );
+          unset($form[$key]['#jscalendar_' . $setting]);
+        }
+      }
+    }
+    // If necessary, recurse through all children.
+    jscalendar_form_alter($form_id, $form[$key]);
+  }
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function jscalendar_settings() {
+  $form['jscalendar_css'] = array(
+    '#type' => 'select',
+    '#title' => t('JSCalendar style'),
+    '#description' => t('Choose the JSCalendar style.'),
+    '#default_value' => variable_get('jscalendar_css', NULL),
+    '#options' => jscalendar_available_styles(),
+  );
+  return $form;
+}
+
+/**
+ * Search recursively for any CSS file.
+ */
+function jscalendar_available_styles($dir = NULL) {
+  $path = drupal_get_path('module', 'jscalendar');
+  $files = file_scan_directory($path, '\.css$');
+  foreach ($files as $file) {
+    if ($file->basename != 'jscalendar.css') {
+      if ($file->basename == 'theme.css') {
+        $file->name = str_replace(array($path .'/lib/skins/', '/theme.css'), '', $file->filename);
+      }
+      $jscalendar_styles[$file->filename] = $file->name;
+    }
+  }
+  return $jscalendar_styles;
+}
+
+/**
+ * Load needed files.
+ */
+function jscalendar_load($lib_locale = NULL) {
+  static $loaded;
+  if (!isset($loaded)) {
+    $loaded = true;
+  }
+  global $locale;
+  // If the locale library hasn't been explicitly set, we look for support for the current locale.
+  if (empty($lib_locale)) {
+    // Supported directly.
+    if (in_array($locale, array('af', 'bg', 'ca', 'da', 'de', 'el', 'es', 'fi', 'fr', 'he', 'hu', 'id', 'is', 'it', 'ja', 'kn', 'ko', 'lt', 'nl', 'pl', 'ro', 'ru', 'sk', 'sv', 'tr'))) {
+      $lib_locale = $locale;
+    }
+    // Supported indirectly.
+    else if ($locale == 'cs') {
+       $lib_locale = 'cs-utf8';
+    }
+    else if ($lib_locale == 'he') {
+       $lib_locale = 'he-utf8';
+    }
+    else if (($locale == 'pt-br') || ($locale == 'pt-pt')) {
+       $lib_locale = 'pt';
+    }
+    else if (($locale == 'zh-hans') || ($locale == 'zh-hant')) {
+       $lib_locale = 'zh';
+    }
+    // Not supported, default to 'en'.
+    else {
+      $lib_locale = 'en';
+    }
+  }
+  $path = drupal_get_path('module', 'jscalendar');
+  drupal_add_js($path . '/lib/calendar_stripped.js');
+  drupal_add_js($path . '/lib/calendar-setup_stripped.js');
+  drupal_add_js($path . '/lib/lang/calendar-' . $lib_locale . '.js');
+  drupal_add_js($path . '/jscalendar.js');
+  drupal_set_html_head(theme_stylesheet_import(base_path() . $path .'/jscalendar.css'));
+  drupal_set_html_head(theme_stylesheet_import(base_path() . variable_get('jscalendar_css', $path .'/lib/skins/aqua/theme.css')));
+}

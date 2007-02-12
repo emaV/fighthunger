@@ -1,0 +1,62 @@
+<?php
+// $Id: columns.module,v 1.1.2.4 2006/07/13 20:16:40 nedjo Exp $
+
+/**
+ * @file
+ * Enables multi-column layout.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function columns_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enables multi-column layout, based on the css3-multi-column.js library by Cedric Savarese.');
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function columns_nodeapi(&$node, $op, $teaser, $page) {
+  switch ($op) {
+    case 'view':
+      columns_load();
+      if (variable_get('columns_node', 0)) {
+        columns_columnify($node);
+      }
+      return;
+  }
+}
+
+/**
+ * Load needed files.
+ */
+function columns_load() {
+  global $base_url;
+  $path = drupal_get_path('module', 'columns');
+  drupal_set_html_head(theme_stylesheet_import(base_path() . $path .'/columns.css'));
+  drupal_add_js($path . '/css3-multi-column.js');
+
+}
+
+/**
+ * Add enclosing div with two-column class.
+ */
+function columns_columnify(&$node) {
+  $node->body = '<div class="two-col">' . $node->body . '</div>';
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function columns_settings() {
+  $form['columns_node'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Columnify all content'),
+    '#description' => t('Render all "node" content in two columns. Not recommended for anything except testing, as some pages will contain complex content that likley will not display well.'),
+    '#default_value' => variable_get('columns_node', 0)
+  );
+  return $form;
+}

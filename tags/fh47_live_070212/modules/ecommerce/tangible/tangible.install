@@ -1,0 +1,50 @@
+<?php
+// $Id: tangible.install,v 1.5 2006/05/09 12:23:37 gordon Exp $
+
+/**
+ * E-Commerce tangible module schema
+ */
+function tangible_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_product_tangible} (
+        nid int(10) unsigned NOT NULL default '0',
+        vid int(10) unsigned NOT NULL default '0',
+        stock int(10) NOT NULL default '0',
+        manage_stock int(2) unsigned NOT NULL default '0',
+        availability int(10) NOT NULL default '0',
+        PRIMARY KEY vid (vid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_product_tangible} (
+        nid integer NOT NULL default '0',
+        vid integer NOT NULL default '0',
+        stock integer NOT NULL default '0',
+        manage_stock integer NOT NULL default '0',
+        availability integer NOT NULL default '0',
+        PRIMARY KEY (vid)
+      )");
+      break;
+  }
+}
+
+/**
+ * Tangible updates
+ */
+function tangible_update_1() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_product_tangible} ADD vid INT(10) unsigned NOT NULL AFTER nid');
+      $ret[] = update_sql('ALTER TABLE {ec_product_tangible} DROP INDEX nid');
+      $ret[] = update_sql('ALTER TABLE {ec_product_tangible} ADD PRIMARY KEY (vid)');
+      $ret[] = update_sql('UPDATE {ec_product_tangible} p, {node} n SET p.vid = n.vid WHERE p.nid = n.nid');
+      break;
+
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}

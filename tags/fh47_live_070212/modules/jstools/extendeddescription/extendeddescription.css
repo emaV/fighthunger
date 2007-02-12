@@ -1,0 +1,6 @@
+div .extendeddescription-collapsed {
+  display: none;
+}
+a.extendeddescription-trigger {
+  margin-left: 8px;
+}

@@ -1,0 +1,24 @@
+<?php
+// $Id: authorize_net.install,v 1.2.2.1 2006/06/20 12:05:16 gordon Exp $
+
+function authorize_net_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_authorize_net} (
+        txnid int(11) NOT NULL default '0',
+        anid varchar(30) NOT NULL default '0',
+        amount decimal(10,2) NOT NULL default '0.00',
+        PRIMARY KEY  (txnid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql';
+      db_query("CREATE TABLE {ec_authorize_net} (
+        txnid integer NOT NULL default '0',
+        anid varchar(30) NOT NULL default '0',
+        amount decimal(10,2) NOT NULL default '0.00',
+        PRIMARY KEY  (txnid)
+      )");
+      break;
+  }
+}

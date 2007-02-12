@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Generic Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-10-24 00:47+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: generic.module:11
+msgid "Creates a generic product. Dependency: product.module"
+msgstr "Créé un produit générique. Dépend du module product (product.module)"
+
+#: generic.module:18
+msgid "non-shippable product"
+msgstr "produit virtuel"
+
+#: generic.module:0
+msgid "generic"
+msgstr "générique"
+

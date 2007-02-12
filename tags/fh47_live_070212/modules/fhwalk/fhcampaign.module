@@ -1,0 +1,804 @@
+<?php
+// $Id: campaign.module,v 1.186 2006/03/27 18:02:48 killes Exp $
+
+/**
+ * @file
+ * Campaign management
+ * 
+ * Dependencies
+ *   fhwalk.module
+ *     Only for the fhwalk_vocabulary variable
+ *  
+SQL queries on gathering_campaign
+
+ALTER TABLE `gathering_campaign` CHANGE `active` `status` INT( 2 ) NOT NULL DEFAULT '0';
+    
+ */
+
+define('CAMPAIGN_STATUS_CLOSED', 0);
+define('CAMPAIGN_STATUS_POST', 1);
+define('CAMPAIGN_STATUS_ACTIVE', 2);
+
+/**
+ * Implementation of hook_help().
+ */
+function fhcampaign_help($section) {
+  switch ($section) {
+    case 'admin/help#fhcampaign':
+      $output = '<p>'. t('The campaign module is used to create and manage <em>campaigns.') .'</p>';
+      return $output;
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Campaign management.');
+    case 'node/add#campaign':
+      return t('Create a new Wtw Campaign.');
+  }
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function fhcampaign_form_alter($form_id, &$form) {
+  if($form_id == 'taxonomy_form_term' && $form['vid']['#value'] == _fhcampaign_vocabulary()) {
+    $form['campaign'] = array('#type' => 'fieldset', '#title' => t('Campaign'), '#weight' => -18);
+    if(isset($form['tid']) && $tid = $form['tid']['#value']) {
+      $campaign = fhcampaign_get_campaign($tid);
+    }
+    $campaign = $campaign ? (array)$campaign : array();
+    $form['campaign']['shortname'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('Short name'), 
+      '#default_value' => $campaign['shortname'], 
+      '#maxlength' => 64, 
+      '#required' => TRUE
+    );
+    $form['campaign']['startdate'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('Date'), 
+      '#default_value' => $campaign['startdate'], 
+      '#description' => t('Enter the date (format year-month-day i.e. 2007-05-13).')
+    );
+    
+    $status_help  = "<dl><dt><b>Campaign status</b></dt>";
+    $status_help .= "<dt>Closed</dt><dd><b>Prohibit</b> new events from being added <b>and</b> comments</dd>";
+    $status_help .= "<dt>Post Action</dt><dd><b>Prohibit</b> new events from being added <b>allows</b> comments</dd>";
+    $status_help .= "<dt>Active</dt><dd><b>Allows</b> new events</dd>";
+    
+    $form['campaign']['status'] = array(
+      '#type' => 'select', 
+      '#title' => t('Status'), 
+      '#options' => _fhcampaign_status(),
+      '#default_value' => $campaign['status'], 
+      '#description' => $status_help
+    );
+    $form['campaign']['longname'] = array(
+      '#type' => 'textfield', 
+      '#title' => t('Long name'), 
+      '#default_value' => $campaign['longname'], 
+    );
+    $form['campaign']['longdesc'] = array(
+      '#type' => 'textarea', 
+      '#title' => t('Long description'), 
+      '#default_value' => $campaign['longdesc'], 
+    );    
+  } elseif (isset($form['type']) && $type = $form['type']['#value']) {
+    switch ($form_id) {
+      case $type.'_node_settings':
+        $form['workflow']['fhcampaign_support_'. $type] = array(
+          '#type' => 'radios',
+          '#title' => t('Campaigns'),
+          '#options' => array(t('Disabled'), t('Enabled')),
+          '#default_value' => variable_get('fhcampaign_support_'. $type, 0),
+          '#description' => t('Enable campaigns for this content type'),
+        );
+        return $form;
+      case $type.'_node_form':
+        if (variable_get('fhcampaign_support_'.$type, 0) ) {
+          $form['#after_build'][] = 'fhcampaign_check_taxonomy';
+        } 
+        break;
+        
+    }
+  }
+}
+
+/**
+ * Form callback: after build function for node forms
+ * 
+ * Restricts campaign taxonomy depending on permissions
+ */
+function fhcampaign_check_taxonomy($form) {
+  $node = $form['#node'];
+  $vid = _fhcampaign_vocabulary();
+  // Bypass restrictions for some permissions
+  if( user_access('administer walks') ) { 
+    // Do nothing
+    return $form;
+  } elseif(isset($form['taxonomy'][$vid])) {
+    // Do not allow editing
+    $taxonomy = $form['taxonomy'][$vid];
+    $campaigns = $taxonomy['#options']; // Quick. Get campaigns from form
+    if($node->nid) {
+      // Editing node. Keep current value
+      $current = $taxonomy['#default_value'];
+    } elseif($node->camid) {
+      // New node. Get from parameters
+      $current = array($node->camid);
+    } 
+    // Check and display
+    if ($current) {
+      $form['taxonomy'][$vid] = array('#type' => 'value', '#value' => $current);
+      // Just for display
+      $display = array();
+      $current = is_array($current) ? $current : array($current);      
+      foreach($current as $tid) {
+        $display[] = $campaigns[$tid];
+      }
+      $form['taxonomy']['campaign'] = array(
+        '#type' => 'item',
+        '#title' => $taxonomy['#title'],
+        '#value' => count($display) ? theme('item_list', $display) : t('None')
+      );
+      return $form;
+
+    } else {
+      // Missing value. Error. Break form by no return.
+      drupal_set_message(t('Missing campaign parameter'), 'error');      
+    }
+  }
+  // If we reach here, something is wrong, no form displayed anyway
+}
+
+/**
+ * Implementation of hook_taxonomy()
+ */
+function fhcampaign_taxonomy($op, $type, $object = NULL) {
+  $object = $object ? (object)$object : NULL;
+  if($type == 'term' && $object->vid == _fhcampaign_vocabulary()) {
+    switch($op) {
+      case 'insert':
+      case 'update':
+        fhcampaign_save_campaign($object);
+        menu_rebuild();
+        break;      
+      case 'delete':
+        db_query("DELETE FROM {gathering_campaign} WHERE camid = %d", $object->tid);
+        menu_rebuild();
+        break;
+    }
+  }
+}
+
+/**
+ * Loads campaign data for content types, ordered by date, latest first
+ * FETCH ALSO USING ONLY node id  
+ */
+function fhcampaign_node_get_campaigns($node) {
+  $nid = is_numeric($node) ? $node : $node->nid;
+
+  $list = array();
+  // If node has taxonomy, check all terms
+  if (is_array($node->taxonomy)) {
+    $terms = array();
+    foreach ($node->taxonomy as $term) {
+      if (is_array($term)) {
+        foreach ($term as $tid) {
+          $terms[] = db_escape_string($tid);
+        }
+      }
+      else if (is_object($term)) {
+        $tems[] = db_escape_string($term->tid);
+      }
+      else if ($term) {
+        $terms[] = db_escape_string($term);
+      }
+    }
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.vid = %d AND t.tid IN ('".implode("','", $terms) ."') ORDER BY c.startdate DESC", _fhcampaign_vocabulary());
+    //drupal_set_message("DEBUG: fhcampaign_node_get_campaigns:".implode('', $terms));
+  } else {
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid INNER JOIN {term_node} tn ON t.tid = tn.tid WHERE tn.nid = %d ORDER BY c.startdate DESC", $nid);
+  }
+  while($campaign = db_fetch_object($result)) {
+    $list[] = $campaign;
+  }
+  return $list;
+  
+}
+/**
+ * Menu callback: Administer campaigns
+ */
+function fhcampaign_admin() {
+  $output = '';
+  $base = 'admin/campaigns';
+  if($vid = _fhcampaign_vocabulary()) {
+    $header = array(t('Campaign'), t('Status'), t('Operations'));
+    $rows = array();
+    foreach(fhcampaign_get_all_campaigns() as $campaign) {
+      $ops = array(l(t('edit'), 'admin/taxonomy/edit/term/'.$campaign->tid));
+      if($campaign->status == CAMPAIGN_STATUS_ACTIVE) {
+        $ops[] = l(t('administer'), $base.'/'.$campaign->shortname);
+      }
+      $rows[] = array(
+        l($campaign->name, $campaign->shortname),
+        _fhcampaign_status($campaign->status),
+        implode(' | ', $ops)
+      );
+    }
+    $output .= theme('table', $header, $rows);
+    
+  } else {
+    drupal_set_message(t('You must set up the walk vocabulary first'), 'error');
+    drupal_goto('adming/settings/fhwalk');
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function fhcampaign_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'title' => t('campaigns'),
+      'path' => 'admin/campaigns',
+      'callback' => 'fhcampaign_admin',
+      'access' => user_access('administer walks')
+    );
+    $items[] = array(
+      'title' => t('campaigns'),
+      'path' => 'admin/campaigns/list',
+      'access' => user_access('administer walks'),
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+    );    
+    // Campaign pages. Menu is rebuilt after campaign update so this can be in may_cache          
+    foreach(fhcampaign_get_all_campaigns() as $campaign) {
+      $items[] = array(
+        'path' => $campaign->shortname,
+        'callback' => 'fhcampaign_overview',
+        'callback arguments' => array($campaign->tid),
+        'access' => TRUE
+      );
+      $items[] = array(
+        'path' => "$campaign->shortname/overview",
+        'callback' => 'fhcampaign_overview',
+        'callback arguments' => array($campaign->tid),
+        'title' => t('Overview'),
+        'type' => MENU_DEFAULT_LOCAL_TASK,
+        'weight' => 0,
+        'access' => TRUE
+      );
+      // More tabs for active campaigns
+      if ($campaign->status == CAMPAIGN_STATUS_ACTIVE) {
+        $items[] = array(
+          'path' => "$campaign->shortname/coordinate",
+          'callback' => 'fhcampaign_coordinate',
+          'callback arguments' => array($campaign->shortname, $campaign->tid),
+          'title' => t('Coordinate'),
+          'access' => user_access('coordinate walks'),
+          'weight' => 1,
+          'type' => MENU_LOCAL_TASK
+        );
+        // Duplicate this item in the admin menu
+        $items[] = array(
+          'path' => "$campaign->shortname/administer",
+          'callback' => 'fhcampaign_admin_campaign',
+          'callback arguments' => array($campaign->camid),
+          'title' => t('Administer'),
+          'access' => user_access('administer walks'),
+          'weight' => 2,
+          'type' => MENU_LOCAL_TASK
+        );       
+        $items[] = array(
+          'path' => "admin/campaigns/$campaign->shortname",
+          'callback' => 'fhcampaign_admin_campaign',
+          'callback arguments' => array($campaign->camid),
+          'title' => $campaign->name,
+          'access' => user_access('administer walks'),
+          'type' => MENU_LOCAL_TASK
+        );
+      }
+    }  
+  }
+
+  return $items;
+}
+
+/**
+ * Get campaign list
+ * 
+ * @param $status
+ *   Campaign status, defaults to 'active, if === FALSE will get all campaigns
+ */
+function fhcampaign_list($status = CAMPAIGN_STATUS_ACTIVE, $index = 'tid', $field = 'name') {
+  if($status === FALSE) {
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.vid = %d", _fhcampaign_vocabulary());
+  } else {
+    $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.vid = %d AND c.status = '%d'", _fhcampaign_vocabulary(), $status);
+  }
+  $list = array();
+  while($campaign = db_fetch_object($result)) {
+    $list[$campaign->$index] = $campaign->$field;
+  }
+  return $list;
+}
+
+/**
+ * Get a list of countries for a given campaign
+ *  
+ * @param $tid taxonomy campaign tid
+ * @return countries array
+ */
+function fhcampaign_country_list($tid) {
+  $countries = array();
+  $sql = "SELECT l.country FROM {location} l INNER JOIN {node} n ON n.nid = l.oid INNER JOIN {term_node} tn ON tn.nid = n.nid " .
+    " WHERE l.type = 'node' AND tn.tid = %d";
+  $result=db_query($sql, $tid);
+  while($row = db_fetch_array($result)) {
+    $countries[$row['country']] = fh_get_country_name($row['country']);
+  }
+  return $countries;
+}
+
+/**
+ * Themed overview page.
+ *  
+ * @ingroup fhwalk_theme
+ * @param $fhwalk_overview array with data to render
+ * @return HTML code
+ */
+function theme_fhcampaign_overview_node($fhwalk_overview) {
+global $user;
+
+  $out = '<div class="fhoverview">';
+// Map
+  $out .= gmap_draw_map($fhwalk_overview['gmap_array']);
+
+// Presentation
+  $out .= '<div>' . $fhwalk_overview['term']->description . '</div>';
+
+// Country search
+  $out .= $fhwalk_overview['country_search'];
+  
+// Country event list
+  $out .= theme('fhwalk_walklist', $fhwalk_overview['walk_list']);
+
+// Create event
+  if($fhwalk_overview['status']==2) {
+    if($user->uid) {
+      $node->camid = $fhwalk_overview['term']->tid;
+      if( fhwalk_access('create', $node) ) { 
+        $uri = "node/add/fhwalk/" . $fhwalk_overview['term']->tid;
+        if($fhwalk_overview['country']<>'-') {
+          $uri .= '/' . $fhwalk_overview['country'];
+          if($fhwalk_overview['walk_list']) {
+            $create_msg = t("Don't see an event near you?"). "&nbsp;";
+          } else {
+            $create_msg = t("Don't see an event in this country?"). "&nbsp;";
+          }
+        }
+        $create_link = l(t('Click here to create your own walk!'),$uri);
+        $out .= $create_msg . $create_link;
+        $out .= theme("fhwalk_btn_create",$uri);
+      }
+    } else {
+      $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
+      $out .= t('Please %login or %register to create your own walk!', $login_array);
+    }
+  } 
+  $out .= "</div>";
+  
+  // Get Country Partners
+  $out .= theme('fhpartner_list', $fhwalk_overview['CP']); 
+
+  // Get LCPs
+  $out .= theme('fhwalk_LCP', $fhwalk_overview['LCP']);
+  
+  return $out;  
+}
+
+/**
+ * Walk campaign home page
+ *  
+ * @ingroup fhwalk_core
+ * @param $synonym path for campaign
+ * @param $tid taxonomy campaign tid
+ * @param $country optional country 
+ * @return overview campaign page
+ */  
+function fhcampaign_overview($camid, $country = '-' ) { // Was fhwalk_overview
+  $campaign = fhcampaign_get_campaign($camid);
+  drupal_set_title($campaign->name);
+
+  // Walk status
+  $fhwalk_overview['status'] = $campaign->status;
+  $fhwalk_overview['tid'] = $camid;
+
+  // Get walk list
+  if( $country && $country != '-') {
+    $walk_list = module_invoke('fhwalk','get_walks', $camid, $country);
+    $conditions = array(
+      'audience' => 'COUNTRY',
+      'country'  => $country,
+      'tid'      => $camid);
+    $fhwalk_overview['walk_list'] = $walk_list;
+    $fhwalk_overview['CP'] = module_invoke('fhpartner','node_get_partners', NULL, $conditions);
+    $fhwalk_overview['LCP']  = module_invoke('fhlocalpage','get_nodes', $country, $camid);
+  } else {
+    $walk_list = module_invoke('fhwalk','get_walks', $camid);
+  }
+// Map
+  $lat_max  = NULL;
+  $long_max = NULL;
+  $lat_min  = NULL;
+  $long_min = NULL;
+  foreach($walk_list as $key => $value) {
+    $lat_max  = ($lat_max)  ?  max($lat_max,  $value['latitude'])  : $value['latitude'];
+    $long_max = ($long_max) ?  max($long_max, $value['longitude']) : $value['longitude'];
+    $lat_min  = ($lat_min)  ?  min($lat_min,  $value['latitude'])  : $value['latitude'];
+    $long_min = ($long_min) ?  min($long_min, $value['longitude']) : $value['longitude'];
+  }
+/*      
+  $gmap_string = "[gmap |id=map |center=$gmap_center_lat, $gmap_center_long " .
+    "|zoom=$gmap_zoom |width=500px |height=400px |control=Small |type=Map " .
+    "|markers=blue::$gmap_markers]";
+*/ 
+
+  $gmap_array = module_invoke('fhlocation', 'get_gmap_array', $walk_list, $country);
+  $fhwalk_overview['gmap_array'] = $gmap_array ;
+  //  $fhwalk_overview['gmap'] = gmap_draw_map($fhwalk_overview['gmap_array']);
+
+  // Term
+  $fhwalk_overview['term'] = $campaign;
+  // Country selection
+  $country_list = array('' => '--') + fhcampaign_get_campaign_countries($camid);
+  $form['tid'] = array('#type' => 'value', '#value' => $camid);
+  $form['synonym'] = array('#type' => 'value', '#value' => $campaign->shortname);
+  $form['country'] = array(
+    '#type' => 'select',
+    '#title' => t('Select a country to find a walk'),
+    '#options' => $country_list,
+    '#default_value' => $country,
+    '#attributes' => array('onchange' => 'submit()'),
+  );
+  $form['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Submit'), 
+    '#attributes' => array( 'style' => 'visibility:hidden' ) //trick to use fhwalk_overview_submit
+  );
+  $fhwalk_overview['country'] = $country;
+  $fhwalk_overview['country_search_form'] = $form;
+  $fhwalk_overview['country_search'] = drupal_get_form('fhcampaign_overview', $form);
+
+  $out = theme('fhcampaign_overview_node', $fhwalk_overview);     
+    
+  return $out;
+}
+
+// CHECK IF NEEDED !!!!
+function fhcampaign_overview_submit($form_id, $form_values) { // Was fhwalk_overview_submit
+  return $form_values['synonym'] . '/' . $form_values['country'];  
+}
+
+/**
+ * Walk campaign administrator page.
+ * (param come from callback on menu hook) 
+ *  
+ * @ingroup fhwalk_administer
+ * @param $synonym campaign path
+ * @param $tid taxonomy campaign tid
+ */  
+function fhcampaign_admin_campaign($camid) {
+  global $user;
+  $campaign = fhcampaign_get_campaign($camid);
+  drupal_set_title(t('Administer') . ": $campaign->name");
+  $output = '';  
+  // Get search parameters
+  $search_keys = array('coord', 'country', 'city', 'text');
+  $sql_array = array();
+  foreach($search_keys as $key => $field) {
+    if(isset($_REQUEST[$field])) {
+      $sql_array[$field] = $_REQUEST[$field];
+    }
+  }
+  $form['_search_keys'] = array('#type' => 'value', '#value' => $search_keys);
+  $output .= theme('box', t('Walk List'), fhcampaign_admin_get_walks($camid, $sql_array));
+
+  // Search form
+  $form['search'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Search'),
+    '#collapsible' => TRUE,
+    '#collapsed' => (count($sql_array)===0),
+    '#weight' => 1
+  );
+
+  // Countries with campaigns
+  $countries = fhcampaign_get_campaign_countries($camid);
+  $countries[''] = '< ALL >';
+  $form['search']['country'] = array(
+    '#type' => 'select',
+    '#title' => t("Country"),
+    '#options' => $countries,
+    '#default_value' => ($sql_array['country'] ? $sql_array['country'] : ''), 
+  );
+  
+  $coords = fhwalk_get_coordinators();
+  $coords['all'] = '< ALL >'; 
+  $coords['none'] = '< WITHOUT COORDINATOR >';
+  $form['search']['coordinator'] = array(
+    '#type' => 'select',
+    '#title' => t("Coordinator"),
+    '#options' => $coords, 
+    '#default_value' => ($sql_array['coord'] ? $sql_array['coord'] : 'all'),
+  );
+  $form['search']['city'] = array(
+    '#type' => 'textfield',
+    '#title' => t('City'),
+    '#default_value' => isset($sql_array['city']) ? $sql_array['city'] : ''
+  );
+  $form['search']['text'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Text'),
+    '#default_value' => isset($sql_array['text']) ? $sql_array['text'] : ''
+  );  
+  // Additional stuff
+  $form['search']['syn'] = array('#type' => 'hidden', '#value' => $campaign->shortname);
+  $form['search']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Search')
+  );
+  
+  $output .= drupal_get_form('fhcampaign_admin_search', $form);
+
+  return $output;
+}
+
+/**
+ * Process administer search form.
+ * Convert POST request value in GET value 
+ *  
+ * @ingroup fhwalk_administer
+ * @param $form_id 
+ * @param $form_values
+ */
+function fhcampaign_admin_search_submit($form_id, $form_values) {
+  $get = array();
+  $keys = $form_values['_search_keys'];
+  foreach($keys as $field) {
+    if(isset($form_values[$field]) && $form_values[$field]) $get[$field]= $form_values[$field];
+  }
+  /*
+  if($form_values['country']<>'') $get['country'] = $form_values['country'];
+  if($form_values['coordinator']<>'all') $get['coord']   = $form_values['coordinator'];
+  unset($get[0]);
+  */
+  drupal_goto($_GET['q'], drupal_query_string_encode($get));
+}
+
+/**
+ * Get a list of walk coordinate by the user.
+ *  
+ * @ingroup fhwalk_administer
+ * @param $tid taxonomy campaign tid
+ * @param $sql_array array with search condition
+ * @return walk themed table
+ * TO-DO: Delete old function
+ */
+function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwalk_administer_get_walk
+
+  $header = array(
+    array('data' => t('Event'),       'field' => 'title'),
+    array('data' => t('City'),        'field' => 'city'),
+    array('data' => t('Country'),     'field' => 'cname'),
+    array('data' => t('Organiser'),   'field' => 'coord_name'),
+    array('data' => t('Coordinator'), 'field' => 'name'),
+    array('data' => t('Created'), 'field' => 'created', 'sort' => 'desc'),
+    array('data' => t('Operations'),  '')
+  );
+
+  // Pre conditions
+  $where = array(
+    "l.type = 'node'",
+    "tn.tid =". db_escape_string($camid),
+  );
+  $join = array();
+  // set condition from array
+  foreach($sql_array as $key => $value) {
+    // Important: check string
+    $value = db_escape_string($value);
+    switch ($key) {
+
+      case 'coord':
+        $where[] = ($value=='none') ? 'gn.cid IS NULL' : "gn.cid='$value'";
+        break;
+      case 'country':
+        $where[] = "l.country='$value'";
+        break;
+      case 'city':
+        $where[] = "LOWER(l.city) LIKE '%$value%'";
+        break;
+      case 'text':
+        $where[] = "(n.title LIKE '%$value%' OR u.name LIKE '%$value%' OR LOWER(l.city) LIKE '%$value%' OR nr.body LIKE '%$value%')";
+        $join['node_revisions'] = "LEFT JOIN {node_revisions} nr ON n.vid = nr.vid";
+    }
+  }
+
+  $sql = "SELECT n.nid, n.title, n.created, u.name, uc.name AS coord_name, l.city, l.country, c.name AS cname FROM {node} n " . 
+    "JOIN {gathering_node} gn ON n.nid=gn.nid " .
+    "LEFT JOIN {location} l ON n.nid=l.oid " .
+    "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
+    "LEFT JOIN {users} uc ON gn.cid=uc.uid " .
+    "INNER JOIN {users} u ON u.uid=n.uid " .
+    "INNER JOIN {term_node} tn ON tn.nid=n.nid " .
+    implode(' ', $join). " WHERE ". implode( ' AND ', $where);
+  $num_rows_total = db_num_rows(db_query($sql));
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL);
+  
+  while ($walk = db_fetch_object($result)) {
+    $operations = l(t('edit'),  'node/' . $walk->nid . '/edit');
+    $rows[] = array(
+      'data' => array(
+          l($walk->title, 'node/' . $walk->nid),
+          $walk->city,
+          $walk->cname,
+          $walk->name,
+          $walk->coord_name,
+          format_date($walk->created,'small'),
+          $operations));
+  }
+
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 6));
+  }
+  
+  $output .= '<p>'. t("Walks selected") . ": $num_rows_total</p>";
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+  return $output;
+}
+/**
+ * Walk campaign coordinate page
+ * (param come from callback on menu hook)
+ *  
+ * @ingroup fhwalk_coordinate
+ * @param $synonym campaign path
+ * @param $tid taxonomy campaign tid
+ */  
+function fhcampaign_coordinate($camid) {
+  global $user;
+
+  $campaign = fhcampaign_get_campaign($camid);
+  
+  drupal_set_title(t('Coordinate') . ": $campaign->name");
+  $output = '';
+  
+  // Get list of walk coordinated
+  $form['walk_status'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Organiser Status'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#weight' => -1
+  );
+  $form['walk_status']['list'] = array(
+    '#value' => _fhwalk_coordinate_get_walk($camid, $user->uid),
+  );
+  $output .= drupal_get_form('campaign_coordinate_form', $form);
+
+  // Get email form
+  $output .= fhwalk_coordinate_email_form($campaign);
+  return $output;
+}
+
+/**
+ * Get a list of country for a given campaign
+ *  
+ * @ingroup fhwalk_helpers
+ * @param $tid taxonomy campaign tid
+ * @return countries array
+ */
+function fhcampaign_get_campaign_countries($tid) {  // Was _fhwalk_get_country_campaign
+  $countries = _location_get_iso3166_list();
+
+  $sql = "SELECT DISTINCT l.country FROM {location} l " . 
+    "JOIN {node} n ON n.nid=l.oid " .
+    "JOIN {term_node} tn ON tn.nid=n.nid " .
+    "WHERE l.type='node' AND tn.tid=%d;";
+  $result=db_query($sql, $tid);
+  while($row = db_fetch_array($result)) {
+    $country_campaign[$row['country']] = $countries[$row['country']];
+  } 
+  asort($country_campaign);    
+
+  return $country_campaign;
+}
+/**
+ * @defgroup fh_database FH Database Layer
+ * @{
+ */
+
+/**
+ * Save campaign data
+ */
+function fhcampaign_save_campaign($campaign) {
+  $campaign = (array)$campaign;
+  db_query("DELETE FROM {gathering_campaign} WHERE camid = %d", $campaign['tid']);
+  db_query("INSERT INTO {gathering_campaign} (camid, shortname, startdate, enddate, status, longname, longdesc) VALUES(%d, '%s', '%s', '%s', '%d', '%s', '%s')", $campaign['tid'], $campaign['shortname'], $campaign['startdate'], $campaign['enddate'], $campaign['status'], $campaign['longname'], $campaign['longdesc']);
+  drupal_set_message(t('The campaign data has been updated.'));
+}
+
+/**
+ * Get latest date from active campaign
+ */
+function fhcampaign_default_date() {
+  return db_result(db_query("SELECT MAX(startdate) FROM {gathering_campaign} WHERE status = %d", CAMPAIGN_STATUS_ACTIVE));
+}
+
+/**
+ * Get campaign data
+ * 
+ * @return
+ *   Campaign object
+ */
+function fhcampaign_get_campaign($cid) {
+  return db_fetch_object(db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE t.tid = %d", $cid));
+}
+
+/**
+ * Get all campaigns
+ * 
+ * @return
+ *   Array of campaign objects indexed by camid
+ */
+function fhcampaign_get_all_campaigns() {
+  $list = array();
+  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid");
+  while($campaign = db_fetch_object($result)) {
+    $list[$campaign->tid] = $campaign;
+  }
+  return $list;
+}
+
+/**
+ * Get active campaigns
+ * 
+ * @return
+ *   Array of campaign objects indexed by camid
+ */
+function fhcampaign_get_active_campaigns() {
+  $list = array();
+  $result = db_query("SELECT t.*, c.* FROM {term_data} t INNER JOIN {gathering_campaign} c ON t.tid = c.camid WHERE c.status =".CAMPAIGN_STATUS_ACTIVE);
+  while($campaign = db_fetch_object($result)) {
+    $list[$campaign->tid] = $campaign;
+  }
+  return $list;
+}
+/**
+ * @} End of "defgroup fh_database".
+ */
+ 
+/**
+ * Get campaign status
+ *  
+ * @param $sid  
+ *    status id
+ * @return 
+ *    status or array of status (if $sid=-1)
+ */ 
+function _fhcampaign_status( $sid = FALSE) {
+  $options = array(
+    CAMPAIGN_STATUS_CLOSED => t("Closed"),
+    CAMPAIGN_STATUS_POST => t("Post Action"), 
+    CAMPAIGN_STATUS_ACTIVE => t("Active"));
+  if ($sid === FALSE) {
+    return $options;
+  } else {
+    return $options[$sid];
+  }
+}
+
+// Return vocabulary id
+function _fhcampaign_vocabulary() {
+  return variable_get('fhwalk_vocabulary', 0);
+}

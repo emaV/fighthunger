@@ -1,0 +1,150 @@
+E-Commerce - List of maintainers
+--------------------------------------------------------------------------------
+
+LEGEND
+======
+
+- M: the maintainer
+- S: status:
+      "supported"     : someone is actually paid to look after this.
+      "maintained"    : someone actually looks after it.
+      "fixes/patches" : it has a maintainer but they don't have time to
+                        do much other than throw the odd patch in.
+      "orphan"        : no current maintainer, but maybe you could take
+                        the role as you write new code?
+- W: website with status or information
+
+--------------------------------------------------------------------------------
+
+Core Maintainers
+
+E-COMMERCE CORE MODULES
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+POSTGRE SQL
+M: Sammy Spets <http://drupal.org/user/8038>
+S: maintained
+
+DOCUMENTATION - DEVELOPER
+M: James Gilliland <http://drupal.org/user/48673>
+S: maintained
+
+DOCUMENTATION - USER
+M: Simon Hobbs <http://drupal.org/user/35266>
+S: maintained
+
+--------------------------------------------------------------------------------
+
+Contrib Maintainers
+
+APPAREL PRODUCT MODULE
+M: Nedjo Rojers <http://drupal.org/user/4481>
+S: maintained
+
+ASSIST PAYMENT MODULE
+M: James Gilliland <http://drupal.org/user/48673>
+S: maintained
+
+AUCTION PRODUCT MODULE
+M: Simon Hobbs <http://drupal.org/user/35266>
+S: maintained
+
+AUTHORIZE.NET PAYMENT MODULE
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+CCARD PAYMENT MODULE
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+COD PAYMENT MODULE
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+COUPON PRODUCT MODULE
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+CUSTOM PRODUCT MODULE
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+DONATE PRODUCT MODULE
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+EC_DEVEL UTILITY
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+ECIVICRM UTILITY
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+ECOMMAILER UTILITY
+M:
+S: orphan
+
+EWAY PAYMENT MODULE
+M: Sammy Spets <http://drupal.org/user/8038>
+S: maintained
+
+E-XACT PAYMENT MODULE
+M: (broken)
+S: orphan
+
+HOSTING PRODUCT MODULE
+M: (wnorrix at gmail dot com? broken?)
+S: orphan
+
+ITRANSACT PAYMENT MODULE
+M: Sammy Spets <http://drupal.org/user/8038>
+S: maintained
+
+LINKPOINT PAYMENT MODULE
+M: James Gilliland <http://drupal.org/user/48673>
+S: maintained
+
+PAYPALPRO PAYMENT MODULE
+M: Gordon Heydon <http://drupal.org/user/959>
+S: maintained
+
+RECOMMEND UTILITY
+M: Gerhard Killesreiter <http://drupal.org/user/227>
+S: maintained
+
+ROLE_DISCOUNT PRICING MODULE
+M: Henrique Recidive <http://drupal.org/user/12564>
+S: maintained
+
+SERVICE PRODUCT MODULE
+M: (khalid?)
+S: orphan
+
+SHIPCALC SHIPPING MODULE
+M: Jeremy Andrews <http://drupal.org/user/409>
+M: Nedjo Rojers <http://drupal.org/user/4481>
+S: maintained
+
+STORES
+M: 
+S: orphan
+
+SUBMANAGE
+M: 
+S: orphan
+
+WORLDPAY
+M: Dublin Drupaller <http://drupal.org/user/8625>
+S: maintained
+
+--------------------------------------------------------------------------------
+
+Previous Contributors without whom...
+
+PREVIOUS E-COMMERCE MAINTAINERS
+Matt Westgate <http://drupal.org/user/2275>
+
+OTHER MAJOR CORE CONTRIBUTORS (* = active)
+Nedjo Rojers* <http://drupal.org/user/4481>

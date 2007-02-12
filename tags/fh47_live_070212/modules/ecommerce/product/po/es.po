@@ -1,0 +1,324 @@
+# Spanish translation for product.module.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Carlos A. Paramio <carlosparamio@gmail.com>, 2005.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: es\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2005-09-13 11:44+0200\n"
+"PO-Revision-Date: 2005-09-13 11:50+0200\n"
+"Last-Translator: Carlos A. Paramio <carlosparamio@gmail.com>\n"
+"Language-Team: Spanish <es@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: product.module:22 product.module:469 product.module:545
+msgid "Price"
+msgstr "Precio"
+
+#: product.module:114
+msgid "Description"
+msgstr "Descripción"
+
+#: product.module:114
+msgid "Provide the product details to display on the page."
+msgstr "Provee los detalles del producto a mostrar en la página."
+
+#: product.module:133
+msgid "Creates products for ecommerce."
+msgstr "Crea productos para ecommerce."
+
+#: product.module:137
+msgid ""
+"A product is a good or service that you wish to sell on your site.  It can "
+"be a tangible shippable item or even a download."
+msgstr ""
+"Un producto es un bien o un servicio que deseas vender en tu sitio web. Puede ser un artículo tangible a enviar, o incluso una descarga."
+
+#: product.module:163
+#, php-format
+msgid "This item is in <a href=\"%cart_view\">your shopping cart</a>."
+msgstr "Este artículo está en <a href=\"%cart_view\">su cesta de la compra</a>."
+
+#: product.module:166
+msgid "add to cart"
+msgstr "añadir a la cesta"
+
+#: product.module:166
+msgid "Add this item to your shopping cart."
+msgstr "Añadir este artículo a su cesta de la compra."
+
+#: product.module:170
+msgid "sold out"
+msgstr "vendido"
+
+#: product.module:216 product.module:232 product.module:325 product.module:374
+msgid "product"
+msgstr "producto"
+
+#: product.module:218 product.module:221
+msgid "products"
+msgstr "productos"
+
+#: product.module:223
+msgid "product quicklist"
+msgstr "lista rápida de productos"
+
+#: product.module:256 product.module:423 product.module:568
+msgid "Create product"
+msgstr "Crear producto"
+
+#: product.module:257 product.module:285 product.module:307
+msgid "Update product"
+msgstr "Actualizar producto"
+
+#: product.module:261
+msgid "The product has been saved."
+msgstr "El producto ha sido guardado."
+
+#: product.module:269 product.module:286 product.module:308
+msgid "Remove product"
+msgstr "Eliminar producto"
+
+#: product.module:271
+msgid "Removed the post from the product listings."
+msgstr "Eliminar el envío de las listas de producto."
+
+#: product.module:275 product.module:440 product.module:519
+msgid "Continue to product details"
+msgstr "Continuar con los detalles del producto"
+
+#: product.module:293 product.module:314
+msgid "%node-title (product)"
+msgstr "%node-title (producto)"
+
+#: product.module:373
+msgid "Home"
+msgstr "Principal"
+
+#: product.module:424 product.module:565
+msgid "Update this product"
+msgstr "Actualizar este producto"
+
+#: product.module:469
+msgid ""
+"How much does this product retail for? Note: This price may be different "
+"from the selling price due to price adjustments elsewhere."
+msgstr ""
+"¿Cuánto cuesta este producto? Nota: Este precio puede ser diferente del precio de venta debido a los posibles ajustes de precio."
+
+#: product.module:473
+msgid "-please choose-"
+msgstr "-por favor elija-"
+
+#: product.module:473
+msgid "Day(s)"
+msgstr "Día(s)"
+
+#: product.module:473
+msgid "Week(s)"
+msgstr "Semana(s)"
+
+#: product.module:473
+msgid "Month(s)"
+msgstr "Mes(es)"
+
+#: product.module:473
+msgid "Year(s)"
+msgstr "Año(s)"
+
+#: product.module:475
+msgid "Interval"
+msgstr "Intervalo"
+
+#: product.module:476
+msgid "Unit"
+msgstr "Unidad"
+
+#: product.module:477 product.module:870
+msgid "unlimited"
+msgstr "ilimitado"
+
+#: product.module:479
+msgid "Number of payments cycles"
+msgstr "Número de plazos de pago"
+
+#: product.module:479
+msgid "Select the number of recurring payment cycles this product has."
+msgstr "Seleccione el número de plazos de pago que tiene este producto."
+
+#: product.module:480
+msgid "Billing cycle length"
+msgstr "Longitud del ciclo de facturación"
+
+#: product.module:482
+msgid "SKU"
+msgstr "SN"
+
+#: product.module:482
+msgid ""
+"If you have an unique identifier for this product from another system or "
+"database, enter that here. This is optional, as system IDs are automatically "
+"created for each product."
+msgstr ""
+"Si posee un identificador único para este producto de algún otro sistema o base de datos, "
+"introdúzcalo aquí. Esto es opcional, ya que el sistema crea identificadores para cada producto de forma automática."
+
+#: product.module:483
+msgid "'Add to cart' link"
+msgstr "Enlace 'Añadir a la cesta'"
+
+#: product.module:483 product.module:549
+msgid "Visible"
+msgstr "Visible"
+
+#: product.module:483 product.module:549
+msgid "Hidden"
+msgstr "Oculto"
+
+#: product.module:483
+msgid ""
+"Choose whether or not you want the 'Add to cart' link visible for this "
+"product."
+msgstr ""
+"Elija si desea que el enlace 'Añadir a la cesta' se muestre para este producto."
+
+#: product.module:513
+msgid ""
+"No product types modules are installed!  Please install a product type "
+"module such as tangible.module or file.module."
+msgstr ""
+"¡No hay ningún módulo de tipos de producto instalado! Por favor, instale un módulo de tipo de producto, tal como tangible.module o file.module."
+
+#: product.module:518
+msgid "Type of product to create"
+msgstr "Tipo de producto a crear"
+
+#: product.module:518
+msgid "You cannot change the product type once it's created."
+msgstr "No puede cambiar el tipo de producto una vez ha sido creado."
+
+#: product.module:547
+msgid "<acronym title=\"Stock-Keeping Unit\">SKU</acronym>"
+msgstr "<acronym title=\"Número de serie\">SN</acronym>"
+
+#: product.module:550
+msgid "Add to cart link"
+msgstr "Enlace Añadir a la cesta"
+
+#: product.module:551
+msgid "Title"
+msgstr "Título"
+
+#: product.module:552
+msgid "Product type"
+msgstr "Tipo de producto"
+
+#: product.module:583
+msgid "You need to select the type of product you wish to create."
+msgstr "Necesita seleccionar el tipo de producto que desee crear."
+
+#: product.module:593
+msgid "Please enter a numeric value for the product price."
+msgstr "Por favor, introduzca un valor numérico para el precio del producto."
+
+#: product.module:747
+msgid "product deleted"
+msgstr "producto eliminado"
+
+#: product.module:755 product.module:791
+msgid "nid"
+msgstr "nid"
+
+#: product.module:756 product.module:792
+msgid "sku"
+msgstr "sn"
+
+#: product.module:757 product.module:793
+msgid "title"
+msgstr "título"
+
+#: product.module:758 product.module:794
+msgid "price"
+msgstr "precio"
+
+#: product.module:759 product.module:795
+msgid "type"
+msgstr "tipo"
+
+#: product.module:777
+msgid "<p>There are no products to view."
+msgstr "<p>No hay productos que mostrar."
+
+#: product.module:814
+msgid ""
+"<p>There are no transactions to view. You can manually <a href=\"%"
+"add_transaction\">add transactions</a>, however.</p>"
+msgstr ""
+"<p>No hay transacciones que mostrar. Puede <a href=\"%add_transaction\">añadir transacciones</a> manualmente si lo desea.</p>"
+
+#: product.module:855
+msgid "day"
+msgstr "día"
+
+#: product.module:855
+msgid "days"
+msgstr "días"
+
+#: product.module:857
+msgid "week"
+msgstr "semana"
+
+#: product.module:857
+msgid "weeks"
+msgstr "semanas"
+
+#: product.module:859
+msgid "month"
+msgstr "mes"
+
+#: product.module:859
+msgid "months"
+msgstr "meses"
+
+#: product.module:861
+msgid "year"
+msgstr "año"
+
+#: product.module:861
+msgid "years"
+msgstr "años"
+
+#: product.module:875
+msgid "unlimited cycles"
+msgstr "ciclos ilimitados"
+
+#: product.module:877
+msgid "Every %interval for %cycles."
+msgstr "Cada %interval por %cycles."
+
+#: product.module:990
+msgid "%title (transaction #%txnid)"
+msgstr "%title (transacción #%txnid)"
+
+#: product.module:992
+msgid "ago"
+msgstr "hace"
+
+#: product.module:996
+msgid "Recurring payment notification sent for transaction %txnid"
+msgstr "Notificación de pago a plazos de la transacción %txnid enviada"
+
+#: product.module:999
+msgid ""
+"<b>To:</b> %mail<br />\n"
+"<b>Subject:</b> %subject<br />\n"
+"<b>Body:</b> %body<br />\n"
+msgstr ""
+"<b>Para:</b> %mail<br />\n"
+"<b>Asunto:</b> %subject<br />\n"
+"<b>Cuerpo:</b> %body<br />\n"

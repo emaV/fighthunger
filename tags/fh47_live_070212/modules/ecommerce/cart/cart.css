@@ -1,0 +1,26 @@
+
+.block-cart .item-count, .items, .total, .checkout {
+  font-size: 0.9em;
+}
+
+.block-cart .items {
+  border-bottom: 1px solid #999;
+}
+
+.block-cart .total {
+  text-align: right;
+}
+
+.block-cart .checkout {
+  text-align: right;
+}
+
+.product-table {
+  width:100%;
+}
+  
+.product-table td {
+  vertical-align:top;
+  padding:10px;
+}
+  

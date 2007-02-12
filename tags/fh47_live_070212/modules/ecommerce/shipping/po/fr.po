@@ -1,0 +1,245 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce - Shipping Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-11-04 13:02+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements.org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Poedit-Language: French\n"
+
+#: shipping.module:14
+msgid "Enable a shipping module API for ecommerce."
+msgstr "Active l'API de gestion d'envois postaux pour E-commerce."
+
+#: shipping.module:16
+msgid "First, choose a method to calculate shipping costs, then configure the shipping details for the method selected."
+msgstr "Choisissez tout d'abord une méthode de calcul pour les frais d'envoi, puis configurez les détails de l'envoi pour la méthode sélectionnée."
+
+#: shipping.module:18
+msgid "Shipping calculation methods are <a href=\"%shipping_calc_url\">here</a>."
+msgstr "Les méthodes de calcul des frais d'envois sont <a href=\"%shipping_calc_url\">ici</a>."
+
+#: shipping.module:19
+#: ;47;190
+msgid "Shipping email"
+msgstr "E-mail de notification d'envoi"
+
+#: shipping.module:20
+msgid ""
+"Hello %first_name,\n"
+"\n"
+"We have shipped the following item(s) from Order #%txnid, received  %order_date.\n"
+"\n"
+"Items(s) Shipped:\n"
+"%items\n"
+"%shipping_to\n"
+"Questions about your order? Please contact us at %email.\n"
+"\n"
+"Thanks for shopping at %site.  We hope to hear from you again real soon!\n"
+"\n"
+"%uri"
+msgstr ""
+"Bonjour %first_name,\n"
+"\n"
+"Nous avons envoyé le(s) produit(s) suivant(s) de la commande n°%txnid, reçue le %order_date.\n"
+"\n"
+"produit(s) envoyé(s) :\n"
+"%items\n"
+"%shipping_to\n"
+"Des questions concernant votre commande ? Contactez-nous à %email.\n"
+"\n"
+"Merci d'avoir choisi %site.  Nous espérons vous revoir très bientôt !\n"
+"\n"
+"%uri"
+
+#: shipping.module:33
+#: ;36;0
+msgid "shipping"
+msgstr "frais d'envoi"
+
+#: shipping.module:46
+msgid "Subject of shipping e-mail"
+msgstr "Sujet de l'e-mail de notification d'expédition "
+
+#: shipping.module:46
+#: ;189
+msgid "Your %site order has shipped (#%txnid)"
+msgstr "Votre commande %site a été envoyée (%txnid)"
+
+#: shipping.module:47
+msgid "This text will be emailed to customers after their order has been shipped."
+msgstr "Ce texte sera envoyé par e-mail  à vos clients après qu'ils aient passé leur commande."
+
+#: shipping.module:64
+#: ;120
+msgid "Save configuration"
+msgstr "Enregistrer la configuration"
+
+#: shipping.module:66
+msgid "shipping options have been saved"
+msgstr "Les options de frais d'envoi ont été enregistrées."
+
+#: shipping.module:70
+#: ;130
+msgid "Save shipping details"
+msgstr "Enregistrer les détails des frais d'envoi"
+
+#: shipping.module:81
+msgid "Shipping notification"
+msgstr "Notification d'envoi"
+
+#: shipping.module:85
+#: ;210
+msgid "Send shipping notification"
+msgstr "Envoyer la notification d'expédition"
+
+#: shipping.module:87
+msgid "Shipping notification has been sent."
+msgstr "La notification d'expédition a été envoyée."
+
+#: shipping.module:93
+msgid "Unable to send email."
+msgstr "Impossible d'envoyer l'e-mail."
+
+#: shipping.module:112
+msgid "Shipping costs are calculated on a <strong>per product</strong> basis."
+msgstr "Les frais d'envoi sont calculés <strong>par produit</strong>."
+
+#: shipping.module:116
+msgid "Shipping costs are calculated based on the <strong>total cost of items</strong> in the cart."
+msgstr "Les frais d'envoi sont calculés d'après <strong>le coût total des articles</strong> dans le panier."
+
+#: shipping.module:117
+msgid "Do not calculate shipping costs."
+msgstr "Ne pas calculer les frais d'envoi."
+
+#: shipping.module:119
+msgid "Choose one"
+msgstr "Choissisez"
+
+#: shipping.module:121
+msgid "Shipping calculation methods"
+msgstr "Méthodes de calcul des frais d'envoi "
+
+#: shipping.module:131
+msgid "Shipping details"
+msgstr "Détails des frais d'envoi"
+
+#: shipping.module:143
+msgid "Shipping to:\n"
+msgstr "Envoyer à :\n"
+
+#: shipping.module:163
+msgid "%order of %title at %price each"
+msgstr "%order de %title au prix de %price pièce"
+
+#: shipping.module:193
+msgid "<p>This is a preview of the message to be sent.</p>"
+msgstr "<p>Ceci est un aperçu du message à envoyer.</p>"
+
+#: shipping.module:194
+msgid "To: "
+msgstr "Pour : "
+
+#: shipping.module:195
+msgid "From: "
+msgstr "De : "
+
+#: shipping.module:198
+msgid "<p><strong>Note:</strong> Sending this email will change the transaction workflow to <strong>%new_workflow</strong>.</p>"
+msgstr "<p><strong>Note :</strong> Envoyer cet e-mail modifiera l'état de la transaction à <strong>%new_workflow</strong>.</p>"
+
+#: shipping.module:208
+msgid "Subject"
+msgstr "Sujet :"
+
+#: shipping.module:209
+msgid "E-mail content"
+msgstr "Contenu de l'e-mail :"
+
+#: shipping.module:307
+msgid "Shipping costs are calculated based on the <strong>total quantity of items</strong> in the cart."
+msgstr "Les frais d'envoi sont calculés à partir de la <strong>quantité totale des articles</strong> dans le panier."
+
+#: shipping.module:368
+msgid "One of the subtotal columns contain an invalid format."
+msgstr "Une des colonnes de sous-total comporte un format non valide."
+
+#: shipping.module:371
+msgid "One of the item quantities columns contain an invalid format."
+msgstr "Un des colonnes de quantitié d'articles comporte un format non valide."
+
+#: shipping.module:392
+msgid "Please enter a numeric value for the shipping cost."
+msgstr "Merci d'entrer une valeur numérique pour les frais d'envoi."
+
+#: shipping.module:396
+msgid "You need to enter a value for both columns of a row and not just one of the fields."
+msgstr "Vous devez indiquer une valeur pour les deux colonnes de chaque ligne, les deux champs doivent être complétés."
+
+#: shipping.module:414
+msgid "Subtotal"
+msgstr "Sous-total :"
+
+#: shipping.module:415
+msgid "A subtotal of "
+msgstr "Un sous-total de "
+
+#: shipping.module:416
+msgid "costs "
+msgstr "coûte"
+
+#: shipping.module:417
+msgid "Enter the subtotals a customer should have for a given shipping cost to be applied.  This can be a single price (e.g. 1.00, 2.99, 5.34) or a range (e.g. 1.00-3.99, 4.00-10.26). Then, enter the cost of shipping for that subtotal (e.g. .99, 5.00). If conflicting shipping rules exist, the last rule that matches will always be executed. Only hyphens, dots and numbers are allowed."
+msgstr "Entrer le sous-total que la commande d'un client doit atteindre pour qu'un frais d'envoi donné soit appliqué. Il peut s'agir d'un prix unique (par ex. 1,00 ; 2,99 ; 5,34) ou d'un intervalle de prix (par ex 1,00-3,99 ; 4,00-10,26). Entrez ensuite le coût des frais d'envoi pour ce sous-total (par ex 0,99 ; 5,00). Si plusieurs règles de calcul sont en conflit, la dernière règle sera toujours appliquée. Seuls les nombres, points et traits d'unions sont autorisés."
+
+#: shipping.module:420
+msgid "Item quantity"
+msgstr "Quantité de l'article"
+
+#: shipping.module:421
+msgid "A quantity of "
+msgstr "Une quantité de "
+
+#: shipping.module:422
+msgid "items cost "
+msgstr "article(s) coûte "
+
+#: shipping.module:423
+msgid "Enter the number of items a customer should have for a given shipping cost to be applied.  This can be a single digit (e.g. 1, 2, 5) or a range (e.g. 1-3, 4-10, 5-100). Then, enter the cost of shipping for that quantity (e.g. .99, 5.00). If conflicting shipping rules exist, the last rule that matches will always be executed. Only hyphens, dots and numbers are allowed."
+msgstr "Entrez le nombre d'articles qu'un client doit sélectionner pour appliquer les frais d'envoi correspondants. Le nombre d'articles peut être un chiffre (par ex. 1, 2, 5) ou un intervalle (par ex 1-3, 4-10, 5-100). Entrez ensuite le montant des frais d'envoi pour cette quantité (par ex. 0,99; 5,00). Si plusieurs règles de calcul sont en conflit, la dernière règle sera toujours appliquée. Seuls les nombres, points et traits d'unions sont autorisés."
+
+#: shipping.module:426
+msgid "Shipping cost"
+msgstr "Frais d'envoi"
+
+#: shipping.module:431
+msgid "in shipping."
+msgstr "de frais de port."
+
+#: shipping.module:459
+msgid "the shipping options have been saved"
+msgstr "les options de frais d'envoi ont été enregistrées"
+
+#: shipping.module:500
+msgid "Shipping charge"
+msgstr "Frais d'envoi"
+
+#: shipping.module:500
+msgid "Enter any shipping or handling charges for this product here."
+msgstr "Entrez ici les frais d'envoi ou de prise en charge pour ce produit."
+
+#: shipping.module:504
+msgid "You must enter a numeric value for the shipping fee."
+msgstr "Vous devez entrer une valeur numérique pour les frais d'envoi."
+
+#: shipping.module:163
+msgid "1 order"
+msgid_plural "%count orders"
+msgstr[0] "1 commande"
+msgstr[1] "%count commandes"
+

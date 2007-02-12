@@ -1,0 +1,140 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce 4.6.0 - Paypal module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2006-01-14 16:55+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: paypal.module:15
+msgid "Process payments using paypal."
+msgstr "Processa i pagamenti utilizzando paypal."
+
+#: paypal.module:19
+msgid "<p>In order to use this module, you need to create an account with PayPal. Also, you can setup Instant Payment Notification (IPN) to track PayPal payments from your own website. The IPN URL of your site is:</p><p><strong> %ipn_url</strong></p>"
+msgstr "<p>Per poter utilizzare questo modulo, &egrave; necessario creare un'utenza presso PayPal. Puoi anche impostare un Instant Payment Notification (IPN) per tenere traccia dei pagamenti PayPal dal tuo sito. L'URL IPN del tuo sito &egrave;: </p><p><strong>%ipn_url</strong></p>"
+
+#: paypal.module:30
+msgid "PayPal IPN"
+msgstr "Notifica di Pagamento Istantaneo PayPal (IPN)"
+
+#: paypal.module:37
+msgid "PayPal Receiver Email"
+msgstr "Indirizzo e-mail del ricevente"
+
+#: paypal.module:37
+msgid "Primary email address of the payment recipent. This is also your main paypal email address."
+msgstr "Indirizzo primario di posta elettronica di chi riceve il pagamento. Si tratta anche del tuo indirizzo e-mail di paypal."
+
+#: paypal.module:38
+msgid "PayPal processing URL"
+msgstr "URL di elaborazione PayPal"
+
+#: paypal.module:38
+msgid "URL of the secure payment page customers are sent to for payment processing."
+msgstr "URL della pagina sicura di pagamento cui i clienti sono inviati per l'elaborazione del pagamento."
+
+#: paypal.module:39
+msgid "Successful payment URL"
+msgstr "URL di pagamento avvenuto con successo"
+
+#: paypal.module:39
+msgid "This is the destination to which you would like to send your customers when their payment has been successfully completed. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'. You may also enter '%order-history' to link to the user's order history."
+msgstr "Questa &egrave; la pagina a cui intendi inviare i tuoi clienti una volta che il loro pagamento &egrave; avvenuto con successo. L'URL deve rispettare le specifiche di Drupal. Se non stai utilizzando gli URL semplificati, inserisci la parte di indirizzo che segue '?q='. Se non sei sicuro, scrivi 'node'. Puoi anche inserire la stringa  '%order-history': servir&agrave; per creare un collegamento alla cronologia dell'ordine dell'utente."
+
+#: paypal.module:40
+msgid "Cancel payment URL"
+msgstr "URL di annullamento del pagamento"
+
+#: paypal.module:40
+msgid "This is the destination to which you would like to send your customers if they cancel their payment. The URL must be a Drupal system path. If you are not using clean URLs, specify the part after '?q='. If unsure, specify 'node'."
+msgstr "Questa &egrave; la pagina di destinazione a cui intendi indirizzare i tuoi clienti nel caso in cui annullino il proprio pagamento. L'URL deve rispettare le specifiche di Drupal. Se non stai utilizzando gli URL semplificati, inserisci la parte di indirizzo che segue '?q='. Se non sei sicuro, scrivi 'node'."
+
+#: paypal.module:43
+msgid "Currency code"
+msgstr "Codice di valuta"
+
+#: paypal.module:43
+msgid "The currecy code that PayPal should process the payment in."
+msgstr "Il codice di valuta in cui PayPal deve processare il pagamento."
+
+#: paypal.module:44
+msgid "Debug Instant Payment Notification (IPN)"
+msgstr "Traccia la Notifica di Pagamento Istantaneo (IPN)"
+
+#: paypal.module:44
+msgid "Disabled"
+msgstr "Disabilitato"
+
+#: paypal.module:44
+msgid "Enabled"
+msgstr "Abilitato"
+
+#: paypal.module:44
+msgid "If enabled, you'll receive an email whenever IPN is activated on your site."
+msgstr "Se abilitato, riceverai un messaggio di posta elettronica (fermo restando che l'IPN - Instant Payment Notification - sia abilitato presso il tuo sito)."
+
+#: paypal.module:46
+msgid "Minimum purchase amount"
+msgstr "Ordine minimo"
+
+#: paypal.module:46
+msgid "What is the minimum amount an user must purchase for when checking out with Paypal?"
+msgstr "Qual'&egrave; l'ordine minimo che un utente deve effettuare per poter scegliere il pagamento via PayPal?"
+
+#: paypal.module:55
+msgid "PayPal"
+msgstr "PayPal"
+
+#: paypal.module:77
+msgid "Your purchase total must be at least %min-purchase-amount for Paypal purchases."
+msgstr "Per acquisti Paypal il tuo ordine totale deve essere almeno di %min-purchase-amount."
+
+#: paypal.module:96
+msgid "%order-history"
+msgstr "%order-history"
+
+#: paypal.module:163
+msgid "A Transaction ID exists and is #%key\n"
+msgstr "L'ID di transazione  esiste ed &egrave; #%key\n"
+
+#: paypal.module:180
+msgid "IPN hit for <a href=\"%txn-url\">txn: %txnid</a>"
+msgstr "Connessione IPN (Notifica di Pagamento Istantanea) per <a href=\"%txn-url\">txn: %txnid</a>"
+
+#: paypal.module:183
+msgid "IPN hit, no transaction ID given."
+msgstr "Connessione IPN (Notifica di Pagamento Istantanea) avvenuta, nessuna ID di transazione fornita."
+
+#: paypal.module:215
+msgid "An HTTP error occurred\n"
+msgstr "Si &egrave; verificato un errore HTTP\n"
+
+#: paypal.module:223
+msgid "PayPal has verified the transaction\n"
+msgstr "PayPal ha verificato la transazione\n"
+
+#: paypal.module:312
+msgid "Transaction has been processed.\n"
+msgstr "La transazione &egrave; stata processata.\n"
+
+#: paypal.module:317
+msgid "The transaction has returned an invalid result from PayPal.\n"
+msgstr "La transazione ha ritornato un risultato non valido da parte di PayPal.\n"
+
+#: paypal.module:333
+msgid "PayPal debug results for"
+msgstr "Risultati della traccia PayPal per"
+
+#: paypal.module:180
+#: ;183;0
+msgid "paypal"
+msgstr "paypal"
+

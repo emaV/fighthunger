@@ -1,0 +1,12 @@
+.two-col {	
+  column-count: 2;
+  column-gap: 20px;
+}
+.three-col {	
+  column-count: 3;
+  column-gap: 20px;
+}
+.four-col {	
+  column-count: 4;
+  column-gap: 20px;
+}

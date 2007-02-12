@@ -1,0 +1,30 @@
+<?php
+
+/*
+ * Schema changes 1: change gathering_campaign
+ */
+function fhcampaign_update_1() {
+  
+  $ret = array();
+  
+  $sql ="ALTER TABLE gathering_campaign " .
+          "CHANGE active status INT( 2 ) NOT NULL DEFAULT '0', " .
+          "CHANGE name longname VARCHAR(64)  NOT NULL DEFAULT '', " .
+          "CHANGE description longdesc MEDIUMTEXT  NOT NULL DEFAULT ''";
+  $ret[] = update_sql($sql);
+  
+  return $ret;
+}
+
+/* Not needed anymore. Reusing gathering_campaign
+CREATE TABLE  `campaign` (
+  `cid` int(10) NOT NULL,
+  `shortname` varchar(64)  NOT NULL default '',
+  `startdate` date NOT NULL default '0000-00-00',
+  `enddate` date NOT NULL default '0000-00-00',
+  `status` tinyint(4) NOT NULL default '0',
+  PRIMARY KEY  (`cid`)
+) DEFAULT CHARSET=utf8;
+*/
+
+?>

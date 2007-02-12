@@ -1,0 +1,423 @@
+# Spanish translation for payment.module.
+# Copyright (C) 2005 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Carlos A. Paramio <carlosparamio@gmail.com>, 2005.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: es\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2005-09-13 10:24+0200\n"
+"PO-Revision-Date: 2005-09-13 10:35+0200\n"
+"Last-Translator: Carlos A. Paramio <carlosparamio@gmail.com>\n"
+"Language-Team: Spanish <es@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: payment.module:16
+msgid "A payment API for ecommerce."
+msgstr "Un API de pago para ecommerce."
+
+#: payment.module:19
+msgid ""
+"Dear %billing_name,\n"
+"\n"
+"Thanks for your recent purchase from %site.  This message includes important "
+"information about your order. Please take a moment to read it closely, and "
+"be sure to save a copy for future reference.\n"
+"\n"
+"********************************\n"
+"Billing and Shipping Information\n"
+"********************************\n"
+"%user_data\n"
+"********************************\n"
+"Order Details\n"
+"********************************\n"
+"%items\n"
+"Questions about your order? Please contact us at %email\n"
+"\n"
+"********************************\n"
+"Shipping Instructions\n"
+"********************************\n"
+"We will notify you by email as soon as your order ships.\n"
+"\n"
+"Thanks for shopping at %site.  We hope to hear from you again real soon!\n"
+"\n"
+"%uri"
+msgstr ""
+"Estimado %billing_name,\n"
+"\n"
+"Gracias por su reciente compra en %site. Este mensaje incluye información "
+"importante acerca de su pedido. Por favor, tómese un momento para leerla "
+"atentamente, y asegúrese de guardar una copia para referencias futuras.\n"
+"\n"
+"**********************************\n"
+"Información de facturación y envío\n"
+"**********************************\n"
+"%user_data\n"
+"**********************************\n"
+"Detalles del pedido\n"
+"**********************************\n"
+"%items\n"
+"Si tiene alguna pregunta acerca de su pedido, por favor contáctenos en %email\n"
+"\n"
+"**********************************\n"
+"Instrucciones de envío\n"
+"**********************************\n"
+"Le notificaremos por correo electrónico en cuanto su pedido sea enviado.\n"
+"\n"
+"Gracias por comprar en %site. Esperamos verle de nuevo muy pronto.\n"
+"\n"
+"%uri"
+
+#: payment.module:22
+msgid ""
+"Dear Customer\n"
+"\n"
+"It seems there was a problem while processing your order (%txnid). Please "
+"contact us at %email for further details.\n"
+"\n"
+"Regards,\n"
+"%site team\n"
+"%uri"
+msgstr ""
+"Estimado cliente\n"
+"\n"
+"Parece que hubo un problema mientras se procesaba su pedido (%txnid). Por favor, "
+"contacte con nosotros en %email para más detalles.\n"
+"\n"
+"Atentamente,\n"
+"El equipo de %site\n"
+"%uri"
+
+#: payment.module:25
+msgid ""
+"<p>You may define a price adjustment for each role. This adjustment can be a "
+"simple price addition, subtraction, or a percentage multiplier. For example, "
+"to add 5.00 to every price, enter +5.00. To multiply every price times 75%, "
+"enter 75%. If no operator is given, addition is assumed.</p>"
+msgstr ""
+"<p>Puede definir un ajuste de precio por cada rol. Este ajuste puede ser "
+"simplemente una adición o sustracción de precio, o un porcentaje multiplicador. "
+"Por ejemplo, para añadir 5,00 a cada precio, introduzca +5.00. Para multiplicar "
+"cada precio por 75%, introduzca 75%. Si no introduce ningún operador, se asume "
+"que se desea usar la adición.</p>"
+
+#: payment.module:28
+msgid ""
+"Dear %billing_firstname %billing_lastname,\n"
+"\n"
+"This message is to inform you that the following item will expire in %"
+"time_to_expire.\n"
+"\n"
+"%renewal_item\n"
+"\n"
+"To prevent this from happening, please renew the item as soon as possible.\n"
+"\n"
+"Click the link below to renew:\n"
+"%renewal_link\n"
+"\n"
+"Thanks,\n"
+"\n"
+"%site\n"
+"%uri"
+msgstr ""
+"Estimado %billing_firstname %billing_lastname,\n"
+"\n"
+"Este mensaje es para informarle de que el siguiente artículo caducará en "
+"%time_to_expire.\n"
+"\n"
+"%renewal_item\n"
+"\n"
+"Para evitar que esto suceda, por favor renueve el artículo tan pronto como le sea posible.\n"
+"\n"
+"Pulse el enlace inferior para renovar:\n"
+"%renewal_link\n"
+"\n"
+"Atentamente,\n"
+"\n"
+"%site\n"
+"%uri"
+
+#: payment.module:31
+msgid ""
+"Dear %billing_firstname %billing_lastname,\n"
+"\n"
+"This message is to inform you that the following item has expired %"
+"time_since_expired:\n"
+"\n"
+"%renewal_item\n"
+"\n"
+"Thanks,\n"
+"\n"
+"%site\n"
+"%uri"
+msgstr ""
+"Estimado %billing_firstname %billing_lastname,\n"
+"\n"
+"Este mensaje es para informarle de que el siguiente artículo ha caducado "
+"%time_since_expired:\n"
+"\n"
+"%renewal_item\n"
+"\n"
+"Atentamente,\n"
+"\n"
+"%site\n"
+"%uri"
+
+#: payment.module:42
+msgid "payment options"
+msgstr "opciones de pago"
+
+#: payment.module:46
+msgid "configure adjustments"
+msgstr "configurar ajustes"
+
+#: payment.module:49
+msgid "process payment"
+msgstr "procesar pago"
+
+#: payment.module:60
+msgid "Payment settings"
+msgstr "Configuración del pago"
+
+#: payment.module:62
+msgid "Currency symbol"
+msgstr "Símbolo de moneda"
+
+#: payment.module:62
+msgid ""
+"Enter the currency symbol you wish to associate with your price. This will "
+"be displayed in front of the price. Default is the dollar symbol."
+msgstr ""
+"Introduzca el símbolo de moneda que desea asociar con su precio. Este "
+"será mostrado delante del precio. Por defecto, se usa el símbolo de dólar."
+
+#: payment.module:63
+msgid "Position of currency symbol"
+msgstr "Posición del símbolo de moneda"
+
+#: payment.module:63
+msgid "Right"
+msgstr "Derecha"
+
+#: payment.module:63
+msgid "Left"
+msgstr "Izquierda"
+
+#: payment.module:63
+msgid ""
+"This option places the currency symbol of the left or right side of the "
+"price."
+msgstr ""
+"Esta opción coloca el símbolo de moneda a la izquierda o a la derecha del precio."
+
+#: payment.module:64
+msgid "Thousands separator"
+msgstr "Separador de miles"
+
+#: payment.module:64
+msgid "Enter the sign for the thousands separator."
+msgstr "Introduzca el símbolo para la separación de miles."
+
+#: payment.module:65
+msgid "Decimal separator"
+msgstr "Separador decimal"
+
+#: payment.module:65
+msgid "Enter the sign to seperate real numbers from floating numbers."
+msgstr "Introduzca el símbolo para separar la parte entera de la decimal."
+
+#: payment.module:66
+msgid "Price formatting"
+msgstr "Formato del precio"
+
+#: payment.module:68
+msgid "Subject of invoice e-mail"
+msgstr "Asunto del correo electrónico de la factura"
+
+#: payment.module:69
+msgid "Customer invoice e-mail"
+msgstr "Correo electrónico de la factura para el cliente"
+
+#: payment.module:69
+msgid "This text will be emailed to customers after they make a purchase."
+msgstr "Este texto será enviado por correo electrónico a los clientes después de que realicen una compra."
+
+#: payment.module:70
+msgid "Subject of error e-mail"
+msgstr "Asunto del correo electrónico de error"
+
+#: payment.module:71
+msgid ""
+"This text will be e-mailed to customers if their is a payment processing "
+"problem."
+msgstr ""
+"Este texto será enviado por correo electrónico a los clientes si hay algún problema procesando su pago."
+
+#: payment.module:72
+msgid "E-mail notifications"
+msgstr "Notificaciones por correo electrónico"
+
+#: payment.module:74
+msgid "Recurring payments"
+msgstr "Pagos a plazos"
+
+#: payment.module:74
+msgid "Disabled"
+msgstr "Desactivado"
+
+#: payment.module:74
+msgid "Enabled"
+msgstr "Activado"
+
+#: payment.module:74
+msgid ""
+"If enabled, you'll be asked about billing cycle details on the product "
+"creation form. If disabled, no recurring payments will take place."
+msgstr ""
+"Si está activado, se le preguntará acerca de los detalles del ciclo de facturación en "
+"el formulario de creación del producto. Si está desactivado, no se usarán los pagos a plazos."
+
+#: payment.module:78
+msgid "Role inheritance"
+msgstr "Herencia de roles"
+
+#: payment.module:78
+msgid ""
+"Optionally, select the roles an user is assigned when they purchase a "
+"recurring payment item. The user will be removed from these roles when the "
+"item expires. Note: requires cron."
+msgstr ""
+"Opcionalmente, selecciona los roles asignados a un usuario cuando compran un "
+"artículo a plazos. El usuario será eliminado de estos roles cuando el artículo caduca. Nota: requiere cron."
+
+#: payment.module:79
+msgid "Subject of recurring payment notice e-mail"
+msgstr "Asunto de la notificación por correo electrónico del pago a plazos"
+
+#: payment.module:80
+msgid ""
+"This text will be e-mailed to customers before their recurring payment "
+"expires."
+msgstr ""
+"Este texto será enviado por correo electrónico a los clientes antes de que se cumpla el plazo de pago."
+
+#: payment.module:82
+msgid ""
+"<p>You can send up to 5 renewal notifications to the customer. Choose at the "
+"interval each notfication is sent before the product expires.</p>"
+msgstr ""
+"<p>Puede enviar hasta 5 notificaciones de renovación al cliente. Elija el intervalo en el que cada notificación será enviada antes de que el producto caduque.</p>"
+
+#: payment.module:87
+msgid "-please choose-"
+msgstr "-por favor elija-"
+
+#: payment.module:87
+msgid "Day(s)"
+msgstr "Día(s)"
+
+#: payment.module:87
+msgid "Week(s)"
+msgstr "Semana(s)"
+
+#: payment.module:87
+msgid "Month(s)"
+msgstr "Mes(es)"
+
+#: payment.module:87
+msgid "Year(s)"
+msgstr "Año(s)"
+
+#: payment.module:91
+msgid "Interval"
+msgstr "Intervalo"
+
+#: payment.module:92
+msgid "Unit"
+msgstr "Unidad"
+
+#: payment.module:93
+msgid "Check to enable"
+msgstr "Marque para activar"
+
+#: payment.module:94
+msgid "Settings for recurring payment notice %number"
+msgstr "Configuración para notificación de pago a plazos %number"
+
+#: payment.module:98
+msgid "Subject of recurring payment expiration e-mail"
+msgstr "Asunto del correo electrónico de expiración del pago a plazos"
+
+#: payment.module:99
+msgid ""
+"This text will be e-mailed to customers when their recurring payment expires."
+msgstr ""
+"Este mensaje será enviado por correo electrónico a los clientes cuando su pago a plazos expire."
+
+#: payment.module:100
+msgid "Recurring payment settings"
+msgstr "Configuración del pago a plazos"
+
+#: payment.module:156
+msgid "the configuration options have been saved."
+msgstr "las opciones de configuración han sido guardadas."
+
+#: payment.module:165 payment.module:170
+msgid "Role-based Price Adjustments"
+msgstr "Ajustes de precio según rol"
+
+#: payment.module:201
+msgid "Adjustment for the <em>%role_name</em> role"
+msgstr "Ajustes para el rol <em>%role_name</em>"
+
+#: payment.module:203
+msgid "Save price adjustments"
+msgstr "Guardar ajustes de precio"
+
+#: payment.module:245
+msgid "One of the fields contains non arithmatic information."
+msgstr "Uno de los campos contiene información no aritmética"
+
+#: payment.module:248
+msgid "Price adjustments have been updated."
+msgstr "Los ajustes de precio han sido actualizados."
+
+#: payment.module:263
+msgid "Continue to payment details"
+msgstr "Continuar con detalles de pago"
+
+#: payment.module:316
+msgid "Payment processing methods currently enabled"
+msgstr "Métodos de proceso de pago actualmente activados"
+
+#: payment.module:320
+msgid "settings"
+msgstr "configuración"
+
+#: payment.module:359
+msgid "Please select a payment method"
+msgstr "Por favor, seleccione un método de pago"
+
+#: payment.module:359
+msgid "Choose one"
+msgstr "Elija uno"
+
+#: payment.module:363
+msgid "Payment method"
+msgstr "Método de pago"
+
+#: payment.module:538
+msgid "History"
+msgstr "Historia"
+
+#: payment.module:538
+msgid "Subscriptions"
+msgstr "Suscripciones"
+
+#: payment.module:538
+msgid "View your subscriptions"
+msgstr "Ver sus suscripciones"

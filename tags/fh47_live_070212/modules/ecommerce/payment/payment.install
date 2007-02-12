@@ -1,0 +1,68 @@
+<?php
+// $Id: payment.install,v 1.7 2006/05/18 12:42:24 gordon Exp $
+
+/**
+ * E-Commerce payment module schema
+ */
+function payment_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_renewal} (
+        txnid int(10) unsigned NOT NULL default '0',
+        rtxnid int(10) unsigned NOT NULL default '0',
+        rnid int(10) unsigned NOT NULL default '0',
+        KEY txnid (txnid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_credit_card} (
+        txnid int(10) unsigned NOT NULL,
+        cc_amount decimal(10,2) NOT NULL default '0.00',
+        cc_ordernum varchar(32) NOT NULL default '',
+        cc_refnum varchar(32) NOT NULL default '',
+        cc_reason varchar(128) NOT NULL default '',
+        PRIMARY KEY (txnid),
+        FOREIGN KEY (txnid) REFERENCES {ec_transaction} (txnid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_renewal} (
+        txnid integer NOT NULL default '0',
+        rtxnid integer NOT NULL default '0',
+        rnid integer NOT NULL default '0'
+      )");
+      db_query("CREATE INDEX {ec_renewal}_txnid ON {ec_renewal} (txnid)");
+      db_query("CREATE TABLE {ec_credit_card} (
+        txnid integer NOT NULL,
+        cc_amount decimal(10,2) NOT NULL default '0.00',
+        cc_ordernum varchar(32) NOT NULL default '',
+        cc_refnum varchar(32) NOT NULL default '',
+        cc_reason varchar(128) NOT NULL default '',
+        PRIMARY KEY (txnid),
+        FOREIGN KEY (txnid) REFERENCES {ec_transaction} (txnid)
+      )");
+      break;
+  }
+}
+
+/**
+ * Updates to payment
+ */
+function payment_update_1() {
+  if ($subject = variable_get('payment_recurring_subject', FALSE)) {
+    variable_set('payment_email_recurring_notice_subject', $subject);
+    variable_del('payment_recurring_subject');
+  }
+  if ($body = variable_get('payment_recurring_email', FALSE)) {
+    variable_set('payment_email_recurring_notice_body', $body);
+    variable_del('payment_recurring_email');
+  }
+  if ($subject = variable_get('payment_recurring_expiration_subject', FALSE)) {
+    variable_set('payment_email_recurring_expired_subject', $subject);
+    variable_del('payment_recurring_expiration_subject');
+  }
+  if ($body = variable_get('payment_recurring_expiration_email', FALSE)) {
+    variable_set('payment_email_recurring_expired_body', $body);
+    variable_del('payment_recurring_expiration_email');
+  }
+  return array();
+}

@@ -1,0 +1,198 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce 4.6.0 - Cart module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2006-01-14 17:11+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: cart.module:13
+msgid "Shopping Cart"
+msgstr "Il tuo carrello"
+
+#: cart.module:25
+#: ;70
+msgid "Shopping cart"
+msgstr "Il tuo carrello"
+
+#: cart.module:25
+msgid "View your cart items."
+msgstr "Guarda i prodotti nel tuo carrello."
+
+#: cart.module:32
+msgid "Hide block if cart is empty"
+msgstr "Nascondi il blocco se il carrello &egrave; vuoto"
+
+#: cart.module:55
+msgid "Ecommerce shopping cart."
+msgstr "Il carrello per il commercio elettronico."
+
+#: cart.module:57
+msgid "This form is used to control the order the pages are viewed in the checkout process. Number the order you would like these screens to appear."
+msgstr "Questo form &egrave; utilizzato per controllare l'ordine in cui le pagine verranno visualizzate durante il processo di pagamento."
+
+#: cart.module:74
+msgid "checkout"
+msgstr "vai alla cassa"
+
+#: cart.module:128
+msgid "View your cart"
+msgstr "Consulta il carrello"
+
+#: cart.module:134
+msgid "item"
+msgstr "prodotto"
+
+#: cart.module:134
+msgid "items"
+msgstr "prodotti"
+
+#: cart.module:136
+msgid "%item_count %item_suffix in %your_cart"
+msgstr "%item_count %item_suffix nel %your_cart"
+
+#: cart.module:136
+msgid "your cart"
+msgstr "tuo carrello"
+
+#: cart.module:146
+msgid "Ready to <a href=\"%checkout-url\">checkout</a>?"
+msgstr "Vai <a href=\"%checkout-url\">alla cassa</a>."
+
+#: cart.module:160
+#: ;493
+msgid "Items"
+msgstr "Articoli"
+
+#: cart.module:160
+msgid "Qty."
+msgstr "Q.t&agrave;"
+
+#: cart.module:175
+msgid "Remove"
+msgstr "Elimina"
+
+#: cart.module:179
+msgid "Subtotal:"
+msgstr "Subtotale:"
+
+#: cart.module:180
+#: ;235
+msgid "Update quantity"
+msgstr "Aggiorna quantità"
+
+#: cart.module:180
+msgid "Checkout"
+msgstr "Vai alla cassa"
+
+#: cart.module:186
+msgid "Your shopping cart is empty. You may continue shopping from our %product-page."
+msgstr "Il tuo carrello &egrave; vuoto. Puoi proseguire negli acquisti dalla nostra %product-page."
+
+#: cart.module:186
+msgid "product page"
+msgstr "pagina prodotti"
+
+#: cart.module:319
+msgid "Please review and submit your order"
+msgstr "Per favore controlla ed effettua il tuo ordine"
+
+#: cart.module:346
+msgid "Login or <a href=\"%reg-link\">register</a> to continue the checkout process"
+msgstr "Per proseguire devi effettuare il login o <a href=\"%reg-link\">registrarti</a> in maniera semplice e veloce."
+
+#: cart.module:359
+msgid "Your shopping cart"
+msgstr "Il tuo carrello"
+
+#: cart.module:373
+#: ;400
+msgid "Update screen order"
+msgstr "Aggiorna"
+
+#: cart.module:376
+msgid "The screen order has been saved."
+msgstr "Le impostazioni sono state salvate."
+
+#: cart.module:383
+#: ;391
+msgid "Screen order"
+msgstr "Impostazioni a video del processo di pagamento"
+
+#: cart.module:391
+msgid "Module"
+msgstr "Modulo"
+
+#: cart.module:474
+msgid "Place your order"
+msgstr "Effettua l'ordine"
+
+#: cart.module:486
+msgid "The following items are in your order"
+msgstr "Il tuo ordine comprende i seguenti prodotti"
+
+#: cart.module:490
+msgid "%order of <b>%title</b> at %price each"
+msgstr "%order di <strong>%title</strong> a %price ciascuno"
+
+#: cart.module:490
+msgid "Update or delete?"
+msgstr "Modificare o cancellare?"
+
+#: cart.module:496
+msgid "<strong>Subtotal</strong>: %subtotal<br />"
+msgstr "<strong>Subtotale</strong>: %subtotal<br />"
+
+#: cart.module:498
+msgid "<strong>Shipping cost</strong>: %shipping-cost<br />"
+msgstr "<strong>Spese di spedizione</strong>: %shipping-cost<br />"
+
+#: cart.module:500
+msgid "<strong>Total</strong>: %total<br />"
+msgstr "<strong>Totale</strong>: %total<br />"
+
+#: cart.module:502
+msgid "Order Summary"
+msgstr "Riepilogo dell'ordine"
+
+#: cart.module:555
+msgid "Your order has been submitted."
+msgstr "Il tuo ordine &egrave; stato inviato."
+
+#: cart.module:599
+msgid "<strong>%product-title</strong> added to <a href=\"%cart_view\">your shopping cart</a>"
+msgstr "<strong>%product-title</strong> aggiunto al <a href=\"%cart_view\">tuo carrello</a>"
+
+#: cart.module:636
+msgid "Can't find your item in the database"
+msgstr "Non riesco a trovare il tuo prodotto nel database"
+
+#: cart.module:661
+msgid "Your item(s) have been updated."
+msgstr "I tuoi prodotti sono stati aggiornati."
+
+#: cart.module:688
+msgid "Your item has been removed."
+msgstr "Il tuo prodotto &egrave; stato eliminato."
+
+#: cart.module:825
+msgid "Validation error, please try again.  If this error persists, please contact the site administrator."
+msgstr "Errore nella validazione, per favore riprova. Se questo errore persiste, per favore contattare l'amministratore del sito."
+
+#: cart.module:490
+msgid "%count order"
+msgid_plural "%count orders"
+msgstr[0] "%count ordine"
+msgstr[1] "%count ordini"
+
+#: cart.module:0
+msgid "cart"
+msgstr "carrello"
+

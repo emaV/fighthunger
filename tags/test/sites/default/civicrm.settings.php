@@ -47,8 +47,7 @@ define( 'CIVICRM_UF_URLVAR'        , 'q'  );
  *      define( 'CIVICRM_UF_DSN', 'mysql://cms_db_username:cms_db_password@db_server/cms_database?new_link=true');
  */
 //define( 'CIVICRM_UF_DSN'           , 'mysql://DBUSER:PASSWORD@HOSTNAME/DATABASE?new_link=true' );
-define( 'CIVICRM_UF_DSN', 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/fh47_crm?new_link=true' 
-);
+define( 'CIVICRM_UF_DSN', 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/live47_crm?new_link=true');
 
 /** 
  * Content Management System (CMS) User Table-name:

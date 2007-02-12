@@ -1059,6 +1059,11 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
           '#weight' => -1,
           '#value'  => fhwalk_get_photos($node)
         );
+        if(!$details['scrapbook']['#value']) unset($details['scrapbook']);
+        
+        // Unset donation
+        if($node->hook_view['donation']) unset($node->hook_view['donation']);
+        
         break;
   
       case WALK_STATUS_ACTIVE:  
@@ -1698,7 +1703,7 @@ function theme_event_album_plain($node) {
 
 //  $out .= $out_album . theme('pager', 10, 0, array('noflash' => 'value'));
 
-  return $out_album;
+  return ($i) ? $out_album : '';
 }
 
 
@@ -1712,10 +1717,11 @@ function fhwalk_get_photos($node, $instructions=NULL) {
       "<a href='node/$node->nid' class='active'>click here</a>";
     $out .= "<p align='center'><font size='-2'>$msg</font></p>";
   } else {
-    $out = theme('event_album_plain',$node);
-    $msg .= "If you'd like to see these photos in Flash, " .
-      "<a href='node/$node->nid?flash' class='active'>click here</a>";
-    $out .= "<p align='center'><font size='-2'>$msg</font></p>";
+    if($out = theme('event_album_plain',$node)) {
+      $msg .= "If you'd like to see these photos in Flash, " .
+        "<a href='node/$node->nid?flash' class='active'>click here</a>";
+      $out .= "<p align='center'><font size='-2'>$msg</font></p>";
+    };
   }
   return $out;
 }

@@ -1,0 +1,88 @@
+/* Database modifications for the walk tool */
+
+/********************************************************************
+ * From fhwalk.module
+ */
+After installation:
+
+- change weight to 1 in system table
+
+- SQL queries
+
+1 - change module weight 
+UPDATE `system` SET `weight` = '1' WHERE type='module' AND name='fhwalk'; 
+
+2 - add taxonomy information in term_node table
+
+INSERT INTO `term_node` SELECT nid, 32 AS tid
+FROM `node`
+WHERE `type` = 'gathering-2'
+
+Check the number (32) with vocabulary ssigned to fhwalk
+
+3 - change gathering-n to fhwalk
+UPDATE node SET `type`='fhwalk' WHERE `type` LIKE 'gather%';
+
+4 - altering walk data (for coordinator field)
+ALTER TABLE `gathering_node` ADD `cid` INT( 10 ) NULL AFTER `nid`;  
+
+
+5 - lowercase on location table
+UPDATE `location` SET `country`=LOWER(`country`)
+
+6 - move data from gathering-1 and 2 to event!!
+(but we have to check for time zone of ewh servers!!!)
+2006-05-21 10:00:00 convert to 1148220000 ewhserver
+                     should be 1148202000 so we have to subtract 18000 
+
+FIRST check for enddate on gatherning_node;
+some record is 0000-00-00
+
+SELECT * FROM gathering_node WHERE enddate='0000-00-00';
+UPDATE gathering_node SET enddate=startdate WHERE enddate='0000-00-00';
+
+SECOND generate timestamp
+
+INSERT INTO `event` (nid, event_start, event_end)
+  SELECT `nid`, 
+    UNIX_TIMESTAMP( ADDTIME( `startdate` , `starttime` ))-18000 AS event_start, 
+    UNIX_TIMESTAMP( ADDTIME( `enddate`   , `endtime`   ))-18000 AS event_end 
+    FROM `gathering_node`;
+
+7 - move some data to location
+
+UPDATE location l, gathering_node gn 
+SET l.name = gn.address1, l.street = gn.address2, l.additional = gn.directions 
+WHERE l.oid = gn.nid AND l.type = 'node';
+
+8 - move gathering_node.description to node_revision.body
+    ALL gathering node are without body!!!!
+
+UPDATE node_revisions nr, gathering_node gn 
+SET nr.body=gn.description, nr.format=3 
+WHERE nr.nid=gn.nid AND gn.description<>'';
+     
+
+9 - altering signup data (for signup status)
+ALTER TABLE `gathering_signup` ADD `stage` INT( 2 ) NULL AFTER `guests` ;
+
+10 - create table history
+CREATE TABLE `fh_history` (
+  `rid` int(10) NOT NULL,
+  `tid` int(10) NOT NULL,
+  `nid` int(10) NOT NULL,
+  PRIMARY KEY  (`rid`,`tid`,`nid`),
+  KEY `nid` (`nid`)
+);
+
+/**************************************************
+ Campaigns
+ */
+// Use table gathering_campaign. Change field
+ALTER TABLE `gathering_campaign` CHANGE `active` `status` INT( 2 ) NOT NULL DEFAULT '0';
+
+ALTER TABLE `gathering_campaign` 
+ CHANGE COLUMN `name` `longname` VARCHAR(64)  CHARACTER SET latin1  NOT NULL DEFAULT '',
+ CHANGE COLUMN `description` `longdesc` MEDIUMTEXT  CHARACTER SET latin1 NOT NULL DEFAULT '';
+
+

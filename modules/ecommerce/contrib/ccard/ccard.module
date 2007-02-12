@@ -1,0 +1,222 @@
+<?php
+/*
+ * $Id: ccard.module,v 1.12.2.3 2006/10/02 00:33:19 gordon Exp $
+ */
+
+function ccard_help($section = '') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> ccard payment processing.<br />Dependency: payment.module');
+      break;
+    case 'admin/settings/ccard':
+      return t('Enter the required parameters that have been supplied during the signup process with ccard.');
+      break;
+  }
+}
+
+function ccard_menu($maycache) {
+  if ($maycache) {
+    $items[] = array(
+      'path' => 'store/payment/ccard',
+      'title' => t('Enter Credit Card Details'),
+      'callback' => 'ccard_enter_payment',
+      'access' => 1,
+      'type' => MENU_CALLBACK
+    );
+  }
+  return $items;
+}
+
+function ccard_ec_settings() {
+  $form = array();
+  $form['ccard_clientid'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Ccard Client Id'), 
+    '#default_value' => variable_get('ccard_clientid', ''), 
+    '#size' => 70, 
+    '#maxlength' => 70, 
+    '#desciption' => t('Client Id that was issued by Ccard'),
+    '#required' => true
+   );
+  $form['ccard_url'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Credit Card Payment Page'), 
+    '#default_value' => variable_get('ccard_url', url('store/payment/ccard', null, null, true)), 
+    '#size' => 70, 
+    '#maxlength' => 180, 
+    '#desciption' => t('URL to be directed to so that the payment can be received.'),
+    '#required' => true
+   );
+  $form['ccard_thanks_url'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Thank you Page'), 
+    '#default_value' => variable_get('ccard_thanks_url', url('node', null, null, true)), 
+    '#size' => 70, 
+    '#maxlength' => 180, 
+    '#desciption' => t('URL to be directed once the payment has been entered.'),
+    '#required' => true
+   );
+  return $form;
+}
+
+function ccard_paymentapi(&$edit, $op, $arg = '') {
+  switch ($op) {
+    case 'display name':
+      return t('Credit Card');
+      break;
+    case 'payment page':
+      if ($edit->gross > 0) {
+        return payment_cc_goto($edit, variable_get('ccard_url', url('store/payment/ccard', null, null, true)));
+      }
+      break;
+  }
+}
+
+function ccard_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  if ($txn->payment_method != 'ccard') return NULL;
+  
+  switch($op) {
+    case 'delete':
+      return payment_cc_delete($edit);
+      break;
+    case 'insert':
+    case 'update':
+      return payment_cc_save($edit);
+      break;
+  }
+}
+
+/*
+ * Internal Functions
+ */
+
+function ccard_enter_payment() {
+  global $user;
+
+  $txnid = $_GET['txnid'];
+  $t = store_transaction_load($txnid);
+  if (($user->uid != $t->uid && !user_access('administer store')) || $t->payment_status != 1) {
+    drupal_access_denied();
+    exit();
+  }
+  return ccard_payment_form($t);
+}
+
+function ccard_payment_form($t) {
+  $form['billing'] = array(
+    '#type' => 'credit_card',
+    '#required' => TRUE,
+    '#name' => $t->address['billing']->firstname . ' ' . $t->address['billing']->lastname,
+    '#cvnshow' => TRUE
+  );
+  $form[] = array(
+    '#type' => 'submit',
+    '#value' => t('submit payment'),
+  );
+  $form['t'] = array(
+    '#type' => 'value',
+    '#value' => $t
+  );
+  $form['payment'] = array(
+    '#type' => 'value',
+  );
+  return drupal_get_form('ccard_payment_form', $form);
+}
+
+function ccard_payment_form_validate($form_id, $form_values, $form) {
+  if (valid_credit_card($form_values)) {
+    if (!_ccard_process($form_values)) {
+      form_set_error('', t('Credit Card Processing Error: %cc_reason', array('%cc_reason' => $form_values['payment']['cc_reason'])));
+    }
+    else {
+      form_set_value($form['payment'], $form_values['payment']);
+    }
+  }
+}
+
+function ccard_payment_form_submit($form_id, &$form_values) {
+  $t =& $form_values['t'];
+  $t->payment_status = payment_get_status_id('completed');
+  $form_values['txnid'] = $t->txnid;
+
+  // check to see if there are any shippable items
+  $has_shippable = false;
+  foreach ($t->items as $p) {
+    if (product_is_shippable($p->nid)) {
+      $has_shippable = true;
+      break;
+    }
+  }
+  if (!$has_shippable) {
+    $form_values['workflow'] = 6;
+  }
+
+  store_transaction_save($t);
+  store_send_invoice_email($t->txnid);
+
+  $url = variable_get('ccard_thanks_url', url('node', null, null, true));
+  drupal_set_message(t('your payment has been accepted, thank you'));
+ 
+  return $url;
+}
+
+/*
+ * Private functions
+ */
+
+function _ccard_process(&$edit) {
+  $t =& $edit['t'];
+  $ccard_url = 'https://ccard.com.au/cc/cc2.cgi';
+
+  $query = array(
+    'cmd' => 'c',
+    'nop' => '3',
+    'cid' => variable_get('ccard_clientid', ''),
+    'totalcost' => $t->gross,
+    'ccname' => $edit['name'],
+    'cc' => $edit['cardnumber'],
+    'ccexp' => $edit['expiry']['expmonth'].$edit['expiry']['expyear'],
+    'ccvn' => $edit['cvn'],
+    'op_txnid' => $t->txnid,
+    'sep' => '|'
+    );
+  $q = http_build_query($query);
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $ccard_url);
+  curl_setopt($ch, CURLOPT_POST, 1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $q);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $resp = explode('|', str_replace("\n", "", curl_exec($ch)));
+  curl_close($ch);
+
+  /* these left-hand side arguments must be filled in all payment
+   * modules to take advantage of the centralised code. */
+  $edit['payment']['cc_refnum'] = $resp[1];
+  $edit['payment']['cc_orderno'] = $resp[2];
+  $edit['payment']['cc_amount'] = $resp[3];
+  $edit['payment']['cc_reason'] = $resp[4] ? $resp[4] : $resp[0]; 
+  
+  return $resp[0] === '0' ? true : false;
+}
+
+/*
+ * Remove dependancy on PHP5
+ */
+
+if(!function_exists('http_build_query')) {
+  function http_build_query( $formdata, $numeric_prefix = null, $key = null ) {
+    $res = array();
+    foreach ((array)$formdata as $k=>$v) {
+      $tmp_key = urlencode(is_int($k) ? $numeric_prefix.$k : $k);
+      if ($key) {
+        $tmp_key = $key.'['.$tmp_key.']';
+      }
+      if ( is_array($v) || is_object($v) ) {
+        $res[] = http_build_query($v, null, $tmp_key);
+      } else {
+        $res[] = $tmp_key."=".urlencode($v);
+      }
+    }
+    return implode("&", $res);
+  }
+}

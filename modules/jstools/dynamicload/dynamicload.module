@@ -1,0 +1,173 @@
+<?php
+// $Id:
+
+/**
+ * @file
+ * Enable AJAX-based loading of selected page elements.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function dynamicload_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enables AJAX-based loading of selected page elements, e.g., content. Development version. Requires jstools.module.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function dynamicload_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'dynamicload/js',
+      'title' => t('dynamicload'),
+      'access' => user_access('access content'),
+      'type' => MENU_CALLBACK,
+      'callback' => 'dynamicload_js'
+     );
+    $items[] = array(
+      'path' => 'dynamicload/defaults.js',
+      'title' => t('dynamicload defaults'),
+      'access' => user_access('access content'),
+      'type' => MENU_CALLBACK,
+      'callback' => 'dynamicload_defaults'
+     );
+  }
+  else {
+    dynamicload_load();
+  }
+  return $items;
+}
+
+/**
+ * Load needed files.
+ */
+function dynamicload_load() {
+  $path = drupal_get_path('module', 'dynamicload');
+  module_invoke('jstools', 'add_js', array(
+    $path . '/dynamicload.js',
+    (variable_get('clean_url', '0') ? '' : '?q=') . 'dynamicload/defaults.js',
+    'misc/progress.js')
+  );
+}
+
+function dynamicload_form_alter($form_id, &$form) {
+  if ($form_id == 'block_admin_configure') {
+    $block_id = 'block-' . $form['module']['#value'] . '-' . $form['delta']['#value'];
+
+    $options = array('main' => t('Main content area'));
+    $result = db_query('SELECT module, delta FROM {blocks} WHERE status = 1 AND NOT (module = "%s" AND delta = "%s")', $form['module']['#value'], $form['delta']['#value']);
+    while ($block = db_fetch_object($result)) {
+      $module_blocks = module_invoke($block->module, 'block', 'list');
+      $options['block-' . $block->module . '-' . $block->delta] = t('%info block', array('%info' => $module_blocks[$block->delta]['info']));
+    }
+    $settings = variable_get('dynamicload_settings', array());
+    $form['#submit']['dynamicload_submit'] = array();
+    $form['dynamicload'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Dynamic loading'),
+      '#description' => t('Select whether you want links on this block to be loaded dynamically rather than through a regular page refresh. If you enable this functionality for a block, make sure that you thoroughly test the result, as not all pages will perform as expected when loaded dynamically.'),
+      '#collapsible' => true,
+      '#weight' => -5
+    );
+    $form['dynamicload']['dynamicload_apply'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Apply dynamic loading'),
+      '#default_value' => $settings[$block_id] ? 1 : 0
+    );
+    $form['dynamicload']['dynamicload_target'] = array(
+      '#type' => 'select',
+      '#title' => t('Target area'),
+      '#default_value' => $settings[$block_id] ? $settings[$block_id] : 'main',
+      '#options' => $options,
+      '#description' => t('Select the page area for this block\'s links to load into. Only enabled blocks are available.'),
+    );
+  }
+}
+
+function dynamicload_submit($form_id, $edit) {
+  dynamicload_set('block-' . $edit['module'] . '-' . $edit['delta'], $edit['dynamicload_target'], !$edit['dynamicload_apply']);
+}
+
+function dynamicload_set($block_id, $target, $remove = FALSE) {
+  $settings = variable_get('dynamicload_settings', array());
+  if ($remove) {
+    unset($settings[$block_id]);
+  }
+  else {
+    $settings[$block_id] = $target;
+  }
+  variable_set('dynamicload_settings', $settings);
+}
+
+function dynamicload_defaults() {
+  $defaults = variable_get('dynamicload_settings', array());
+  drupal_set_header('Content-Type: text/javascript');
+  print 'jsTools.dynamicloadDefaults = ' . drupal_to_js($defaults) . ";\n";
+  exit();
+}
+
+function dynamicload_js() {
+  if (isset($_POST['href'])) {
+    $args = array();
+    $path = $_POST['href'];
+    if ($source = drupal_lookup_path('source', $path)) {
+      $path = $source;
+    }
+    $target = $_POST['target'];
+    // Set the path so that links on pages will work.
+    $_GET['q'] = $path;
+    menu_set_active_item($path);
+    // If the last segment of the path is numeric, we remove it as an argument.
+    $arg = explode('/', $path);
+    if (is_numeric(end($arg))) {
+      $args[] = array_pop($arg);
+      $path = implode('/', $arg);
+    }
+    $menu = menu_get_menu();
+    $pid = $menu['path index'][$path];
+    if (isset($menu['callbacks'][$path]['callback']) && ((isset($menu['visible'][$pid]) && isset($menu['callbacks'][$path])) || (isset($menu['items'][$pid]) && $menu['items'][$pid]['access'] == TRUE)) && !isset($menu['callbacks'][$path]['callback_arguments'])) {
+      $content = call_user_func($menu['callbacks'][$path]['callback'], $args);
+      if (drupal_get_title() == 'dynamicload') {
+        drupal_set_title(isset($menu['items'][$pid]['title']) ? $menu['items'][$pid]['title'] : '');
+      }
+      $extra = '<h1>' . drupal_get_title() . '</h1>';
+
+      // Only add breadcrumbs, tabs, help, and status messages if we're not rendering into a block (e.g. if we're in the main content area).
+      if (strpos($target, 'block-') === FALSE) {
+        $extra = theme('breadcrumb', drupal_get_breadcrumb()) . $extra;
+
+        if ($tabs = theme('menu_local_tasks')) {
+         $extra .= $tabs;
+        }
+
+        $extra .= theme('help');
+
+        $extra .= theme('status_messages');
+      }
+      $result = array(
+        'result' => TRUE,
+        'content' => $extra . $content
+      );
+    }
+    else {
+      $result = array(
+        'path' => $path,
+        'menu' => $menu,
+        'result' => FALSE
+      );
+    }
+
+  }
+  else {
+    $result = array(
+      'result' => FALSE
+    );
+  }
+  print drupal_to_js($result);
+  exit();
+}

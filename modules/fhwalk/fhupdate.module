@@ -1,0 +1,7 @@
+<?php
+function fhupdate_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Transitional module for the walk tool. Enable, upgrade, disable.');
+  }
+}

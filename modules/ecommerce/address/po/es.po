@@ -1,0 +1,1111 @@
+# Spanish translation for address.module.
+# Copyright (C) 2005 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Carlos A. Paramio <carlosparamio@gmail.com>, 2005.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: es\n"
+"POT-Creation-Date: 2005-09-13 08:16+0200\n"
+"PO-Revision-Date: 2005-09-13 09:00+0200\n"
+"Last-Translator: Carlos A. Paramio <carlosparamio@gmail.com>\n"
+"Language-Team: Spanish <es@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: address.module:14
+msgid "Enable address books for users."
+msgstr "Permite registrar direcciones de los usuarios."
+
+#: address.module:32
+msgid "address book"
+msgstr "libreta de direcciones"
+
+#: address.module:44
+msgid "Default country"
+msgstr "País por defecto"
+
+#: address.module:44
+msgid "Choose the default country for addresses."
+msgstr "Elija el país por defecto para las direcciones."
+
+#: address.module:57
+#, php-format
+msgid "%username's address book"
+msgstr "libreta de direcciones de %username"
+
+#: address.module:59
+msgid ""
+"<p>Your address book is used to save addresses for billing and shipping of "
+"items from our store.</p>"
+msgstr ""
+"<p>Su libreta de direcciones se usa para guardar las direcciones de facturación y entrega de los artículos de nuestra tienda.</p>"
+
+#: address.module:65 address.module:117
+msgid "Create new address"
+msgstr "Crear nueva dirección"
+
+#: address.module:66 address.module:117
+msgid "Update address"
+msgstr "Actualizar dirección"
+
+#: address.module:125
+msgid ""
+"<strong>Please update your <em>country</em> and <em>state/province</em></"
+"strong>.<br />We apologize for the inconvenience."
+msgstr ""
+"<strong>Por favor, actualice los campos <em>país</em> y <em>provincia/estado</em></strong>.<br />Disculpe las molestias."
+
+#: address.module:130
+msgid "Country"
+msgstr "País"
+
+#: address.module:131
+msgid "First Name"
+msgstr "Nombre"
+
+#: address.module:132
+msgid "Last Name"
+msgstr "Apellidos"
+
+#: address.module:133
+msgid "Address Line 1"
+msgstr "Dirección 1"
+
+#: address.module:134
+msgid "Address Line 2"
+msgstr "Dirección 2"
+
+#: address.module:135
+msgid "City"
+msgstr "Ciudad"
+
+#: address.module:136
+msgid "State"
+msgstr "Estado"
+
+#: address.module:137
+msgid "Province / Region"
+msgstr "Provincia / Región"
+
+#: address.module:138
+msgid "Zip / Postal Code"
+msgstr "Código postal"
+
+#: address.module:139
+msgid "Phone Number"
+msgstr "Teléfono"
+
+#: address.module:175
+msgid "Click here to add a new address"
+msgstr "Pulse aquí para añadir una nueva dirección"
+
+#: address.module:177
+msgid "address"
+msgstr "dirección"
+
+#: address.module:177
+msgid "options"
+msgstr "opciones"
+
+#: address.module:186
+msgid "tel: %phone"
+msgstr "tfno: %phone"
+
+#: address.module:190
+msgid "edit"
+msgstr "editar"
+
+#: address.module:190
+msgid "delete"
+msgstr "eliminar"
+
+#: address.module:221
+msgid "Invalid %key."
+msgstr "%key inválida."
+
+#: address.module:226
+msgid "Please select a country."
+msgstr "Por favor, seleccione un país"
+
+#: address.module:230
+msgid "Please enter a state/province/region."
+msgstr "Por favor, introduzca un estado/provincia/región."
+
+#: address.module:272
+msgid "Address saved."
+msgstr "Dirección guardada."
+
+#: address.module:277
+msgid "The address has been deleted."
+msgstr "La dirección ha sido eliminada."
+
+#: address.module:293
+msgid "Andorra"
+msgstr ""
+
+#: address.module:294
+msgid "United Arab Emirates"
+msgstr ""
+
+#: address.module:295
+msgid "Afghanistan"
+msgstr ""
+
+#: address.module:296
+msgid "Antigua and Barbuda"
+msgstr ""
+
+#: address.module:297
+msgid "Anguilla"
+msgstr ""
+
+#: address.module:298
+msgid "Albania"
+msgstr ""
+
+#: address.module:299
+msgid "Armenia"
+msgstr ""
+
+#: address.module:300
+msgid "Netherlands Antilles"
+msgstr ""
+
+#: address.module:301
+msgid "Angola"
+msgstr ""
+
+#: address.module:302
+msgid "Antarctica"
+msgstr ""
+
+#: address.module:303
+msgid "Argentina"
+msgstr ""
+
+#: address.module:304
+msgid "American Samoa"
+msgstr ""
+
+#: address.module:305
+msgid "Austria"
+msgstr ""
+
+#: address.module:306
+msgid "Australia"
+msgstr ""
+
+#: address.module:307
+msgid "Aruba"
+msgstr ""
+
+#: address.module:308
+msgid "Aland Islands"
+msgstr ""
+
+#: address.module:309
+msgid "Azerbaijan"
+msgstr ""
+
+#: address.module:310
+msgid "Bosnia and Herzegovina"
+msgstr ""
+
+#: address.module:311
+msgid "Barbados"
+msgstr ""
+
+#: address.module:312
+msgid "Bangladesh"
+msgstr ""
+
+#: address.module:313
+msgid "Belgium"
+msgstr ""
+
+#: address.module:314
+msgid "Burkina Faso"
+msgstr ""
+
+#: address.module:315
+msgid "Bulgaria"
+msgstr ""
+
+#: address.module:316
+msgid "Bahrain"
+msgstr ""
+
+#: address.module:317
+msgid "Burundi"
+msgstr ""
+
+#: address.module:318
+msgid "Benin"
+msgstr ""
+
+#: address.module:319
+msgid "Bermuda"
+msgstr ""
+
+#: address.module:320
+msgid "Brunei Darussalam"
+msgstr ""
+
+#: address.module:321
+msgid "Bolivia"
+msgstr ""
+
+#: address.module:322
+msgid "Brazil"
+msgstr ""
+
+#: address.module:323
+msgid "Bahamas"
+msgstr ""
+
+#: address.module:324
+msgid "Bhutan"
+msgstr ""
+
+#: address.module:325
+msgid "Bouvet Island"
+msgstr ""
+
+#: address.module:326
+msgid "Botswana"
+msgstr ""
+
+#: address.module:327
+msgid "Belarus"
+msgstr ""
+
+#: address.module:328
+msgid "Belize"
+msgstr ""
+
+#: address.module:329
+msgid "Canada"
+msgstr ""
+
+#: address.module:330
+msgid "Cocos (Keeling) Islands"
+msgstr ""
+
+#: address.module:331
+msgid "Democratic Republic of the Congo (formerly Zaire)"
+msgstr ""
+
+#: address.module:332
+msgid "Central African Republic"
+msgstr ""
+
+#: address.module:333
+msgid "Congo (Republic of the Congo)"
+msgstr ""
+
+#: address.module:334
+msgid "Switzerland (Confoederatio Helvetica)"
+msgstr ""
+
+#: address.module:335
+msgid "Cote d'Ivoire (Ivory Coast)"
+msgstr ""
+
+#: address.module:336
+msgid "Cook Islands"
+msgstr ""
+
+#: address.module:337
+msgid "Chile"
+msgstr ""
+
+#: address.module:338
+msgid "Cameroon"
+msgstr ""
+
+#: address.module:339
+msgid "China"
+msgstr ""
+
+#: address.module:340
+msgid "Colombia"
+msgstr ""
+
+#: address.module:341
+msgid "Costa Rica"
+msgstr ""
+
+#: address.module:342
+msgid "Serbia and Montenegro"
+msgstr ""
+
+#: address.module:343
+msgid "Cuba"
+msgstr ""
+
+#: address.module:344
+msgid "Cape Verde"
+msgstr ""
+
+#: address.module:345
+msgid "Christmas Island"
+msgstr ""
+
+#: address.module:346
+msgid "Cyprus"
+msgstr ""
+
+#: address.module:347
+msgid "Czech Republic"
+msgstr ""
+
+#: address.module:348
+msgid "Germany (Deutschland)"
+msgstr ""
+
+#: address.module:349
+msgid "Djibouti"
+msgstr ""
+
+#: address.module:350
+msgid "Denmark"
+msgstr ""
+
+#: address.module:351
+msgid "Dominica"
+msgstr ""
+
+#: address.module:352
+msgid "Dominican Republic"
+msgstr ""
+
+#: address.module:353
+msgid "Algeria"
+msgstr ""
+
+#: address.module:354
+msgid "Ecuador"
+msgstr ""
+
+#: address.module:355
+msgid "Estonia"
+msgstr ""
+
+#: address.module:356
+msgid "Egypt"
+msgstr ""
+
+#: address.module:357
+msgid "Western Sahara (formerly Spanish Sahara)"
+msgstr ""
+
+#: address.module:358
+msgid "Eritrea"
+msgstr ""
+
+#: address.module:359
+msgid "Spain (Espana)"
+msgstr "España"
+
+#: address.module:360
+msgid "Ethiopia"
+msgstr ""
+
+#: address.module:361
+msgid "Finland"
+msgstr ""
+
+#: address.module:362
+msgid "Fiji"
+msgstr ""
+
+#: address.module:363
+msgid "Falkland Islands"
+msgstr ""
+
+#: address.module:364
+msgid "Federated States of Micronesia"
+msgstr ""
+
+#: address.module:365
+msgid "Faroe Islands"
+msgstr ""
+
+#: address.module:366
+msgid "France"
+msgstr ""
+
+#: address.module:367
+msgid "Gabon"
+msgstr ""
+
+#: address.module:368
+msgid "Grenada"
+msgstr ""
+
+#: address.module:369
+msgid "Georgia"
+msgstr ""
+
+#: address.module:370
+msgid "French Guiana"
+msgstr ""
+
+#: address.module:371
+msgid "Ghana"
+msgstr ""
+
+#: address.module:372
+msgid "Gibraltar"
+msgstr ""
+
+#: address.module:373
+msgid "Greenland"
+msgstr ""
+
+#: address.module:374
+msgid "Gambia"
+msgstr ""
+
+#: address.module:375
+msgid "Guinea"
+msgstr ""
+
+#: address.module:376
+msgid "Guadeloupe"
+msgstr ""
+
+#: address.module:377
+msgid "Equatorial Guinea"
+msgstr ""
+
+#: address.module:378
+msgid "Greece"
+msgstr ""
+
+#: address.module:379
+msgid "South Georgia and the South Sandwich Islands"
+msgstr ""
+
+#: address.module:380
+msgid "Guatemala"
+msgstr ""
+
+#: address.module:381
+msgid "Guam"
+msgstr ""
+
+#: address.module:382
+msgid "Guinea-Bissau"
+msgstr ""
+
+#: address.module:383
+msgid "Guyana"
+msgstr ""
+
+#: address.module:384
+msgid "Hong Kong"
+msgstr ""
+
+#: address.module:385
+msgid "Heard Island and McDonald Islands"
+msgstr ""
+
+#: address.module:386
+msgid "Honduras"
+msgstr ""
+
+#: address.module:387
+msgid "Croatia (Hrvatska)"
+msgstr ""
+
+#: address.module:388
+msgid "Haiti"
+msgstr ""
+
+#: address.module:389
+msgid "Hungary"
+msgstr ""
+
+#: address.module:390
+msgid "Indonesia"
+msgstr ""
+
+#: address.module:391
+msgid "Ireland"
+msgstr ""
+
+#: address.module:392
+msgid "Israel"
+msgstr ""
+
+#: address.module:393
+msgid "India"
+msgstr ""
+
+#: address.module:394
+msgid "British Indian Ocean Territory (including Diego Garcia)"
+msgstr ""
+
+#: address.module:395
+msgid "Iraq"
+msgstr ""
+
+#: address.module:396
+msgid "Iran"
+msgstr ""
+
+#: address.module:397
+msgid "Iceland"
+msgstr ""
+
+#: address.module:398
+msgid "Italy"
+msgstr ""
+
+#: address.module:399
+msgid "Jamaica"
+msgstr ""
+
+#: address.module:400
+msgid "Jordan"
+msgstr ""
+
+#: address.module:401
+msgid "Japan"
+msgstr ""
+
+#: address.module:402
+msgid "Kenya"
+msgstr ""
+
+#: address.module:403
+msgid "Kyrgyzstan"
+msgstr ""
+
+#: address.module:404
+msgid "Cambodia"
+msgstr ""
+
+#: address.module:405
+msgid "Kiribati"
+msgstr ""
+
+#: address.module:406
+msgid "Comoros"
+msgstr ""
+
+#: address.module:407
+msgid "Saint Kitts and Nevis"
+msgstr ""
+
+#: address.module:408
+msgid "North Korea"
+msgstr ""
+
+#: address.module:409
+msgid "South Korea"
+msgstr ""
+
+#: address.module:410
+msgid "Kuwait"
+msgstr ""
+
+#: address.module:411
+msgid "Cayman Islands"
+msgstr ""
+
+#: address.module:412
+msgid "Kazakhstan"
+msgstr ""
+
+#: address.module:413
+msgid "Laos"
+msgstr ""
+
+#: address.module:414
+msgid "Lebanon"
+msgstr ""
+
+#: address.module:415
+msgid "Saint Lucia"
+msgstr ""
+
+#: address.module:416
+msgid "Liechtenstein"
+msgstr ""
+
+#: address.module:417
+msgid "Sri Lanka"
+msgstr ""
+
+#: address.module:418
+msgid "Liberia"
+msgstr ""
+
+#: address.module:419
+msgid "Lesotho"
+msgstr ""
+
+#: address.module:420
+msgid "Lithuania"
+msgstr ""
+
+#: address.module:421
+msgid "Luxembourg"
+msgstr ""
+
+#: address.module:422
+msgid "Latvia"
+msgstr ""
+
+#: address.module:423
+msgid "Libya"
+msgstr ""
+
+#: address.module:424
+msgid "Morocco"
+msgstr ""
+
+#: address.module:425
+msgid "Monaco"
+msgstr ""
+
+#: address.module:426
+msgid "Moldova"
+msgstr ""
+
+#: address.module:427
+msgid "Madagascar"
+msgstr ""
+
+#: address.module:428
+msgid "Marshall Islands"
+msgstr ""
+
+#: address.module:429
+msgid "Former Yugoslav Republic of Macedonia"
+msgstr ""
+
+#: address.module:430
+msgid "Mali"
+msgstr ""
+
+#: address.module:431
+msgid "Myanmar (Burma)"
+msgstr ""
+
+#: address.module:432
+msgid "Mongolia"
+msgstr ""
+
+#: address.module:433
+msgid "Macao (Macau)"
+msgstr ""
+
+#: address.module:434
+msgid "Northern Mariana Islands"
+msgstr ""
+
+#: address.module:435
+msgid "Martinique"
+msgstr ""
+
+#: address.module:436
+msgid "Mauritania"
+msgstr ""
+
+#: address.module:437
+msgid "Montserrat"
+msgstr ""
+
+#: address.module:438
+msgid "Malta"
+msgstr ""
+
+#: address.module:439
+msgid "Mauritius"
+msgstr ""
+
+#: address.module:440
+msgid "Maldives"
+msgstr ""
+
+#: address.module:441
+msgid "Malawi"
+msgstr ""
+
+#: address.module:442
+msgid "Mexico"
+msgstr ""
+
+#: address.module:443
+msgid "Malaysia"
+msgstr ""
+
+#: address.module:444
+msgid "Mozambique"
+msgstr ""
+
+#: address.module:445
+msgid "Namibia"
+msgstr ""
+
+#: address.module:446
+msgid "New Caledonia"
+msgstr ""
+
+#: address.module:447
+msgid "Niger"
+msgstr ""
+
+#: address.module:448
+msgid "Norfolk Island"
+msgstr ""
+
+#: address.module:449
+msgid "Nigeria"
+msgstr ""
+
+#: address.module:450
+msgid "Nicaragua"
+msgstr ""
+
+#: address.module:451
+msgid "Netherlands"
+msgstr ""
+
+#: address.module:452
+msgid "Norway"
+msgstr ""
+
+#: address.module:453
+msgid "Nepal"
+msgstr ""
+
+#: address.module:454
+msgid "Nauru"
+msgstr ""
+
+#: address.module:455
+msgid "Niue"
+msgstr ""
+
+#: address.module:456
+msgid "New Zealand"
+msgstr ""
+
+#: address.module:457
+msgid "Oman"
+msgstr ""
+
+#: address.module:458
+msgid "Panama"
+msgstr ""
+
+#: address.module:459
+msgid "Peru"
+msgstr ""
+
+#: address.module:460
+msgid "French Polynesia"
+msgstr ""
+
+#: address.module:461
+msgid "Papua New Guinea"
+msgstr ""
+
+#: address.module:462
+msgid "Philippines"
+msgstr ""
+
+#: address.module:463
+msgid "Pakistan"
+msgstr ""
+
+#: address.module:464
+msgid "Poland"
+msgstr ""
+
+#: address.module:465
+msgid "Saint-Pierre and Miquelon"
+msgstr ""
+
+#: address.module:466
+msgid "Pitcairn Islands"
+msgstr ""
+
+#: address.module:467
+msgid "Puerto Rico"
+msgstr ""
+
+#: address.module:468
+msgid "Palestinian Territories (West Bank and Gaza Strip)"
+msgstr ""
+
+#: address.module:469
+msgid "Portugal"
+msgstr ""
+
+#: address.module:470
+msgid "Palau"
+msgstr ""
+
+#: address.module:471
+msgid "Paraguay"
+msgstr ""
+
+#: address.module:472
+msgid "Qatar"
+msgstr ""
+
+#: address.module:473
+msgid "Reunion"
+msgstr ""
+
+#: address.module:474
+msgid "Romania"
+msgstr ""
+
+#: address.module:475
+msgid "Russia"
+msgstr ""
+
+#: address.module:476
+msgid "Rwanda"
+msgstr ""
+
+#: address.module:477
+msgid "Saudi Arabia"
+msgstr ""
+
+#: address.module:478
+msgid "Solomon Islands"
+msgstr ""
+
+#: address.module:479
+msgid "Seychelles"
+msgstr ""
+
+#: address.module:480
+msgid "Sudan"
+msgstr ""
+
+#: address.module:481
+msgid "Sweden"
+msgstr ""
+
+#: address.module:482
+msgid "Singapore"
+msgstr ""
+
+#: address.module:483
+msgid "Saint Helena"
+msgstr ""
+
+#: address.module:484
+msgid "Slovenia"
+msgstr ""
+
+#: address.module:485
+msgid "Svalbard and Jan Mayen Islands"
+msgstr ""
+
+#: address.module:486
+msgid "Slovakia"
+msgstr ""
+
+#: address.module:487
+msgid "Sierra Leone"
+msgstr ""
+
+#: address.module:488
+msgid "San Marino"
+msgstr ""
+
+#: address.module:489
+msgid "Senegal"
+msgstr ""
+
+#: address.module:490
+msgid "Somalia"
+msgstr ""
+
+#: address.module:491
+msgid "Suriname"
+msgstr ""
+
+#: address.module:492
+msgid "Sao Tome and Principe"
+msgstr ""
+
+#: address.module:493
+msgid "El Salvador"
+msgstr ""
+
+#: address.module:494
+msgid "Syria"
+msgstr ""
+
+#: address.module:495
+msgid "Swaziland"
+msgstr ""
+
+#: address.module:496
+msgid "Turks and Caicos Islands"
+msgstr ""
+
+#: address.module:497
+msgid "Chad (Tchad)"
+msgstr ""
+
+#: address.module:498
+msgid "French Southern Territories"
+msgstr ""
+
+#: address.module:499
+msgid "Togo"
+msgstr ""
+
+#: address.module:500
+msgid "Thailand"
+msgstr ""
+
+#: address.module:501
+msgid "Tajikistan"
+msgstr ""
+
+#: address.module:502
+msgid "Tokelau"
+msgstr ""
+
+#: address.module:503
+msgid "Timor-Leste (East Timor)"
+msgstr ""
+
+#: address.module:504
+msgid "Turkmenistan"
+msgstr ""
+
+#: address.module:505
+msgid "Tunisia"
+msgstr ""
+
+#: address.module:506
+msgid "Tonga"
+msgstr ""
+
+#: address.module:507
+msgid "Turkey"
+msgstr ""
+
+#: address.module:508
+msgid "Trinidad and Tobago"
+msgstr ""
+
+#: address.module:509
+msgid "Tuvalu"
+msgstr ""
+
+#: address.module:510
+msgid "Taiwan"
+msgstr ""
+
+#: address.module:511
+msgid "Tanzania"
+msgstr ""
+
+#: address.module:512
+msgid "Ukraine"
+msgstr ""
+
+#: address.module:513
+msgid "Uganda"
+msgstr ""
+
+#: address.module:514
+msgid "United Kingdom"
+msgstr ""
+
+#: address.module:515
+msgid "United States Minor Outlying Islands"
+msgstr ""
+
+#: address.module:516
+msgid "United States"
+msgstr ""
+
+#: address.module:517
+msgid "Uruguay"
+msgstr ""
+
+#: address.module:518
+msgid "Uzbekistan"
+msgstr ""
+
+#: address.module:519
+msgid "Vatican City"
+msgstr ""
+
+#: address.module:520
+msgid "Saint Vincent and the Grenadines"
+msgstr ""
+
+#: address.module:521
+msgid "Venezuela"
+msgstr ""
+
+#: address.module:522
+msgid "British Virgin Islands"
+msgstr ""
+
+#: address.module:523
+msgid "U.S. Virgin Islands"
+msgstr ""
+
+#: address.module:524
+msgid "Vietnam"
+msgstr ""
+
+#: address.module:525
+msgid "Vanuatu"
+msgstr ""
+
+#: address.module:526
+msgid "Wallis and Futuna"
+msgstr ""
+
+#: address.module:527
+msgid "Samoa"
+msgstr ""
+
+#: address.module:528
+msgid "Yemen"
+msgstr ""
+
+#: address.module:529
+msgid "Mayotte"
+msgstr ""
+
+#: address.module:530
+msgid "South Africa"
+msgstr ""
+
+#: address.module:531
+msgid "Zambia"
+msgstr ""
+
+#: address.module:532
+msgid "Zimbabwe"
+msgstr ""
+
+#: address.module:535 address.module:606
+msgid "Please choose..."
+msgstr "Seleccione..."
+
+#: address.module:605
+msgid "Outside U.S."
+msgstr ""

@@ -1,0 +1,39 @@
+<?php
+/**
+  * Only some updates that need to run before.
+  */
+
+// Update tables to utf8
+function fhupdate_update_1() {
+  return _system_update_utf8(array(
+    'gathering_node',
+    'gathering_signup',
+    'gathering_campaign',
+    ));
+}
+
+/**
+ * Sync campaigns with taxonomy
+ * 
+ * ONLY FOR LIVE SITE
+ * 
+ * Vocabulary is "Walk the World" (vid = 7)
+
+ Terms are:
+ ||Name  || tid ||
+ ||Walk the World 2005 || 20 || --> old camid = 1
+ ||Walk the World 2006 || 21 || --> old camid = 2
+ ||Walk the World 2007 || 22 ||
+ */
+function fhupdate_update_2() {
+  $items = array();
+  // Set vocabulary with pre check
+  if(!variable_get('fhwalk_vocabulary', 0)) {
+    variable_set('fhwalk_vocabulary', 7);
+    // Updates for old campaign tables
+    $items[] = update_sql("UPDATE {gathering_campaign} SET camid = 20 WHERE camid = 1");
+    $items[] = update_sql("UPDATE {gathering_campaign} SET camid = 21 WHERE camid = 2");
+  }
+  
+  return $items;  
+}

@@ -1,0 +1,57 @@
+<?php
+// $Id: wforms.module,v 1.3.2.6 2006/10/17 18:19:05 nedjo Exp $
+
+/**
+ * @file
+ * Enables dynamic forms. Based on the wForms library by Cedric Savarese (http://www.4213miles.com).
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function wforms_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Enables dynamic forms including client-side validation, multi-page forms, and more.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function wforms_form_alter($form_id, &$form) {
+  $path = drupal_get_path('module', 'wforms');
+  drupal_set_html_head(theme_stylesheet_import(base_path() . $path .'/lib/wforms.css'));
+  // This stylesheet needs to be added as an alternate. It is activated on demand by js.
+  drupal_set_html_head('<link type="text/css" href="' . base_path() . $path . '/lib/wforms-jsonly.css" rel="alternate stylesheet" title="stylesheet activated by javascript" />');
+  drupal_add_js($path . '/lib/wforms.js');
+  // The customization file includes fixes to make wForms compatible
+  // with drupal js.
+  drupal_add_js($path . '/customization.js');
+}
+
+/**
+ * Declare wforms form element types and specify their default values.
+ *
+ * @return
+ *  An array of element types
+ */
+function hook_elements() {
+  $types = array();
+  $types['wformspage'] = array();
+  return $types;
+}
+
+/**
+ * Format a page of a wform.
+ *
+ * @param $element
+ *   An associative array containing the properties of the element.
+ * @return
+ *   A themed HTML string representing the form page.
+ */
+function theme_wformspage($element) {
+  static $count = 0;
+  $count++;
+  return '<div class="wfPage" id="wfPgIndex-' . $count . '">' . ($element['#title'] ? '<span class="wforms-title">' . $element['#title'] . '</span>' : '') . $element['#children'] . '</div>';
+}

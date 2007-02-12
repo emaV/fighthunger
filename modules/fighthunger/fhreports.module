@@ -1,0 +1,657 @@
+<?php
+// $Id: fhreports.module $
+
+/**
+ * @file
+ * Fighthunger Reports
+ * 
+ * Some e-commerce customizations for Fighthuger
+ *  - Custom e-commerce reports
+ *  - Export to csv files
+ * 
+ * Developed by Jose A. Reyero,  http://www.reyero.net
+ * for FightHunger.org
+ */
+
+// Define file name and content type
+define('REPORTS_FILE_EXTENSION', 'xls');
+define('REPORTS_CONTENT_TYPE', 'application/vnd.ms-excel');
+
+/**
+ * Implementation of hook_help().
+ */
+function fhreports_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Fighthunger reports.');
+    case 'admin/store/reports':
+      return t("<p>These are some pre-defined reports. You can also <a href=\"%transaction_search\">search</a> all transactions.</p>", array("%transaction_search" => url("admin/store/search"), "%show_all_transactions" => url("admin/store/transaction")));
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function fhreports_menu($may_cache) {
+  $items = array();
+  $access = user_access('administer store');
+  if($may_cache) {
+    $items[] = array(
+      'path' => 'admin/store/reports',
+      'title' => 'reports',
+      'callback' => 'fhreports_ecommerce',
+      'access' => $access
+    );
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_form_alter()
+ */
+function fhreports_form_alter($form_id, &$form) {
+  switch($form_id) {
+    case 'transactions_search_form':
+
+      if ($query_string = fhreports_query_string()) {
+        $links[] = l(t('Download transaction data'), 'admin/store/reports/transaction.'.REPORTS_FILE_EXTENSION, array(), $query_string);
+        $links[] = l(t('Download items data'), 'admin/store/reports/items.'.REPORTS_FILE_EXTENSION, array(), $query_string);
+  
+      }
+      $links[] = l(t('See more reports'), 'admin/store/reports');
+      $form['reports'] = array('#type' => 'fieldset', '#title' => t('Reports'), '#value' => theme('item_list', $links));
+  }
+}
+/**
+ * Menu callback. E-commerce reports
+ */
+function fhreports_ecommerce($type = NULL) {
+  switch($type) {
+    case 'transaction.'.REPORTS_FILE_EXTENSION:
+      return fhreports_ecommerce_textfile('transaction');
+    case 'items.'.REPORTS_FILE_EXTENSION:
+      return fhreports_ecommerce_textfile('items');
+    default:
+      return fhreports_ecommerce_overview();
+  }
+}
+
+/**
+ * Overview of e-Commerce reports
+ */
+function fhreports_ecommerce_overview() {
+  drupal_set_title(t('download reports'));
+  $base_path = 'admin/store/reports';
+  $output = '';
+  $num_total    = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction}"));
+  $num_pending    = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE (payment_status = '%d' OR payment_status = '%d') AND (workflow = '%d' OR workflow = '%d' OR workflow = '%d' OR workflow = '%d')", payment_get_status_id('pending'), payment_get_status_id('payment received'), transaction_get_workflow_id("transaction received"), transaction_get_workflow_id("invoiced"), transaction_get_workflow_id("shipped"), transaction_get_workflow_id("awaiting customer response")));
+  $num_processing = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE payment_status = '%d' AND (workflow = '%d' OR workflow = '%d' OR workflow = '%d' OR workflow = '%d')", payment_get_status_id('completed'), transaction_get_workflow_id("transaction received"), transaction_get_workflow_id("invoiced"), transaction_get_workflow_id("shipped"), transaction_get_workflow_id("awaiting customer response")));
+  $num_completed  = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} WHERE payment_status = '%d' and workflow = '%d'", payment_get_status_id('completed'), transaction_get_workflow_id("completed")));
+
+  /* Counter the new table width: 100% in drupal.css */
+  $style = array('style' => 'width:auto;');
+  
+  $base = $base_path.'/transaction.'.REPORTS_FILE_EXTENSION;
+  $header = array();
+  $row[] = array(array("data" => l(t("all orders"), $base, array(), "workflow=1,2,3,4,5,6"), 'align' => 'right', 'title' => t('All orders')), $num_total);
+  $row[] = array(array("data" => l(t("payments pending"), $base, array(), "status=1,7&workflow=1,2,3,4"), 'align' => 'right', 'title' => t('payment status: Pending, workflow: Not Complete')), $num_pending);
+  $row[] = array(array("data" => l(t("orders needing action"), $base, array(), "status=2&workflow=1,2,3,4"), 'align' => 'right', 'title' => t('payment status: Complete, workflow: Not Complete')), $num_processing);
+  $row[] = array(array("data" => l(t("completed"), $base, array(), "workflow=6"), "align" => "right"), $num_completed);
+
+  $output .= theme('box', t('Transactions'), theme("table", $header, $row, $style));
+  $row = null;
+
+  $base = $base_path.'/items.'.REPORTS_FILE_EXTENSION;
+  $header = array();
+  $row[] = array(array("data" => l(t("all orders"), $base, array(), "workflow=1,2,3,4,5,6"), 'align' => 'right', 'title' => t('All orders')), $num_total);
+  $row[] = array(array("data" => l(t("completed"), $base, array(), "workflow=6"), "align" => "right"), $num_completed);
+  $output .= theme('box', t('Items'), theme("table", $header, $row, $style));
+  $row = null;
+  
+  $beg_month   = mktime(0, 0, 0, date('m'), 1, date('Y'));
+  $num_orders  = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month));
+  $mon_sales   = payment_format(db_result(db_query("SELECT SUM(gross) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month)));
+
+  $base = $base_path.'/transaction.'.REPORTS_FILE_EXTENSION;
+
+  $row[] = array(array("data" => l(t("monthly orders"), $base, array(), "date=>". date('m/d/Y', $beg_month)), "align" => "right"), $num_orders);
+  $row[] = array(array("data" => t('monthly sales'), "align" => "right"), $mon_sales);
+  $output .= theme('box', t('Monthly figures'), theme("table", $header, $row, $style) );
+  $row = null;
+  /*
+  if (variable_get('payment_recurring', 0)) {
+    $num_orders  = db_result(db_query("SELECT COUNT(st.txnid) FROM {ec_transaction} AS st, {ec_product} AS p, {ec_transaction_product} AS stp WHERE p.nid = stp.nid AND st.txnid = stp.txnid AND stp.expires > %d AND payment_status = 2 AND workflow = 6", time()));
+    $header = array(array("data" => t('Recurring Payments'), "colspan" => 2));
+    $row[] = array(array("data" => l(t("active transactions"), $base, array(), "is_recurring=1&nid_expires=>now&workflow=6"), "align" => "right"), $num_orders);
+    $output .= theme("table", $header, $row, $style) . '<br />';
+    $row = null;
+  }
+  */
+  /*
+  $beg_year       = mktime(0, 0, 0, 1, 1, date('Y'));
+  $num_customers  = db_result(db_query("SELECT COUNT(DISTINCT uid) FROM {ec_transaction}"));
+  $num_products   = db_result(db_query("SELECT COUNT(nid) FROM {ec_product}"));
+  $year_sales     = payment_format(db_result(db_query("SELECT SUM(gross) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_year)));
+
+  $header = array(array("data" => t('General statistics'), "colspan" => 2));
+  $row[] = array(array("data" => l(t("customers"), "admin/user"), "align" => "right"), $num_customers);
+  $row[] = array(array("data" => l(t('products'), 'product'), "align" => "right"), $num_products);
+  $row[] = array(array("data" => t('yearly sales'), "align" => "right"), $year_sales);
+
+  $output .= theme("table", $header, $row, $style);
+  */
+
+  return $output;
+}
+
+/**
+ * Produces output file
+ * 
+ * If the search returns no data, redirects to search form
+ */
+function fhreports_ecommerce_textfile($type = 'transaction') {
+  // Prepare parameters
+  $query = fhreports_ecommerce_search_query();
+
+  // Fetch data for this type of report
+  list($header, $rows) = fhreports_ecommerce_data($query, $type);
+  // Output data
+  if($header && count($header) && $rows && count($rows)) {
+    fhreports_output_tabfile($header, $rows);
+  } else {
+    drupal_set_message(t('Your search returned no data.'), 'error');
+    drupal_goto('admin/store/search', fhreports_query_string());
+  }
+}
+
+/**
+ * Produces text in csv format
+ */
+function fhreports_output_csv($header, $rows) {
+  fhreports_output_file($header, $rows);
+}
+
+/**
+ * Produces text in tab separated format
+ */
+function fhreports_output_tabfile($header, $rows) {
+  fhreports_output_file($header, $rows, "\t", "\n");
+}
+
+/**
+ * Produces output file
+ */
+function fhreports_output_file($header, $rows, $fieldseparator = ',', $newline = "\n", $contenttype = REPORTS_CONTENT_TYPE) {
+  //drupal_set_header("Content-Disposition: attachment; filename=\"$filename\""); 
+  //header("Content-Type: application/vnd.ms-excel");  
+  drupal_set_header('Content-type:'.$contenttype);
+  if($header) {
+    print implode($fieldseparator, $header).$newline;
+  }
+  foreach ($rows as $row) {
+    $row = array_map('fhreports_output_format', $row);
+    print implode($fieldseparator, $row).$newline;
+  }
+}
+
+/**
+ * Formats single data cells
+ */
+function fhreports_output_format($data) {
+  // Replaces decimal points
+  if(is_numeric($data)) {
+    $data = str_replace('.', ',', $data);
+  } else {
+    // Replace tabs and line endings
+    $data = preg_replace("/\t/", "  ", $data);
+    $data = preg_replace("/\n/", "\\n", $data);
+  }
+  return $data;
+}
+
+/**
+ * Util: rebuild query string
+ * 
+ * Builds a query string taking values from both query string and search form
+ * 
+ * @return
+ *   query string to be added to URL
+ */
+function fhreports_query_string() {
+  $query = fhreports_ecommerce_search_query();
+  $params = fhreports_ecommerce_search_query_string($query);
+  return count($params) ? implode('&', $params) : NULL;
+}
+
+/**
+ * Returns raw data from ecommerce query
+ * 
+ * @param $query
+ *   object with query parameters
+ * @return
+ *   list($header, $rows), both arrays of text data
+ */
+function fhreports_ecommerce_data($query, $type) {
+  $show_details = TRUE;
+  $show_permlink = TRUE;  
+  // If we have a valid query object, let's hit the database.
+  if (!empty($query)) {
+
+    $select = array();
+    $from   = array();
+    $where  = array();
+    $join = array();
+    
+    foreach ($query as $criterion => $criterion_value) {
+      $data = array();
+      $operator = null;
+      $criterion_value = trim($criterion_value);
+
+      // Handle any comparison operators
+      if (strpos($criterion_value, ',') !== false) {
+        $operator = ',';
+        $data     = explode(',', $criterion_value);
+        $data = array_map('db_escape_string', $data);
+      }
+      elseif (strpos($criterion_value, '-') !== false) {
+        $operator = '-';
+        $data     = explode('-', $criterion_value);
+        $data = array_map('db_escape_string', $data);
+      }
+      else {
+        // This order is important.
+        $operators = array('>=', '<=', '>', '<', '=');
+        foreach ($operators as $op) {
+          $op_len = strlen($op);
+          // Only catch these operators at the beginning of the value.
+          if (strlen($criterion_value) >= $op_len && substr($criterion_value, 0, $op_len) == $op) {
+            $operator = '<>';
+            $data['op'] = $op;
+            $data[0] = db_escape_string(trim(substr($criterion_value, $op_len)));
+            break;
+          }
+        }
+      }
+
+      if ($operator == null) {
+        $data[] = db_escape_string($criterion_value);
+      }
+
+      $select[] = "st.*";
+      $from[]   = "{ec_transaction} AS st";
+      
+      switch ($criterion) {
+        case "text":
+          $from[]   = "{node} AS n";
+          $from[]   = "{node_revisions} AS r";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = "AND (n.title LIKE '%%$data[0]%%' OR r.body LIKE '%%$data[0]%%')";
+          $where[]  = "AND n.vid = stp.vid";
+          $where[]  = "AND n.vid = r.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $details[] = _store_transactions_search_detail(t('Text'), $data, $operator);
+          break;
+
+        case "txnid":
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.txnid');
+          $details[] = _store_transactions_search_detail(t('Transaction id'), $data, $operator);
+          break;
+
+        case "uid":
+          $from[]   = "{users} AS u";
+          $where[]  = "AND u.uid = st.uid";
+
+          $i = 0;
+          $where_uid = '';
+          $op = ($data['op']) ? $data['op'] : '=';
+          foreach ($data as $key => $value) {
+            if (is_numeric($value)) {
+              $where_uid .= ($i == 0) ? "AND (" : " OR ";
+              $where_uid .= "st.uid $op '$value'";
+            }
+            else {
+              $where_uid .= ($i == 0) ? "AND (" : " OR ";
+              $where_uid .= "u.name LIKE '%%$value%%'";
+            }
+            $i++;
+          }
+          $where_uid .= ")";
+
+          $where[] = $where_uid;
+          $details[] = _store_transactions_search_detail(t('User'), $data, $operator);
+          break;
+
+        case "nid":
+          $from[]   = "{ec_product} AS p";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = "AND p.vid = stp.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $where[]  = _store_transactions_search_operator($data, $operator, 'p.nid');
+          $details[] = _store_transactions_search_detail(t('Product id'), $data, $operator);
+          break;
+
+        case "nid_expires":
+          $from[]   = "{ec_product} AS p";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = "AND p.vid = stp.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $mod = array();
+          foreach ($data as $key => $value) {
+            if ($key !== 'op') {
+              $mod[$key] = format_date(strtotime($value), 'small');
+            }
+          }
+          $where[]  = _store_transactions_search_operator($data, $operator, 'stp.expires', 'strtotime');
+          $details[] = _store_transactions_search_detail(t('Product expires'), $mod, $operator);
+          break;
+
+        case "is_recurring":
+          $from[]   = "{ec_product} AS p";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = "AND p.vid = stp.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $where[]  = _store_transactions_search_operator($data, $operator, 'stp.is_recurring');
+          $details[] = _store_transactions_search_detail(t('Recurring payment'), $data, $operator);
+          break;
+
+        case "date":
+          $mod = array();
+          foreach ($data as $key => $value) {
+            if ($key !== 'op') {
+              $mod[$key] = format_date(strtotime($value), 'small');
+            }
+          }
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.created', 'strtotime');
+          $details[] = _store_transactions_search_detail(t('Date'), $mod, $operator);
+          break;
+
+        case "gross":
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.gross + st.shipping_cost');
+          $details[] = _store_transactions_search_detail(t('Cost'), $data, $operator);
+          break;
+
+        case "status":
+          $mod = array();
+          foreach ($data as $key => $value) {
+            $value = ($key !== 'op') ? payment_get_status($value) : $value;
+            $mod[$key] = $value;
+          }
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.payment_status');
+          $details[] = _store_transactions_search_detail(t('Payment status'), $mod, $operator);
+          break;
+
+        case "workflow":
+          $mod = array();
+          foreach ($data as $key => $value) {
+            $value = ($key !== 'op') ? transaction_get_workflow($value) : $value;
+            $mod[$key] = $value;
+          }
+          $where[]  = _store_transactions_search_operator($data, $operator, 'st.workflow');
+          $details[] = _store_transactions_search_detail(t('Workflow'), $mod, $operator);
+          break;
+
+        case "method":
+          $methods = payment_get_methods();
+          $mod = array();
+          foreach ($data as $key => $value) {
+            $value = ($key !== 'op') ? $methods[$value] : $value;
+            $mod[$key] = $value;
+          }
+          $where[]  = _store_transactions_search_operator($mod, $operator, 'st.payment_method');
+          $details[] = _store_transactions_search_detail(t('Payment method'), $mod, $operator);
+          break;
+
+        case "ptype":
+          $from[]   = "{ec_product} AS p";
+          $from[]   = "{ec_transaction_product} AS stp";
+          $where[]  = _store_transactions_search_operator($data, $operator, 'p.ptype');
+          $where[]  = "AND p.vid = stp.vid";
+          $where[]  = "AND st.txnid = stp.txnid";
+          $details[] = _store_transactions_search_detail(t('Product type'), $data, $operator);
+          break;
+      }
+      $get[] = _store_transactions_search_uri($criterion, $data);
+    } //The end of a really really long for loop.
+
+    // Join Shipping data
+    $select[] = "sh.service";
+    $select[] = "sh.method";
+    $select[] = "sh.cost";
+    //$join[] = "LEFT JOIN {ec_shipping_transaction} AS sh ON st.txnid = sh.txnid";
+    $from[] = "{ec_shipping_transaction} AS sh";
+    $where[] = "AND st.txnid = sh.txnid";
+    
+    // Now that we know the tables, apply the correct column display map.
+    $column_map['user'] = array('uid' => t('User'));
+    $column_map['transaction'] = array(
+        'txnid' => t('Transaction'), 
+        'uid' => t('User'), 
+        'payment_status' => t('Payment status'), 
+        'workflow' => t('Workflow'), 
+        'created' => t('Created'), 
+        'changed' => t('Changed')
+    );
+    $column_map['shipping'] = array(
+        'items' => t('Items ordered'),
+        'country' => t('Shipping country'),
+        //'service' => t('Service'),
+        'method' => t('Method'),
+        'cost' => t('Shipping cost'),
+        'items_cost' => t('Items cost'),
+        'gross' => t('Gross'), 
+    );
+    $column_map['items'] = array(
+        'country' => t('Shipping country'),
+        'method' => t('Method'),    
+        'nid' => t('Product Id'),
+        'title' => t('Product name'),
+        'qty' => t('Qty'),
+        'price' => t('Item price'),
+        'total' => t('Total price')
+    );
+    
+    // Depending on report type...
+    switch ($type) {
+      case 'items':
+        $select[] = 'stp.nid';
+        $select[] = 'stp.price';
+        $select[] = 'stp.qty';
+        $select[] = 'n.title';
+      
+        $from[]   = "{node} AS n";
+        $from[]   = "{ec_transaction_product} AS stp";
+        $where[]  = "AND n.vid = stp.vid";
+        $where[]  = "AND st.txnid = stp.txnid";
+        unset($column_map['shipping']);
+        break;
+      case 'transaction':
+        unset($column_map['items']);
+        break;    
+    }
+    
+    // Expand all query parts.
+    $sql_select = implode(', ', array_unique($select));
+    $sql_from = implode(', ', array_unique($from));
+    $sql_join = implode(' ', $join);
+    $sql_where = preg_replace('/^(and|or)/i', '', implode(' ', array_unique($where)));
+
+    // Merge all table columns that exist in the current query into an array.
+    $table = array();
+    foreach ($column_map as $key => $fields) {
+      $table = array_merge($table, $fields);
+    }
+    $columns = array_keys($table);
+    $header = $table;
+
+    // Get Data
+    $sql_orderby = '';
+
+    $result = db_query("SELECT DISTINCT $sql_select FROM $sql_from $sql_join ". ($sql_where ? "WHERE $sql_where" : '') ." $sql_orderby");
+    
+    // Build table
+    $no_data = '--';
+    while ($data = db_fetch_object($result)) {
+
+      // Before we hand over the table row to the table() function, some
+      // fields need special formatting.
+      foreach ($columns as $col) {
+        switch($col) {
+          case 'created':
+          case 'changed':
+          case 'expires':
+            $row[] = $data->$col != 0 ? format_date($data->$col, 'small') : $no_data;
+            break;
+            
+          case 'uid':
+            $username = db_result(db_query('SELECT name FROM {users} WHERE uid = %d', $data->$col));
+            if ($billing_address = db_fetch_object(db_query("SELECT * FROM {ec_transaction_address} WHERE txnid = %d AND type = 'billing'", $data->txnid))) {
+              $data->address['billing'] = $billing_address;
+            }
+            if ($data->address['billing']->firstname && $data->address['billing']->lastname) {
+              $name = $data->address['billing']->firstname . ' ' . $data->address['billing']->lastname;
+              $username = $data->$col ? $username : variable_get('anonymous', 'Anonymous');
+              if ($username) {
+                $name .= '('. $username .')';
+              }
+            }
+            else {
+              $name = $username;
+            }
+            $row[] = $name;
+            break;
+          
+          case 'payment_status':
+            $row[] = payment_get_status($data->$col);
+            break;
+            
+          case 'workflow':
+            // invoiced = 2, shipped = 3
+            $row[] = transaction_get_workflow($data->$col);
+            break;
+            
+          case 'country':
+            if ($shipping_address = db_fetch_object(db_query("SELECT * FROM {ec_transaction_address} WHERE txnid = %d AND type = 'shipping'", $data->txnid))) {
+              $data->address['shipping'] = $billing_address;
+            }
+            $row[] = fh_get_country_name($shipping_address->country);
+            break;
+            
+          case 'items':
+            // Count the number of items in this transaction
+            $row[] = db_result(db_query("SELECT SUM(qty) as items FROM {ec_transaction_product} WHERE txnid = %d", $data->txnid));
+            break;
+          case 'total':
+            $row[] = $data->qty * $data->price;
+            break;
+          case 'items_cost':
+            $row[] = $data->gross - $data->cost;
+            break;
+          default:
+            $row[] = $data->$col;
+            break;
+        }
+      }
+      
+      $rows[] = $row;
+      $row = null;
+    }
+
+    return array($header, $rows);
+    
+  } else {
+    // No conditions. Should be show all ?
+    return array(NULL, NULL);
+  }
+}
+
+/**
+ * Gets search parameters 
+ * 
+ * Combinines parameters in $_POST and $_GET
+ * 
+ * @return
+ *   Object with query parameters
+ */
+function fhreports_ecommerce_search_query() {
+  // List the available items to search for.
+  $fields = array('text', 'txnid', 'uid', 'is_recurring', 'nid', 'nid_expires', 'date', 'gross', 'status', 'workflow', 'method', 'ptype');
+
+   // If we have an edit array, recompose the array into separate stand-alone variables.
+  $edit = ($_POST['edit']) ? $_POST['edit'] : array();
+  foreach($edit as $key => $value) {
+    if ($value) {
+      // I had to recompose the $_POST vars to make tablesort smile at me.
+      $_POST[$key] = (is_array($value)) ? implode(',', $value) : $value;
+      $_REQUEST[$key] = $_POST[$key];
+    }
+  }
+  unset($_POST['edit']); // Again, an all too famous tablesort issue.
+
+  /* Grab the values we need from the $_REQUEST object. */
+  $query = new StdClass();
+  foreach($fields as $field) {
+    $value = $_REQUEST[$field];
+    if (array_key_exists($field, $_REQUEST) === true && $value != "") {
+      $query->$field = $value;
+    }
+  }
+  return $query;  
+}
+
+/**
+ * Converts the query criteria to query string
+ * 
+ * @param $query
+ *   Object with query parameters
+ * @return 
+ *   Array of criteria for query string
+ */
+function fhreports_ecommerce_search_query_string($query) {
+  // If we have a valid query object, let's hit the database.
+  if (!empty($query)) {
+
+    $select = array();
+    $from   = array();
+    $where  = array();
+
+    foreach ($query as $criterion => $criterion_value) {
+      $data = array();
+      $operator = null;
+      $criterion_value = trim($criterion_value);
+
+      // Handle any comparison operators
+      if (strpos($criterion_value, ',') !== false) {
+        $operator = ',';
+        $data     = explode(',', $criterion_value);
+        $data = array_map('db_escape_string', $data);
+      }
+      elseif (strpos($criterion_value, '-') !== false) {
+        $operator = '-';
+        $data     = explode('-', $criterion_value);
+        $data = array_map('db_escape_string', $data);
+      }
+      else {
+        // This order is important.
+        $operators = array('>=', '<=', '>', '<', '=');
+        foreach ($operators as $op) {
+          $op_len = strlen($op);
+          // Only catch these operators at the beginning of the value.
+          if (strlen($criterion_value) >= $op_len && substr($criterion_value, 0, $op_len) == $op) {
+            $operator = '<>';
+            $data['op'] = $op;
+            $data[0] = db_escape_string(trim(substr($criterion_value, $op_len)));
+            break;
+          }
+        }
+      }
+
+      if ($operator == null) {
+        $data[] = db_escape_string($criterion_value);
+      }
+      $get[] = _store_transactions_search_uri($criterion, $data);
+    } //The end of a really really long for loop.
+    
+    return $get;
+  }
+}
+

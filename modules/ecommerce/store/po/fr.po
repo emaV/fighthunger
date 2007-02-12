@@ -1,0 +1,960 @@
+# #-#-#-#-#  store-inc.po (Drupal E-Commerce - Store module)  #-#-#-#-#
+# LANGUAGE translation of Drupal (store.inc)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: store.inc,v 1.17.2.4 2005/10/30 19:07:00 mathias
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Project-Id-Version: Drupal E-Commerce - Store Module\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-11-03 20:32+0100\n"
+"Last-Translator: Erik de Zeeuw <erik@syllance.fr>\n"
+"Language-Team: French E-Commerce <claire.roubey@oliska.com, cfpa@mouvements."
+"org, drupal@syllance.fr>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+
+#: store.module:31
+msgid "%count order(s) with a 'cleared' payment status needs action: \n"
+msgstr ""
+"%count commande(s) en attente dont le paiement est validé (cleared) : \n"
+
+#: store.module:35
+msgid "Order #%txnid created %timestamp ago"
+msgstr "Commande n°%txnid, "
+
+#: store.module:36
+msgid "Workflow status: %transaction-workflow"
+msgstr "Etat : %transaction-workflow"
+
+#: store.module:37
+msgid "Email: %email"
+msgstr "E-mail : %email"
+
+#: store.module:38
+msgid "Total: %gross"
+msgstr "Total : %gross"
+
+#: store.module:55 ;861
+msgid "%order of %title at %price each"
+msgstr "%order de %title au prix de %price pièce"
+
+#: store.module:76
+msgid ""
+"(These orders will no longer be listed once the transaction workflow is set "
+"to either 'Completed' or 'Canceled')"
+msgstr ""
+"(Ces commandes ne seront plus affichées dès que leur état sera passé à "
+"'terminée' (completed) ou 'annulée' (canceled))"
+
+#: store.module:77
+msgid ""
+"\n"
+"Monthly Summary\n"
+"Number of completed orders: %monthly-orders\n"
+"Sales: %monthly-sales\n"
+msgstr ""
+"\n"
+"Rapport mensuel\n"
+"Nombre de commandes effectuées : %monthly-orders\n"
+"Ventes : %monthly-sales\n"
+
+#: store.module:78
+msgid "Want more reports? Visit %base_url/admin/store\n"
+msgstr "Plus d'infos ? Voir %base_url/admin/store \n"
+
+#: store.module:80
+msgid "%site-name transaction summary"
+msgstr "Résumé des transactions %site-name"
+
+#: store.module:101
+msgid "Configuration module for ecommerce."
+msgstr "Module de configuration E-commerce."
+
+#: store.module:104
+msgid ""
+"<p>Use this search form to find transaction related information.</p>\n"
+"          <h2>Advanced search techniques</h2>\n"
+"          <p>The textfields in this form recognize special operators like "
+"greater than (&gt;), less than (&lt;), comma separated values and equals to, "
+"which is also the default option if none is specified. This allows you to "
+"easily find ranges and multiple values and works with IDs and dates.</p>\n"
+"      "
+msgstr ""
+"<p>Utilisez ce formulaire pour trouver des informations relatives aux "
+"transactions.</p>\n"
+"          <h2>Recherche avancée</h2>\n"
+"          <p>Les champs de ce formulaire peuvent inclure des opérateurs tels "
+"que 'supérieur à' (&gt;), 'inférieur à' (&lt;), ainsi que des valeurs "
+"séparées par des virgules. L'opérateur par défaut est 'égal à'. Cela vous "
+"permet de trouver facilement des ensembles de résultats, et fonctionne avec "
+"les numéros (ID) et les dates.</p>\n"
+"      "
+
+#: store.module:111
+msgid ""
+"<p>This is all the transactions for your store. Use the search form if you "
+"want to <a href=\"%transaction_search\">search the data and filter the "
+"results</a>.</p>"
+msgstr ""
+"<p>Voici toutes les transactions effectuées sur votre boutique. Utilisez le "
+"formulaire de recherche si vous souhaitez <a href=\"%transaction_search"
+"\">chercher des données particulières et trier les résultats</a>.</p>      "
+
+#: store.module:114
+msgid "<p>No mail will be sent to the user.</p>"
+msgstr "<p>Aucune notification ne sera envoyée à l'utilisateur.</p>"
+
+#: store.module:117
+msgid ""
+"<p>Can't find an order?  <a href=\"%show_all_transactions\">View</a> or <a "
+"href=\"%transaction_search\">search</a> all transactions.</p>"
+msgstr ""
+"<p>Vous ne trouvez pas une commande ? Vous pouvez <a href=\"%"
+"transaction_search\">chercher parmi les transactions</a> ou <a href=\"%"
+"show_all_transactions\">afficher toutes les transactions</a>.</p>"
+
+#: store.module:131 ;0
+msgid "store"
+msgstr "boutique"
+
+#: store.module:132
+msgid "transactions"
+msgstr "transactions"
+
+#: store.module:133
+msgid "search"
+msgstr "rechercher"
+
+#: store.module:134
+msgid "create transaction"
+msgstr "créer une transaction"
+
+#: store.module:135 ;1316;1319
+msgid "print invoice"
+msgstr "imprimer la facture"
+
+#: store.module:137
+msgid "admin items ordered"
+msgstr "gérer les produits commandés"
+
+#: store.module:139
+msgid "settings"
+msgstr "paramètres"
+
+#: store.module:168
+msgid "view transaction"
+msgstr "voir la transaction"
+
+#: store.module:170
+msgid "Update shipping address"
+msgstr "Mettre à jour l'adresse de livraison"
+
+#: store.module:172
+msgid "user items ordered"
+msgstr "produits commandés par l'utilisateur"
+
+#: store.module:175 ;178
+msgid "order history"
+msgstr "historique de la commande"
+
+#: store.module:197
+msgid ""
+"Customers do not have to create accounts in order to purchase items from "
+"this site."
+msgstr "Les clients n'ont pas à créer de compte pour acheter sur le site."
+
+#: store.module:198
+msgid ""
+"Customers must create accounts before purchasing an item from this site."
+msgstr ""
+"Les clients doivent créer un compte avant de pouvoir acheter sur le site."
+
+#: store.module:199
+msgid "Authenticated customers"
+msgstr "Clients authentifiés "
+
+#: store.module:199
+msgid ""
+"There are several advantages in having customers create accounts. When they "
+"shop, the items in their cart will be remembered from visit to visit, and "
+"they can store their shipping and billing addresses in an address book at "
+"this site."
+msgstr ""
+"La création de comptes pour les clients présente plusieurs avantages. Quand "
+"ils visitent la boutique, les articles de leur panier sont mémorisés pour "
+"leurs prochaines visites, et ils peuvent conserver leurs adresses de "
+"livraison et de facturation dans leur carnet d'adresses. "
+
+#: store.module:206
+msgid "Transaction notices"
+msgstr "Notifications "
+
+#: store.module:206
+msgid "Disabled"
+msgstr "Désactivé"
+
+#: store.module:206
+msgid "Enabled"
+msgstr "Activé"
+
+#: store.module:206
+msgid ""
+"Enable or disable transaction notifications.  If enabled, the site "
+"administrator (%site_mail) will receive an email summarizing the status of "
+"all orders. The frequency of emails is dependent on how often the site "
+"administrator has scheduled to run cron jobs.  Finally, The site "
+"administrator e-mail address can be changed in the <a href=\"%"
+"general_config_screen\">general configuration screen</a>,"
+msgstr ""
+"Active ou désactive les notifications de transactions. Si activé, "
+"l'administrateur (%site_mail) va recevoir un e-mail résumant le statut de "
+"chacune des commandes. La fréquence d'envoi de ce message dépend de la "
+"configuration des tâches périodiques (cron). L'adresse de l'administrateur "
+"peut être modifiée via la page de <a href=\"%general_config_screen"
+"\">configuration générale</a>,"
+
+#: store.module:208
+msgid "<h3>Store module dependencies</h3>"
+msgstr "<h3>Dépendances du module Store</h3>"
+
+#: store.module:209
+msgid "Module name"
+msgstr "Nom du module"
+
+#: store.module:209
+msgid "Status"
+msgstr "Etat"
+
+#: store.module:213
+msgid "Installed"
+msgstr "Installé"
+
+#: store.module:216
+msgid "Not found"
+msgstr "Non trouvé"
+
+#: store.module:220
+msgid "Order history overview"
+msgstr "Visualisation de l'historique des commandes"
+
+#: store.module:220
+msgid "This text will be displayed at the top of users' order history pages."
+msgstr ""
+"Ce texte sera affiché en haut de la page 'historique des commandes' des "
+"utilisateurs."
+
+#: store.module:231
+msgid "History"
+msgstr "Historique"
+
+#: store.module:231 ;977
+msgid "Orders"
+msgstr "Commandes"
+
+#: store.module:231
+msgid "View your order history"
+msgstr "Voir l'historique de vos commandes "
+
+#: store.module:251 store.inc:248
+msgid "Quantity"
+msgstr "Quantité"
+
+#: store.module:251
+msgid "Item"
+msgstr "Article"
+
+#: store.module:251 store.inc:249
+msgid "Price"
+msgstr "Prix"
+
+#: store.module:275
+msgid "<strong>Shipping:</strong> %shipping-price"
+msgstr "<strong>Frais de port :</strong> %shipping-price"
+
+#: store.module:278
+msgid "<strong>Total:</strong> %total"
+msgstr "<strong>Total :</strong> %total"
+
+#: store.module:281
+msgid "<div><strong>Ordered On:</strong> %order-date</div>"
+msgstr "<div><strong>Commandé le :</strong> %order-date</div>"
+
+#: store.module:282
+msgid "<div><strong>Transaction ID:</strong> %txnid</div>"
+msgstr "<div><strong>Transaction n° :</strong> %txnid</div>"
+
+#: store.module:285
+msgid "%site-name Invoice"
+msgstr "Facture %site-name"
+
+#: store.module:288
+msgid "Shipping to"
+msgstr "Adresse de livraison"
+
+#: store.module:292
+msgid "Billing to"
+msgstr "Adresse de facturation"
+
+#: store.module:295
+msgid "E-mail:"
+msgstr "E-mail :"
+
+#: store.module:296
+msgid "Items ordered"
+msgstr "Articles commandés"
+
+#: store.module:299
+msgid "Payment Info"
+msgstr "Infos paiement"
+
+#: store.module:361
+msgid "Message preview"
+msgstr "Prévisualisation du message"
+
+#: store.module:365 ;375;838
+msgid "Create new transaction"
+msgstr "Créer une nouvelle transaction"
+
+#: store.module:374
+msgid "Update transaction"
+msgstr "Mettre à jour la transaction"
+
+#: store.module:409
+msgid "Store (%revision)"
+msgstr "Store (%revision)"
+
+#: store.module:418
+msgid "Eventually, all store settings will be listed here."
+msgstr "Les paramètres de la boutique seront affichés ici par la suite."
+
+#: store.module:426
+msgid "<p>Are you sure you want to delete transaction #%txnid?</p>"
+msgstr "<p>Supprimer la transaction n°%txnid ?</p>"
+
+#: store.module:449
+msgid "transaction received"
+msgstr "transaction reçue"
+
+#: store.module:450
+msgid "invoiced"
+msgstr "facturée"
+
+#: store.module:451
+msgid "shipped"
+msgstr "expédiée"
+
+#: store.module:452
+msgid "awaiting customer response"
+msgstr "en attente de réponse du client"
+
+#: store.module:453
+msgid "canceled"
+msgstr "annulé(e)"
+
+#: store.module:454 ;980
+msgid "completed"
+msgstr "terminé(e)"
+
+#: store.module:461 ;466
+msgid "%transaction-status"
+msgstr "%transaction-status"
+
+#: store.module:661
+msgid "the transaction has been created"
+msgstr "la transaction a été créée"
+
+#: store.module:719
+msgid "Adding %name to role %role."
+msgstr "Ajout de %name au rôle %role."
+
+#: store.module:738
+msgid "Removing %name from role %role."
+msgstr "Suppression de %name du rôle %role."
+
+#: store.module:835
+msgid "Delete"
+msgstr "Supprimer"
+
+#: store.module:851
+msgid ""
+"Shipping to:\n"
+"%shipping-address\n"
+msgstr ""
+"Adresse de livraison ; \n"
+"%shipping-address\n"
+
+#: store.module:852
+msgid ""
+"\n"
+"Billing to:\n"
+"%billing-address\n"
+msgstr ""
+"\n"
+"Adresse de facturation : \n"
+"%billing-address\n"
+
+#: store.module:881 ;924
+msgid "<p>This is a preview of the message to be sent.</p>"
+msgstr "<p>Prévisualisation du message à envoyer.</p>"
+
+#: store.module:882 ;925
+msgid "<p>To: <strong>%to</strong><br />"
+msgstr "<p>Pour : <strong>%to</strong><br />"
+
+#: store.module:883 ;926
+msgid "From: <strong>%from</strong><br />"
+msgstr "De : <strong>%from</strong><br />"
+
+#: store.module:884 ;927
+msgid "Subject: <strong>%subject</strong></p>"
+msgstr "Sujet : <strong>%subject</strong></p>"
+
+#: store.module:885 ;928
+msgid "Body: <pre>%body</pre>"
+msgstr "Message : <pre>%body</pre>"
+
+#: store.module:978
+msgid "payments pending"
+msgstr "paiements en attente"
+
+#: store.module:978
+msgid "payment status: Pending, workflow: Not Complete"
+msgstr "Paiement : En attente, Etat : Non terminé"
+
+#: store.module:979
+msgid "orders needing action"
+msgstr "commandes en attente"
+
+#: store.module:979
+msgid "payment status: Complete, workflow: Not Complete"
+msgstr "Paiement : Effectué, Etat : Non terminé"
+
+#: store.module:989
+msgid "Monthly figures"
+msgstr "Chiffres du mois"
+
+#: store.module:990
+msgid "monthly orders"
+msgstr "commandes du mois"
+
+#: store.module:991
+msgid "monthly sales"
+msgstr "ventes du mois"
+
+#: store.module:998
+msgid "Recurring Payments"
+msgstr "Paiements récurrents"
+
+#: store.module:999
+msgid "active transactions"
+msgstr "transactions actives"
+
+#: store.module:1009
+msgid "General statistics"
+msgstr "Statistiques"
+
+#: store.module:1010
+msgid "customers"
+msgstr "clients"
+
+#: store.module:1011
+msgid "products"
+msgstr "produits"
+
+#: store.module:1012
+msgid "yearly sales"
+msgstr "ventes de l'année"
+
+#: store.module:1231 ;1232
+msgid "user"
+msgstr "utilisateur"
+
+#: store.module:1231
+msgid "username"
+msgstr "nom d'utilisateur"
+
+#: store.module:1232 ;1233
+msgid "txnid"
+msgstr "id transaction"
+
+#: store.module:1232 ;1596
+msgid "payment status"
+msgstr "état du paiement"
+
+#: store.module:1232 ;1597
+msgid "workflow"
+msgstr "état"
+
+#: store.module:1232
+msgid "gross"
+msgstr "total"
+
+#: store.module:1232 ;1599
+msgid "created"
+msgstr "créé le"
+
+#: store.module:1232 ;1600
+msgid "changed"
+msgstr "modifié le"
+
+#: store.module:1233 ;1234;1235;1421
+msgid "nid"
+msgstr "nid"
+
+#: store.module:1233 ;1234;1423
+msgid "title"
+msgstr "nom"
+
+#: store.module:1233 ;1235;1647
+msgid "price"
+msgstr "prix"
+
+#: store.module:1233 ;1424
+msgid "qty"
+msgstr "qté"
+
+#: store.module:1235
+msgid "ptype"
+msgstr "type produit"
+
+#: store.module:1251 ;1601
+msgid "items ordered"
+msgstr "produits commandés"
+
+#: store.module:1252 ;1602;1647
+msgid "operations"
+msgstr "opérations"
+
+#: store.module:1270
+msgid "Display details"
+msgstr "Voir les détails"
+
+#: store.module:1312
+msgid "*print invoice"
+msgstr "* imprimer la facture"
+
+#: store.module:1313
+msgid "*shipping notify"
+msgstr "* notification d'expédition"
+
+#: store.module:1320
+msgid "shipping notify"
+msgstr "notification d'expédition"
+
+#: store.module:1323
+msgid "Click to adjust the transaction workflow."
+msgstr "Cliquez ici pour ajuster l'état de la transaction."
+
+#: store.module:1338 ;1615
+msgid "%item"
+msgstr "%item"
+
+#: store.module:1340 ;1656
+msgid "edit"
+msgstr "éditer"
+
+#: store.module:1341
+msgid "addresses"
+msgstr "adresses"
+
+#: store.module:1342
+msgid "items"
+msgstr "articles"
+
+#: store.module:1362
+msgid "#"
+msgstr "lien vers la recherche"
+
+#: store.module:1364
+msgid "<h2>%result found</h2>"
+msgstr "<h2>%result trouvé(s)</h2>"
+
+#: store.module:1369
+msgid ""
+"Clicking links marked with an asterisk will also cause the transaction to "
+"shift into it's respective workflow state."
+msgstr ""
+"Cliquer sur un lien pourvu d'un astérisque (*) met à jour la transaction à "
+"l'état correspondant."
+
+#: store.module:1373
+msgid "Search for"
+msgstr "Rechercher"
+
+#: store.module:1373
+msgid "Searches the title and content of a product for a string of text."
+msgstr "Chercher sur le nom et la description d'un produit."
+
+#: store.module:1375
+msgid "Transaction ID"
+msgstr "N° de transaction "
+
+#: store.module:1375
+msgid "The ID number of a transaction."
+msgstr "Le numéro de transaction"
+
+#: store.module:1378
+msgid "Username or ID"
+msgstr "Nom d'utilisateur ou identifiant"
+
+#: store.module:1378
+msgid "The user that placed the order."
+msgstr "L'utilisateur ayant passé la commande."
+
+#: store.module:1381
+msgid "Product ID"
+msgstr "N° de Produit"
+
+#: store.module:1381
+msgid "Find a transaction that has the following product(s)."
+msgstr "Trouver une transaction portant sur le(s) produit(s) suivant(s)."
+
+#: store.module:1384
+msgid "Product expiration"
+msgstr "Expiration du produit"
+
+#: store.module:1384
+msgid "Date product expires."
+msgstr "Date d'expiration."
+
+#: store.module:1387
+msgid "Recurring payments only"
+msgstr "Paiements récurrents uniquement."
+
+#: store.module:1387
+msgid ""
+"Check this box if you only want transactions containing recurring payments."
+msgstr ""
+"Cochez cette case si vous souhaitez uniquement les transactions à paiement "
+"récurrent."
+
+#: store.module:1391
+msgid "Date created"
+msgstr "Date création"
+
+#: store.module:1391
+msgid "Date transaction was created."
+msgstr "Date à laquelle la transaction a été créée."
+
+#: store.module:1397 store.inc:195
+msgid "Payment status"
+msgstr "Etat paiement"
+
+#: store.module:1398
+msgid "Workflow"
+msgstr "Etat"
+
+#: store.module:1401 store.inc:196
+msgid "Payment method"
+msgstr "Moyen de paiement"
+
+#: store.module:1402
+msgid "Product type"
+msgstr "Type de produit"
+
+#: store.module:1405
+msgid "Search"
+msgstr "Recherche"
+
+#: store.module:1422
+msgid "sku"
+msgstr "code produit"
+
+#: store.module:1425
+msgid "type"
+msgstr "type"
+
+#: store.module:1444
+msgid "<strong>%num_items</strong>"
+msgstr "<strong>%num_items</strong>"
+
+#: store.module:1445
+msgid "<strong>%quantity</strong>"
+msgstr "<strong>%quantity</strong>"
+
+#: store.module:1460
+msgid ""
+"<p>There are no transactions to view. You can manually <a href=\"%"
+"add_transaction\">add transactions</a>, however.</p>"
+msgstr ""
+"<p>Aucune transaction à afficher. Vous pouvez <a href=\"%add_transaction"
+"\">en ajouter</a>.</p>"
+
+#: store.module:1591
+msgid "%username's order history"
+msgstr "historique des commandes pour %username"
+
+#: store.module:1594 ;1647
+msgid "ID"
+msgstr "N°"
+
+#: store.module:1595
+msgid "payment method"
+msgstr "moyen de paiement"
+
+#: store.module:1598
+msgid "total"
+msgstr "total"
+
+#: store.module:1617
+msgid "view"
+msgstr "afficher"
+
+#: store.module:1642
+msgid "%username's subscriptions"
+msgstr "abonnements pour %username"
+
+#: store.module:1647
+msgid "name"
+msgstr "nom"
+
+#: store.module:1647 store.inc:266
+msgid "expires"
+msgstr "expiration"
+
+#: store.module:1651
+msgid "This item is in <a href=\"%cart_view\">your shopping cart</a>."
+msgstr "Cet article est déjà dans <a href=\"%cart_view\">votre panier</a>."
+
+#: store.module:1653
+msgid "renew"
+msgstr "renouveler"
+
+#: store.module:1666
+msgid "<p>You have no active subscriptions.</p>"
+msgstr "<p>Vous n'avez aucun abonnement actif.</p>"
+
+#: store.module:1677 ;1689
+msgid "update address"
+msgstr "modifier l'adresse"
+
+#: store.module:1681
+msgid "updated shipping address"
+msgstr "modifier l'adresse de livraison"
+
+#: store.module:719 ;738
+msgid "ecommerce"
+msgstr "ecommerce"
+
+#: store.module:55 ;861
+msgid "1 order"
+msgid_plural "%count orders"
+msgstr[0] "1 commande"
+msgstr[1] "%count commandes"
+
+#: store.module:1338 ;1615
+msgid "1 item"
+msgid_plural "%count items"
+msgstr[0] "%count article"
+msgstr[1] "%count articles"
+
+#: store.module:1364
+msgid "1 result"
+msgid_plural "%count results"
+msgstr[0] "%count résultat"
+msgstr[1] "%count résultats"
+
+#: store.module:189
+msgid "administer store"
+msgstr "gérer la boutique"
+
+#: store.inc:39
+msgid "Invalid username"
+msgstr "Nom d'utilisateur incorrect"
+
+#: store.inc:52
+msgid "Invalid changed date. Please use the form \"18 January 2005\""
+msgstr ""
+"Date invalide. Veuillez saisir une date de la forme \"18 January 2005\""
+
+#: store.inc:59
+msgid "Invalid expiration date. Please use the form \"18 January 2005\""
+msgstr ""
+"Date d'expiration invalide. Veuillez saisir une date de la forme \"18 "
+"January 2005\"."
+
+#: store.inc:68
+msgid "Please enter a numeric value for the product price."
+msgstr "Veuillez saisir une valeur numérique pour le prix du produit."
+
+#: store.inc:85
+msgid "Please fill out all shipping information fields."
+msgstr "Merci de remplir les champs concernant la livraison."
+
+#: store.inc:89
+msgid "Please fill out all billing information fields."
+msgstr "Merci de remplir les champs concernant la facturation."
+
+#: store.inc:148
+msgid "Please enter only numeric values or commas in the product id field."
+msgstr ""
+"Merci de saisir uniquement des chiffres et des virgules dans le champs N° de "
+"produits."
+
+#: store.inc:187
+msgid "Transaction workflow"
+msgstr "Etat transaction"
+
+#: store.inc:188
+msgid "Username"
+msgstr "Nom d'utilisateur"
+
+#: store.inc:188
+msgid "Enter either an username or e-mail address below."
+msgstr "Saisissez un nom d'utilisateur ou une adresse e-mail."
+
+#: store.inc:189
+msgid "E-mail address"
+msgstr "Adresse e-mail"
+
+#: store.inc:193
+msgid "Once a payment status is marked complete, it can't be changed"
+msgstr ""
+"Une fois qu'un paiement est marqué comme terminé, il ne peut être modifié."
+
+#: store.inc:198
+msgid "Last modified"
+msgstr "Dernière modification"
+
+#: store.inc:200
+msgid "Expires"
+msgstr "Expiration"
+
+#: store.inc:200
+msgid ""
+"For subscriptions, enter the date that the subscription expires.<br /"
+">Examples: \"July 4, 2005\", \"+2 months\", \"+100 days\", \"next year\", "
+"\"tomorrow at 6:00pm\""
+msgstr ""
+"Pour les abonnements, saisissez la date de leur expiration. <br />Exemples : "
+"\"July 4, 2005\", \"+2 months\", \"+100 days\", \"\n"
+"ext year\", \"tomorrow at 6:00pm\""
+
+#: store.inc:202
+msgid "Invoice overview"
+msgstr "Aperçu de la facture"
+
+#: store.inc:207 ;217
+msgid "First name"
+msgstr "Prénom"
+
+#: store.inc:208 ;218
+msgid "Last name"
+msgstr "Nom"
+
+#: store.inc:209 ;219
+msgid "Street1"
+msgstr "Adresse"
+
+#: store.inc:210 ;220
+msgid "Street2"
+msgstr "Complément d'adresse"
+
+#: store.inc:211 ;221
+msgid "City"
+msgstr "Ville"
+
+#: store.inc:212 ;222
+msgid "State"
+msgstr "Département/Etat"
+
+#: store.inc:213 ;223
+msgid "Zip"
+msgstr "Code postal"
+
+#: store.inc:214 ;224
+msgid "Country"
+msgstr "Pays"
+
+#: store.inc:215
+msgid "Shipping address"
+msgstr "Adresse de livraison"
+
+#: store.inc:225
+msgid "Billing address"
+msgstr "Adresse de facturation"
+
+#: store.inc:247
+msgid "Title"
+msgstr "Nom"
+
+#: store.inc:254
+msgid "-please choose-"
+msgstr "Sélection ..."
+
+#: store.inc:254
+msgid "Day(s)"
+msgstr "Jour(s)"
+
+#: store.inc:254
+msgid "Week(s)"
+msgstr "Semaine(s)"
+
+#: store.inc:254
+msgid "Month(s)"
+msgstr "Mois"
+
+#: store.inc:254
+msgid "Year(s)"
+msgstr "An(s)"
+
+#: store.inc:261
+msgid "Interval"
+msgstr "Intervalle"
+
+#: store.inc:262
+msgid "Unit"
+msgstr "Unité"
+
+#: store.inc:264
+msgid "unlimited"
+msgstr "illimité"
+
+#: store.inc:265
+msgid "Number of payments cycles"
+msgstr "Nombre de cycles de paiement"
+
+#: store.inc:265
+msgid "Select the number of recurring payment cycles this product has."
+msgstr "Sélectionner le nombre de cycle de paiement pour ce produit."
+
+#: store.inc:266
+msgid ""
+"The date the product will expire, or if using recurring payments, the date "
+"of the next billing cycle unless all payment cycles have ended."
+msgstr ""
+"La date ou le produit va expirer, ou, s'il s'agit d'un produit à paiement "
+"récurrent, la date de la prochaine échéance s'il y a lieu."
+
+#: store.inc:267
+msgid "Billing cycle length"
+msgstr "Durée du cycle de paiement"
+
+#: store.inc:270
+msgid "Item #"
+msgstr "Article n°"
+
+#: store.inc:274
+msgid "Product IDs"
+msgstr "N° de produits"
+
+#: store.inc:274
+msgid ""
+"Enter a comma separated list of product ids to add to this transaction. Here "
+"is a <a href=\"%product_quicklist\" onclick=\"window.open(this.href, '%"
+"product_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); "
+"return false\">list of all products</a>."
+msgstr ""
+"Veuillez saisir une liste de numéros de produits, séparés par des virgules. "
+"Voici la <a href=\"%product_quicklist\" onclick=\"window.open(this.href, '%"
+"product_quicklist', 'width=480,height=480,scrollbars=yes,status=yes'); "
+"return false\">liste de tous les produits</a>."
+
+#: store.inc:275
+msgid "Products"
+msgstr "Produits"

@@ -1,0 +1,75 @@
+<?php
+// $Id: activemenu.module,v 1.2.2.4 2006/07/13 20:16:40 nedjo Exp $
+
+/**
+ * @file
+ * Add AJAX-based tree menu to navigation menu.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function activemenu_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Adds AJAX-based tree menu to navigation menu. Requires jstools.module.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function activemenu_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'activemenu/js',
+      'title' => t('activemenu'),
+      'access' => user_access('access content'),
+      'type' => MENU_CALLBACK,
+      'callback' => 'activemenu_js'
+     );
+  }
+  else {
+    activemenu_load();
+  }
+  return $items;
+}
+
+/**
+ * Load needed files.
+ */
+function activemenu_load() {
+  $path = drupal_get_path('module', 'activemenu');
+  module_invoke('jstools', 'add_js', array($path . '/activemenu.js'));
+  drupal_set_html_head(theme_stylesheet_import(base_path() . $path .'/activemenu.css'));
+}
+
+function activemenu_js() {
+  if (isset($_POST['href'])) {
+    $items = array();
+    $atts = array('path', 'title');
+    $path = $_POST['href'];
+    if ($source = drupal_lookup_path('source', $path)) {
+      $path = $source;
+    }
+    $menu = menu_get_menu();
+    $pid = $menu['path index'][$path];
+    if (isset($menu['visible'][$pid]) && $menu['visible'][$pid]['children']) {
+      foreach ($menu['visible'][$pid]['children'] as $mid) {
+        $item = $menu['visible'][$mid];
+        foreach (array_keys($item) as $key) {
+          if (!in_array($key, $atts)) {
+            unset($item[$key]);
+          }
+        }
+        if ($menu['visible'][$mid]['children']) {
+          $item['children'] = TRUE;
+        }
+        $items[] = $item;
+      }
+    }
+    print drupal_to_js($items);
+  }
+  exit();
+}

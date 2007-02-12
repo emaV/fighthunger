@@ -1,5 +1,5 @@
 <?php
-// $Id: comment.module,v 1.455.2.7 2006/07/18 10:46:24 unconed Exp $
+// $Id: comment.module,v 1.455.2.15 2007/01/29 21:39:27 killes Exp $
 
 /**
  * @file
@@ -192,10 +192,11 @@ function comment_link($type, $node = 0, $main = 0) {
 
       if (user_access('access comments')) {
         $all = comment_num_all($node->nid);
-        $new = comment_num_new($node->nid);
 
         if ($all) {
           $links[] = l(format_plural($all, '1 comment', '%count comments'), "node/$node->nid", array('title' => t('Jump to the first comment of this posting.')), NULL, 'comment');
+
+          $new = comment_num_new($node->nid);
 
           if ($new) {
             $links[] = l(format_plural($new, '1 new comment', '%count new comments'), "node/$node->nid", array('title' => t('Jump to the first new comment of this posting.')), NULL, 'new');
@@ -717,7 +718,7 @@ function comment_render($node, $cid = 0) {
         $query .= ' AND c.status = %d';
         $query_args[] = COMMENT_PUBLISHED;
       }
-      $query .= ' GROUP BY c.cid, c.pid, c.nid, c.subject, c.comment, c.format, c.timestamp, c.name, c.mail, u.picture, c.homepage, u.uid, u.name, u.picture, u.data, c.score, c.users, c.status';
+
       $result = db_query($query, $query_args);
 
       if ($comment = db_fetch_object($result)) {
@@ -736,8 +737,6 @@ function comment_render($node, $cid = 0) {
         $query_count .= ' AND status = %d';
         $query_args[] = COMMENT_PUBLISHED;
       }
-
-      $query .= ' GROUP BY c.cid, c.pid, c.nid, c.subject, c.comment, c.format, c.timestamp, c.name, c.mail, u.picture, c.homepage, u.uid, u.name, u.picture, u.data, c.score, c.users, c.thread, c.status';
 
       /*
       ** We want to use the standard pager, but threads would need every
@@ -1088,8 +1087,8 @@ function comment_multiple_delete_confirm_submit($form_id, $edit) {
       $comment = _comment_load($cid);
       _comment_delete_thread($comment);
       _comment_update_node_statistics($comment->nid);
-      cache_clear_all();
     }
+    cache_clear_all();
     drupal_set_message(t('The comments have been deleted.'));
   }
   drupal_goto('admin/comment');
@@ -1368,24 +1367,26 @@ function comment_form_add_preview($form, $edit) {
 
   $output = '';
 
-  comment_validate($edit);
-  $comment = (object)_comment_form_submit($edit);
-
-  // Attach the user and time information.
-  if ($edit['author']) {
-    $account = user_load(array('name' => $edit['author']));
-  }
-  elseif ($user->uid && !isset($edit['is_anonymous'])) {
-    $account = $user;
-  }
-  if ($account) {
-    $comment->uid = $account->uid;
-    $comment->name = check_plain($account->name);
-  }
-  $comment->timestamp = $edit['timestamp'] ? $edit['timestamp'] : time();
-
-  // Preview the comment with security check.
+  // Invoke full validation for the form, to protect against cross site
+  // request forgeries (CSRF) and setting arbitrary values for fields such as
+  // the input format. Preview the comment only when form validation does not
+  // set any errors.
+  drupal_validate_form($form['form_id']['#value'], $form);
   if (!form_get_errors()) {
+    $comment = (object)_comment_form_submit($edit);
+
+    // Attach the user and time information.
+    if ($edit['author']) {
+      $account = user_load(array('name' => $edit['author']));
+    }
+    elseif ($user->uid && !isset($edit['is_anonymous'])) {
+      $account = $user;
+    }
+    if ($account) {
+      $comment->uid = $account->uid;
+      $comment->name = check_plain($account->name);
+    }
+    $comment->timestamp = $edit['timestamp'] ? $edit['timestamp'] : time();
     $output .= theme('comment_view', $comment);
   }
   $form['comment_preview'] = array(
@@ -1434,9 +1435,15 @@ function _comment_form_submit($form_values) {
     // 1) Filter it into HTML
     // 2) Strip out all HTML tags
     // 3) Convert entities back to plain-text.
-  // Note: format is checked by check_markup().
-    $form_values['subject'] = truncate_utf8(decode_entities(strip_tags(check_markup($form_values['comment'], $form_values['format']))), 29, TRUE);
+    // Note: format is checked by check_markup().
+    $form_values['subject'] = trim(truncate_utf8(decode_entities(strip_tags(check_markup($form_values['comment'], $form_values['format']))), 29, TRUE));
+    // Edge cases where the comment body is populated only by HTML tags will
+    // require a default subject.
+    if ($form_values['subject'] == '') {
+      $form_values['subject'] = t('(No subject)');
+    }
   }
+
   return $form_values;
 }
 
@@ -1460,10 +1467,14 @@ function theme_comment_preview($comment, $links = array(), $visible = 1) {
 };
 
 function theme_comment_view($comment, $links = array(), $visible = 1) {
+  static $first_new = TRUE;
 
-  // Emit selectors:
   $output = '';
-  if (($comment->new = node_mark($comment->nid, $comment->timestamp)) != MARK_READ) {
+  $comment->new = node_mark($comment->nid, $comment->timestamp);
+  if ($first_new && $comment->new != MARK_READ) {
+    // Assign the anchor only for the first new comment. This avoids duplicate
+    // id attributes on a page.
+    $first_new = FALSE;
     $output .= "<a id=\"new\"></a>\n";
   }
 
@@ -1602,7 +1613,7 @@ function theme_comment_post_forbidden($nid) {
     }
 
     if (variable_get('user_register', 1)) {
-      return t('<a href="%login">login</a> or <a href="%register">register</a> to post comments', array('%login' => url('user/login', $destination), '%register' => check_url(url('user/register', $destination))));
+      return t('<a href="%login">login</a> or <a href="%register">register</a> to post comments', array('%login' => check_url(url('user/login', $destination)), '%register' => check_url(url('user/register', $destination))));
     }
     else {
       return t('<a href="%login">login</a> to post comments', array('%login' => check_url(url('user/login', $destination))));

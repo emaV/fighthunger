@@ -1,0 +1,71 @@
+<?php
+// $Id: extendeddescription.module,v 1.1.2.5 2006/07/13 20:16:40 nedjo Exp $
+
+/**
+ * @file
+ * Provide an extended description of a form element that is displayed when a user clicks a link.
+ *
+ * Usage:
+ *
+ * <code>
+ * $form['date'] = array(
+ *   '#type' => 'textfield',
+ *   '#extendeddescription' => t('This is additional information about the field.')
+ * );
+ * </code>
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function extendeddescription_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Provide an extended description of a form element that is displayed when a user clicks a link.');
+  }
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function extendeddescription_form_alter($form_id, &$form) {
+  if (_extendeddescription_has_description($form_id, $form)) {
+    extendeddescription_load();
+  }
+}
+
+/**
+ * Parse extended description data and add to form as needed.
+ */
+function _extendeddescription_has_description($form_id, &$form, $keys = array()) {
+  static $has_description = array();
+  if (!isset($has_description[$form_id])) {
+    $has_description[$form_id] = FALSE;
+  }
+  // Test if child elements have the 'extendeddescription' class set.
+  foreach (element_children($form) as $key) {
+    if (isset($form[$key]) && isset($form[$key]['#extendeddescription'])) {
+      $form[$key]['#suffix'] = '<div id="extendeddescription-edit-' . implode('-', array_merge($key, $keys)) . '" class="extendeddescription">' . $form[$key]['#extendeddescription'] . '</div>';
+      unset($form[$key]['#extendeddescription']);
+      $has_description[$form_id] = TRUE;
+    }
+  }
+  // If necessary, recurse through all children.
+  foreach (element_children($form) as $key) {
+    // If this is a tree, we add the key to an array to pass to the recursive call, so that the id value will be correctly constructed.
+    if ($form[$key]['#tree']) {
+      $keys[] = $key;
+    }
+    _extendeddescription_has_description($form_id, $form[$key], $keys);
+  }
+  return $has_description[$form_id];
+}
+
+/**
+ * Load needed files.
+ */
+function extendeddescription_load($lib_locale = NULL) {
+  $path = drupal_get_path('module', 'extendeddescription');
+  module_invoke('jstools', 'add_js', array($path . '/extendeddescription.js'));
+  drupal_set_html_head(theme_stylesheet_import(base_path() . $path .'/extendeddescription.css'));
+}

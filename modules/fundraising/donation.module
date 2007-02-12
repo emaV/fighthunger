@@ -198,6 +198,15 @@ function donation_settings() {
   $form['donation_presentation'] = array('#type' => 'textarea', '#title' => t('Presentation'), '#default_value' => variable_get('donation_presentation', ''), '#rows' => 10, '#description' => t('Presentation text for plain donations. This may contain HTML markup.'));
   $form['donation_presentation_teaser'] = array('#type' => 'textarea', '#title' => t('Short Presentation'), '#default_value' => variable_get('donation_presentation_teaser', ''), '#rows' => 10, '#description' => t('Short presentation text for user forms. This may contain HTML markup.'));
   $form['donation_user_message'] = array('#type' => 'textfield', '#title' => t('User message'), '#default_value' => variable_get('donation_user_message', t('Make a donation')), '#description' => t('Donation message for user profile page.'));
+  
+  $form['email_success'] = array('#type' => 'fieldset', '#title' => t('Success e-mail'), '#description' => t('E-mail to send to the user uppon successful donation.'));
+  $form['email_success']['donation_success_subject'] = array('#type' => 'textfield', '#title' => t('Subject'), '#default_value' => variable_get('donation_success_subject', t('Thanks for your donation')));
+  $form['email_success']['donation_success_body'] = array('#type' => 'textarea', '#title' => t('Content'), '#default_value' => variable_get('donation_success_body', ''), '#rows' => 10);
+
+  $form['email_fail'] = array('#type' => 'fieldset', '#title' => t('Failed donation e-mail'), '#description' => t('E-mail to send to the user after failed donation attempts.'));
+  $form['email_fail']['donation_fail_subject'] = array('#type' => 'textfield', '#title' => t('Subject'), '#default_value' => variable_get('donation_fail_subject', t('Thanks for your donation')));
+  $form['email_fail']['donation_fail_body'] = array('#type' => 'textarea', '#title' => t('Content'), '#default_value' => variable_get('donation_fail_body', ''), '#rows' => 10);
+  
   return $form;
 }
 
@@ -627,23 +636,42 @@ function donation_form_submit($form_id, $form_values){
 }
 
 /**
+ * Callback for donation transaction
+ * 
+ * Sends e-mail depending on success / failure
+ */
+function donation_transaction($donation, $success) {
+  $account = user_load(array('uid' => $donation->uid));
+  $subject = $success ? variable_get('donation_success_subject', t('Thanks for your donation')) : variable_get('donation_fail_subject', t('Thanks for your donation'));  
+  $body = $success ? variable_get('donation_success_body', t('Thanks for your donation')) : variable_get('donation_fail_body', '');  
+  $from = variable_get('site_mail', ini_get('sendmail_from'));
+  if($account->mail && $subject & $body ) {
+    user_mail($account->mail, $subject, $body, "From: $from\nReply-to: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from");
+  }
+}
+
+/**
  * List of events and campaigns for user page
  */
 function _donation_list($key = NULL) {
   $list[0] = t('None');
   $list['plain'] = t('Plain donation');
-  $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");
-  while($campaign = db_fetch_object($result)) {
-    $list['c' . $campaign->camid] = t('Campaign') . ": $campaign->name";
-    $resultE = db_query("SELECT n.nid, n.title, g.city, g.country " .
-        "FROM {donation_node} d " . 
-        "INNER JOIN {node} n ON d.nid = n.nid " .
-        "LEFT JOIN {gathering_node} g ON n.nid = g.nid " .
-        "WHERE d.type IN ('event') AND g.camid = %d", $campaign->camid);
-    while($event = db_fetch_object($resultE)) {
-      $list[$event->nid]  = t('Event') . ": $event->title";
-      $list[$event->nid] .= ($event->city)  ? " @ $event->city"  : '';
-      $list[$event->nid] .= ($event->country) ? " ($event->country)" : '';
+  // $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");
+  if ($active = module_invoke('fhcampaign', 'get_active_campaigns')) {
+    foreach($active as $campaign) {
+      $list['c' . $campaign->camid] = t('Campaign') . ": $campaign->name";
+      // Objects linked through taxonomy now
+      $result = db_query("SELECT n.nid, n.title, l.city, l.country " .
+          " FROM {node} n " .
+          " INNER JOIN {donation_node} d ON d.nid = n.nid " .
+          " INNER JOIN {term_node} tn ON n.nid = tn.nid " .
+          " LEFT JOIN {location} l ON n.nid = l.oid AND l.type = 'node' ".
+          " WHERE d.type = 'event' AND tn.tid = %d", $campaign->camid);
+      while($event = db_fetch_object($result)) {
+        $list[$event->nid]  = t('Event') . ": $event->title"
+         . (($event->city)  ? " @ $event->city"  : '')
+         . (($event->country) ? " ($event->country)" : '');
+      }
     }
   }
   return ($key) ? $list[$key] : $list;

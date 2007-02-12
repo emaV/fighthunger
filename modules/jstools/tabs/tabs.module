@@ -1,0 +1,132 @@
+<?php
+
+/**
+ * @file
+ * API for creating tabbed pages.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function tabs_help($section = "admin/help#tabs") {
+  switch ($section) {
+    case 'admin/help#tabs':
+      return t('<p>This module can be used to create tabbed pages that users can tab through without server refreshs.  Uses the tabpane javascript library created by Erik Arvidsson.</p>');
+    case 'admin/modules#description':
+      return t("A helper module for creating tabbed pages.");
+  }
+}
+
+/** Get the list of available styles
+ */
+function tabs_available_styles() {
+  $path = drupal_get_path('module', 'tabs');
+  if ($handle = opendir($path . '/css')) {
+    while (false !== ($file = readdir($handle))) {
+      if ($file != '.' && $file != '..' && $file != 'CVS' && is_dir($path . '/css/' . $file)) {
+        $tabs_styles[$path . '/css/' . $file . '/tab.css'] = $file;
+      }
+    }
+    closedir($handle);
+    return $tabs_styles;
+  }
+}
+
+function theme_tabs_tab_page($label, $content) {
+  $output = '  <div class="tab-page">
+    <h2 class="tab">' . $label . '</h2>
+    ' . $content . '
+  </div>
+';
+  return $output;
+}
+
+function theme_tabs_tabset($name, $tabs) {
+  tabs_load();
+  $output = '<div class="tab-pane" id="tabPane' . $name . '">' . $tabs . '</div>';
+  return $output;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function tabs_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'tabs/example', 'title' => t('tabs example'),
+      'callback' => 'tabs_example', 'access' => true,
+      'type' => MENU_CALLBACK
+    );
+  }
+  return $items;
+}
+
+/**
+ * Example of tabs construction.
+ */
+function tabs_example() {
+  $output .= theme('tabs_tab_page', t('Tabs'), t('You create a tab like this:') . '<pre>$tabs = theme(\'tabs_tab_page\', t(\'First title\'), t(\'First page content\'));
+$tabs .= theme(\'tabs_tab_page\', t(\'Second title\'), t(\'Second page content\'));
+</pre>');
+  $output .= theme('tabs_tab_page', t('Tabsets'), t('Once you have your tabs, create the tabset like this:') . '<pre>$output = theme(\'tabs_tabset\', \'name\', $tabs);</pre>');
+  $output .= theme('tabs_tab_page', t('Styles'), '<p>' . t('The library comes with four styles of tabs--or you can create your own.') . '</p>');
+  $output = theme('tabs_tabset', 'example', $output);
+  print theme('page', $output);
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function tabs_settings() {
+  $path = drupal_get_path('module', 'tabs');
+  $form['tabs_css'] = array(
+    '#type' => 'select',
+    '#title' => t('Tabs style'),
+    '#description' => t('Choose the tab style.'),
+    '#default_value' => variable_get('tabs_css', $path . '/css/default/tab.css'),
+    '#options' => tabs_available_styles(),
+  );
+  return $form;
+}
+
+/**
+ * Add required js and css files.
+ */
+function tabs_load() {
+  // Load required js and css files.
+  $path = drupal_get_path('module', 'tabs');
+  $style = variable_get('tabs_css', $path . '/css/default/tab.css');
+  drupal_set_html_head(theme_stylesheet_import(base_path() . $style));
+  drupal_add_js($path . '/js/tabpane.js');
+}
+
+/**
+ * Format a tab page generated through the Forms API.
+ *
+ * @param $element
+ *   An associative array containing the properties of the element.
+ * @return
+ *   A themed HTML string representing the tab page.
+ */
+function theme_tabpage($element) {
+  return '  <div class="tab-page">
+    <h2 class="tab">' . $element['#title'] . '</h2>
+    ' . $element['#children'] . '
+  </div>
+';
+}
+
+/**
+ * Format a tabset generated through the Forms API.
+ *
+ * @param $element
+ *   An associative array containing the properties of the element.
+ * @return
+ *   A themed HTML string representing the tab set.
+ */
+function theme_tabset($element) {
+  tabs_load();
+  return '<div class="tab-pane" id="' . $element['#parents'][0] . '">' . $element['#children'] . '</div>';
+}

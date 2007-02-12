@@ -1,0 +1,43 @@
+<?php
+// $Id: formcheck.module,v 1.2.2.2 2006/06/02 16:12:33 nedjo Exp $
+
+/**
+ * @file
+ * Provide user message when navagating waway from a form with unsaved changes.
+ * Based on code by m3verck.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function formcheck_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Provides user message when navigating away from a form with unsaved changes.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function formcheck_form_alter($form_id, &$form) {
+  //Check if the behavior should be attached to this form, and if so do so.
+  if (in_array($form_id, array_filter(variable_get('formcheck_forms', array())))) {
+
+    $form['#attributes']['class'] .= ' formcheck';
+    $path = drupal_get_path('module', 'formcheck');
+    drupal_add_js($path . '/formcheck.js');
+  }
+}
+
+function formcheck_settings() {
+  $options = variable_get('jstools_forms_options', array());
+  $form['formcheck_forms'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Affected forms'),
+    '#description' => t('Please select which forms to attach the formcheck behavior to.'),
+    '#options' => drupal_map_assoc(array_keys($options)),
+    '#default_value' => array_filter(variable_get('formcheck_forms', array()))
+  );
+  return $form;
+}

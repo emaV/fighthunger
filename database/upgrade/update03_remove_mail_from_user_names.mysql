@@ -1,0 +1,21 @@
+-- Replace user names with emails
+--  Note: UPDATE IGNORE statement because there are some duplicates
+
+-- First try, name = first_name + last_name, remaining 5158 users
+UPDATE IGNORE users u
+INNER JOIN profile_values v ON u.uid = v.uid 
+INNER JOIN profile_fields f ON v.fid = f.fid AND f.name = 'first_name'
+INNER JOIN profile_values v2 ON v2.uid = u.uid 
+INNER JOIN profile_fields f2 ON v2.fid = f2.fid AND f2.name = 'last_name'
+SET u.name = CONCAT(v.value, ' ', v2.value)
+WHERE u.name LIKE '%@%';
+
+-- Second try, name = first part of e-mail, remaining 69 users
+UPDATE IGNORE users
+SET name = LEFT(name, INSTR(name,'@') -1)
+WHERE name LIKE '%@%';
+
+-- Third try, name = User xxx, this fix the rest of the files
+UPDATE users
+SET name = CONCAT('User ', uid)
+WHERE name LIKE '%@%';

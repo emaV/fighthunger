@@ -1,5 +1,5 @@
 <?php
-// $Id: filter.module,v 1.122.2.2 2006/07/02 20:53:52 killes Exp $
+// $Id: filter.module,v 1.122.2.6 2007/01/26 00:11:03 killes Exp $
 
 /**
  * @file
@@ -43,11 +43,11 @@ function filter_help($section) {
     case 'admin/filters/'. arg(2):
       return t('
 <p>Every <em>filter</em> performs one particular change on the user input, for example stripping out malicious HTML or making URLs clickable. Choose which filters you want to apply to text in this input format.</p>
-<p>If you notice some filters are causing conflicts in the output, you can <a href="%rearrange">rearrange them</a>.</p>', array('%rearrange' => url('admin/filters/'. arg(2) .'/order')));
+<p>If you notice some filters are causing conflicts in the output, you can <a href="%rearrange">rearrange them</a>.</p>', array('%rearrange' => check_url(url('admin/filters/'. arg(2) .'/order'))));
 
     case 'admin/filters/'. arg(2) .'/configure':
       return t('
-<p>If you cannot find the settings for a certain filter, make sure you\'ve enabled it on the <a href="%url">view tab</a> first.</p>', array('%url' => url('admin/filters/'. arg(2))));
+<p>If you cannot find the settings for a certain filter, make sure you\'ve enabled it on the <a href="%url">view tab</a> first.</p>', array('%url' => check_url(url('admin/filters/'. arg(2)))));
 
     case 'admin/filters/'. arg(2) .'/order':
       return t('
@@ -296,7 +296,6 @@ function filter_admin_overview() {
   $formats = filter_formats();
   $error = false;
 
-  $rows = array();
   foreach ($formats as $id => $format) {
     $roles = array();
     foreach (user_roles() as $rid => $name) {
@@ -305,7 +304,6 @@ function filter_admin_overview() {
         $roles[] = $name;
       }
     }
-    $row = array();
     $default = ($id == variable_get('filter_default_format', 1));
     $options[$id] = '';
     $form[$format->name]['id'] = array('#value' => $id);
@@ -327,6 +325,7 @@ function filter_admin_overview_submit($form_id, $form_values) {
 }
 
 function theme_filter_admin_overview($form) {
+  $rows = array();
   foreach ($form as $name => $element) {
     if (isset($element['roles']) && is_array($element['roles'])) {
       $rows[] = array(
@@ -1084,7 +1083,7 @@ function _filter_autop($text) {
       $chunk = preg_replace('!(</'. $block .'>)!', "$1\n\n", $chunk); // Space things out a little
       $chunk = preg_replace("/\n\n+/", "\n\n", $chunk); // take care of duplicates
       $chunk = preg_replace('/\n?(.+?)(?:\n\s*\n|\z)/s', "<p>$1</p>\n", $chunk); // make paragraphs, including one at the end
-      $chunk = preg_replace('|<p>\s*?</p>|', '', $chunk); // under certain strange conditions it could create a P of entirely whitespace
+      $chunk = preg_replace('|<p>\s*?</p>\n|', '', $chunk); // under certain strange conditions it could create a P of entirely whitespace
       $chunk = preg_replace("|<p>(<li.+?)</p>|", "$1", $chunk); // problem with nested lists
       $chunk = preg_replace('|<p><blockquote([^>]*)>|i', "<blockquote$1><p>", $chunk);
       $chunk = str_replace('</blockquote></p>', '</p></blockquote>', $chunk);

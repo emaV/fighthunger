@@ -1,0 +1,17 @@
+<?php
+/**
+ * Get rid of uk country code on tables. The right ISO code is GB
+    * location
+    * profile_values
+    * fh_country_shipping
+    * countries 
+ */ 
+function fhlocation_update_1() {
+
+  $ret = array();
+  $ret[] = update_sql("UPDATE {location} SET country = 'gb' WHERE country = 'uk'");
+  $ret[] = update_sql("UPDATE {fh_country_shipping} SET countrycode = 'gb' WHERE countrycode = 'uk'");
+  // Country, also lowercase
+  $ret[] = update_sql("UPDATE {countries} SET ccid = 'GB' WHERE ccid = 'UK'");  
+  return $ret;  
+}

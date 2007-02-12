@@ -1,0 +1,1604 @@
+<?php
+// $Id: fhsignup.module,v 0.1 2007/01/09 09:02:48 ema Exp $
+
+/**
+ * @file
+ * Enables users to manage fh wtw events.
+ *
+ * @defgroup fhsignup_core        Core drupal hooks
+ * @defgroup fhsignup_helpers     various fhsignup helpers
+ * @defgroup fhsignup_theme       theming functions
+ * @defgroup fhsignup_user        Signup User functions 
+ * @defgroup fhsignup_admin       Signup Admin functions
+ * 
+ * This module use gathering_signup and gathering_node table 
+ *   
+ ************************************************************************
+
+SQL queries
+
+1 - alter gathering_node
+
+ALTER TABLE `gathering_node` 
+ADD `signup_show_number` INT( 2 ) NULL AFTER `signup_show`,
+ADD `signup_show_comments` INT( 2 ) NULL AFTER `signup_show_number`,
+ADD `signup_waiver` LONGTEXT NULL AFTER `signup_show_comments`,
+ADD `signup_allow_guest` INT( 2 ) NULL AFTER `signup_waiver`,
+ADD `signup_email_confirm` LONGTEXT NULL AFTER `signup_allow_guest`,
+ADD `signup_email_unsubscribe` LONGTEXT NULL AFTER `signup_email_confirm`,
+ADD `signup_email_approve` LONGTEXT NULL AFTER `signup_email_unsubscribe`,
+ADD `signup_email_deny` LONGTEXT NULL AFTER `signup_email_approve`,
+ADD `signup_email_wait` LONGTEXT NULL AFTER `signup_email_deny`,
+ADD `signup_email_remind` LONGTEXT NULL AFTER `signup_email_wait`,
+ADD `signup_send_reminder` INT( 2 ) NULL AFTER `signup_email_remind`,
+ADD `signup_reminder_days_before` INT( 2 ) NULL AFTER `signup_send_reminder`;
+
+ ************************************************************************/
+  
+
+/**
+ * Implementation of hook_help().
+ *  
+ * @ingroup fhsignup_core
+ * @param $section the page which is requesting help
+ * @return the help text
+ */
+function fhsignup_help($section) {
+  switch ($section) {
+    case 'admin/help#fhsignup':
+      return '<p>'. t('The fhsignup module is used to manage signup for walk events') .'</p>';
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Allows managing signup for walk events. <b>Require fhwalk, event, forward</b>');
+  }
+}
+
+/**
+ * Implementation of hook_access().
+ *  
+ * @ingroup fhwalk_core
+ */
+function fhsignup_access($op, $node) {
+  global $user;
+
+  if ( ($op == 'create') || ($op == 'update') ) {
+    return user_access('create walk');
+  }
+
+  if ($op == 'delete') {
+    return user_access('coordinate walks');
+  }
+
+  if ($op == 'view') {
+    return TRUE;
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ *  
+ * @ingroup fhsignup_core
+ */
+function fhsignup_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+  } else {
+    if (arg(0) == 'node' && is_numeric(arg(1))) {
+      $node = node_load(arg(1));
+      if (($node->type=='fhwalk') && ($node->fhwalk_status == WALK_STATUS_ACTIVE)) {
+        $items[] = array(
+          'path' => 'node/'. arg(1) .'/signup_admin', 
+          'title' => t('Signup Admin'),
+          'callback' => 'fhsignup_organiser',
+          'access' => _fhsignup_access('admin signup', arg(1)),
+          'weight' => 1,
+          'type' => MENU_LOCAL_TASK
+        );
+        $items[] = array(
+          'path' => 'node/'. arg(1) .'/signup_invite', 
+          'callback' => 'fhsignup_invite_process',
+          'access' => true,
+          'type' => MENU_CALLBACK
+        );
+        
+        $items[] = array(
+          'path' => 'node/'. arg(1) .'/signup_user', 
+          'callback' => 'fhsignup_organiser_user',
+          'access' => _fhsignup_access('admin signup', arg(1)),
+          'type' => MENU_CALLBACK
+        );
+
+      }
+    }        
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_settings().
+ *  
+ * @ingroup fhsignup_core
+ */
+function fhsignup_settings() {
+  $coords = fhwalk_get_coordinators(); 
+  $form['fhsignup_coordinator_default'] = array(
+    '#type' => 'select', 
+    '#title' => t('Coordinator'), 
+    '#options' => $coords, 
+    '#default_value' => variable_get('fhsignup_coordinator_default', ''),
+    '#description' => t('Enter default walk coordinator.')
+  );
+  $form['fhsignup_waiver'] = array(
+    '#title' => t('Standard walk Term & Conditions'),
+    '#type' => 'textarea',
+    '#cols' => 75,
+    '#rows' => 15,
+    '#default_value' => variable_get('fhsignup_waiver', ''),
+    '#description' => t("Standard Term and Conditions for walkers signup."),
+  );
+  $string_substitution = t('Supported string substitutions: %event, %time, %username, %useremail, %info (user signup information).'); 
+  $form['fhsignup_email_confirm'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Confirmation email'), 
+    '#default_value' => variable_get('fhsignup_email_confirm', ''),
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Email sent to user upon signup.') . "<br/><i>$string_substitution</i>"
+  );
+  $form['fhsignup_email_unsubscribe'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Unsubscripiton email'), 
+    '#default_value' => variable_get('fhsignup_email_unsubscribe', ''),
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Email sent when user is unsubscribed.') . "<br/><i>$string_substitution</i>"
+  );
+  $form['fhsignup_email_approve'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Default message for approval'),
+    '#default_value' => variable_get('fhsignup_email_approve', ''), 
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t('Default message sent to users when they have been approved to signup for an event') . "<br/><i>$string_substitution</i>"
+  );
+  $form['fhsignup_email_deny'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Default message for denial'),
+    '#default_value' => variable_get('fhsignup_email_deny', ''), 
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t('Default message sent to users when they have been denied to signup for an event') . "<br/><i>$string_substitution</i>"
+  );
+  $form['fhsignup_email_wait'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Default message for waiting list'),
+    '#default_value' => variable_get('fhsignup_email_wait', ''), 
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t('Default message sent to users when they have been waiting orgainiser approvation to signup for an event') . "<br/><i>$string_substitution</i>"
+  );
+  $form['fhsignup_email_remind'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Reminder email'), 
+    '#default_value' => variable_get('fhsignup_email_remind', ''), 
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Email sent to user as an event reminder.') . "<br/><i>$string_substitution</i>"
+  );
+    
+  return $form;
+}
+
+ /**
+ * hook_nodeapi implementation
+ *
+ * @ingroup fhsignup_core
+ */
+function fhsignup_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+global $user;
+
+  if($node->type != 'fhwalk') return;
+
+  switch ($op) {
+    case 'insert':
+    case 'update':
+
+      // Check for T&C changes (only coords and admins can change without blocking signup)    
+      if( $node->signup_waiver <> $node->signup_waiver_old) {
+        if( user_access('coordinate walks') || user_access('administer walks') ) {
+          drupal_set_message(t('This walk T&C changed.'));
+        } else {
+          drupal_set_message(t('This walk T&C pending for approval. Signup disabled until then.'));
+          $node->signup_status=3;
+        }
+      }    
+        
+      $fields = "signup_status = %d, signup_count = %d, signup_pad = %d, " . 
+        "signup_show = %d, signup_show_number = %d, signup_show_comments = %d, " . 
+        "signup_waiver = '%s', signup_allow_guest = %d, " . 
+        "signup_email_confirm = '%s', signup_email_unsubscribe = '%s', " .
+        "signup_email_approve = '%s', signup_email_deny = '%s', " .
+        "signup_email_wait = '%s', signup_email_remind = '%s', " .
+        "signup_send_reminder = %d, signup_reminder_days_before = %d "; 
+      $sql = "UPDATE {gathering_node} SET $fields WHERE nid = %d";
+      db_query($sql, 
+        $node->signup_status, $node->signup_count, $node->signup_pad, 
+        $node->signup_show, $node->signup_show_number, $node->signup_show_comments, 
+        $node->signup_waiver, $node->signup_allow_guest,
+        $node->signup_email_confirm, $node->signup_email_unsubscribe,
+        $node->signup_email_approve, $node->signup_email_deny, 
+        $node->signup_email_wait, $node->signup_email_remind,
+        $node->signup_send_reminder, $node->signup_reminder_days_before, 
+        $node->nid);
+      break;
+    case 'load':
+      if($node->nid) {
+        $fields = 'signup_count, signup_status, signup_pad, signup_show, ' .
+          'signup_show_number, signup_show_comments, signup_waiver, signup_allow_guest, ' .
+          'signup_email_confirm, signup_email_approve, ' . 
+          'signup_email_approve, signup_email_unsubscribe, ' . 
+          'signup_email_wait, signup_email_remind, ' .
+          'signup_send_reminder, signup_reminder_days_before'; 
+        $sql = "SELECT $fields FROM {gathering_node} WHERE nid = %d";
+        $additions = db_fetch_array(db_query($sql, $node->nid));
+        foreach ($additions as $key => $value) {
+          $node->$key = $value;
+        }
+      }
+      break;
+    case 'view':
+      $node->body .= _fhsignup_nodeapi_view($node);
+      break;
+    case 'delete':
+      fhsignup_users_delete($node);
+      break;
+    case 'merge':
+      fhsignup_users_merge($node);
+      break;
+  }
+}
+
+/**
+ * Merge walks
+ *  
+ * @ingroup fhsignup_helpers
+ * @param $node 
+ */
+function fhsignup_users_merge($node) {
+  $nid_from  = $node->nid;
+  $node_from = $node;
+  $nid_to    = $node->merge_destination;
+  $node_to   = node_load($node->merge_destination);
+  if( $list = fhsignup_walk_signup_list($nid_from) ) {
+    foreach($list as $uid => $signup) {
+      _fhsignup_user_remove($nid_from, $uid);
+      _fhsignup_user_add($nid_to, $uid, $signup['role'], $signup['stage'], 
+        $signup['comment'],$signup['opencomment'], $signup['guests']);
+      fhsignup_email_notify($node_from, $uid, 'merge walk', $node->merge_email);
+    }
+    $vars = array(
+      '%from_city'  => $node_from->location['city'],
+      '%from_title' => $node_from->title,
+      '%to_city'    => $node_to->location['city'], 
+      '%to_title'   => $node_to->title,
+      '%walk_no'    => count($list));
+    $msg = "Signup from walk in <b>%from_city</b> (%from_title) " . 
+      "merged with signup for walk in <b>%to_city</b> (%to_title). <br/>" .
+      "Walkers moved: %walk_no"; 
+    drupal_set_message(t($msg, $vars));
+  }
+}
+
+/**
+ * Delete walk signup
+ *  
+ * @ingroup fhsignup_helpers
+ * @param $node 
+ */
+function fhsignup_users_delete($node) {
+  $nid_from  = $node->nid;
+  $node_from = $node;
+  if( $list = fhsignup_walk_signup_list($nid_from) ) {
+    foreach($list as $uid => $signup) {
+      _fhsignup_user_remove($nid_from, $uid);
+      fhsignup_email_notify($nid_from, $uid, 'delete walk', $node->signup_email_unsubscribe);
+    }
+    $vars = array(
+      '%from_city'  => $node_from->location['city'],
+      '%from_title' => $node_from->title,
+      '%walk_no'    => count($list));
+    $msg = "Signup from walk in <b>%from_city</b> (%from_title) deleted.<br/>" . 
+      "Walkers removed: %walk_no"; 
+    drupal_set_message(t($msg, $vars));
+  }
+}
+
+/**
+ * Signup Admin process user unsubscription button
+ * 
+ * @ingroup fhsignup_user
+ */
+function fhsignup_user_unsubscribe_submit($form_id, $form_values) {
+  _fhsignup_user_remove($form_values['nid'], $form_values['uid']);
+  drupal_set_message(t('You unsubscribed from this event'));
+}
+
+function fhsignup_user_unsubscribe($user_status) {
+  $output  = '<h3>' .  t('Your signup information') . '</h3>';
+  $output .= '<p><b>' . t('Role')   . ':</b> ' . $user_status['role'] . '</p>';
+  $output .= '<p><b>' . t('Status') . ':</b> ' . _fhsignup_stages($user_status['stage']) . '</p>';
+  // create remove form
+  $form['unsubscribe']['submit'] = array('#type' => 'submit', '#value' => t('Unsubscribe from this event'));
+  $form['unsubscribe']['nid']    = array('#type' => 'hidden', '#value' => $user_status['wid']);
+  $form['unsubscribe']['uid']    = array('#type' => 'hidden', '#value' => $user_status['uid']);
+  $output .= drupal_get_form('fhsignup_user_unsubscribe', $form);  
+  return $output; 
+}
+
+/**
+ * Process signup form.
+ * 
+ * @ingroup fhsignup_user
+ */
+function fhsignup_user_form_submit($form_id, $form_values) {
+global $user;
+
+  $role  = ($form_values['volunteer']) ? "volunteer" : "attendee";
+  if($form_values['signup_status']==0) {
+    $stage = 3;
+    fhsignup_email_notify($nid, $user->uid, 'confirm');
+    fhsignup_email_notify($nid, $user->uid, 'notify_organiser');
+    $msg = t('Subscribed to this event');
+  } else {
+    $stage = 2;
+    fhsignup_email_notify($nid, $user->uid, 'wait');
+    $msg = t('Your subscription is pending, requiring organiser approvation.');
+  }
+  _fhsignup_user_add($form_values['nid'], $form_values['uid'], $role, $stage, 
+    $form_values['comment'], $form_values['opencomment'], $form_values['guests']);
+
+//  drupal_set_message($msg . print_r($form_values, true));
+}
+
+function fhsignup_user_form_validate($form_id, $form_values) {
+  if ($form_values['TaC_accept'] == '') {
+    form_set_error('', t('You must agree with Term & Condition.'));
+  }
+}
+
+/**
+ * Signup form
+ * 
+ * @ingroup fhsignup_user
+ */ 
+function fhsignup_user_form($node) {
+global $user;
+
+  $form['signup'] = array(
+    '#type' => 'fieldset',
+  );
+  $form['signup']['comment'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Signup comment'),
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t("Comment (optional)."),
+  );
+  if($node->signup_show_comments) {
+    $form['signup']['opencomment'] = array(
+      '#type' => 'checkbox',
+      '#title' => t("Show my comment in the attendee list."),
+    );
+  } else {
+    $form['signup']['comment']['#description'] .= ' <strong>' . t('Your comments will be visible only to organisers.') . '</strong>';
+  }   
+  if($node->signup_allow_guest) {
+    $form['signup']['guests'] = array(
+      '#type' => 'textfield',
+      '#title' => t('My guests'),
+      '#size' => 5,
+      '#maxlength' => 4,
+      '#description' => t('I am bringing this many others to walk with me.'),
+    );
+  }
+  $form['signup']['volunteer'] = array(
+    '#type' => 'checkbox',
+    '#title' => t("I would like to volunteer to help organize this event."),
+  );
+  $form['signup']['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
+  $form['signup']['uid'] = array('#type' => 'hidden', '#value' => $user->uid);
+  $form['signup']['signup_status'] = array('#type' => 'hidden', '#value' => $node->signup_status);
+  $form['signup']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Signup'),
+  );
+
+  $form['signup']['TaC_accept'] =  array(
+    '#type'     => 'checkbox',
+    '#title'    => ('I agree to these Term & Conditions.'),
+    '#weight'   => 41,
+  ); 
+  $form['signup']['TaC'] = array(
+    '#type'        => 'fieldset', 
+    '#title'       => t('Term & Conditions'),
+    '#collapsible' => TRUE, 
+    '#collapsed'   => TRUE, 
+    '#weight'      => 42
+  );
+  $form['signup']['TaC']['waiver'] = array(
+    '#value' => "<label>$node->signup_waiver</label>",
+  );
+
+  $output =  drupal_get_form('fhsignup_user_form', $form);
+  return $output;
+}
+
+/**
+ * Return signup form to fhwalk page.
+ * 
+ * @ingroup fhsignup_helpers
+ */
+function _fhsignup_nodeapi_view($node) {
+global $user;
+  $user_status = fhsignup_user_status($node->camid, $user->uid); 
+  switch ($node->signup_status) {
+    case 0: // no approval required
+    case 1: // approval required      
+      if ($user->uid == 0) {  
+      //this is an anonymous user, then display the login link
+        $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
+        $output .= '<div class="signup_anonymous_login">'. t('Please %login or %register to sign up for this event.', $login_array) .'</div>';
+      } elseif($user_status) {
+      //this user already signup for a walk in this campaign
+        if( ($user_status['wid']==$node->nid) ) {
+        // user already signed up for this node
+          $output  = fhsignup_user_unsubscribe($user_status);
+        } else {  
+        // user already signed for another walk
+          $walk = node_load($user_status['wid']);
+          $output  = '<h3>' .  t('You signed up for another walk') . '</h3>';
+          $output .= '<p><b>' . l($walk->title, "node/$walk->nid") . '</b></p>';
+        }          
+      } else {    
+      // OK user can subscribe
+        $output  = '<h3>' .  t('Signup for this event') . '</h3>';
+        if($node->signup_status==1) {
+          $msg = t('Your subscription need to be approved by the organiser');
+          $output  = "<p><strong>$msg</strong></p>";
+        }
+        $output  .= fhsignup_user_form($node);
+      } 
+      break;
+    case 2: // only invitation
+    case 3: // closed event
+      if( ($user_status['wid']==$node->nid) ) {
+      // user already signed up for this node
+        $output = fhsignup_user_unsubscribe($user_status);
+      } else {  
+        $output = '<h3>' . t('Signups closed for this event') . '</h3>';
+      }
+      break;  
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ * @ingroup fhsignup_core
+ */
+function fhsignup_form_alter($form_id, &$form) {
+  switch ($form_id) {
+    case 'fhwalk_node_form':
+    // Load the node if it already exists.
+    if (isset($form['nid']['#value'])) {
+      $node = node_load($form['nid']['#value']);
+    } else {
+      $node = NULL;
+    }
+    $form['signup'] = _fhsignup_edit($node);
+    break;
+  }
+}
+
+/******************************
+ *
+ * Signup function and helpers
+ *
+ *******************************/  
+
+/**
+ * A good record of what number is what since we arent 
+ * using constants like good programmers
+ * 
+ * @ingroup fhsignup_helpers
+ */ 
+function _fhsignup_stages($i=0) {
+  $stages = array(1=>t('waitlist'),
+                  2=>t('pending'),
+                  3=>t('approved'),
+                  4=>t('reminded'),
+                  5=>t('followupsent'),
+                  6=>t('invited'));
+  if($i==0) {
+    return $stages;
+  } else {
+    return $stages[$i];
+  }
+}
+
+/**
+ * A good record of what number is what since we arent 
+ * using constants like good programmers
+ * 
+ * @ingroup fhsignup_helpers
+ */
+function _fhsignup_status($i=-1) {
+global $user;
+
+  $status = array(0 => t('no approval required'),
+                  1 => t('approval required'),
+                  2 => t('only invitation'),
+                  3 => t('blocked event (contact your walk coordinator)'));
+  if($i==-1) {
+    if(! (user_access('coordinate walks') || user_access('administer walks')) ) unset($status[3]); 
+    return $status;
+  } else {
+    return $status[$i];
+  }
+}
+
+/**
+ * Get permissions
+ * 
+ * @ingroup fhsignup_helpers
+ * @param $op  operation
+ * @param $nid node id
+ * @return true or false  
+ */
+
+function _fhsignup_access($op, $nid) {
+global $user;
+$node = node_load($nid);
+
+  if($user->uid) {
+    switch ($op) {
+      case 'admin signup':
+        $access = ($user->uid==$node->uid) || user_access('coordinate walks') || user_access('administer walks');
+      break;
+    }
+  } else {
+    $access = FALSE;
+  } 
+  return $access;
+}
+
+
+/**
+ * Get signup for a walk
+ * 
+ * @ingroup fhsignup_helpers
+ * @param $nid one id
+ * @param $stage user status  
+ */
+function _fhsignup_count($nid, $stage=0) {
+  $sql = 'SELECT count(*) FROM {gathering_signup} WHERE wid=%d';
+  if($stage<>0) $sql .= ' AND gs.stage=$stage';
+
+  return db_result(db_query($sql, $nid));
+}
+
+/**
+ * Get signup for a walk WITH GUEST
+ * 
+ * @ingroup fhsignup_helpers
+ * @param $nid one id
+ * @param $stage user status  
+ */
+function fhsignup_count($nid, $status=0, $guest=false) {
+  $select_expression = 'count(*)' . ( ($guest) ? '+sum( guests )' : '' );
+  $where_expression  = 'wid=%d';
+  switch($status) {
+    case 1: // approval required
+      $where_expression .= ' AND (stage=3 OR stage=6)';
+      break;
+    case 2: // only invitation
+      $where_expression .= ' AND stage=6';
+      break;
+  }
+  $sql = "SELECT $select_expression FROM {gathering_signup} WHERE $where_expression";
+  $count = db_result(db_query($sql, $nid));
+  return $count;
+}
+
+/**
+ * Check user signup walk
+ * 
+ * @ingroup fhsignup_helpers
+ * @param $nid walk nid 
+ * @param $uid user id
+ * @return FALSE or an array with role and status
+ */
+function _fhsignup_user_check($nid, $uid) {
+  $sql = "SELECT * FROM {gathering_signup} WHERE wid=%d AND uid=%d";
+  return db_fetch_array(db_query($sql, $nid, $uid));
+}    
+
+function fhsignup_user_status($tid, $uid) {
+  $sql = "SELECT gs.* FROM {gathering_signup} gs " .
+    "JOIN {gathering_node} gn ON gn.nid=gs.wid " .
+    "JOIN {term_node} tn ON tn.nid=gn.nid " .
+    "WHERE tn.tid=%d AND gs.uid=%d";
+  return db_fetch_array(db_query($sql, $tid, $uid));
+}    
+
+/**
+ * Add signup to walk
+ * 
+ * @ingroup fhsignup_helpers
+ * @param $nid walk nid 
+ * @param $uid user id
+ * @param $role
+ * @param $stage
+ * @param $comment
+ * @param $opencomment
+ * @param $guest
+ * @return  
+ */
+function _fhsignup_user_add($nid, $uid, $role='attendee', $stage=3, $comment='', $opencomment=0, $guest=0) {
+  $sql = "SELECT * FROM {gathering_signup} WHERE wid=%d AND uid=%d";
+  if( db_num_rows(db_query($sql,$nid, $uid))==0) {
+    $sql = "INSERT INTO {gathering_signup} " . 
+      "SET wid=%d, uid=%d, role='%s', timestamp=CURRENT_TIMESTAMP, " .
+      "stage=%d, comment='%s', opencomment=%d, guests=%d"; 
+    db_query($sql, $nid, $uid, $role, $stage, $comment, $opencomment, $guest);
+  } else {
+    drupal_set_message( t('User alread signed up!') );
+  }
+}    
+
+/**
+ * Update signup to walk
+ * 
+ * @ingroup fhsignup_helpers
+ * @param $nid walk nid 
+ * @param $uid user id
+ * @param $role  user role
+ * @param $stage user stage
+ * @return  
+ */
+function _fhsignup_user_update($nid, $uid, $stage) {
+  $sql = "UPDATE {gathering_signup} " .
+    "SET timestamp=CURRENT_TIMESTAMP, stage=%d ".
+    "WHERE wid=%d AND uid=%d";
+  $result = db_query($sql, $stage, $nid, $uid);
+//  if( db_num_rows(db_query($sql,$nid, $uid))==0) drupal_set_message( t('User updating error!') );
+  return $result;
+}    
+
+/**
+ * Remove signup from a walk
+ * 
+ * @ingroup fhsignup_helpers
+ * @param $nid walk nid 
+ * @param $uid user id
+ * @return  
+ */
+function _fhsignup_user_remove($nid, $uid) {
+  $sql = "DELETE FROM {gathering_signup} WHERE wid=%d AND uid=%d;";
+  return db_query($sql, $nid, $uid);
+}    
+
+/**
+ * Email string substitution
+ *  
+ * @ingroup  fhsignup_helpers
+ * @param    $nid
+ * @param    $uid
+ * @param    $content
+ * @return   content with substitutions
+ */
+function _fhsignup_email_strtr($nid, $uid, $content) {
+  $node = node_load($nid);
+  $sql = "SELECT name, mail FROM {users} WHERE uid=%d";
+  $user = db_fetch_object(db_query($sql, $uid));
+
+  $trans['%event'] = $node->title;        // %event
+  $trans['%time']  = $node->event_start;  // %time  
+  $trans['%username']  = $user->name;     // %username
+  $trans['%useremail'] = $user->mail;     //%useremail  
+  
+  $message = strtr($content, $trans);
+
+  return $message;
+}
+
+/**
+ * Email notification
+ *  
+ * @ingroup  fhsignup_helpers
+ * @param    $nid
+ * @param    $uid
+ * @param    $op
+ * @return   content with substitutions
+ */
+function fhsignup_email_notify($node, $uid, $op, $add_msg='') {
+global $user;
+  if(is_numeric($node)) $node = node_load($node);
+  $signup        = db_fetch_object(db_query("SELECT name, mail FROM {users} WHERE uid=%d", $uid));
+  $organiser     = db_fetch_object(db_query("SELECT name, mail FROM {users} WHERE uid=%d", $node->uid));
+
+  $trans['%event']      = $node->title;               // %event
+  $trans['%event_link'] = url("node/$nid/signup_admin",NULL,NULL,true);   //%event_link  
+  $trans['%time']       = $node->event_start;         // %time  
+  $trans['%username']   = $signup->name;              // %username
+  $trans['%useremail']  = $signup->mail;              //%useremail  
+  $trans['%organisername'] = $organiser->name;        //%organisername  
+  $trans['%organisermail'] = $organiser->mail;         //%organisermail  
+
+// drupal_set_message("OP: $op");
+
+  switch($op) {
+    case 'confirm':
+      $subject = t('Signup confirmation for event: %event', $trans);
+      $message = t($node->signup_email_confirm, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'notify_organiser':
+      $subject = t('New user signup for event: %event', $trans);
+      $message = t("%organisername,\n\n%username has offered to work at %event. You can check the status of that event, see all available signup, and approve, deny by clicking here:\n\n%event_link", $trans);
+      $to   = $organiser->mail;
+      $from = $signup->mail;
+      break;
+    case 'notify_invite':
+      $subject = t('User accept your invite to signup for event: %event', $trans);
+      $message = t("%organisername,\n\n%username has offered to work at %event. You can check the status of that event, see all available signup, and approve, deny by clicking here:\n\n%event_link", $trans);
+      $to   = $organiser->mail;
+      $from = $signup->mail;
+      break;
+    case 'unsubscribe':
+      $subject = t("You've beeen unsubscribed from %event!", $trans);
+      $message = t($node->signup_email_unsubscribe, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'approve':
+      $subject = t("You've beeen approved for %event!", $trans);
+      $message = t($node->signup_email_approve, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'deny':
+      $subject = t("You've beeen denied for %event!", $trans);
+      $message = t($node->signup_email_deny, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'wait':
+      $subject = t("You've been placed on the waiting list for %event", $trans);
+      $message = t($node->signup_email_wait, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'remind':
+      $subject = $subject = t("Reminder about %event", $trans);
+      $message = t($node->signup_email_remind, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'merge walk':
+      $subject = $subject = t("Merge notification: %event", $trans);
+      $message = t($node->merge_email, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+    case 'delete walk':
+      $subject = $subject = t("Cancel notification: %event", $trans);
+      $message = t($node->signup_email_unsubscribe, $trans);
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      break;
+  }
+//drupal_set_message("TO: $to<hr/>FROM: $from<hr/>SUBJ: $subject<hr/>MSG: $message");
+
+  fhsignup_email_enqueue($to, $from, $subject, $message);
+}
+
+/**
+ * Enqueue emails
+ *  
+ * @ingroup fhsignup_helpers
+ * @param $recipients arary or string of recipients
+ * @param $subject
+ * @param $body
+ * @param $headers
+ */
+function fhsignup_email_enqueue($recipients, $from, $subject, $body, $nid=0) {
+
+  if( !(is_array($recipients)) ) $recipients = array($recipients);
+
+  foreach($recipients as $recipient) {
+// Set headers
+    $headers  = "From: $from\n";
+    $headers .= "MIME-Version: 1.0\n";
+    $headers .= "Content-type: text/html; charset=utf-8\n";
+
+// Forward emails
+    forward_mail($recipient,$subject,$body,$headers);
+
+// drupal_set_message("FROM: $from<hr/>TO: $recipient<hr/>SUB: $subject<hr/>BODY: $body");
+
+// insert record into db to record nid, type and timestamp of send
+    db_query("INSERT INTO {forward_log} (nid, type, timestamp) VALUES ('%d', '%s', %d)", $nid, "SENT", time());
+    variable_set('forward_total', variable_get('forward_total', 0) +1);
+    variable_set('forward_recipients', variable_get('forward_recipients', 0) + substr_count($recipients, ",") + 1);
+    flood_register_event('forward');
+  }
+}
+
+/**
+ * Return signup form for custom messages
+ *  
+ * @ingroup fhsignup_helpers
+ * @param node
+ * @return form for signup custom messages editing  
+ */ 
+function _fhsignup_email_messages_form($node) {
+
+  $string_substitution = t('Supported string substitutions: %event, %time, %username, %useremail.'); 
+  if(!($node->signup_email_confirm))  $node->signup_email_confirm = variable_get('fhsignup_email_confirm', '');
+  $form['signup_email_confirm'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Confirmation email'), 
+    '#default_value' => $node->signup_email_confirm, 
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Email sent to user upon signup.') . "<br/><i>$string_substitution</i>"
+  );
+
+  if(!($node->signup_email_unsubscribe))  $node->signup_email_unsubscribe = variable_get('fhsignup_email_unsubscribe', '');
+  $form['signup_email_unsubscribe'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Unsubscription email'), 
+    '#default_value' => $node->signup_email_unsubscribe, 
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Email sent when user is unsubscribed.') . "<br/><i>$string_substitution</i>"
+  );
+
+  if(!($node->signup_email_approve))  $node->signup_email_approve = variable_get('fhsignup_email_approve', '');
+  $form['signup_email_approve'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Approvation email'), 
+    '#default_value' => $node->signup_email_approve, 
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Default message sent to users when they have been approved to signup for an event') . "<br/><i>$string_substitution</i>"
+  );
+
+  if(!($node->signup_email_deny))  $node->signup_email_deny = variable_get('fhsignup_email_deny', '');
+  $form['signup_email_deny'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Denial email'), 
+    '#default_value' => $node->signup_email_deny, 
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Default message sent to users when they have been denied to signup for an event') . "<br/><i>$string_substitution</i>"
+  );
+
+  if(!($node->signup_email_wait))  $node->signup_email_wait = variable_get('fhsignup_email_wait', '');
+  $form['signup_email_wait'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Waiting list email'), 
+    '#default_value' => $node->signup_email_wait, 
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Default message sent to users when they have been waiting orgainiser approvation to signup for an event') . "<br/><i>$string_substitution</i>"
+  );
+  
+  $signup_reminder_email = (($node->signup_email_remind)) ? $node->signup_email_remind : variable_get('fhsignup_email_remind', '');
+  $form['signup_email_remind'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Reminder email'), 
+    '#default_value' => $signup_reminder_email, 
+    '#cols' => 40, 
+    '#rows' => 6, 
+    '#description' => t('Email sent to user as an event reminder. Supported string substitutions: %event, %time, %username, %useremail')
+  );
+  
+  $form['container_inline'] = array('#type' => 'markup', '#value' => '<div class="container-inline">');
+  $form['signup_send_reminder'] = array(
+    '#type' => 'checkbox', 
+    '#title' => t('Send reminder'), 
+    '#default_value' => ($node) ? $node->signup_send_reminder : 1,
+  );
+  $options = array ();
+  for ($i = 1; $i <= 30; $i++) $options[$i] = $i;
+  $form['signup_reminder_days_before'] = array(
+    '#type' => 'select', 
+    '#default_value' => ($node) ? $node->signup_reminder_days_before : 7, 
+    '#options' => $options
+  );
+  $form['end_div'] = array('#type' => 'markup', '#value' => t('day(s) before event').'</div>');
+
+  return $form;
+}
+
+/**
+ * Return signup form on walk editing
+ *  
+ * @ingroup fhsignup_helpers
+ * @param node
+ * @return form for signup editing  
+ */ 
+function _fhsignup_edit($node) {
+global $user;
+
+  $form['signup'] = array(
+    '#type'   => 'fieldset',
+    '#title'  => t('Signup settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#weight' => 5,
+  );
+
+//  if( ($node->signup_status==3) ) {
+  if( ($node->signup_status==3) && !(user_access('coordinate walks') || user_access('administer walks')) ) {
+    $form['signup']['signup_status_msg'] = array(
+      '#value' => '<h3>' . t('Signup for this walk is blocked. Contact your coordinator') . '</h3>',
+    );
+    $form['signup']['signup_status'] = array(
+      '#type'  => 'hidden',
+      '#value' => 3
+    );
+  } else {
+    $form['signup']['signup_status'] = array(
+      '#type' => 'select',
+      '#title' => t('Signup Approval'),
+      '#default_value' => ($node) ? $node->signup_status : 0,
+      '#options' => _fhsignup_status(),
+      '#description' => t('Select event partecipation mode.'),
+    );
+
+/*   
+  $form['signup']['signup_pad'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Signup Padding'),
+    '#default_value' => ($node) ? $node->signup_pad : 0,
+    '#size' => 4,
+    '#maxlength' => 4,
+    '#description' => t('Set max number of signup; set to 0 to exclude any check (i.e. not max subscribers)'),
+  );
+*/
+    $form['signup']['signup_show'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show signups'),
+      '#default_value' => ($node) ? $node->signup_show : 1,
+      '#description' => t('Show signup on walk page.'),
+    );
+    $form['signup']['signup_show_number'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show signups number'),
+      '#default_value' => ($node) ? $node->signup_show_number : 1,
+      '#description' => t('Show signups number on walk page.'),
+    );
+    $form['signup']['signup_show_comments'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show user comments'),
+      '#default_value' => ($node) ? $node->signup_show_comments : 1,
+      '#description' => t('Show user comments on walk page.'),
+    );
+    $form['signup']['signup_allow_guest'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Group Signup'),
+      '#default_value' => ($node) ? $node->signup_allow_guest : 1,
+      '#description' => t('Allowing Group Signup walkers can bring how many guest they want.'),
+    );
+    
+    if(!($node->signup_waiver)) $node->signup_waiver = variable_get('fhsignup_waiver', '');
+    $form['signup']['signup_waiver_old'] = array(
+      '#type' => 'hidden',
+      '#value' => $node->signup_waiver,
+    );
+    $form['signup']['signup_waiver'] = array(
+      '#title' => t('Walk Terms & Conditions'),
+      '#type' => 'textarea',
+      '#cols' => 75,
+      '#rows' => 10,
+      '#default_value' => $node->signup_waiver,
+      '#description' => t("<strong>If you change the terms and conditions walkers will not be able to sign up to your walk until the coordinator has approved the changes.</strong>"),
+    );
+  }
+  
+  $form_email_settings = array(
+    '#type'   => 'fieldset',
+    '#title'  => t('Custom signup email settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['signup']['email_settings'] =  array_merge($form_email_settings, _fhsignup_email_messages_form($node));
+
+  return $form;
+}
+
+/**
+ * Get signup list
+ * 
+ * @ingroup fhsignup_helpers
+ * @param  $nid 
+ * @param  $options 
+ */
+function fhsignup_walk_signup_list($nid) {
+
+  $sql = 'SELECT gs.*, u.name, u.uid ' .
+    'FROM {gathering_signup} gs ' .
+    'JOIN {users} u ON gs.uid = u.uid ' .
+    'WHERE gs.wid=%d';
+    
+  $result = db_query($sql, $nid);
+  while ($signup = db_fetch_array($result)) {
+    $list[$signup['uid']] = $signup;
+  }
+
+  return $list;
+}
+
+/**
+ * Get signup users table (for walk page)
+ * 
+ * @ingroup fhsignup_core
+ * @param  $nid 
+ * @param  $options 
+ */
+function fhsignup_walk_signup_table($nid, $show_message=0, $show_guests=0) {
+
+  $header = array(
+    array('data' => t('User'),      'field' => 'u.name'),
+    array('data' => t('Role'),      'field' => 'gs.role'),
+    array('data' => t('Comment'),   'field' => 'gs.comment'),
+    array('data' => t('Date'),      'field' => 'gs.timestamp', 'sort' => 'desc'),
+    array('data' => t('Guests'),    'field' => 'gs.guests'),
+  );
+  if(!$show_guests)  unset($header[4]);
+  if(!$show_message) unset($header[2]);
+  
+  $sql = 'SELECT gs.*, u.name, u.uid ' .
+    'FROM {gathering_signup} gs ' .
+    'JOIN {users} u ON gs.uid = u.uid ' .
+    'WHERE gs.wid=%d AND (gs.stage=3 OR gs.stage=6)';
+    
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL, $nid);
+  while ($signup = db_fetch_object($result)) {
+    $row = array('data' => array(
+          $signup->name,
+          $signup->role,
+          $signup->opencomment ? $signup->comment : '',
+          date("j M o", strtotime($signup->timestamp)),
+          $signup->guests,
+      ));
+    if(!$show_guests)  unset($row['data'][4]);
+    if(!$show_message) unset($row['data'][2]);
+    $rows[] = $row;
+  }
+
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No signup available.'), 'colspan' => 5-(!$show_message)-(!$show_guests) ));
+  }
+  
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+
+//  $output = "pippo dice: $nid";
+  return $output;
+}
+
+/**
+ * Get signup users table (different operations by approval status)
+ * 
+ * @ingroup fhsignup_admin
+ * @param  $nid 
+ * @param  $options 
+ */
+function _fhsignup_signup_table($nid, $status) {
+
+  $header = array(
+    array('data' => t('User'),      'field' => 'u.name'),
+    array('data' => t('Role'),      'field' => 'gs.role'),
+    array('data' => t('Comment'),   'field' => 'gs.comment'),
+    array('data' => t('Date'),      'field' => 'gs.timestamp', 'sort' => 'desc'),
+    array('data' => t('Status'),    'field' => 'gs.stage'),
+    array('data' => t('Operations'), '')
+  );
+
+  $sql = 'SELECT gs.*, u.name, u.mail, u.uid ' .
+    'FROM {gathering_signup} gs ' .
+    'JOIN {users} u ON gs.uid = u.uid ' .
+    'WHERE gs.wid=%d';
+    
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL, $nid);
+ 
+  while ($signup = db_fetch_object($result)) {
+    $user_unsub   = "<a href='signup_user/$signup->uid/unsubscribe'>" . t('Unsubscribe') . '</a>';
+    $user_approve = "<a href='signup_user/$signup->uid/approve'>" . t('Approve') . '</a>';
+    $user_deny    = "<a href='signup_user/$signup->uid/deny'>" . t('Deny') . '</a>';
+    $operations = array();
+    switch ($status) {
+      case 0: // no approval required
+      case 2: // only invitation
+      case 3: // closed event
+        $operations[] = $user_unsub;
+        break;
+      case 1: // approval required
+        if($signup->stage==2) {
+          $operations[] = $user_deny;
+          $operations[] = $user_approve;
+        } else {
+          $operations[] = $user_unsub;
+        }
+        break;
+    }
+    $operations = implode(' - ', $operations);
+//    $operations = 'pippo';
+    
+    $rows[] = array(
+      'data' => array(
+          $signup->name,
+          $signup->role,
+          $signup->comment,
+            date("j M o", strtotime($signup->timestamp)),
+          _fhsignup_stages($signup->stage),
+          $operations),
+      'class' => _fhsignup_stages($signup->stage));
+
+  }
+
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No signup available.'), 'colspan' => 6));
+  }
+  
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+
+  return $output;
+}
+
+/**
+ * Signup Admin remove user callback
+ * use forward.module 
+ * 
+ * @ingroup fhsignup_admin
+ * @param $uid 
+ */
+function fhsignup_organiser_user($uid, $action) {
+global $user;
+  $nid = arg(1);
+
+  switch($action) {
+    case 'unsubscribe':
+      if(_fhsignup_user_remove($nid, $uid)) {
+        fhsignup_email_notify($nid, $uid, 'unsubscribe');
+        $msg = t("User $uid unsubscribed");
+      } else {
+        $msg = t("Error unsubscribing user $uid");
+      }
+      break;
+    case 'approve':
+      if(_fhsignup_user_update($nid, $uid, 3)) {
+        fhsignup_email_notify($nid, $uid, 'approve');
+        $msg = t("User $uid approved");
+      } else {
+        $msg = t("Error approving user $uid");
+      }
+      break;
+    case 'deny':
+      if(_fhsignup_user_remove($nid, $uid)) {
+        fhsignup_email_notify($nid, $uid, 'deny');
+        $msg = t("User $uid denied");
+      } else {
+        $msg = t("Error denying user $uid");
+      }
+      break;
+  }
+
+  drupal_set_message($msg);
+  drupal_goto("node/$nid/signup_admin");
+}
+
+
+/**
+ * Signup Admin process form mail to users
+ * use forward.module 
+ * 
+ * @ingroup fhsignup_admin
+ */
+function _fhsignup_organiser_email_submit($form_id, $form_values) {
+
+// Set sql query to fetch recipients
+  $sql = 'SELECT u.mail ' .
+    'FROM {gathering_signup} gs ' .
+    'LEFT JOIN {users} u ON gs.uid = u.uid ' .
+    'WHERE gs.wid='. $form_values['nid'];
+  if($form_values['recipient_role']<>'all') $sql .= " AND gs.role='" . $form_values['recipient_role'] . "'"; 
+  if($form_values['recipient_status']<>0)   $sql .= ' AND gs.stage=' . $form_values['recipient_status']; 
+  $result = db_query($sql);
+
+  if(db_num_rows($result)>0) {
+// Fetching recipients
+    while($row = db_fetch_array($result))  $recipients[] = $row['mail'];
+
+// Set subject  
+    if($form_values['subject']<>'') {
+      $subject = $form_values['subject'];
+    } else {
+      $subject = "News from walk '" .  $form_values['title'] . "'";
+    }
+
+// Set content 
+    $content->title  = $form_values['title'];
+    $content->nid    = $form_values['nid'];
+    $content->teaser = $form_values['content'];
+    $content->type = 'fhwalk';
+  
+// Set vars for theming
+    $vars = array(
+  	  'forward_header_image' => variable_get('forward_header_image', ''),
+  	  'site_name' => variable_get('site_name', 'Drupal'),
+  	  'yemail' => $form_values['yemail'],
+  	  'forward_message' => '',
+  	  'message' => '',
+  	  'base_url' => $base_url,
+  	  'content' => $content,
+  	  'dynamic_content' => '',
+  	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
+  	  'forward_footer' => variable_get('forward_footer', '')
+    );
+
+// Theming body
+    $body = theme('forward_email', $vars);
+  
+// Enqueue emails
+    fhsignup_email_enqueue($recipients, $form_values['yemail'],$subject,$body);
+
+    drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)", 'status');
+  } else {
+    drupal_set_message("No recipients selected!", 'status');
+  }
+
+// Set return URL
+  $returnurl = 'node/'. $form_values['nid'] . '/signup_admin';
+	drupal_goto($returnurl);
+}
+
+/**
+ * Signup Admin form mail to users
+ * 
+ * @ingroup fhsignup_admin
+ */ 
+function _fhsignup_organiser_email($node) {
+global $user;
+
+  $form['signup_admin_message'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Send messages to walkers'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+
+  $from_name =  $user->name;
+  $from_email = $user->mail; 
+  $form['signup_admin_message']['yname'] =  array('#type' => 'hidden', '#value' => $from_name);
+  $form['signup_admin_message']['yemail'] = array('#type' => 'hidden', '#value' => $from_email);
+  $form['signup_admin_message']['nid'] =    array('#type' => 'hidden', '#value' => $node->nid);
+  $form['signup_admin_message']['title'] =  array('#type' => 'hidden', '#value' => $node->title);
+   
+  $form['signup_admin_message']['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject of the message'),
+    '#default_value' => "News from walk '$node->title'",
+    '#description' => t('This will be the subject of message sent to selected users.'),
+    '#required' => TRUE,
+  );
+  $form['signup_admin_message']['content'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Message to sent'),
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t('This will be the content of message sent to selected users.'),
+    '#required' => TRUE,
+  );
+
+  $form['signup_admin_message']['recipient_role'] = array(
+    '#type' => 'select',
+    '#title' => t('Role options'),
+    '#default_value' => 'all',
+    '#options' => array(
+      'attendee' => t('attendee'),
+      'volunteer' => t('volunteer'),
+      'all' => t('all')),
+    '#description' => t('Select user role'),  
+  );
+  $form['signup_admin_message']['recipient_status'] = array(
+    '#type' => 'select',
+    '#title' => t('Status options'),
+    '#default_value' => 0,
+    '#options' => array_merge( array(0 => "all"), _fhsignup_stages(0)),
+    '#description' => t('Select user status'),  
+  );
+
+  $form['signup_admin_message']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send'),
+  );
+
+  return drupal_get_form('_fhsignup_organiser_email', $form);
+}
+
+
+
+/**
+ * Signup Admin process form mail to users
+ * use forward.module and invite.module 
+ * 
+ * @ingroup fhsignup_helpers
+ * @param   $code 
+ */
+function fhsignup_invite_process($code) {
+global $user;
+  $nid = arg(1);
+  $url = "node/$nid";
+drupal_set_message("URL: $nid - $url - $code");
+  if($user->uid) {
+    $result = db_query("SELECT * FROM {invite} WHERE reg_code = '%s'", $code);
+    if ($registration = db_fetch_object($result)) {
+      _invite_set_timestamp($user->mail, $user->uid, $code);
+      _fhsignup_user_add($nid, $user->uid, 'attendee', 6);
+      fhsignup_email_notify($nid, $user->uid, 'confirm');
+      fhsignup_email_notify($nid, $user->uid, 'notify_invite');
+      $msg = t("Invitation processed!");
+    }
+  } else {
+    $login_array = array('%login' => l(t('login'), 'user/login', array(), $url), '%register' => l(t('register'), 'user/register', array(), $url));
+    $msg = t('Please %login or %register before use this invite!', $login_array) .'</div>';
+  }
+  drupal_set_message($msg);
+  drupal_goto($url);
+}
+
+/**
+ * Signup Admin process form mail to users
+ * use forward.module 
+ * 
+ * @ingroup fhsignup_admin
+ */
+function _fhsignup_organiser_invite_submit($form_id, $form_values) {
+global $user;
+
+// Fetching recipients
+  $recipients = trim($form_values['recipients']);
+  $recipients = str_replace(array("\r\n", "\n", "\r"), ', ', $recipients);
+  $recipients = str_replace(',', ', ', $recipients);
+  $recipients = str_replace(',  ', ', ', $recipients);
+  $recipients = explode(", ", $recipients);
+  
+  if(count($recipients)>0) {
+
+// Set subject  
+    if($form_values['subject']<>'') {
+      $subject = $form_values['subject'];
+    } else {
+      $subject = "Invitation to join '" .  $form_values['title'] . "'";
+    }
+// Set content 
+    $content->title  = $form_values['title'];
+    $content->nid    = $form_values['nid'];
+    $content->teaser = $form_values['content'];
+    $content->type = 'fhwalk';
+    
+// Set vars for theming
+    $vars = array(
+  	  'forward_header_image' => variable_get('forward_header_image', ''),
+  	  'site_name' => variable_get('site_name', 'Drupal'),
+  	  'yemail' => $form_values['yemail'],
+  	  'forward_message' => '',
+  	  'message' => '',
+  	  'base_url' => $base_url,
+  	  'content' => $content,
+  	  'dynamic_content' => '',
+  	  'forward_footer' => variable_get('forward_footer', '')
+    );
+  
+// foreach recipient we have to set a different invitation code and enqueue email
+    foreach($recipients as $recipient) {
+
+// Set invite
+      $code = _invite_create_regcode();  
+      $invite_url = url('node/'. $form_values['nid'] . "/signup_invite/$code");
+      $invite = "<p>To accept this invite, <a href='http://www.fighthunger.org/user'>login or register</a> on fightunger.org " .
+        "then click on this <a href='$invite_url'>link</a></p>";
+      $vars['forward_ad_footer'] = $invite;
+   
+// Theming body
+      $body = theme('forward_email', $vars);
+
+// enqueue email
+      fhsignup_email_enqueue($recipient,$form_values['yemail'],$subject,$body);
+      db_query("INSERT INTO {invite} (email, reg_code, uid, expiry) VALUES ('%s', '%s', %d, %d)",$recipient, $code, $user->uid, time()+(variable_get('invite_expiry', 30)*60*60*24));  
+
+    }
+
+    drupal_set_message("You sent the message to " . count($recipients) . " recipient(s)", 'status');
+  } else {
+    drupal_set_message("No recipients selected!", 'status');
+  }
+
+// Set return URL
+  $returnurl = 'node/'. $form_values['nid'] . '/signup_admin';
+	drupal_goto($returnurl);
+}
+
+/**
+ * Signup Admin form invite recipients
+ * 
+ * @ingroup fhsignup_admin
+ */ 
+function _fhsignup_organiser_invite($node) {
+global $user;
+
+  $form['signup_admin_invite'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Send invites'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+
+  $from_name =  $user->name;
+  $from_email = $user->mail; 
+  $form['signup_admin_invite']['yname'] =  array('#type' => 'hidden', '#value' => $from_name);
+  $form['signup_admin_invite']['yemail'] = array('#type' => 'hidden', '#value' => $from_email);
+  $form['signup_admin_invite']['nid'] =    array('#type' => 'hidden', '#value' => $node->nid);
+  $form['signup_admin_invite']['title'] =  array('#type' => 'hidden', '#value' => $node->title);
+   
+  $form['signup_admin_invite']['recipients'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Send To'),
+    '#cols' => 50,
+    '#rows' => 5,
+    '#description' => t('Enter multiple addresses on separate lines or separate them with commas.'),
+    '#attributes' => NULL,
+    '#required' => TRUE,
+  );
+
+  $form['signup_admin_invite']['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject of the message'),
+    '#default_value' => "Invite to walk '$node->title'",
+    '#description' => t('This will be the subject of message sent to selected users.'),
+    '#required' => TRUE,
+  );
+  $form['signup_admin_invite']['content'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Message to sent'),
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t('This will be the content of message sent to selected users.'),
+    '#required' => TRUE,
+  );
+
+  $form['signup_admin_invite']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send'),
+  );
+
+  return drupal_get_form('_fhsignup_organiser_invite', $form);
+}
+
+/**
+ * Signup Admin process form mail settings
+ * use forward.module 
+ * 
+ * @ingroup fhsignup_admin
+ */
+function _fhsignup_organiser_mail_settings_submit($form_id, $form_values) {
+  $msg = print_r($form_values, true);
+  drupal_set_message("pippo dice ogni tanto: $msg");
+  
+  $fields = "signup_email_confirm = '%s', signup_email_unsubscribe = '%s', " .
+    "signup_email_approve = '%s', signup_email_deny = '%s', " .
+    "signup_email_wait = '%s', signup_email_remind = '%s', " .
+    "signup_send_reminder = %d, signup_reminder_days_before = %d "; 
+  $sql = "UPDATE {gathering_node} SET $fields WHERE nid = %d";
+  db_query($sql, 
+    $form_values['signup_email_confirm'], $form_values['signup_email_unsubscribe'],
+    $form_values['signup_email_approve'], $form_values['signup_email_deny'], 
+    $form_values['signup_email_wait'], $form_values['signup_email_remind'],
+    $form_values['signup_send_reminder'], $form_values['signup_reminder_days_before'], 
+    $form_values['nid']);
+}
+
+/**
+ * Signup Admin form mail settings
+ * 
+ * @ingroup fhsignup_admin
+ */ 
+function _fhsignup_organisers_mail_settings($node) {
+  $form_email_settings = array(
+    '#type'   => 'fieldset',
+    '#title'  => t('Custom signup email settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['email_settings'] =  array_merge($form_email_settings, _fhsignup_email_messages_form($node)); 
+  $form['email_settings']['nid'] =  array('#type' => 'hidden', '#value' => $node->nid); 
+  $form['email_settings']['submit'] = array('#type' => 'submit', '#value' => t('Submit'));
+
+// remove irrelevant form elements
+  switch($node->signup_status) {
+    case 0:
+      unset($form['email_settings']['signup_email_approve']);     
+      unset($form['email_settings']['signup_email_deny']);
+      unset($form['email_settings']['signup_email_wait']);     
+      break;     
+    case 1:
+      break;     
+    case 2:
+      unset($form['email_settings']['signup_email_approve']);     
+      unset($form['email_settings']['signup_email_deny']);
+      unset($form['email_settings']['signup_email_wait']);     
+      break;     
+    case 3:
+      unset($form['email_settings']['signup_email_approve']);     
+      unset($form['email_settings']['signup_email_deny']);
+      break;
+    case 4:
+      unset($form['email_settings']['signup_email_wait']);
+      break;     
+  }
+  
+  return drupal_get_form('_fhsignup_organiser_mail_settings', $form);
+}
+
+/**
+ * Signup Admin tab (on walk node)
+ * 
+ * @ingroup fhsignup_admin
+ */
+function fhsignup_organiser() {
+  $node = node_load(array('nid' => arg(1)));
+  drupal_set_title(t('Signup Admin') . ": $node->title");
+  $signup_count = fhsignup_count($node->nid, $node->signup_status);
+
+// Show walkers table
+  $form['volunteer_status'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Signup Status'),
+    '#weight' => -1
+  );
+  $form['volunteer_status']['status'] = array(
+    '#value' => '<h2>' . t('Signup Approval') . ': ' . _fhsignup_status($node->signup_status) . '</h2>',
+  );
+  $count = t('Signup Count') . ": $signup_count";
+  if($node->signup_allow_guest) {
+    $signup_count_guest = fhsignup_count($node->nid, $node->signup_status, true);
+    $count .= ' (' . t('with guests') . ": $signup_count_guest)";
+  }
+  $form['volunteer_status']['count'] = array(
+    '#value' => "<h2>$count</h2>",
+  );
+  $form['volunteer_status']['table'] = array(
+    '#value' => _fhsignup_signup_table($node->nid, $node->signup_status),
+  );
+  $output = drupal_get_form('', $form);
+  
+// Send messages to walkers
+  if($signup_count) $output .= _fhsignup_organiser_email($node);
+  
+// Send invite
+  $output .= _fhsignup_organiser_invite($node);
+  
+// Set email settings
+  $output .= _fhsignup_organisers_mail_settings($node);
+  
+  return $output;
+}

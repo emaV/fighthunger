@@ -77,8 +77,13 @@ function translation_menu($may_cache) {
         'type' => MENU_LOCAL_TASK);
       
     }
-    // Change rewrite conditions when translating node
-    if( arg(0) == 'node' && arg(1) == 'add' && isset($_GET['translation'])  && isset($_GET['language']) && ($lang = $_GET['language']) && array_key_exists($lang, i18n_supported_languages()) ) {
+    // Special redirections and rewrite conditions
+    if( arg(0) == 'node' && arg(1) == 'add' && isset($_GET['translation']) && ($source_nid = $_GET['translation'])  && isset($_GET['language']) && ($lang = $_GET['language']) && array_key_exists($lang, i18n_supported_languages()) ) {
+      // Special redirection for product types
+      if (arg(2) == 'product' && !arg(3) && is_numeric($source_nid) && $ptype = db_result(db_query("SELECT ptype FROM {ec_product} WHERE nid = %d", $source_nid))) {
+        drupal_goto(url("node/add/product/$ptype", "translation=$source_nid&language=$lang", NULL, TRUE));
+      }
+      // Change rewrite conditions when translating node
       i18n_selection_mode('translation', db_escape_string($lang));
     }
   }
@@ -535,6 +540,8 @@ function translation_node_overview($node) {
 	  unset($languages[$node->language]);
 	  $output = t('<h2>Current translations</h2>');
 	  $header = array(t('Language'), t('Title'), t('Status'), t('Options'));
+    // Special links for product nodes
+    $createlink = $node->type == 'product' ? "node/add/$node->type/$node->ptype" : "node/add/$node->type";
 	  foreach($languages as $lang => $langname){
 	    $options = array();
 	    if(isset($node->translation[$lang])){
@@ -543,7 +550,7 @@ function translation_node_overview($node) {
         $status = $trnode->status ? t('Published') : t('Not published');
 	    } else {
 	      $title = t('Not translated');
-	      $options[] = l(t('create translation'), "node/add/$node->type", array(), "translation=$node->nid&language=$lang");
+	      $options[] = l(t('create translation'), $createlink , array(), "translation=$node->nid&language=$lang");
 	      $status = '--';
       }
 	    $options[] = l(t('select node'), "node/$node->nid/translation/select/$lang");

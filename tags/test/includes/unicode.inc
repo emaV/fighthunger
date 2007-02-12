@@ -1,5 +1,5 @@
 <?php
-// $Id: unicode.inc,v 1.17 2006/03/13 21:44:49 unconed Exp $
+// $Id: unicode.inc,v 1.17.2.1 2006/10/18 20:14:42 killes Exp $
 
 define('UNICODE_ERROR', -1);
 define('UNICODE_SINGLEBYTE', 0);

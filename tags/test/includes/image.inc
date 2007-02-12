@@ -1,5 +1,5 @@
 <?php
-// $Id: image.inc,v 1.12 2005/12/14 20:06:41 dries Exp $
+// $Id: image.inc,v 1.12.2.3 2007/01/04 21:10:43 killes Exp $
 
 /**
  * Return a list of available toolkits.
@@ -41,6 +41,15 @@ function image_get_toolkit() {
   }
 
   return $toolkit;
+}
+
+/**
+ * Validates toolkit selection.
+ */
+function image_toolkit_validate($formelement, $fieldname) {
+  if ($formelement['#value'] == 'gd' && image_gd_check_settings() == false) {
+    form_set_error('image_toolkit', t("The built-in GD image toolkit requires that the GD module for PHP be installed and configured properly. For more information see %url.", array('%url' => '<a href="http://php.net/image">http://php.net/image</a>')));
+  }
 }
 
 /**
@@ -117,7 +126,7 @@ function image_scale($source, $destination, $width, $height) {
   $info = image_get_info($source);
 
   // don't scale up
-  if ($width > $info['width'] && $height > $info['height']) {
+  if ($width >= $info['width'] && $height >= $info['height']) {
     return false;
   }
 
@@ -181,11 +190,10 @@ function image_crop($source, $destination, $x, $y, $width, $height) {
  */
 function image_gd_settings() {
   if (image_gd_check_settings()) {
-    return t('The built-in GD2 toolkit is installed and working properly.');
+    return array('#type' => 'item', '#value' => t('The built-in GD2 toolkit is installed and working properly.'));
   }
   else {
-    form_set_error('image_toolkit', t("The built-in GD image toolkit requires that the GD module for PHP be installed and configured properly. For more information see %url.", array('%url' => '<a href="http://php.net/image">http://php.net/image</a>')));
-    return false;
+    return array('#type' => 'item', '#value' => t('The built-in GD image toolkit requires that the GD module for PHP be installed and configured properly. For more information see %url.', array('%url' => l('http://php.net/image', 'http://php.net/image'))));
   }
 }
 
@@ -223,6 +231,13 @@ function image_gd_resize($source, $destination, $width, $height) {
   }
 
   $res = imageCreateTrueColor($width, $height);
+  if ($info['extension'] == 'png') {
+    $transparency = imagecolorallocatealpha($res, 0, 0, 0, 127);
+    imagealphablending($res, FALSE);
+    imagefilledrectangle($res, 0, 0, $width, $height, $transparency);
+    imagealphablending($res, TRUE);
+    imagesavealpha($res, TRUE);
+  }
   imageCopyResampled($res, $im, 0, 0, 0, 0, $width, $height, $info['width'], $info['height']);
   $result = image_gd_close($res, $destination, $info['extension']);
 

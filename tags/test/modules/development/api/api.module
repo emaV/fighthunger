@@ -858,8 +858,13 @@ function api_scan_directories($directories) {
   }
 
   $source_files = array();
+  
+  // Directories/files to exclude
+  $nomask = variable_get('api_directory_noscan', array());
+  $nomask = array_merge($nomask, array('.', '..', 'CVS', '.svn'));
+  
   foreach ($directory_array as $directory) {
-    $files = file_scan_directory($directory, '.*');
+    $files = file_scan_directory($directory, '.*', $nomask);
     foreach ($files as $path => $file) {
       if (strpos($path, '/.') !== FALSE) {
         continue;

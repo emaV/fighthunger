@@ -1,0 +1,56 @@
+--
+-- Table structure for table 'ec_variation'
+--
+
+CREATE TABLE ec_variation (
+  vid int(10) NOT NULL auto_increment,
+  ptype varchar(255) default NULL,
+  name varchar(255) default NULL,
+  weight tinyint(4) NOT NULL default '0',
+  PRIMARY KEY (vid),
+  KEY ptype (ptype)
+) TYPE=MyISAM;
+
+--
+-- Table structure for table 'ec_attribute'
+--
+
+CREATE TABLE ec_attribute (
+  aid int(10) NOT NULL auto_increment,
+  vid int(10) NOT NULL,
+  name varchar(255) default NULL,
+  weight tinyint(4) NOT NULL default '0',
+  surcharge decimal(10,2) NOT NULL default '0.00',
+  PRIMARY KEY (aid),
+  KEY vid (vid)
+) TYPE=MyISAM;
+
+--
+-- Table structure for table 'ec_product_attribute'
+--
+
+CREATE TABLE ec_product_attribute (
+  nid int(10) NOT NULL default '0',
+  aid int(10) NOT NULL default '0',
+  PRIMARY KEY (nid,aid)
+) TYPE=MyISAM;
+
+--
+-- Table structure for table 'ec_product_base'
+--
+
+CREATE TABLE ec_product_base (
+  product int(10) NOT NULL default '0',
+  base int(10) NOT NULL default '0',
+  PRIMARY KEY (product,base)
+) TYPE=MyISAM;
+
+--
+-- Table structure for table 'ec_subproduct_pricing'
+--
+
+CREATE TABLE ec_subproduct_pricing (
+  nid int(10) NOT NULL default '0',
+  type tinyint NOT NULL default '0',
+  PRIMARY KEY (nid)
+) TYPE=MyISAM;

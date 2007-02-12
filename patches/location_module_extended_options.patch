@@ -1,0 +1,48 @@
+Index: /home/workspace/fh47/modules/location/location.module
+===================================================================
+--- /home/workspace/fh47/modules/location/location.module	(revision 89)
++++ /home/workspace/fh47/modules/location/location.module	(working copy)
+@@ -938,22 +938,18 @@
+       '#description' => t('If you are interested in turning off locations and having a custom theme control their display, you may want to disable the display of locations so your theme can take over them.')
+       );
+       
+-  if (!module_exist('civicrm')) {
+-    $form['location_user'] = array(
++  $form['location_user'] = array(
+         '#type' => 'radios',
+         '#title' => 'User locations',
+         '#default_value' => variable_get('location_user', 0),
+-        '#options' => array('Disable', 'Enable'),
++        '#options' => array(
++          LOCATION_USER_DONT_COLLECT => t('Do not handle user locations'), 
++          LOCATION_USER_COLLECT => t('Enable user location handled by this module'),
++          LOCATION_USER_CIVICRM_ONLY => t('Use CiviCRM module to handle user locations') ),
+         '#description' => t('Collect user addresses (partial or full) if users wish to submit them for their user accounts.')
+         );
+-  }
+-  else {
+-    $form['location_user'] = array(
+-        '#type' => 'item',
+-        '#title' => t('User locations'),
+-        '#description' => t('You have enabled the CiviCRM module.  This means that CiviCRM will collect user locations for you.  To make sure you will be able to use location module features with these user addresses, you should make sure the CiviCRM \'address\' profile is marked as active.  If you are using CivicSpace, this comes activated on a default install.  If you installed CiviCRM on a seperate Drupal installation, please consult the documentation in the README file for the location module.')
+-        );
+-  }
++
++
+   
+   $form['location_usegmap'] = array(
+       '#type' => 'checkbox',
+@@ -976,12 +972,7 @@
+ 
+ 
+ function _location_effective_user_setting() {
+-  if (module_exist('civicrm')) {
+-    return LOCATION_USER_CIVICRM_ONLY;
+-  }
+-  else {
+-    return variable_get('location_user', LOCATION_USER_DONT_COLLECT);
+-  }
++  return variable_get('location_user', LOCATION_USER_DONT_COLLECT);
+ }
+ 
+ function location_user($op, &$edit, &$user, $category = NULL) {

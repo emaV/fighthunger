@@ -1,0 +1,81 @@
+<?php
+// $Id: product.install,v 1.7 2006/05/09 12:23:37 gordon Exp $
+
+/**
+ * E-Commerce product module schema
+ */
+function product_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_product} (
+        nid int(10) unsigned NOT NULL default '0',
+        vid int(10) unsigned NOT NULL default '0',
+        pparent int(10) NOT NULL default '0',
+        sku varchar(75) default NULL,
+        price decimal(10,2) NOT NULL default '0.00',
+        is_recurring tinyint(3) unsigned NOT NULL default '0',
+        price_interval tinyint(3) unsigned NOT NULL default '0',
+        price_unit varchar(5) NOT NULL default '',
+        price_cycle int(11) NOT NULL default '0',
+        auto_charge tinyint(3) unsigned NOT NULL default '0',
+        ptype varchar(75) NOT NULL default '',
+        hide_cart_link int(2) unsigned NOT NULL default '0',
+        UNIQUE KEY vid (vid),
+        KEY ptype (ptype),
+        INDEX pparent (pparent)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_product} (
+        nid integer NOT NULL default '0',
+        vid integer NOT NULL default '0',
+        pparent integer NOT NULL default '0',
+        sku varchar(75) default NULL,
+        price decimal(10,2) NOT NULL default '0.00',
+        is_recurring integer NOT NULL default '0',
+        price_interval integer NOT NULL default '0',
+        price_unit varchar(5) NOT NULL default '',
+        price_cycle integer NOT NULL default '0',
+        auto_charge integer NOT NULL default '0',
+        ptype varchar(75) NOT NULL default '',
+        hide_cart_link integer NOT NULL default '0',
+        UNIQUE (vid)
+      )");
+      db_query("CREATE INDEX {ec_product}_ptype ON {ec_product} (ptype)");
+      db_query("CREATE INDEX {ec_product}_pparent ON {ec_product} (pparent)");
+      break;
+  }
+}
+
+/**
+ * Updates to products
+ */
+function product_update_1() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_product} ADD vid INT( 10 ) NOT NULL AFTER nid');
+      $ret[] = update_sql('ALTER TABLE {ec_product} DROP PRIMARY KEY');
+      $ret[] = update_sql('UPDATE {ec_product} p, {node} n SET p.vid = n.vid WHERE p.nid = n.nid');
+      $ret[] = update_sql('ALTER TABLE {ec_product} ADD PRIMARY KEY (vid)');
+      break;
+
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function product_update_2() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_product} ADD pparent INT(10) NOT NULL DEFAULT 0 AFTER vid');
+      $ret[] = update_sql('ALTER TABLE {ec_product} ADD INDEX (pparent)');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}

@@ -1,0 +1,711 @@
+<?php
+// $Id: webcollect.module,v 1.167 2005-04-01 15:55:01 jose Exp $
+
+/**
+ * @file
+ * webcollect payment system for e-commerce package
+ * 
+ * Developed by Jose A. Reyero. http://www.reyero.net
+ *  for FightHunger.org, http://www.fighthunger.org
+ * 
+ */
+
+// Loads simple xml library
+require_once drupal_get_path('module', 'webcollect') . '/xmlsimpleapi.inc'; 
+
+
+/**
+ * Implementation of hook_help()
+ */
+function webcollect_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Webcollect payment integration for eCommerce package.');
+  }
+}
+
+/**
+ * Interface with e-commerce
+ * 
+ * Implementation of hook_ec_paymentapi()
+ */
+function webcollect_paymentapi(&$txn, $op, $arg = '') {
+  switch ($op) {
+    case 'display name':
+      return t('Webcollect');
+    case 'form': // To display on the 'method selection' page
+      // DEBUG data here
+      break;
+    case 'on checkout': // Preparing for checkout
+      // DEBUG: Show complete request before submission
+      /*
+      $params = webcollect_create_order_params($txn);
+      $request = webcollect_prepare_request('INSERT_ORDER', $params);
+      print theme('page',  
+      xml_debug_xml($request, "Request")
+      xml_debug_array((array)$txn, "Transaction"));
+			*/
+      break;
+    case 'payment page':
+      webcollect_insert($txn);
+      watchdog('webcollect', 'paymentapi, paymentpage, store transaction data<br/>'.xml_debug_array($txn, 'transaction'));
+      if($txn->payment_status == payment_get_status_id('pending')) {
+        return webcollect_goto($txn);
+      } else {
+        return webcollect_error_page($txn);
+      }
+      break;
+    }
+}
+
+function webcollect_error_page($txn){
+  $payment = $txn->payment;
+  $output = t('<p>Cannot proceed with payment</p>');
+  $output .= "<p>$payment->error_message</p>\n";  
+  if($payment->response) { // This was a transaction error
+      $output .= t("<p>Please, contact the site administrator.</p>");
+      // DEBUG
+      //$output .= xml_debug_xml($payment->response);
+  } else { // Failed request
+      $output = t('<p>Payment failed. Please try again later.</p>');
+  }
+  print theme('page', $output);
+}
+/**
+ * Implementation of hook_ec_transactionapi().
+ */
+function webcollect_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
+  if ($txn->payment_method != 'webcollect') return NULL;
+  switch ($op) {
+    case 'load':
+      $txn->payment = db_fetch_object(db_query("SELECT * FROM {ec_webcollect} WHERE txnid = %d", $txn->txnid));
+      break;
+    case 'insert': // Before paymentapi:page
+      //webcollect_insert($txn);
+      break;
+    case 'update':
+      webcollect_save($txn);
+      break;
+    case 'delete':
+      db_query('DELETE FROM {ec_webcollect} WHERE txnid = %d', $txn->txnid);
+      break;
+  }
+} 
+
+/**
+ * Implementation of hook_cron()
+ * Updates transactions 
+ */
+function webcollect_cron(){
+  if($number = variable_get('webcollect_cron', 10)){
+    $timeout = variable_get('webcollect_payment_timeout', 0);
+    $result = db_query_range("SELECT w.* FROM {ec_webcollect} w INNER JOIN {ec_transaction} t ON w.txnid =t.txnid WHERE t.payment_method = 'webcollect' AND t.payment_status = '%d' AND w.checked < %d ORDER BY w.checked", payment_get_status_id('pending'), time() - $timeout, 0, $number);
+    while($payment = db_fetch_object($result)){
+      webcollect_check_status($payment);
+    }
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+// TO-DO: Remove testing page
+function webcollect_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'webcollect/paymentstatus', 'title' => 'webcollect',
+      'type' => MENU_CALLBACK,
+      'callback' => 'webcollect_paymentstatus',
+      'access' => TRUE);
+    $items[] = array('path' => 'webcollect/finishedpayment', 'title' => 'finished payment',
+      'type' => MENU_CALLBACK,
+      'callback' => 'webcollect_finished_payment',
+      'access' => TRUE);
+    $items[] = array('path' => 'admin/store/webcollect', 'title' => t('webcollect'),
+      'callback' => 'webcollect_admin',
+      'access' => user_access('administer payment'));
+    $items[] = array('path' => 'webcollect/test', 'title' => t('test'),
+      'type' => MENU_CALLBACK,
+      'callback' => 'webcollect_test',
+      'access' => user_access('administer payment'));     
+  }
+  return $items;
+}
+/**
+ * Implementation of hook_settings()
+ */
+function webcollect_settings(){
+  // As ecommerce desn't use currency code, we need to set one for this module
+  $form['webcollect_currency_code']= array('#type' => 'textfield', '#title' => t('Currency code'), 
+    '#default_value' => variable_get('webcollect_currency_code', 'USD'),
+    '#size' => 10, 
+    '#maxlength' => 10, 
+    '#description' => t('The currecy code for all transactions.')
+  );
+  // Note: default is test server
+  $form['webcollect_merchantid'] = array('#type' => 'textfield', '#title' => t('Merchant Id'), 
+    '#default_value' => variable_get('webcollect_merchantid', ''), 
+    '#size' => 10, '#maxlength' => 10
+  );
+  $form['webcollect_paymentserver_url'] = array('#type' => 'textfield', '#title' => t('Payment server URL'), 
+    '#default_value' => variable_get('webcollect_paymentserver_url', 'https://ps.gcsip.nl/hpp/hpp'), 
+    '#size' => 100, '#maxlength' => 100, 
+    '#description' => t("Webcollect Customer Link. It should be <strong>https://ps.gcsip.com/hpp/hpp</strong> for Production and <strong>https://ps.gcsip.nl/hpp/hpp</strong> for Testing. Default is testing.")
+  );
+  $form['webcollect_cron'] = array('#type' => 'textfield', '#title' => t('Process step on cron'), 
+    '#default_value' => variable_get('webcollect_cron', 10), 
+    '#size' => 10, '#maxlength' => 10, 
+    '#description' =>t("Number of transactions to process on each cron execution. Zero to disable.")
+  );
+  $form['webcollect_payment_timeout'] = array('#type' => 'textfield', '#title' => t('Payment timeout'), 
+    '#default_value' => variable_get('webcollect_payment_timeout', 0), 
+    '#size' => 10, '#maxlength' => 10, 
+    '#description' =>t("Time, in seconds, after which pending donations will be checked again.")
+  );
+  $form['webcollect_local_ip'] = array('#type' => 'textfield', '#title' => t('Local IP address'), 
+    '#default_value' => variable_get('webcollect_local_ip', ''), 
+    '#size' => 20, '#maxlength' => 20, 
+    '#description' => t("Local IP address to be sent to Webcollect server. This server's IP is %ip_address", array('%ip_address' => $_SERVER['SERVER_ADDR']))
+  );
+
+  return $form;
+}
+
+
+/**
+ * Pament API
+ * TO-DO: More watchdog messages
+ */
+
+function webcollect_insert(&$txn){
+  // Adjust parameters
+  
+  // Communication with payment server
+  $params = webcollect_create_order_params($txn);
+  $request = webcollect_prepare_request('INSERT_ORDER', $params);
+  $result = webcollect_request($request);
+  // Process response
+  $response = webcollect_response($result);
+  if(_webcollect_response_ok($response)){
+    // We have a valid response. Store returned parameters
+    watchdog('webcollect', 'DEBUG: Webcollect response OK<br/>'.xml_debug_xml($result, 'Returned XML'));
+    $txn->payment_status = payment_get_status_id('pending');
+    $txn->payment = $response->row[0];
+    // Save data
+    webcollect_save($txn);
+  } else {
+    // Something has gone wrong
+    $error_message = _webcollect_response_error($response);
+    drupal_set_message(t('Communication with payment provider failed'), 'error');
+    $txn->payment_status = payment_get_status_id('failed');
+    $txn->payment->response = $response;
+    $txn->payment->error_message = $error_message;
+    watchdog('webcollect', $error_message, WATCHDOG_ERROR);    
+    // Log response object
+    if($response) {
+      watchdog('webcollect', 'Webcollect response not OK<br/>'.xml_debug_xml($result, 'Returned XML'), WATCHDOG_ERROR);
+    } 
+    // Update transaction, that will in turn update payment information
+    store_transaction_save($txn);
+  }
+  
+
+}
+
+function webcollect_save(&$txn){
+  $payment = $txn->payment;
+  if($payment->txnid){ // Update
+    db_query("UPDATE {ec_webcollect} SET statusid=%d, mac = '%s', ref = '%s', error_message='%s' WHERE txnid = '%d'", $payment->statusid, $payment->mac, $payment->ref, $payment->error_message, $txn->txnid);
+  } else { // Create
+    db_query("INSERT INTO {ec_webcollect}(txnid, statusid, mac, ref, error_message) VALUES(%d, '%d','%s', '%s', '%s') ", $txn->txnid, $payment->statusid, $payment->mac, $payment->ref, $payment->error_message);
+    $txn->payment->txnid = $txn->txnid;
+  }
+}
+/**
+ * Check && update the status of the donation.
+ * @param $cancel = Set to cancelled if status is not completed
+ */
+function webcollect_check_status($payment){
+  // DEBUG
+  //print "<br/> DEBUG: Checking status for donation $payment->txnid..";
+  
+  // Request
+  $order = array('ORDERID' => $payment->txnid);
+  $params = array('ORDER' => $order);
+  $request = webcollect_prepare_request('GET_ORDERSTATUS', $params);
+  $fullresponse = webcollect_request($request);
+  
+  // Process response
+  $response = webcollect_response($fullresponse);
+  if(_webcollect_response_ok($response)){
+    $params = $response->row[0];
+    // Check if valid status and status changed
+    if($params &&  isset($params->statusid) && $params->statusid != $payment->statusid) {
+      $txn = store_transaction_load($payment->txnid);
+      // Double translation of statusid(wc) -> status(string, ec) -> payment_status(ec)
+      $txn->payment_status = payment_get_status_id(_webcollect_status($params->statusid));
+      $txn->payment->statusid = $params->statusid;
+      // Update status and transaction data 
+      store_transaction_save($txn);
+      watchdog('webcollect', "Updated status for transaction $txn->txnid : $param->statusid = "._webcollect_status($param->statusid), WATCHDOG_NOTICE, 'admin/donation/'.$txn->trid);
+    }
+    // DEBUG
+    // print "status= $params->statusid $status <br/>";
+  } elseif($response){
+    // If there's been a response, update transaction
+    watchdog('webcollect', "Status for transaction $payment->txnid : $payment->error", WATCHDOG_ERROR, 'admin/donation/'.$txn->trid);
+    $txn = store_transaction_load($payment->txnid);
+    $txn->payment->error_message = _webcollect_response_error($response);
+    $txn->payment_status = payment_get_status_id('failed');
+    store_transaction_save($txn);
+    //print xml_debug_xml($fullresponse, "RESPONSE ERROR");
+    //print xml_debug_array($response, "Response object");
+  } else {
+    watchdog('webcollect', "Failed communication with payment server for status checking", WATCHDOG_ERROR);
+  }
+  
+  // Update checked timestamp - Always!! - Otherwise we can be looping forever on a few stuck orders
+  db_query("UPDATE {ec_webcollect} SET checked=%d WHERE txnid=%d", time(), $payment->txnid);
+  
+  // Returns data for display in admin pages
+  $txn->payment->response = $response;
+  $txn->payment->fullresponse = $fullresponse;
+  $txn->payment->request = $request;
+  return $txn;
+}
+
+// Translates webcollect status into our transaction status
+function _webcollect_status($statusid){
+  switch($statusid){
+    case 0: // Created
+    case 600: // PENDING VERIFICATION    
+      return 'pending';
+    case 800: // READY
+    case 850: // MARKED FOR SENDING
+    case 900: // SENT, PROCESSED
+      return 'completed'; // Was 'accepted'
+    case 1000: // PAID
+    case 1010: // ACCOUNT DEBITED
+      return 'completed'; // Was 'cleared'
+    case 100: // REJECTED
+    case 1100: // REJECTED
+      return 'failed'; // Was 'rejected'
+    case 1500: // CHARGED BACK BY CONSUMER
+    case 1510: // REVERSAL BY CONSUMER
+    case 1520: // REVERSED
+    case 1800: // REFUNDED
+      return 'refunded'; // Was 'reversed'
+    default:
+      return 'unknown';
+  }
+}
+// Returns true if response OK and has data
+function _webcollect_response_ok($response){
+  if($response && $response->result == 'OK' && isset($response->row) && is_array($response->row)){
+    return TRUE;
+  }
+}
+// Returns readable error
+function _webcollect_response_error($response){
+    if(!$response) {
+      return t('Communication with webcollect server failed');
+    } elseif($response->result == 'NOK' && $error = $response->error[0]){
+      return "$error->code - $error->message"; // Should we translate the error message ?
+    } else {
+      return t('Undefined error');
+    }
+  
+}
+/**
+ * Implementation of webcollect protocol
+ * 
+ */
+
+/**
+ * Redirect user to the payment server
+ */
+function webcollect_goto($txn){
+  $url = variable_get('webcollect_paymentserver_url', '');
+  $url .= '?ACTION=PAY&REF='.$txn->payment->ref.'&MAC='.urlencode($txn->payment->mac);
+  // Before the redirect, allow modules to react to the end of the page request.
+  module_invoke_all('exit', $url);
+  // Redirect
+  header('Location: '. $url);
+  exit();
+  // For debugging or when Redirect doesn't happen
+  $output = t('<p>Redirect URL</p>');
+  $output .= l($url, $url);
+  return $output;
+}
+
+function webcollect_donation_update($txn, $data = array()) {
+  if( isset($txn->data) && is_array($txn->data)) {
+    $txn->data = array_merge($txn->data, $data);
+  } else {
+    $txn->data = $data;
+  }
+  return donation_save($txn);
+}
+
+/**
+ * Process messages from Payment Status Communicator
+ * TO-DO: Check additional parameters
+ * TO-DO: Check https and server
+ */
+function webcollect_paymentstatus(){
+  $data = $_POST;
+  // DEBUG
+  watchdog('webcollect', "Payment Status Communicator ".xml_debug_array($data));
+  // isset() and $_SERVER["HTTPS"] == 'on'
+  $txn = donation_load(array('trid' => $data['ORDERID']));
+  if( $txn && webcollect_process_paymentstatus($txn, $data) ){
+    print("OK\n");
+  } else {
+    // Always OK, for debug
+    //print("NOK\n");
+    print("OK\n");
+  }
+  exit();
+}
+
+// TO-DO: Update our order status
+function webcollect_process_paymentstatus($txn, $data){
+  if( $txn->trid == $data['ORDERID'] &&
+      $txn->status == 'pending' &&
+      $data['AMOUNT'] == 100 * $txn->amount &&
+      $data['CURRENCYCODE'] == $txn->currency ) 
+  {
+      //Save al data submitted
+      $txn->data = array_merge($txn->data, $data);
+      // Process order status
+      // We should update the status of the order according to the STATUSID
+      donation_save($txn);
+      return TRUE;
+  } else {
+    return FALSE;
+  }
+}
+
+/**
+ * User is back in our site after the payment
+ * 
+ * Security note: data may be forged so we cannot use it to update status
+ */
+function webcollect_finished_payment($trid=NULL){
+  $data = $_POST;
+  $output = t('Thanks for your donation.');
+  // DEBUG
+  // $output .= xml_debug_array($data, "Data");
+  
+  print theme('page', $output);  
+}
+
+/**
+ * DEBUG: Callback for testing
+ */
+function webcollect_test($trid = 0, $action='status'){
+  $output = '';
+  switch($action) {
+    case 'status':
+      $output = webcollect_test_status($trid);
+      break;
+    case 'insert':
+      $output = webcollect_test_order($trid);
+      break;
+  }
+  print theme('page', $output);
+}
+
+function webcollect_test_order($trid = 0){
+  $output = '';
+  if( $txn = donation_load(array('trid' => $trid)) ) {
+    $params = webcollect_create_order_params($txn);
+    $request = webcollect_prepare_request('INSERT_ORDER', $params);
+    $response = webcollect_request($request);
+    
+    $fullresponse = $response;
+    $response = xml_extract_tage($response, "RESPONSE");
+    $output .= xml_debug_xml($response, "RESPONSE");
+
+    $response = xml_xml2object($response);
+    $output .= xml_debug_array($response, "Response");
+
+    $output .= xml_debug_array($response->result, "Result");
+    $output .= xml_debug_array($response->error[0], "Error");
+    
+    $output .= xml_debug_xml($fullresponse, "Full Response");
+    $output .= xml_debug_array($txn, 'Donation');
+    $output .= xml_debug_xml($request, "Request");
+  } else {
+    $output = 'Donation not found';
+  }
+  return $output;
+}
+
+function webcollect_test_status($trid = 0){
+  $output = '';
+  if( $txn = donation_load(array('trid' => $trid)) ) {
+    $order = array('ORDERID' => $trid);
+    $action = 'GET_ORDERSTATUS';
+    $params = array('ORDER' => $order);
+    $request = webcollect_prepare_request($action, $params);
+    $response = webcollect_request($request);
+    
+    $fullresponse = $response;
+    $response = xml_extract_tag($response, "RESPONSE");
+    $output .= xml_debug_xml($response, "RESPONSE");
+
+    $response = xml_xml2object($response);
+    $output .= xml_debug_array($response, "Response");
+
+    $output .= xml_debug_array($response->result, "Result");
+    $output .= xml_debug_array($response->error[0], "Error");
+    
+    $output .= xml_debug_xml($fullresponse, "Full Response");
+    $output .= xml_debug_array($txn, 'Donation');
+    $output .= xml_debug_xml($request, "Request");
+  } else {
+    $output = 'Donation not found';
+  }
+  return $output;
+}
+
+function webcollect_request($data){
+  $url = variable_get('webcollect_paymentserver_url', '');
+  $headers = array("Content-Type" => "text/xml");
+  // Fetch data using curl
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $url);
+  curl_setopt($ch, CURLOPT_POST, 1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, "IN=$data");
+  //curl_setopt($sessions,CURLOPT_FOLLOWLOCATION,0);
+  //curl_setopt($sessions, CURLOPT_HEADER , 1);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $result = curl_exec($ch);  
+  curl_close($ch);
+  return $result;
+}
+
+// Parses xml response into an object
+function webcollect_response($data){
+  if( $data && $response = xml_extract_tag($data, "RESPONSE") ){
+    return xml_xml2object($response);
+  } else {
+    return NULL;
+  }
+}
+
+/**
+ * Builds xml request to be sent to payment server
+ * There are some additional mapping here
+ *   CURRENCYCODE = fixed setting for this module
+ *   COUNTRYCODE = billing_country
+ */
+function webcollect_create_order_params($txn) {
+  $params['ORDER'] = webcollect_create_order($txn);
+  $params['ORDERLINES'] = webcollect_create_order_lines($txn);
+  return $params;
+}
+
+/**
+ * Create order object from transaction
+ */
+function webcollect_create_order($txn){
+
+  $order = new StdClass();
+  $order->ORDERID = $txn->txnid;
+  $order->ORDERTYPE = 1;
+  $order->LANGUAGECODE = 'en';
+  $order->IPADDRESSCUSTOMER = $_SERVER['REMOTE_ADDR'];
+  // Mapping with transaction data
+  $order->AMOUNT = 100 * $txn->gross; // Only numbers
+  $order->CURRENCYCODE = variable_get('webcollect_currency_code', 'USD');
+  // Get country code from billing address
+  $billing = $txn->address['billing'];
+  $order->COUNTRYCODE = _webcollect_fix_countrycode($billing->country);
+  // Additional user data
+  global $user;
+  $order->EMAIL = $user->mail;
+  return $order;
+}
+
+/**
+ * Create order lines
+ * Format of description:
+ * 		Decription(116)
+ * 		Number of items(4)
+ *    Price per item(12)
+ */
+function webcollect_create_order_lines($txn){
+  $linenumber = 1;
+  $orderlines = array();
+  $list = $txn->items;
+  
+  // Add shipping cost as an order line
+  // TO-DO: See whether there's a specific place to add shipping costs ??
+  //var_dump($txn);
+  if($txn->ship && $txn->ship['cost'] && $methods = module_invoke('shipping', 'get_methods')){
+    $description =  $methods[$txn->ship['service']][$txn->ship['method']]['#title'];
+    $list[] = (object)array(
+      'price' => $txn->ship['cost'],
+      'qty' => 1,
+      'description' => t('Shipping:').' '.$description
+    );
+  }
+  // Build orderlines as array of objects
+  foreach($list as $item){
+    // Round price
+    $item->price = round($item->price, 2);
+    $line = new StdClass();
+    $line->LINENUMBER = $linenumber++;
+    // $line->AMOUNTSIGN = '+';
+    // TO-DO: Do we need to apply price adjustments here??                                                                                
+    $line->LINEAMOUNT = 100 * $item->price * $item->qty;
+    // Build item description
+  	if($item->nid) {
+      $product = node_load(array('nid' => $item->nid));
+      $description = $product->title;
+    } else {
+      $description = $item->description ? $item->description : t('No description available');
+  	}
+  	// Line data, with some padding (GC requirement)
+    if(strlen($description) > 116 ) {
+      $description = substr($description, 0, 116);
+    }
+    $line->INVOICELINEDATA = str_pad($description, 116).
+      str_pad($item->qty, 4, ' ', STR_PAD_LEFT).
+      str_pad($item->price, 12, ' ', STR_PAD_LEFT);
+    $orderlines[] = array('ORDERLINE' => $line);
+  }
+  return $orderlines;
+}
+
+function webcollect_prepare_request($action, $params){
+  // Prepare data
+  $data = new StdClass();
+  $data->ACTION = $action;
+  $data->META = array(
+  	'MERCHANTID' => variable_get('webcollect_merchantid', ''),
+    'IPADDRESS' => variable_get('webcollect_local_ip', $_SERVER['SERVER_ADDR']),
+    'VERSION' => '1.0'
+    );
+  $data->PARAMS = $params;
+  
+  // Build xml request
+  $out = '<XML><REQUEST>';
+  $out .= xml_data2xml($data);
+  $out .= '</REQUEST></XML>';
+  return $out;
+}
+
+/**
+ * Administration pages
+ */
+function webcollect_admin($txnid = NULL, $op = 'view') {
+  if($txnid && $txn = store_transaction_load($txnid)) {
+    $output = webcollect_admin_transaction($txn, $op);
+  } else {
+    $output = webcollect_admin_overview();
+  }
+  print theme('page', $output);
+}
+
+/**
+ * Administration: Paged list of transactions
+ * 
+ * Transaction link: admin/store/transaction/edit/[txnid]&section=overview
+ */
+function webcollect_admin_overview() {
+  $result = pager_query('SELECT * FROM {ec_webcollect} ORDER BY txnid DESC', 40);
+
+  if (db_num_rows($result)) {
+    $header = array(t('transacion'), t('status'), t('last checked'), t('options'));
+    while ($data = db_fetch_object($result)) {
+      $rows[] = array(
+        l($data->txnid, "admin/store/webcollect/$data->txnid"), 
+        $data->statusid . '= '._webcollect_status($data->statusid), 
+        format_date($data->checked, 'small'),
+        l(t('check status'), 'admin/store/webcollect/'.$data->txnid.'/'.test),
+        );        
+    }
+    $output = theme('table', $header, $rows);
+    $output .= theme('pager', NULL, 40);
+  } else {
+    $output = t('No webcollect transactions yet');
+  }
+  return $output;  
+}
+
+/**
+ * Administration: Single donation
+ */
+function webcollect_admin_transaction($txn, $op) {
+  $output = '';
+  if($op == 'test'){
+    // Check status, real time
+    $txn = webcollect_check_status($txn->payment);
+    $payment = $txn->payment;
+    $output .= '<h2>'.t('Results ').'</h2>';
+    $output .= xml_debug_array($payment->response, "Response Object");
+    $output .= xml_debug_xml($payment->fullresponse, "Full XML Response");
+    $output .= xml_debug_array($txn, 'Transaction Object');
+    $output .= xml_debug_xml($payment->request, "XML Request");
+    
+  } else {
+    drupal_set_title(t('Payment transaction detail'));
+    $payment = $txn->payment;
+    
+    $form['txn'] = array('#type' => 'fieldset', '#title' => t('Transaction'), '#weight' => 1);
+    $form['txn']['txnid'] = array('#type' => 'item', '#title' => t("Transaction Id"), '#value' => $txn->txnid, '#weight' => 1);
+    if($txn->uid) {
+      $user = user_load(array('uid' => $txn->uid));
+      $form['txn']['user'] = array('#type' => 'item', '#title' => t("User"), '#value' => theme('username', $user), '#weight' => 10);
+    }
+
+    $form['ps'] = array('#type' => 'fieldset', '#title' => t('Payment status'), '#weight' => 3);    
+    $form['ps']['status'] = array('#type' => 'item', '#title' => t("Status"), '#value' => _webcollect_status($payment->statusid), '#weight' => 3);
+    $form['ps']['checked'] = array('#type' => 'item', '#title' => t("Last checked"), '#value' => format_date($payment->checked, 'small'), '#weight' => 20);
+  
+    if($payment->error_message){
+     $form['ps']['error'] = array('#type' => 'item', '#title' => t("Error message"), '#value' => $payment->error_message);
+    }
+    
+    $form['pay'] = array('#type' => 'fieldset', '#title' => t('Payment details'), '#weight' => 5);
+    $form['pay']['created'] = array('#type' => 'item', '#title' => t("Created"), '#value' => format_date($txn->created, 'small'), '#weight' => 22);
+    $form['pay']['changed'] = array('#type' => 'item', '#title' => t("Updated"), '#value' => format_date($txn->changed, 'small'), '#weight' => 23);
+    $form['pay']['MAC'] = array('#type' => 'item', '#title' => t("MAC"), '#value' =>  $payment->mac, '#weight' => 22);
+    $form['pay']['REF'] = array('#type' => 'item', '#title' => t("REF"), '#value' => $payment->ref, '#weight' => 23);
+    
+    $output .= form_render($form);
+  
+  }
+
+  return $output;
+}
+/**
+ * Fix some country codes
+ * YU > CS
+ * CD > ZR
+ * UK > GB
+ * GG > GB
+ * IM > GB
+ * JE > GB 
+ */
+function _webcollect_fix_countrycode($code){
+  $code = strtoupper($code);
+  switch($code) {
+    case 'UK':
+    case 'GG':
+    case 'IM':
+    case 'JE':
+      return 'GB';
+    case 'YU':
+      return 'CS';
+    case 'CD':
+      return 'ZR';
+    default:
+      return $code; 
+  }
+}
+?>

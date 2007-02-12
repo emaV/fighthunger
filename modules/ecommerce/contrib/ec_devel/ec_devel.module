@@ -1,0 +1,67 @@
+<?php
+// $Id: ec_devel.module,v 1.2.2.1 2006/10/02 00:33:19 gordon Exp $
+
+/**
+ * Implementation of hook_help()
+ */
+function ec_devel_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Add additional debug features to E-Commerce');
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function ec_devel_menu($may_cache) {
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'cart/review/checkout',
+      'title' => t('checkout'),
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+    );
+    $items[] = array(
+      'path' => 'cart/review/object',
+      'title' => t('object structure'),
+      'callback' => 'ec_devel_checkout',
+      'access' => user_access('access devel information'),
+      'type' => MENU_LOCAL_TASK,
+    );
+  }
+  return $items;
+}
+
+/**
+ * ec_devel_checkout()
+ */
+function ec_devel_checkout() {
+  $txn = ec_checkout_get_data();
+  return ec_devel_object($txn);
+}
+
+/**
+ * ec_devel_object()
+ */
+function ec_devel_object($object) {
+
+  foreach ($object as $field => $value) {
+    if (is_null($value)) {
+      $printed_value = 'NULL';
+    }
+    else if (is_array($value) || is_object($value)) {
+      ob_start();
+      print_r($value);
+      $printed_value = ob_get_clean();
+      $printed_value = '<pre>'. check_plain($printed_value) .'</pre>';
+    }
+    else {
+      $printed_value = check_plain($value);
+    }
+
+    $output .= theme('box', $field, $printed_value);
+  }
+
+  return $output;
+}

@@ -1,0 +1,1167 @@
+# LANGUAGE translation of Drupal (C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: address.module,v 1.16.2.5 2005/12/02 01:49:44 mathias
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Drupal E-Commerce 4.6.0 - Address module\n"
+"POT-Creation-Date: 2006-01-02 19:12+0100\n"
+"PO-Revision-Date: 2006-01-12 19:19+0100\n"
+"Last-Translator: Nicola Sanino <nicolasanino@criterianet.net>\n"
+"Language-Team: Drupal Italia <danilo.spada@unimi.it, nicolasanino@criterianet.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:14
+msgid "Enable address books for users."
+msgstr "Abilita la rubrica personale per gli utenti"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:32
+msgid "address book"
+msgstr "indirizzi"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:44
+msgid "Default country"
+msgstr "Paese predefinito"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:44
+msgid "Choose the default country for addresses."
+msgstr "Scegli il paese predefinito per gli indirizzi."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:57
+msgid "Choose a shipping and billing address"
+msgstr "Selezionare un indirizzo di spedizione e un indirizzo di fatturazione"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:60
+msgid "Choose a billing address"
+msgstr "Scegli un indirizzo di fatturazione"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:63
+msgid "Continue"
+msgstr "Continua"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:68
+msgid "You need to select a shipping address."
+msgstr "Devi selezionare un indirizzo di spedizione."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:71
+msgid "You need to select a billing address."
+msgstr "Devi selezionare un indirizzo di fatturazione."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:81
+msgid "Shipping and billing address"
+msgstr "Indirizzo di spedizione e di fatturazione"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:84
+msgid "Billing address"
+msgstr "Indirizzo di fatturazione"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:107
+msgid "There are no addresses in your addressbook.  Please add a shipping/delivery address now."
+msgstr " Non esistono indirizzi nella tua rubrica. Per favore aggiungi un indirizzo di spedizione/consegna."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:117
+msgid "Shipping to"
+msgstr "Spedisci a"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:117
+msgid "Please choose where you would like the items to be delivered. You can also %add_address."
+msgstr "Per favore scegli l'indirizzo di spezione. Puoi anche %add_address."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:117;119
+msgid "add an address"
+msgstr "aggiungi un indirizzo"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:119
+msgid "Billing to"
+msgstr "Fattura a"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:119
+msgid "Please choose where you would like the invoice to be sent. You can also %add_address."
+msgstr "Per favore scegli l'indirizzo di fatturazione. Puoi anche %add_address."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:132
+msgid "E-mail address"
+msgstr "Indirizzo e-mail"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:132
+msgid "Please double-check to make sure you email address is correct."
+msgstr "Per favore controlla attentamente che il tuo indirizzo di posta elettronica sia corretto."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:149
+msgid "%username's address book"
+msgstr "la rubrica di %username"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:151
+msgid "<p>Your address book is used to save addresses for billing and shipping of items from our store.</p>"
+msgstr "<p>La tua rubrica &egrave; utilizzata per salvare i recapiti necessari alla fatturazione ed alla consegna dei prodotti del nostro negozio.</p>"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:157;210
+msgid "Create new address"
+msgstr "Crea indirizzo"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:158;210
+msgid "Update address"
+msgstr "Aggiorna l'indirizzo"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:218
+msgid "<strong>Please update your <em>country</em> and <em>state/province</em></strong>.<br />We apologize for the inconvenience."
+msgstr "<strong>Per favore, aggiorna il tuo <em>paese</em> e <em>stato/provincia</em></strong>.<br/>Chiediamo scusa per l'inconveniente."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:224;232
+msgid "Please choose..."
+msgstr "Per favore, scegli..."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:225
+msgid "Country"
+msgstr "Paese"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:226
+msgid "First Name"
+msgstr "Nome"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:227
+msgid "Last Name"
+msgstr "Cognome"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:228
+msgid "Address Line 1"
+msgstr "Indirizzo 1"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:229
+msgid "Address Line 2"
+msgstr "Indirizzo 2"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:230
+msgid "City"
+msgstr "Citt&agrave;"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:233
+msgid "State"
+msgstr "Stato"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:234
+msgid "Province / Region"
+msgstr "Provincia / Regione"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:235
+msgid "Zip / Postal Code"
+msgstr "Codice postale (CAP)"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:236
+msgid "Phone Number"
+msgstr "Numero di telefono"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:272
+msgid "Click here to add a new address"
+msgstr "Clicca qui per aggiungere un nuovo indirizzo"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:274;0
+msgid "address"
+msgstr "indirizzo"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:274
+msgid "options"
+msgstr "opzioni"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:283
+msgid "tel: %phone"
+msgstr "tel.: %phone"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:287
+msgid "edit"
+msgstr "modifica"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:287
+msgid "delete"
+msgstr "elimina"
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:318
+msgid "Invalid %key."
+msgstr "%key non valida."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:323
+msgid "Please select a country."
+msgstr "Per favore, seleziona un paese."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:327
+msgid "Please enter a state/province/region."
+msgstr "Per favore, inserisci uno stato/provincia/regione."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:369
+msgid "The address has been saved."
+msgstr "L'indirizzo &egrave; stato salvato."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:374
+msgid "The address has been deleted."
+msgstr "L'indirizzo &egrave; stato eliminato."
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:390
+msgid "Andorra"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:391
+msgid "United Arab Emirates"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:392
+msgid "Afghanistan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:393
+msgid "Antigua and Barbuda"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:394
+msgid "Anguilla"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:395
+msgid "Albania"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:396
+msgid "Armenia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:397
+msgid "Netherlands Antilles"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:398
+msgid "Angola"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:399
+msgid "Antarctica"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:400
+msgid "Argentina"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:401
+msgid "American Samoa"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:402
+msgid "Austria"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:403
+msgid "Australia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:404
+msgid "Aruba"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:405
+msgid "Aland Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:406
+msgid "Azerbaijan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:407
+msgid "Bosnia and Herzegovina"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:408
+msgid "Barbados"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:409
+msgid "Bangladesh"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:410
+msgid "Belgium"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:411
+msgid "Burkina Faso"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:412
+msgid "Bulgaria"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:413
+msgid "Bahrain"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:414
+msgid "Burundi"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:415
+msgid "Benin"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:416
+msgid "Bermuda"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:417
+msgid "Brunei Darussalam"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:418
+msgid "Bolivia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:419
+msgid "Brazil"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:420
+msgid "Bahamas"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:421
+msgid "Bhutan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:422
+msgid "Bouvet Island"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:423
+msgid "Botswana"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:424
+msgid "Belarus"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:425
+msgid "Belize"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:426
+msgid "Canada"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:427
+msgid "Cocos (Keeling) Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:428
+msgid "Democratic Republic of the Congo (formerly Zaire)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:429
+msgid "Central African Republic"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:430
+msgid "Congo (Republic of the Congo)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:431
+msgid "Switzerland (Confoederatio Helvetica)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:432
+msgid "Cote d'Ivoire (Ivory Coast)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:433
+msgid "Cook Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:434
+msgid "Chile"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:435
+msgid "Cameroon"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:436
+msgid "China"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:437
+msgid "Colombia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:438
+msgid "Costa Rica"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:439
+msgid "Serbia and Montenegro"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:440
+msgid "Cuba"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:441
+msgid "Cape Verde"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:442
+msgid "Christmas Island"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:443
+msgid "Cyprus"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:444
+msgid "Czech Republic"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:445
+msgid "Germany (Deutschland)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:446
+msgid "Djibouti"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:447
+msgid "Denmark"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:448
+msgid "Dominica"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:449
+msgid "Dominican Republic"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:450
+msgid "Algeria"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:451
+msgid "Ecuador"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:452
+msgid "Estonia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:453
+msgid "Egypt"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:454
+msgid "Western Sahara (formerly Spanish Sahara)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:455
+msgid "Eritrea"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:456
+msgid "Spain (Espana)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:457
+msgid "Ethiopia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:458
+msgid "Finland"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:459
+msgid "Fiji"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:460
+msgid "Falkland Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:461
+msgid "Federated States of Micronesia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:462
+msgid "Faroe Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:463
+msgid "France"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:464
+msgid "Gabon"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:465
+msgid "Grenada"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:466
+msgid "Georgia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:467
+msgid "French Guiana"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:468
+msgid "Ghana"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:469
+msgid "Gibraltar"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:470
+msgid "Greenland"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:471
+msgid "Gambia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:472
+msgid "Guinea"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:473
+msgid "Guadeloupe"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:474
+msgid "Equatorial Guinea"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:475
+msgid "Greece"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:476
+msgid "South Georgia and the South Sandwich Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:477
+msgid "Guatemala"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:478
+msgid "Guam"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:479
+msgid "Guinea-Bissau"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:480
+msgid "Guyana"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:481
+msgid "Hong Kong"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:482
+msgid "Heard Island and McDonald Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:483
+msgid "Honduras"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:484
+msgid "Croatia (Hrvatska)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:485
+msgid "Haiti"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:486
+msgid "Hungary"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:487
+msgid "Indonesia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:488
+msgid "Ireland"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:489
+msgid "Israel"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:490
+msgid "India"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:491
+msgid "British Indian Ocean Territory (including Diego Garcia)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:492
+msgid "Iraq"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:493
+msgid "Iran"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:494
+msgid "Iceland"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:495
+msgid "Italy"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:496
+msgid "Jamaica"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:497
+msgid "Jordan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:498
+msgid "Japan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:499
+msgid "Kenya"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:500
+msgid "Kyrgyzstan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:501
+msgid "Cambodia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:502
+msgid "Kiribati"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:503
+msgid "Comoros"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:504
+msgid "Saint Kitts and Nevis"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:505
+msgid "North Korea"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:506
+msgid "South Korea"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:507
+msgid "Kuwait"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:508
+msgid "Cayman Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:509
+msgid "Kazakhstan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:510
+msgid "Laos"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:511
+msgid "Lebanon"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:512
+msgid "Saint Lucia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:513
+msgid "Liechtenstein"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:514
+msgid "Sri Lanka"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:515
+msgid "Liberia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:516
+msgid "Lesotho"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:517
+msgid "Lithuania"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:518
+msgid "Luxembourg"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:519
+msgid "Latvia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:520
+msgid "Libya"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:521
+msgid "Morocco"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:522
+msgid "Monaco"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:523
+msgid "Moldova"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:524
+msgid "Madagascar"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:525
+msgid "Marshall Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:526
+msgid "Former Yugoslav Republic of Macedonia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:527
+msgid "Mali"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:528
+msgid "Myanmar (Burma)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:529
+msgid "Mongolia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:530
+msgid "Macao (Macau)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:531
+msgid "Northern Mariana Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:532
+msgid "Martinique"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:533
+msgid "Mauritania"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:534
+msgid "Montserrat"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:535
+msgid "Malta"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:536
+msgid "Mauritius"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:537
+msgid "Maldives"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:538
+msgid "Malawi"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:539
+msgid "Mexico"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:540
+msgid "Malaysia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:541
+msgid "Mozambique"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:542
+msgid "Namibia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:543
+msgid "New Caledonia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:544
+msgid "Niger"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:545
+msgid "Norfolk Island"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:546
+msgid "Nigeria"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:547
+msgid "Nicaragua"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:548
+msgid "Netherlands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:549
+msgid "Norway"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:550
+msgid "Nepal"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:551
+msgid "Nauru"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:552
+msgid "Niue"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:553
+msgid "New Zealand"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:554
+msgid "Oman"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:555
+msgid "Panama"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:556
+msgid "Peru"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:557
+msgid "French Polynesia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:558
+msgid "Papua New Guinea"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:559
+msgid "Philippines"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:560
+msgid "Pakistan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:561
+msgid "Poland"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:562
+msgid "Saint-Pierre and Miquelon"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:563
+msgid "Pitcairn Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:564
+msgid "Puerto Rico"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:565
+msgid "Palestinian Territories (West Bank and Gaza Strip)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:566
+msgid "Portugal"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:567
+msgid "Palau"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:568
+msgid "Paraguay"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:569
+msgid "Qatar"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:570
+msgid "Reunion"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:571
+msgid "Romania"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:572
+msgid "Russia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:573
+msgid "Rwanda"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:574
+msgid "Saudi Arabia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:575
+msgid "Solomon Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:576
+msgid "Seychelles"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:577
+msgid "Sudan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:578
+msgid "Sweden"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:579
+msgid "Singapore"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:580
+msgid "Saint Helena"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:581
+msgid "Slovenia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:582
+msgid "Svalbard and Jan Mayen Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:583
+msgid "Slovakia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:584
+msgid "Sierra Leone"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:585
+msgid "San Marino"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:586
+msgid "Senegal"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:587
+msgid "Somalia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:588
+msgid "Suriname"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:589
+msgid "Sao Tome and Principe"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:590
+msgid "El Salvador"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:591
+msgid "Syria"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:592
+msgid "Swaziland"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:593
+msgid "Turks and Caicos Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:594
+msgid "Chad (Tchad)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:595
+msgid "French Southern Territories"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:596
+msgid "Togo"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:597
+msgid "Thailand"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:598
+msgid "Tajikistan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:599
+msgid "Tokelau"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:600
+msgid "Timor-Leste (East Timor)"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:601
+msgid "Turkmenistan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:602
+msgid "Tunisia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:603
+msgid "Tonga"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:604
+msgid "Turkey"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:605
+msgid "Trinidad and Tobago"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:606
+msgid "Tuvalu"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:607
+msgid "Taiwan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:608
+msgid "Tanzania"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:609
+msgid "Ukraine"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:610
+msgid "Uganda"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:611
+msgid "United Kingdom"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:612
+msgid "United States Minor Outlying Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:613
+msgid "United States"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:614
+msgid "Uruguay"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:615
+msgid "Uzbekistan"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:616
+msgid "Vatican City"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:617
+msgid "Saint Vincent and the Grenadines"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:618
+msgid "Venezuela"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:619
+msgid "British Virgin Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:620
+msgid "U.S. Virgin Islands"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:621
+msgid "Vietnam"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:622
+msgid "Vanuatu"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:623
+msgid "Wallis and Futuna"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:624
+msgid "Samoa"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:625
+msgid "Yemen"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:626
+msgid "Mayotte"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:627
+msgid "South Africa"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:628
+msgid "Zambia"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:629
+msgid "Zimbabwe"
+msgstr ""
+
+#: C:\Programmi\EasyPHP1-7\www\drupal-extractor\address.module:701
+msgid "Outside U.S."
+msgstr ""
+

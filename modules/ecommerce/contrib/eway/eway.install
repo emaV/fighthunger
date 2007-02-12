@@ -1,0 +1,15 @@
+<?php
+// $Id: eway.install,v 1.2 2006/05/17 13:23:17 sammys Exp $
+
+/**
+ * E-Commerce eway module schema
+ */
+function eway_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      break;
+    case 'pgsql':
+      break;
+  }
+}

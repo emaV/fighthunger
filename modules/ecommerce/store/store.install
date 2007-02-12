@@ -1,0 +1,522 @@
+<?php
+// $Id: store.install,v 1.20.2.1 2006/09/27 07:06:54 sammys Exp $
+
+/**
+ * E-Commerce store.module schema
+ */
+function store_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_transaction} (
+        txnid int(10) unsigned NOT NULL default '0',
+        uid int(10) unsigned NOT NULL default '0',
+        type varchar(16) NOT NULL default '',
+        mail varchar(64) NOT NULL default '',
+        shipping_cost decimal(10,2) NOT NULL default '0.00',
+        payment_method varchar(32) NOT NULL default '',
+        payment_status varchar(32) NOT NULL default '1',
+        payment_date int(11) NOT NULL default '0',
+        workflow int(10) unsigned NOT NULL default '1',
+        gross decimal(10,2) NOT NULL default '0.00',
+        expires int(11) NOT NULL default '0',
+        created int(11) NOT NULL default '0',
+        changed int(11) NOT NULL default '0',
+        duedate int(11) NOT NULL default '0',
+        PRIMARY KEY  (txnid),
+        INDEX uid (uid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_transaction_address} (
+        txnid int(10) unsigned NOT NULL default '0',
+        type varchar(16) NOT NULL default '',
+        firstname varchar(32) NOT NULL default '',
+        lastname varchar(32) NOT NULL default '',
+        street1 varchar(64) NOT NULL default '',
+        street2 varchar(64) NOT NULL default '',
+        zip varchar(10) NOT NULL default '',
+        city varchar(32) NOT NULL default '',
+        state varchar(32) NOT NULL default '',
+        country varchar(2) NOT NULL default '',
+        PRIMARY KEY  (txnid,type)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_transaction_product} (
+        txnid int(10) unsigned NOT NULL default '0',
+        nid int(10) unsigned NOT NULL default '0',
+        vid int(10) unsigned NOT NULL default '0',
+        title varchar(128) default NULL,
+        price decimal(10,2) NOT NULL default '0.00',
+        qty int(10) unsigned NOT NULL default '0',
+        expires int(11) unsigned NOT NULL default '0',
+        data text,
+        is_recurring tinyint(3) unsigned NOT NULL default '0',
+        price_interval tinyint(3) unsigned NOT NULL default '0',
+        price_unit varchar(5) NOT NULL default '',
+        price_cycle int(11) NOT NULL default '0',
+        auto_charge tinyint(3) unsigned NOT NULL default '0',
+        last_notify int(11) unsigned NOT NULL default '0',
+        UNIQUE KEY txnid (txnid,nid),
+        KEY txnid_2 (txnid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      db_query("CREATE TABLE {ec_transaction_misc} (
+        txnid int(10) NOT NULL default '0',
+        type varchar(10) NOT NULL default '',
+        vid int(10) NOT NULL default '0',
+        description varchar(255) NOT NULL default '',
+        invisible int(1) NOT NULL default '0',
+        price decimal(10,2) NOT NULL default '0.00',
+        qty int(10) unsigned NOT NULL default '1',
+        weight int(2) NOT NULL default '0',
+        PRIMARY KEY  (txnid,type,vid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+       db_query("CREATE TABLE {ec_transaction} (
+        txnid serial,
+        uid integer NOT NULL default '0',
+        type varchar(16) NOT NULL default '',
+        mail varchar(64) NOT NULL default '',
+        shipping_cost decimal(10,2) NOT NULL default '0.00',
+        payment_method varchar(32) NOT NULL default '',
+        payment_status varchar(32) NOT NULL default '1',
+        payment_date integer NOT NULL default '0',
+        workflow integer NOT NULL default '1',
+        gross decimal(10,2) NOT NULL default '0.00',
+        expires integer NOT NULL default '0',
+        created integer NOT NULL default '0',
+        changed integer NOT NULL default '0',
+        duedate integer NOT NULL default '0',
+        PRIMARY KEY  (txnid)
+      )");
+      db_query("CREATE INDEX {ec_transaction}_uid ON {ec_transaction} (uid)");
+      db_query("CREATE TABLE {ec_transaction_address} (
+        txnid integer NOT NULL default '0',
+        type varchar(16) NOT NULL default '',
+        firstname varchar(32) NOT NULL default '',
+        lastname varchar(32) NOT NULL default '',
+        street1 varchar(64) NOT NULL default '',
+        street2 varchar(64) NOT NULL default '',
+        zip varchar(10) NOT NULL default '',
+        city varchar(32) NOT NULL default '',
+        state varchar(32) NOT NULL default '',
+        country varchar(2) NOT NULL default '',
+        PRIMARY KEY  (txnid,type)
+      )");
+      db_query("CREATE TABLE {ec_transaction_product} (
+        txnid integer NOT NULL default '0',
+        nid integer NOT NULL default '0',
+        vid integer NOT NULL default '0',
+        title varchar(128) default NULL,
+        price decimal(10,2) NOT NULL default '0.00',
+        qty integer NOT NULL default '0',
+        expires integer NOT NULL default '0',
+        data text,
+        is_recurring integer NOT NULL default '0',
+        price_interval integer NOT NULL default '0',
+        price_unit varchar(5) NOT NULL default '',
+        price_cycle integer NOT NULL default '0',
+        auto_charge integer NOT NULL default '0',
+        last_notify integer NOT NULL default '0',
+        UNIQUE (txnid, nid)
+      )");
+      db_query("CREATE INDEX {ec_transaction_product}_txnid_2 ON {ec_transaction_product} (txnid)");
+      db_query("CREATE TABLE {ec_transaction_misc} (
+        txnid integer NOT NULL default '0',
+        type varchar(10) NOT NULL default '',
+        vid integer NOT NULL default '0',
+        description varchar(255) NOT NULL default '',
+        invisible integer NOT NULL default '0',
+        price decimal(10,2) NOT NULL default '0.00',
+        qty integer NOT NULL default '1',
+        weight integer NOT NULL default '0',
+        PRIMARY KEY  (txnid,type,vid)
+      )");
+     break;
+  }
+  drupal_set_message(t('Store database tables created'));
+}
+
+/**
+ * @file
+ * All incremental database updates performed between Drupal releases.
+ */
+
+function store_update_1() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_cart} ADD data TEXT');
+      break;
+  }
+  return $ret;
+}
+
+function store_update_2() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_store_transaction} RENAME {ec_transaction}");
+      $ret[] = update_sql("UPDATE sequences SET name = '{ec_transaction}_txnid' WHERE name = '{ec_store_transaction}_txnid'");
+      $ret[] = update_sql("ALTER TABLE {ec_store_transaction}_product RENAME {ec_transaction_product}");
+      $ret[] = update_sql("ALTER TABLE {ec_transaction_product} CHANGE pid nid INT(10) UNSIGNED DEFAULT '0' NOT NULL");
+      $ret[] = update_sql("ALTER TABLE {ec_transaction_product} DROP details");
+      $ret[] = update_sql("ALTER TABLE {ec_transaction_product} ADD expires INT UNSIGNED DEFAULT '0' NOT NULL, ADD is_recurring TINYINT UNSIGNED DEFAULT '0' NOT NULL, ADD price_interval TINYINT UNSIGNED DEFAULT '0' NOT NULL, ADD price_unit VARCHAR(5) NOT NULL, ADD price_cycle INT DEFAULT '0' NOT NULL, ADD auto_charge TINYINT UNSIGNED DEFAULT '0' NOT NULL, ADD last_notify INT UNSIGNED DEFAULT '0' NOT NULL");
+      $ret[] = update_sql("CREATE TABLE {ec_renewal} (txnid int(10) unsigned NOT NULL default '0', rtxnid int(10) unsigned NOT NULL default '0', rnid int(10) unsigned NOT NULL default '0', KEY txnid (txnid));");
+      $ret[] = update_sql("ALTER TABLE {ec_product} ADD is_recurring TINYINT UNSIGNED DEFAULT '0' NOT NULL AFTER ptype, ADD price_interval TINYINT UNSIGNED DEFAULT '0' NOT NULL AFTER is_recurring, ADD price_unit VARCHAR( 5 ) NOT NULL AFTER price_interval, ADD price_cycle INT DEFAULT '0' NOT NULL AFTER price_unit, ADD auto_charge TINYINT UNSIGNED DEFAULT '0' NOT NULL AFTER price_cycle");
+      $ret[] = update_sql("ALTER TABLE {ec_product_parcel} CHANGE mpid mnid INT(10) UNSIGNED DEFAULT '0' NOT NULL");
+      break;
+  }
+  return $ret;
+}
+
+function store_update_3() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_product} CHANGE price_cycle price_cycle TINYINT(3) DEFAULT 0 NOT NULL');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_4() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_address} ADD phone VARCHAR(64) NOT NULL AFTER street2');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_5() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_address} CHANGE country country VARCHAR(64) DEFAULT 0 NOT NULL');
+
+      $countries = array_flip(store_build_countries());
+
+      $result = db_query("SELECT a.aid, a.state, c.name as country FROM {ec_address} a INNER JOIN {ec_country} c ON c.cid = a.country");
+      while ($address = db_fetch_object($result)) {
+        if ($key = $countries[$address->country]) {
+          db_query("UPDATE {ec_address} SET country = '%s' WHERE aid = %d", $key, $address->aid);
+        }
+      }
+
+      $ret[] = update_sql('DROP TABLE ec_country');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_6() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE ec_transaction_product ADD product_data TEXT AFTER expires');
+      $ret[] = update_sql("CREATE TABLE ec_per_product_shipping (nid int(10) unsigned NOT NULL default '0', shipping_fee decimal(10,2) unsigned NOT NULL default '0.00', PRIMARY KEY (nid)) TYPE=MyISAM;");
+      $ret[] = update_sql('ALTER TABLE ec_transaction_product ADD INDEX (txnid)');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_7() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('DROP TABLE {ec_payment_status}');
+      $ret[] = update_sql('DROP TABLE {ec_transaction_workflow}');
+      $ret[] = update_sql('ALTER TABLE {ec_transaction} CHANGE shipping_country shipping_country CHAR(2) NOT NULL DEFAULT 0, CHANGE billing_country billing_country CHAR(2) NOT NULL DEFAULT 0');
+      $ret[] = update_sql('ALTER TABLE {ec_address} CHANGE country country CHAR(2) NOT NULL DEFAULT 0');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_8() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('DROP TABLE {ec_product_availability}');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_9() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_transaction_product} CHANGE product_data data TEXT DEFAULT NULL');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_10() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("CREATE TABLE ec_tmp (sid varchar(32) NOT NULL default '', tmp text NOT NULL, PRIMARY KEY  (sid));");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_11() {
+  return _system_update_utf8(array('ec_address', 'ec_cart', 'ec_payment_adjust', 'ec_paypal', 'ec_product', 'ec_product_file', 'ec_product_parcel', 'ec_product_tangible', 'ec_renewal', 'ec_shipping_shipping', 'ec_subtotal_shipping', 'ec_per_product_shipping', 'ec_tax', 'ec_tmp', 'ec_transaction', 'ec_transaction_product'));
+}
+
+function store_update_12() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_transaction} ADD INDEX (uid) ");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_13() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql('ALTER TABLE {ec_transaction_product} ADD vid INT(10) UNSIGNED NOT NULL AFTER nid');
+      $ret[] = update_sql('UPDATE {ec_transaction_product} tp, {node} n SET tp.vid = n.vid WHERE tp.nid = n.nid');
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_14() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("CREATE TABLE {ec_transaction_misc} (
+        txnid int(10) NOT NULL default '0',
+        type varchar(10) NOT NULL default '',
+        vid int(10) NOT NULL default '0',
+        description varchar(255) NOT NULL default '',
+        invisible int(1) NOT NULL default '0',
+        price decimal(10,2) NOT NULL default '0.00',
+        weight int(2) NOT NULL default '0',
+        PRIMARY KEY  (txnid,type,vid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_15() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_transaction} ADD type VARCHAR(16) NOT NULL AFTER uid");
+      $ret[] = update_sql("UPDATE {ec_transaction} SET type = 'cart' WHERE type = ''");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_16() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_transaction} ADD duedate INT(11) NOT NULL DEFAULT '0'");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_17() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_transaction} ADD payment_date INT(11) NOT NULL DEFAULT '0' AFTER payment_status");
+      $ret[] = update_sql("UPDATE {ec_transaction} SET payment_date = created WHERE payment_status = 2");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_18() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP coupon");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_19() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_transaction_misc} ADD qty INT(10) UNSIGNED NOT NULL DEFAULT '1' AFTER price");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_20() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql("ALTER TABLE {ec_transaction_misc} CHANGE qty qty INT(10) UNSIGNED NOT NULL DEFAULT '1'");
+      break;
+    case 'pgsql':
+      break;
+  }
+  return $ret;
+}
+
+function store_update_21() {
+  // Init
+  $address_fields = array(
+    'firstname',
+    'lastname',
+    'street1',
+    'street2',
+    'zip',
+    'city',
+    'state',
+    'country',
+  );
+  if (!isset($_SESSION['store_update_18_txnid'])) {
+    // Create New Table
+    switch($GLOBALS['db_type']) {
+      case 'mysql':
+      case 'mysqli':
+        $ret[] = update_sql("CREATE TABLE {ec_transaction_address} (
+          txnid int(10) unsigned NOT NULL default '0',
+          type varchar(16) NOT NULL default '',
+          firstname varchar(32) NOT NULL default '',
+          lastname varchar(32) NOT NULL default '',
+          street1 varchar(64) NOT NULL default '',
+          street2 varchar(64) NOT NULL default '',
+          zip varchar(10) NOT NULL default '',
+          city varchar(32) NOT NULL default '',
+          state varchar(32) NOT NULL default '',
+          country varchar(2) NOT NULL default '',
+          PRIMARY KEY  (txnid,type)
+          ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+        break;
+      case 'pgsql':
+        break;
+    }
+    
+    $_SESSION['store_update_18_txnid'] = 0;
+    $_SESSION['store_update_18_max'] = db_query('SELECT MAX(txnid) FROM {ec_transaction}');
+    // Return query info
+    $ret['#finished'] = 0;
+    return $ret;
+  }    
+
+  // Do work
+  $result = db_query_range('SELECT * FROM {ec_transaction} ORDER BY txnid ASC', $_SESSION['store_update_18_txnid'], 20);
+  while ($txn = db_fetch_object($result)) {
+    // Merge in billing and shipping addresses
+    foreach (array('billing', 'shipping') as $address_type) {
+      $k[] = 'txnid';
+      $v[] = $txn->txnid;
+      $s[] = '%d';
+      $k[] = 'type';
+      $v[] = $address_type;
+      $s[] = "'%s'";
+      foreach ($address_fields as $key) {
+        $key2 = $address_type . '_' . $key;
+        if(isset($txn->$key2)) {
+          $k[] = db_escape_string($key);
+          $v[] = $txn->$key2;
+          $s[] = "'%s'";
+        }
+      }
+      db_query('INSERT INTO {ec_transaction_address} ('. implode(', ', $k) .') VALUES('. implode(', ', $s) .')', $v);
+      $k = $v = $s = array();
+      $_SESSION['store_update_18_txnid'] = $txn->txnid;
+    }
+  }
+  
+  // See if we are done.
+  if ($_SESSION['store_update_18_txnid'] < $_SESSION['store_update_18_max']) {
+    // Not done yet. Return the progress.
+    return array('#finished' => $_SESSION['store_update_18_txnid'] / $_SESSION['store_update_18_max']);
+  }
+  else {
+    // Done. Clean up and indicate we're finished.
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP shipping_firstname");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP shipping_lastname");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP shipping_street1");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP shipping_street2");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP shipping_city");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP shipping_state");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP shipping_zip");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP shipping_country");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP billing_firstname");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP billing_lastname");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP billing_street1");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP billing_street2");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP billing_city");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP billing_state");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP billing_zip");
+    $ret[] = update_sql("ALTER TABLE {ec_transaction} DROP billing_country");
+    $ret['#finished'] = 1;
+    unset($_SESSION['store_update_18_txnid']);
+    unset($_SESSION['store_update_18_max']);
+    return $ret;
+  }
+}
+
+function store_update_22() {
+  if ($subject = variable_get('payment_new_subject', FALSE)) {
+    variable_set('store_email_customer_invoice_subject', $subject);
+    variable_del('payment_new_subject');
+  }
+  if ($body = variable_get('payment_new', FALSE)) {
+    variable_set('store_email_customer_invoice_body', $body);
+    variable_del('payment_new');
+  }
+  if ($subject = variable_get('payment_error_subject', FALSE)) {
+    variable_set('store_email_processing_error_subject', $subject);
+    variable_del('payment_error_subject');
+  }
+  if ($body = variable_get('payment_error', FALSE)) {
+    variable_set('store_email_processing_error_body', $body);
+    variable_del('payment_error');
+  }
+  return array();
+}

@@ -1,0 +1,28 @@
+<?php
+// $Id: file.install,v 1.3 2006/05/09 12:23:36 gordon Exp $
+
+/**
+ * E-Commerce file module schema
+ */
+function file_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {ec_product_file} (
+        nid int(10) unsigned NOT NULL default '0',
+        fpath varchar(128) NOT NULL default '',
+        size int(11) NOT NULL default '0',
+        UNIQUE KEY nid (nid)
+      ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+    case 'pgsql':
+      db_query("CREATE TABLE {ec_product_file} (
+        nid integer NOT NULL default '0',
+        fpath varchar(128) NOT NULL default '',
+        size integer NOT NULL default '0',
+        UNIQUE (nid)
+      )");
+      break;
+  }
+}
+

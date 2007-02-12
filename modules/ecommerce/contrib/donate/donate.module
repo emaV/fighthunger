@@ -1,0 +1,104 @@
+<?php
+// $Id: donate.module,v 1.9.2.1 2006/10/02 00:33:19 gordon Exp $
+
+/********************************************************************
+ * Drupal Hooks
+ ********************************************************************/
+
+function donate_help($section = 'admin/help#donate') {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('<b>EC:</b> Create donation products using the ecommerce package.');
+    case 'node/add/product#donate':
+      return t('A donation is a financial contribution.');
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function donate_perm() {
+  return array('make donations', 'edit own donations');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function donate_access($op, $node) {
+  global $user;
+
+  if ($op == 'create') {
+    return user_access('make donations');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own donations') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}
+
+function donate_productapi(&$node, $op, $a3 = null, $a4 = null) {
+
+  switch ($op) {
+    case 'adjust_price':
+      $items = cart_get_items();
+      if ($items[$node->nid]) {
+        return (float) $items[$node->nid]->donate_add_amount;
+      }
+      break;
+
+    case 'wizard_select':
+      return array('donate' => t('donation'));
+
+    case 'attributes':
+      return array('in_stock', 'no_quantity');
+      break;
+
+    case 'cart add item':
+      if (!$a3) {
+        unset($_REQUEST['destination']);
+        drupal_goto("node/{$node->nid}");
+      }
+  }
+}
+
+/**
+ * Display the form fields for an donation type product.
+ */
+function theme_product_donate_view(&$node, $teaser = 0, $page = 0) {
+  if (!$teaser) {
+    $output = '';
+    $item = cart_get_items();
+    if ($item[$node->nid]->qty) {
+      $output = t('<p>This item is in <a href="%cart_view">your shopping cart</a>.</p>', array('%cart_view' => url('cart/view')));
+    }
+    $form['donation'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Options'),
+    );
+    $form['donation']['donate_add_amount'] = array(
+      '#type' => 'product_price',
+      '#title' => t('Amount'),
+      '#default_value' => number_format($item[$node->nid]->donate_add_amount, 2),
+      '#size' => 10,
+      '#maxlength' => 10,
+      '#description' => t('How much would you like to donate?'),
+      '#required' => true,
+    );
+    $form['nid'] = array(
+      '#type' => 'hidden',
+      '#value' => $node->nid,
+    );
+    $form[] = array(
+      '#type' => 'submit',
+      '#value' => t('add to cart'),
+    );
+    $form['#method'] = 'post';
+    $form['#action'] = url('cart/add/' .$node->nid, drupal_get_destination());
+    $output = drupal_get_form('ec_donate_form', $form);
+    $node->body .= $output;
+  }
+
+  return $node;
+}

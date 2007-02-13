@@ -1,9 +1,10 @@
 <!-- fhwalk start -->
-<div class="node<?php print ($sticky) ? " sticky" : ""; ?>">
+<div class="node<?php print ($sticky && !$node->in_preview) ? " sticky" : ""; ?>">
 
   <?php if ($page == 0): //teaser view ?>
   
     <?php if ($node->in_preview): //preview  ?>
+<div class="sticky">
       <h2><?php print $title ?></h2>
       
     <?php else: //normal ?>
@@ -12,7 +13,7 @@
     <?php endif; ?>
 
   <div class="content">
-<?php
+    <?php
 
 // When
   print "<h3>" . t("When") . "</h3>";
@@ -46,9 +47,14 @@
     print '</ul>';
   }
 
-?>
+    ?>
 
   </div>
+
+    <?php if ($node->in_preview): //preview  ?>
+</div>
+    <?php endif; ?>
+
 
   <?php else: //full node view ?>
 
@@ -66,7 +72,7 @@
 
 // Sponsor Local
   if($node->partners) {
-    print "<h3>" . t("Local Parners") . "</h3>";
+    print "<h3>" . t("Local Partners") . "</h3>";
     print $node->hook_view['fhpartner'];
     print "<div style='clear:both;'>&nbsp;</div>";
   }

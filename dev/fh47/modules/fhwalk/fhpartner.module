@@ -830,17 +830,21 @@ function _fhpartner_partner_type() {
 }
 
 function theme_fhpartner_list($partners) {
-  $out_partners = "<div class=\"partner_list\">";
+  $out = "<div class=\"partner_list\">";
   if($partners) {
     foreach($partners as $key => $value) {
-      $img = "<img src=\"".file_create_url($value->logosmall)."\" width='75' height='75' vspace='5' hspace='5'>";
-      $out_partners .= l($img, "node/$key", NULL, NULL, NULL, NULL, TRUE);
-      $out_partners .= '<br />';
-      $out_partners .= l($value->title, "node/$key");
+      $img = "<img src=\"".file_create_url($value->logosmall)."\" width='75' vspace='5' hspace='5'>";
+      $out_partner = "<div class='item-partner'><p>\n";
+      $out_partner .= l($img, "node/$key", NULL, NULL, NULL, NULL, TRUE);
+      $out_partner .= "<br />\n";
+      $out_partner .= l($value->title, "node/$key");
+      $out_partner .= "\n</p></div>\n\n";
+      $out .= $out_partner;
     }
   }
-  $out_partners .= "</div>";
-  return $out_partners;
+  $out.= "<div style='clear:both;'>&nbsp;</div>";
+  $out.= "</div>";
+  return $out;
 }
 
 // Campaign vocabulary

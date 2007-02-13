@@ -750,3 +750,15 @@ ul.block_menu li {
 .main-content div.block a {
   color:#fff;
 }
+
+/* partner */
+.block-fhpartner {
+  text-align: center;
+}
+.item-partner {
+  text-align: center;
+}
+.item-partner .image-attach-teaser{
+  margin: 10px auto 0;
+}
+

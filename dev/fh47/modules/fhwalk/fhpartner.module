@@ -146,7 +146,8 @@ function fhpartner_block($op = 'list', $delta = 0) {
     // Only display this block when the user is viewing a node with partners enabled
     if (arg(0) == 'node' && is_numeric(arg(1)) && ($node = node_load(arg(1))) && variable_get('fhpartner_support_'.$node->type, 0)) {
       $block['subject'] = t('Global Partners');
-      $partners = fhpartner_get_partners('GLOBAL');
+//      $partners = fhpartner_get_partners('GLOBAL');
+      $partners = fhpartner_node_get_partners($node, array('audience' => 'GLOBAL'));
 /*
       $links = array();
       foreach($partners as $nid => $name) {
@@ -464,7 +465,7 @@ function fhpartner_get_partners($audience = 'LOCAL', $conditions = array()) {
   foreach($where as $field => $value) {
     $sql .= " AND $field = '$value'";
   }
-  $sql .= " ORDER BY n.title";
+  $sql .= " ORDER BY n.sticky DESC, n.title";
   $result = db_query(db_rewrite_sql($sql));
 
   while ($node = db_fetch_object($result)) {
@@ -681,13 +682,17 @@ function fhpartner_node_get_partners($node, $conditions = array('audience' => 'L
   $nid = is_numeric($node) ? $node : $node->nid;
   $partners = array();
 
+  // Default conditions
+  $where = array('pn.active' => 1, 'pn.paud' => db_escape_string($audience));
+  $joins = array();
+
   switch ($conditions['audience']) {
 
     case 'GLOBAL':
       if (isset($conditions['tid'])) {
         $tid = $conditions['tid'];
-      } elseif (isset($node->fhwalk_tid)) {
-        $tid = $node->fhwalk_tid;
+      } elseif (isset($node->camid)) {
+        $tid = $node->camid;
       } else {
         $campaign = array_shift(fhcampaign_node_get_campaigns($nid));
         $tid = $campaign->tid;
@@ -696,7 +701,8 @@ function fhpartner_node_get_partners($node, $conditions = array('audience' => 'L
       $sql = "SELECT pn.*, n.title FROM {partners_node} pn " .
         "INNER JOIN {node} n  ON pn.nid = n.nid " .
         "INNER JOIN {term_node} tn ON pn.nid = tn.nid " .
-        "WHERE pn.paud = 'GLOBAL' AND tn.tid = %d";
+        "WHERE pn.paud = 'GLOBAL' AND pn.active = 1 AND tn.tid = %d ";
+      $sql .= ' ORDER BY n.sticky DESC, n.title';
       $result = db_query($sql, $tid);
       break;
 
@@ -719,15 +725,20 @@ function fhpartner_node_get_partners($node, $conditions = array('audience' => 'L
       $sql = "SELECT pn.*, n.title FROM {partners_node} pn " .
         "INNER JOIN {node} n  ON pn.nid = n.nid " .
         "INNER JOIN {term_node} tn ON pn.nid = tn.nid " .
-        "WHERE pn.paud = 'COUNTRY' AND tn.tid=%d AND pn.country = '%s';";
+        "WHERE pn.paud = 'COUNTRY' AND pn.active = 1 " . 
+        "AND tn.tid=%d AND pn.country = '%s' ";
+      $sql .= ' ORDER BY n.sticky DESC, n.title';
       $result = db_query($sql, $tid, $country);
       break;
 
+    case 'LOCAL':
     default:
       $sql = "SELECT pn.*, n.title FROM {partners_node} pn " .
         "INNER JOIN {node} n  ON pn.nid = n.nid " .
         "INNER JOIN {partners_partners} pp ON pn.nid = pp.pid " .
-        "WHERE pp.nid = %d";
+        "WHERE pn.paud = 'LOCAL' AND pp.nid = %d " . 
+        "AND pn.active = 1 ";
+      $sql .= ' ORDER BY n.sticky DESC, n.title';
       $result = db_query($sql, $nid);
 
   }

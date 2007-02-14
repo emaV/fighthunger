@@ -388,11 +388,15 @@ global $user;
   $out .= "</div>";
   
   // Get Country Partners
-  $out .= theme('fhpartner_list', $fhwalk_overview['CP']); 
-
+  if($fhwalk_overview['CP']) {
+    $out .= "<h3>" . t("Country Partners") . "</h3>";
+    $out .= theme('fhpartner_list', $fhwalk_overview['CP']);
+    $out .= "<div style='clear:both;'>&nbsp;</div>";
+  }
+/*
   // Get LCPs
   $out .= theme('fhwalk_LCP', $fhwalk_overview['LCP']);
-  
+*/  
   return $out;  
 }
 

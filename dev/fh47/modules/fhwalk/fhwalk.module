@@ -1132,8 +1132,7 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
         
         break;
   
-    }  
-  
+    }
   
   // Theme details tabs
     $node->tabs['details'] = theme('fhwalk_tabs', $details);
@@ -1424,11 +1423,6 @@ function fhwalk_coordinate_email_submit($form_id, $form_values) {
   } else {
     drupal_set_message("No recipients selected!", 'status');
   }
-
-
-// debug
-//  $msg = print_r($form_values, true);
-//  drupal_set_message("pippo dice: $msg E POI $sql");
 }
 
 /**
@@ -1516,7 +1510,6 @@ function _fhwalk_status( $sid= FALSE ) {
     return $status_options[$sid];
   } 
 }
-
 
 /**
  * Process admin page.

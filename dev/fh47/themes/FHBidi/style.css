@@ -33,6 +33,7 @@ a:active { color: #ff6600; }
 .breadcrumb, .main-content .links a.read-more { color: #006699; }
 .main-content .content-title {color: #333333; }
 .links a.read-more:hover { color: #006699; }
+.main-content .node .content a, .comment .content a, .book .body a { border-bottom: 1px solid; }
 .main-content .node .info, .main-content .node .terms { color: #999; }
 .main-content .donation .info { 
   background: #efefef;
@@ -775,3 +776,7 @@ ul.block_menu li {
  position:absolute;
  bottom: 0;
 }
+.main-content .partner_list .item-partner a {
+  border: 0px;
+}
+

@@ -186,7 +186,7 @@ function fhcampaign_node_get_campaigns($node) {
         }
       }
       else if (is_object($term)) {
-        $tems[] = db_escape_string($term->tid);
+        $terms[] = db_escape_string($term->tid);
       }
       else if ($term) {
         $terms[] = db_escape_string($term);

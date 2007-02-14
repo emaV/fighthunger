@@ -376,16 +376,18 @@ global $user;
             $create_msg = t("Don't see an event in this country?"). "&nbsp;";
           }
         }
+        $create_button = theme("fhwalk_btn_create",$uri);
         $create_link = l(t('Click here to create your own walk!'),$uri);
-        $out .= $create_msg . $create_link;
-        $out .= theme("fhwalk_btn_create",$uri);
+        $out_create = "$create_button\n<p>$create_msg $create_link</p>";
       }
     } else {
       $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
-      $out .= t('Please %login or %register to create your own walk!', $login_array);
+      $out_create .= t('Please %login or %register to create your own walk!', $login_array);
     }
-  } 
-  $out .= "</div>";
+    $out .= "<div id='fhwalk_create'>\n$out_create\n</div>";  
+  }
+   
+  $out .= "</div>\n<div style='clear:both;'>&nbsp;</div>\n";
   
   // Get Country Partners
   if($fhwalk_overview['CP']) {
@@ -393,10 +395,10 @@ global $user;
     $out .= theme('fhpartner_list', $fhwalk_overview['CP']);
     $out .= "<div style='clear:both;'>&nbsp;</div>";
   }
-/*
-  // Get LCPs
+
+  // Get Local Country Pages
   $out .= theme('fhwalk_LCP', $fhwalk_overview['LCP']);
-*/  
+  
   return $out;  
 }
 
@@ -645,7 +647,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
       'data' => array(
           l($walk->title, 'node/' . $walk->nid),
           $walk->city,
-          $walk->cname,
+          module_invoke('fhlocation', 'get_iso3166_list', $walk->country),
           $walk->name,
           $walk->coord_name,
           format_date($walk->created,'small'),
@@ -703,7 +705,7 @@ function fhcampaign_coordinate($camid) {
  * @return countries array
  */
 function fhcampaign_get_campaign_countries($tid) {  // Was _fhwalk_get_country_campaign
-  $countries = _location_get_iso3166_list();
+  $countries = module_invoke('fhlocation', 'get_iso3166_list');
 
   $sql = "SELECT DISTINCT l.country FROM {location} l " . 
     "JOIN {node} n ON n.nid=l.oid " .

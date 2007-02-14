@@ -109,7 +109,7 @@ function fhlocalpage_form(&$node) {
     '#type' => 'select',
     '#title' => t("Country"),
     '#default_value' => $node->country,
-    '#options' => fh_get_country_list(), 
+    '#options' => module_invoke('fhlocation', 'country_select_options'),
     '#required' => TRUE,   
   );
   
@@ -225,9 +225,9 @@ function fhlocalpage_view(&$node, $teaser = FALSE, $page = FALSE) {
 function fhlocalpage_link($type, $node = 0, $main = 0) {
   $links = array();
 
-  if($type=='fhlocalpage') {
+  if($node->type=='fhlocalpage') {
     if (fhlocalpage_access('update', $node)) {
-      $links[] = l(t('edit local page'), "node/$node->nid/edit");
+      $links[] = l(t('edit local page'), "node/$node->nid/edit", array(), drupal_get_destination());
     }
   }
   return $links;
@@ -342,7 +342,7 @@ function fhlocalpage_admin($campaign='', $country='') {
     $campaigns = fhcampaign_get_all_campaigns();
     $out = '<ul class="menu">';
     foreach($campaigns as $campaign) {
-      $out .= '<li class="leaf">' . l($campaign->name, "/admin/localpage/$campaign->tid") . '</li>';
+      $out .= '<li class="leaf">' . l($campaign->name, "admin/localpage/$campaign->tid") . '</li>';
     }
     $out .= '</ul>';
   }   

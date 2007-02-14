@@ -331,7 +331,7 @@ function fhpartner_form(&$node) {
       '#type' => 'select',
       '#title' => t('Country'),
       '#default_value' => $node->country,
-      '#options' => fh_get_country_list(),
+      '#options' => module_invoke('fhlocation', 'country_select_options'),
       '#description' => t('Enter partner country audience.'),
       '#required' => ($audience != 'GLOBAL') // Country required only for LOCAL, COUNTRY partners
   );
@@ -776,7 +776,7 @@ function fhpartner_admin() {
       $row[] = $node->title;
       $row[] = $node->ptid;
       $row[] = $node->paud;
-      $row[] = $node->country;
+      $row[] =  module_invoke('fhlocation', 'get_iso3166_list', $node->country);
       $row[] = theme('username', $node);
       $row[] = array('data' => l(t('view'), 'node/'. $node->nid));
       $row[] = array('data' => l(t('edit'), 'node/'. $node->nid .'/edit', array(), $destination));

@@ -61,6 +61,15 @@ function phptemplate_gathering_btn_create($uri) {
   return $out;
 }
 
+function phptemplate_fhwalk_btn_create($url) {
+  $out  = "<div id='fhwalk_btn_create'>";
+  $out .= "<a href='".url($url)."'>\n";
+  $out .= "<img src='" . base_path() . path_to_theme() . "/images/event_create.png' width='79' height='80' class='event_create'/>";
+  $out .= "</a>";
+  $out .= "</div>";
+  return $out;
+}
+
 function phptemplate_item_list($items = array(), $title = NULL) {
   return _phptemplate_callback("item_list",array('items' => $items, 'title' => $title));
 }

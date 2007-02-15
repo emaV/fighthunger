@@ -303,8 +303,35 @@ function fhlocation_form_rewrite(&$form, $field = 'location') {
   if(($country = $form['location']['country']['#default_value']) && $country != '-') {
     $form[$field]['province']['#options'] = _fhlocation_country_provinces($country);
   }
-  
+  if($form['location']['country']['#options'])
+    $form['location']['country']['#options'] = fhlocation_country_select_options();
 }
+
+/**
+ * Get modified country list
+ */
+function fhlocation_country_select_options() {
+  static $countrycodes;
+  if (!is_array($countrycodes)) {
+    $countrycodes = array_merge(array('' => '', 'xx' => 'NOT LISTED'), fhlocation_get_iso3166_list());
+  }
+  return $countrycodes;
+}
+
+function fhlocation_get_iso3166_list($country='') {
+  static $country_list;
+  if (!is_array($country_list)) {
+    $new_countries  = array('2l' => 'Second Life'); 
+    $country_list = array_merge($new_countries, _location_get_iso3166_list());
+    asort($country_list);
+  }
+  if($country) {
+    return array_key_exists($country, $country_list) ? $country_list[$country] : 'Unknown';
+  } else {
+    return $country_list;
+  }
+}
+
 /* gmap key
 dev.fighthunger.org 
 ABQIAAAAbfOVykIDfWkLXGy0_OSL9BT-NiS1gmUMH_veYwnhh1Z0wNDNpBRzS1akGbaMeYKibiyI1jmmBu83RA

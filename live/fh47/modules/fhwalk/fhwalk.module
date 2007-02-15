@@ -405,6 +405,9 @@ function fhwalk_validate($node, $form = array()) {
   if( ($node->end_hour <= $node->start_hour) && ($node->end_minute <= $node->start_minute) ) {
     form_set_error('whenwhere', t('End time for the walk that is before the start time'));
   }
+  if( $node->country='xx' && !user_access('administer walks') ) {
+    form_set_error('country', t('Select a country.'));
+  }
 }
 
 /**
@@ -758,6 +761,7 @@ global $user;
       if(!$node->nid && $node->country) {
         $form['location']['country']['#default_value'] = $node->country;
       }
+      
       // Location rewriting
       if (function_exists('fhlocation_form_rewrite')) {
         fhlocation_form_rewrite($form, 'location');
@@ -1128,8 +1132,7 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
         
         break;
   
-    }  
-  
+    }
   
   // Theme details tabs
     $node->tabs['details'] = theme('fhwalk_tabs', $details);
@@ -1150,16 +1153,6 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
   }
  
 }
-
-function click_info_make($text, $words) {
-  foreach ($words as $word => $message) {
-    $text = str_replace ($word, '<span class="clickInfo" title="' . $message . '">' . $word . '</span>', $text);
-  }
-  return $text;
-}
-
-
-
 
 /**
  * Themed walk list.
@@ -1430,11 +1423,6 @@ function fhwalk_coordinate_email_submit($form_id, $form_values) {
   } else {
     drupal_set_message("No recipients selected!", 'status');
   }
-
-
-// debug
-//  $msg = print_r($form_values, true);
-//  drupal_set_message("pippo dice: $msg E POI $sql");
 }
 
 /**
@@ -1522,7 +1510,6 @@ function _fhwalk_status( $sid= FALSE ) {
     return $status_options[$sid];
   } 
 }
-
 
 /**
  * Process admin page.

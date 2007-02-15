@@ -425,7 +425,8 @@ function fhwalk_submit(&$node) {
   if(!$node->path) $node->path =  _fhwalk_get_alias($node);
 
   // get latitude and longitude from google
-  if( !($node->location['latitude'] && $node->location['longitude']) ) {
+  if( !($node->location['latitude'] && $node->location['longitude']) &&
+      !($node->location['previous_latitude'] && $node->location['previous_longitude']) ) {
     $coordinate = module_invoke('fhlocation', 'get_latlon', $node->location);
     if($coordinate[0]==200) {
       $node->location['latitude']  = $coordinate[2];
@@ -435,8 +436,6 @@ function fhwalk_submit(&$node) {
       drupal_set_message(t("Your walk will show shortly on the map."));
     }
   }
-  
-  $node->teaser ='pippo';
 }
 
 /**

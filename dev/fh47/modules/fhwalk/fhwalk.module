@@ -405,7 +405,7 @@ function fhwalk_validate($node, $form = array()) {
   if( ($node->end_hour <= $node->start_hour) && ($node->end_minute <= $node->start_minute) ) {
     form_set_error('whenwhere', t('End time for the walk that is before the start time'));
   }
-  if( $node->country='xx' && !user_access('administer walks') ) {
+  if( $node->country=='xx' && !user_access('administer walks') ) {
     form_set_error('country', t('Select a country.'));
   }
 }

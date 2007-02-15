@@ -780,3 +780,22 @@ ul.block_menu li {
   border: 0px;
 }
 
+/* button create */
+#fhwalk_create {
+  width: auto;
+}
+
+#fhwalk_create div {
+  float: left;
+  width: 120px;
+}
+
+div #fhwalk_btn_register {
+  margin-left: 10px;
+  width: 200px;
+}
+
+#fhwalk_create p {
+  float: left;
+  width: 600px;
+}

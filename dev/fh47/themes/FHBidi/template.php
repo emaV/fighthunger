@@ -70,6 +70,22 @@ function phptemplate_fhwalk_btn_create($url) {
   return $out;
 }
 
+function phptemplate_fhwalk_btn_login($url, $destination) {
+  $html_img = "<img src='" . base_path() . path_to_theme() . "/images/btn_login.gif' class='event_create'/>"; 
+  $out  = "<div id='fhwalk_btn_login'>";
+  $out .= l($html_img, $url, array(), $destination, NULL, FALSE, TRUE);
+  $out .= "</div>";
+  return $out;
+}
+
+function phptemplate_fhwalk_btn_register($url, $destination) {
+  $html_img = "<img src='" . base_path() . path_to_theme() . "/images/btn_register.gif' class='event_create'/>"; 
+  $out  = "<div id='fhwalk_btn_register'>";
+  $out .= l($html_img, $url, array(), $destination, NULL, FALSE, TRUE);
+  $out .= "</div>";
+  return $out;
+}
+
 function phptemplate_item_list($items = array(), $title = NULL) {
   return _phptemplate_callback("item_list",array('items' => $items, 'title' => $title));
 }

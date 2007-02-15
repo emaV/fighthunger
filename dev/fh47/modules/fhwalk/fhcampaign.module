@@ -376,13 +376,16 @@ global $user;
             $create_msg = t("Don't see an event in this country?"). "&nbsp;";
           }
         }
-        $create_button = theme("fhwalk_btn_create",$uri);
+        $btn_create = theme("fhwalk_btn_create",$uri);
         $create_link = l(t('Click here to create your own walk!'),$uri);
-        $out_create = "$create_button\n<p>$create_msg $create_link</p>";
+        $out_create = "$btn_create\n<p>$create_msg $create_link</p>";
       }
     } else {
-      $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
-      $out_create .= t('Please %login or %register to create your own walk!', $login_array);
+      $btn_login    = theme("fhwalk_btn_login", 'user/login', drupal_get_destination());
+      $btn_register = theme("fhwalk_btn_register", 'user/register', drupal_get_destination());
+      $login_array  = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
+      $link_login   = t('Please %login or %register to create your own walk!', $login_array);
+      $out_create   = "$btn_login\n$btn_register\n<p>$link_login</p>";
     }
     $out .= "<div id='fhwalk_create'>\n$out_create\n</div>";  
   }

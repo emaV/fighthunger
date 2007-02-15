@@ -212,8 +212,8 @@ function fhlocation_get_gmap_array($walk_list, $country) {
       $long_max = ($long_max) ?  max($long_max, $value['longitude']) : $value['longitude'];
       $lat_min  = ($lat_min)  ?  min($lat_min,  $value['latitude'])  : $value['latitude'];
       $long_min = ($long_min) ?  min($long_min, $value['longitude']) : $value['longitude'];
-      $label  = '<h3>' . htmlentities($value['city'], ENT_QUOTES) . '</h3>'; 
-      $label .= htmlentities($value['title'], ENT_QUOTES) . '<br /><br />'; 
+      $label  = '<h3>' . $value['city'] . '</h3>'; 
+      $label .= $value['title'] . '<br /><br />'; 
       $label .= '<a href="/' . drupal_get_path_alias("node/$key") . '"><i>' . t('Visit Walk Page') . '</i></a>';
 
       $gmap_array['markers'][] = array(

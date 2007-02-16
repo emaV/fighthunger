@@ -191,7 +191,7 @@ function fhuser_user_view($uid = 0) {
   // Unset categories
   unset($fields[t('History')]);
 
-  // Merge Team Up with Personal Information
+  // Merge Donation with Team Up
   if ($fields[t('Donation')]) {
     $fields[$c_team_up]['donation'] = $fields[t('Donation')]['donation']; 
     unset($fields[t('Donation')]);
@@ -205,6 +205,12 @@ function fhuser_user_view($uid = 0) {
     $fields[$c_team_up]['site_mission'] = $formfield; 
   }
   
+  // Merge activities (from fhcampaign) with Team Up
+  if ($fields['activities']) {
+    $fields[$c_team_up]['activities'] = $fields['activities']['fhcampaign']; 
+    unset($fields['activities']);
+  }  
+  
   // Add country to Personal information - from location
 
   $country = $account->location['country'];
@@ -212,7 +218,7 @@ function fhuser_user_view($uid = 0) {
   
   // OK, ready for rendering
   drupal_set_title(check_plain($account->name));
-  return drupal_get_form('fhuser_profile', $fields);
+  return theme('fhuser_profile', $fields);
 }
 
 /*

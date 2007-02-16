@@ -321,7 +321,7 @@ function fhlocalpage_admin_campaign($tid, $country='') {
 
 
   $form['create']['submit'] = array('#type' => 'submit', '#value' => t('Submit'));
-  $form['#action'] = url('/node/add/fhlocalpage', drupal_get_destination() );
+  $form['#action'] = url('node/add/fhlocalpage', drupal_get_destination() );
 //  $form['#redirect'] = drupal_get_destination();
   $output .= drupal_get_form('fhlocalpage_node_form', $form);
   

@@ -220,7 +220,7 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
     case 'view':
       if ($user->donation && $donation = donation_prepare($user->donation) ) {
         $items[] = array(
-        	'title' => variable_get('donation_user_message', t('Make a donation')), 
+        	'title' =>  variable_get('donation_user_message', t('Make a donation')), 
         	'value' =>  donation_user_form($donation),
           'class' => 'donation');
         $items[] = array(
@@ -710,12 +710,13 @@ function _donation_currency_name($code) {
  *   $short to produce a short one when possible
  */
 function theme_donation_presentation($donation, $teaser = FALSE) {
-	$output = '<div class="info">';
+	$output .= "\n<div class='info'>\n";
   if(isset($donation->presentation) || $donation->presentation != '') {
     $output .= $donation->presentation;
   } else {
     $output .= $teaser ? variable_get('donation_presentation_teaser', '') : variable_get('donation_presentation', '');
   }
+	$output .= "\n</div>\n";
   return $output;
 }
 /**

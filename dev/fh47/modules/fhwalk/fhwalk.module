@@ -1171,7 +1171,7 @@ function theme_fhwalk_walklist($walk_list) {
       if( in_array( $walk['country'], $countrywithstate ) && ($walk['province']<>'') ) {
         $location .= ' [' . $walk['province'] . ']';
       }    
-      $url = l($walk['title'], 'node/' . $walk['nid']);
+      $url = l($walk['title'], drupal_get_path_alias('node/' . $walk['nid']));
       $out  .= "<li>$location: $url</li>\n"; 
     }
     $out  .= "</ul>\n";

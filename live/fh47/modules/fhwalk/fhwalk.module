@@ -425,7 +425,8 @@ function fhwalk_submit(&$node) {
   if(!$node->path) $node->path =  _fhwalk_get_alias($node);
 
   // get latitude and longitude from google
-  if( !($node->location['latitude'] && $node->location['longitude']) ) {
+  if( !($node->location['latitude'] && $node->location['longitude']) &&
+      !($node->location['previous_latitude'] && $node->location['previous_longitude']) ) {
     $coordinate = module_invoke('fhlocation', 'get_latlon', $node->location);
     if($coordinate[0]==200) {
       $node->location['latitude']  = $coordinate[2];
@@ -1012,145 +1013,144 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
 
   // Node prepare sets up node body and teaser
   $node = node_prepare($node, $teaser);
-  $node->body_plain = $node->body;
+  $node->body_plain   = $node->body;
+  $node->teaser_plain = $node->teaser; // It will always be true for teasers
     
   if($teaser) {
     $node->readmore = TRUE; // It will always be true for teasers
-
-  } else {
-    // Normal view
-    $node->body = '';
-    
-    // Now we build up the BIG node view
-    foreach (module_implements('nodeapi') as $name) {
-      $function = $name .'_nodeapi';
-      $result = $function($node, 'view', $teaser, $page);
-      $node->hook_view[$name] = $node->body;
-      $node->body_hooked .= $node->body;
-      $node->body = '';
-    }
-   
-    $node->hook_view_array = $result;
-    $node->body = $node->body_plain;
+  }
   
+  // Now we build up the BIG node view
+  $node->body = '';
+  foreach (module_implements('nodeapi') as $name) {
+    $function = $name .'_nodeapi';
+    $result = $function($node, 'view', $teaser, $page);
+    $node->hook_view[$name] = $node->body;
+    $node->body_hooked .= $node->body;
+    $node->body = '';
+  }
+ 
+  $node->hook_view_array = $result;
+  $node->body = $node->body_plain;
+
   // Fix Location without direction
-    $node->hook_view['location']  = '<h3>'. t('Location') .'</h3>';
-    $node->hook_view['location'] .=  theme('location', $node->location, array('country', 'additional'));
+  $node->hook_view['location']  = '<h3>'. t('Location') .'</h3>';
+  $node->hook_view['location'] .=  theme('location', $node->location, array('country', 'additional'));
   
   // Details
-    if($node->route) {
-      $walk_details  = '<h3>' . t('Route') . '</h3>'; 
-      $walk_details .= $node->route;
-    }
-    if($node->body_plain) {
-      $walk_details .= '<h3>' . t('Walk Information') . '</h3>'; 
-      $walk_details .= $node->body_plain;
-    }
-     
-    $details['details']  = array(
-      '#title'  => t('Details'),
-      '#weight' => 0,
-      '#value'  => $walk_details
-    );
-    
-    switch ($node->fhwalk_status) {
-      case WALK_STATUS_CLOSED:
-      case WALK_STATUS_POST:
+  if($node->route) {
+    $walk_details  = '<h3>' . t('Route') . '</h3>'; 
+    $walk_details .= $node->route;
+  }
+/*
+  if($node->body_plain) {
+    $walk_details .= '<h3>' . t('Walk Information') . '</h3>'; 
+    $walk_details .= $node->body_plain;
+  }
+*/   
+  $details['details']  = array(
+    '#title'  => t('Details'),
+    '#weight' => 0,
+    '#value'  => $walk_details
+  );
   
-        // Scrapbook
-        $details['scrapbook']  = array(
-          '#title'  => t('Scrapbook'),
-          '#weight' => -1,
-          '#value'  => fhwalk_get_photos($node)
-        );
-        if(!$details['scrapbook']['#value']) unset($details['scrapbook']);
-        
-        // Unset donation
-        if($node->hook_view['donation']) unset($node->hook_view['donation']);
-        
-        break;
-  
-      case WALK_STATUS_ACTIVE:  
-  
-        // Walk History
-        $footers['history']  = array(
-          '#title'  => t('Previous Walks in this country'),
+  switch ($node->fhwalk_status) {
+    case WALK_STATUS_CLOSED:
+    case WALK_STATUS_POST:
+
+      // Scrapbook
+      $details['scrapbook']  = array(
+        '#title'  => t('Scrapbook'),
+        '#weight' => -1,
+        '#value'  => fhwalk_get_photos($node)
+      );
+      if(!$details['scrapbook']['#value']) unset($details['scrapbook']);
+      
+      // Unset donation
+      if($node->hook_view['donation']) unset($node->hook_view['donation']);
+      
+      break;
+
+    case WALK_STATUS_ACTIVE:  
+
+      // Walk History
+      $footers['history']  = array(
+        '#title'  => t('Previous Walks in this country'),
+        '#weight' => 1,
+        '#value'  => ''
+      );
+      // Check for each campaign
+      
+      foreach(fhcampaign_get_all_campaigns() as $campaign) {
+        if($campaign->status < CAMPAIGN_STATUS_ACTIVE) {
+          $walk_list = fhwalk_get_walks($campaign->tid, $node->location['country']);
+          if($walk_list) {
+            $form = array();
+            $walk_option = array();
+            foreach ($walk_list as $walk) {
+              $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
+            }
+            $form['pre'] = array('#value' => '<div class="container-inline">');
+            $form["walk_nid_".$campaign->tid] = array(
+              '#type'    => 'select',
+              '#title'   => $campaign->name,
+              '#options' => $walk_option,
+  //            '#description'  => $term->description
+            );
+            $form['submit'] = array('#type' => 'submit', '#value' => t('Visit Walk Page'));
+            $form['tid'] = array('#type' => 'hidden', '#value' => $campaign->tid);
+            $form['post'] = array('#value' => '</div>');
+            $footers['history']['#value'] .= drupal_get_form("fhwalk_history_" . $campaign->tid, $form, 'fhwalk_history_goto');
+          } 
+        }
+      }
+      
+      // show signup
+      $actions['signup'] = array(
+        '#title'  => t('Signup'),
+        '#weight' => 0,
+        '#value'  => $node->hook_view['fhsignup']
+      );
+
+      // check signup_show
+      if($node->signup_show || $node->signup_show_number) {
+        $count = fhsignup_count($node->nid, $node->signup_status, $node->signup_allow_guest);
+        $value  = ($node->signup_show)        ? fhsignup_walk_signup_table($node->nid, $node->signup_show_comments, $node->signup_allow_guest) : '';
+        $value .= ($node->signup_show_number) ? ('<h2>' . t('Signup Count') . ": $count</h2>") : '';
+        $actions['signup_list'] = array(
+          '#title'  => t('Signup List'),
           '#weight' => 1,
-          '#value'  => ''
+          '#value'  => $value,
         );
-        // Check for each campaign
-        
-        foreach(fhcampaign_get_all_campaigns() as $campaign) {
-          if($campaign->status < CAMPAIGN_STATUS_ACTIVE) {
-            $walk_list = fhwalk_get_walks($campaign->tid, $node->location['country']);
-            if($walk_list) {
-              $form = array();
-              $walk_option = array();
-              foreach ($walk_list as $walk) {
-                $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
-              }
-              $form['pre'] = array('#value' => '<div class="container-inline">');
-              $form["walk_nid_".$campaign->tid] = array(
-                '#type'    => 'select',
-                '#title'   => $campaign->name,
-                '#options' => $walk_option,
-    //            '#description'  => $term->description
-              );
-              $form['submit'] = array('#type' => 'submit', '#value' => t('Visit Walk Page'));
-              $form['tid'] = array('#type' => 'hidden', '#value' => $campaign->tid);
-              $form['post'] = array('#value' => '</div>');
-              $footers['history']['#value'] .= drupal_get_form("fhwalk_history_" . $campaign->tid, $form, 'fhwalk_history_goto');
-            } 
-          }
-        }
-        
-        // show signup
-        $actions['signup'] = array(
-          '#title'  => t('Signup'),
-          '#weight' => 0,
-          '#value'  => $node->hook_view['fhsignup']
-        );
-  
-        // check signup_show
-        if($node->signup_show || $node->signup_show_number) {
-          $count = fhsignup_count($node->nid, $node->signup_status, $node->signup_allow_guest);
-          $value  = ($node->signup_show)        ? fhsignup_walk_signup_table($node->nid, $node->signup_show_comments, $node->signup_allow_guest) : '';
-          $value .= ($node->signup_show_number) ? ('<h2>' . t('Signup Count') . ": $count</h2>") : '';
-          $actions['signup_list'] = array(
-            '#title'  => t('Signup List'),
-            '#weight' => 1,
-            '#value'  => $value,
-          );
-        }
-  
-        // show invite
-        $actions['taf'] = array(
-          '#title'  => t('Invite others to this walk'),
-          '#weight' => 10,
-          '#value'  => $node->hook_view['forward']
-        );
-        
-        break;
-  
-    }
-  
+      }
+
+      // show invite
+      $actions['taf'] = array(
+        '#title'  => t('Invite others to this walk'),
+        '#weight' => 10,
+        '#value'  => $node->hook_view['forward']
+      );
+      
+      break;
+
+  }
+
   // Theme details tabs
-    $node->tabs['details'] = theme('fhwalk_tabs', $details);
+  $node->tabs['details'] = theme('fhwalk_tabs', $details);
   
   // Theme action tabs
-    $node->tabs['actions'] = theme('fhwalk_tabs', $actions);
+  $node->tabs['actions'] = theme('fhwalk_tabs', $actions);
   
   // Fetch and theme Country Partners
-    $node->partners_country = fhpartner_node_get_partners($node, array('audience' => 'COUNTRY'));
-    $node->CP = theme('fhpartner_list', $node->partners_country); 
+  $node->partners_country = fhpartner_node_get_partners($node, array('audience' => 'COUNTRY'));
+  $node->CP = theme('fhpartner_list', $node->partners_country); 
   
   // Fetch LCP nids and titles and theme
-    $LCP_list = fhlocalpage_get_nodes($node->location['country'], $node->camid);
-    $node->tabs['LCP'] = theme('fhwalk_LCP', $LCP_list);
+  $LCP_list = fhlocalpage_get_nodes($node->location['country'], $node->camid);
+  $node->tabs['LCP'] = theme('fhwalk_LCP', $LCP_list);
    
   // Set footer tabs (only history now)
-    $node->tabs['footer'] = theme('fhwalk_tabs', $footers);
-  }
+  $node->tabs['footer'] = theme('fhwalk_tabs', $footers);
  
 }
 

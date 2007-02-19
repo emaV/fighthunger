@@ -104,9 +104,11 @@ function _fhlocation_geocode_geonames($city, $country) {
       $content[4] = 'geonames';
     } else {
       $content[0] = 0;
+      $content[4] = $result;
     }
   } else {            // STOP !!!
     $content[0] = 0;
+    $content[4] = $result;
   }
 watchdog('fhlocation', "GEONAMES: $location_geonames_org_url<br/>$result<br/>" . print_r($content,true));
   return $content;

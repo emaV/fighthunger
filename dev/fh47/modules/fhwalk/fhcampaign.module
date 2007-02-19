@@ -213,7 +213,7 @@ function fhcampaign_admin() {
     $header = array(t('Campaign'), t('Status'), t('Operations'));
     $rows = array();
     foreach(fhcampaign_get_all_campaigns() as $campaign) {
-      $ops = array(l(t('edit'), 'admin/taxonomy/edit/term/'.$campaign->tid));
+      $ops = array(l(t('edit'), 'admin/taxonomy/edit/term/'.$campaign->tid, array(), 'destination='.$base));
       if($campaign->status == CAMPAIGN_STATUS_ACTIVE) {
         $ops[] = l(t('administer'), $base.'/'.$campaign->shortname);
       }

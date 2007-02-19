@@ -117,21 +117,6 @@ function fhlocalpage_form(&$node) {
 }
 
 /**
- * Custom edit form
- */
-/*
-function fhlocalpage_form_alter($form_id, &$form) {
-  switch ($form_id) {
-    case 'forward_form':
-      $form['message']['#title'] = t("Invite others to this walk");
-      break;
-
-  }
-
-  return $form;
-}
-*/
-/**
  * Implementation of hook_validate()
  */
 function fhlocalpage_validate($node) {
@@ -184,32 +169,13 @@ function fhlocalpage_update($node) {
 function fhlocalpage_add($node) {
   global $user;
   $node = (object)$node;
-  $node->type = 'fhwalk';
+  $node->type = 'fhlocalpage';
   if(!$node->uid) $node->uid = $user->uid;
 
   $output = print_r($node, true);
 
-/* 
-  if (fhlocalpage_access('create', $node)) {
-    $node = array(
-      'uid' => $user->uid, 
-      'name' => $user->name, 
-      'type' => 'fhwalk', 
-      'camid' => $camid, 
-      'cid' => variable_get('fhsignup_coordinator_default', ''), 
-      'country' => $country);
-      // Check country
-    
-    $output = node_form($node);
-
-    drupal_set_title(t('Submit %name', array('%name' => node_get_name($node))));
-  } else {
-    $output = t('You are not allowed to create walks.');
-  }
-*/
   return $output;
 }
-
 
 /**
  * Implementation of hook_view()
@@ -231,12 +197,6 @@ function fhlocalpage_link($type, $node = 0, $main = 0) {
     }
   }
   return $links;
-}
-
-function fhlocalpage_create_submit($form_id, $form_values) {
-  $msg = print_r($form_values, true);
-  drupal_set_message("pippo dice: $msg");
-  return fhlocalpage_add($form_values);
 }
 
 function fhlocalpage_admin_campaign($tid, $country='') {
@@ -314,15 +274,13 @@ function fhlocalpage_admin_campaign($tid, $country='') {
     '#autocomplete_path' => 'user/autocomplete',
   );
   $vid = _fhcampaign_vocabulary();
-  $form['create']['taxonomy'] = array('7' => array('#type' => 'hidden', '#value' => $tid), '#tree'=>true);
+  $form['create']['taxonomy'] = array("'$vid'" => array('#type' => 'hidden', '#value' => $tid), '#tree'=>true);
   $form['create']['moderate'] = array('#type' => 'hidden', '#value' => 1);
   $form['create']['title'] = array('#type' => 'hidden', '#value' => 'LCP');
   $form['create']['body']  = array('#type' => 'hidden', '#value' => 'edit this');
 
-
   $form['create']['submit'] = array('#type' => 'submit', '#value' => t('Submit'));
   $form['#action'] = url('node/add/fhlocalpage', drupal_get_destination() );
-//  $form['#redirect'] = drupal_get_destination();
   $output .= drupal_get_form('fhlocalpage_node_form', $form);
   
   return $output;

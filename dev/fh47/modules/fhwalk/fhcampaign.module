@@ -548,7 +548,7 @@ function fhcampaign_admin_campaign($camid) {
   drupal_set_title(t('Administer') . ": $campaign->name");
   $output = '';  
   // Get search parameters
-  $search_keys = array('coord', 'country', 'city', 'text');
+  $search_keys = array('coord', 'country', 'city', 'text', 'nolatlon');
   $sql_array = array();
   foreach($search_keys as $key => $field) {
     if(isset($_REQUEST[$field])) {
@@ -595,6 +595,11 @@ function fhcampaign_admin_campaign($camid) {
     '#type' => 'textfield',
     '#title' => t('Text'),
     '#default_value' => isset($sql_array['text']) ? $sql_array['text'] : ''
+  );  
+  $form['search']['nolatlon'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Walk without latitude and longitude data'),
+    '#default_value' => isset($sql_array['nolatlon']) ? $sql_array['nolatlon'] : ''
   );  
   // Additional stuff
   $form['search']['syn'] = array('#type' => 'hidden', '#value' => $campaign->shortname);
@@ -647,7 +652,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
     array('data' => t('Country'),     'field' => 'cname'),
     array('data' => t('Organiser'),   'field' => 'coord_name'),
     array('data' => t('Coordinator'), 'field' => 'name'),
-    array('data' => t('Created'), 'field' => 'created', 'sort' => 'desc'),
+    array('data' => t('Created'),     'field' => 'created', 'sort' => 'desc'),
     array('data' => t('Operations'),  '')
   );
 
@@ -661,6 +666,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
   foreach($sql_array as $key => $value) {
     // Important: check string
     $value = db_escape_string($value);
+    $where[] = "l.type='node'";
     switch ($key) {
 
       case 'coord':
@@ -675,6 +681,8 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
       case 'text':
         $where[] = "(n.title LIKE '%$value%' OR u.name LIKE '%$value%' OR LOWER(l.city) LIKE '%$value%' OR nr.body LIKE '%$value%')";
         $join['node_revisions'] = "LEFT JOIN {node_revisions} nr ON n.vid = nr.vid";
+      case 'nolatlon':
+        $where[] = "(l.latitude IS NULL AND l.longitude IS NULL)";
     }
   }
 
@@ -692,9 +700,10 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
   
   while ($walk = db_fetch_object($result)) {
     $operations = l(t('edit'),  'node/' . $walk->nid . '/edit');
+    $latlon = ($walk->latitude && $walk->longitude) ? "" : " *";
     $rows[] = array(
       'data' => array(
-          l($walk->title, 'node/' . $walk->nid),
+          l($walk->title, 'node/' . $walk->nid) . $latlon,
           $walk->city,
           module_invoke('fhlocation', 'get_iso3166_list', $walk->country),
           $walk->name,
@@ -710,6 +719,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
   $output .= '<p>'. t("Walks selected") . ": $num_rows_total</p>";
   $output .= theme('table', $header, $rows);
   $output .= theme('pager', NULL, 50, 0);
+  $output .= '<i>' . t("Walk with * are without latitude and longitude") . '</i>';
   return $output;
 }
 /**

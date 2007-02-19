@@ -56,7 +56,7 @@
 <img src="<?php print base_path() . theme_get_setting('banner_path') ?>" alt="banner" title="banner" />
     </td>
     <td align="center" cellpadding='5'>
-<span id="site-mission"><?php print variable_get('site_mission', '') ?></span>
+<span id="site-mission"><?php print(drupal_eval(variable_get('site_mission', ''))) ?></span>
     </td>
   </tr>
   <tr>

@@ -199,7 +199,7 @@ function fhuser_user_view($uid = 0) {
     $formfield = array(
       '#type' => 'item', 
       '#title' => '', 
-      '#value' => variable_get('site_mission', ''),
+      '#value' => drupal_eval(variable_get('site_mission', '')),
       '#weight' => -9,
     );
     $fields[$c_team_up]['site_mission'] = $formfield; 

@@ -235,7 +235,6 @@ function phptemplate_fhuser_profile($fields) {
   $account = $fields['_account']['#value'];
   $categories = $fields['_categories']['#value'];
 
-
   // Set user name
   if( ($fields['Personal Information']['first_name']['#value']<>'') || 
       ($fields['Personal Information']['last_name']['#value']<>'') ) {
@@ -309,27 +308,62 @@ function phptemplate_fhuser_profile($fields) {
   if($account->picture) {
     $fields['Personal Information']['profile_picture'] = array('#value' => theme('user_picture', $account), '#weight' => -11);
   }
+  
+  // Change Team Up title
+  $fields['Team Up']['#title'] = t('Activities');
 
-//$output .= _print_cat($fields['Team Up']);
-//$output .= _print_cat($fields['Personal Information']);
-//$output .= _print_cat($fields['_categories']['#value']);
-//$output .= _print_cat($fields);
+///////////////////////// DEBUG start
 
-  $output = "<div class='profile'>\n\n";
+/*
+//  $output .= _print_cat($fields['Team Up']);
+  $output .= _print_cat($fields['Team Up']['donation']);
+//  $output .= form_render($fields['Team Up']['donation']);
+
+  $fields_teamup = $fields['Team Up'];
+  $content = form_render($fields_teamup);
+  $output .= "<hr/><h3>form_render</h3>\n\n";  
+  $output .= '<pre>' . check_plain($content) . "</pre>\n<hr/>";  
+
+
+  $elements = $fields['Team Up']['donation'];
+  $content = theme('item', $elements);
+  $output .= "<hr/><h3>theme('item')</h3>\n\n";  
+  $output .= '<pre>' . check_plain($content) . "</pre>\n<hr/>";  
+
+  $element = $elements;
+  $content = theme('form_element', $element['#title'], $element['#value'] . $element['#children'], $element['#description'], $element['#id'], $element['#required'], $element['#error']); 
+  $output .= "<hr/><h3>theme('form_element')</h3>\n\n";  
+  $output .= '<pre>' . check_plain($content) . "</pre>\n<hr/>";  
+
+  $output .= "<hr/><h3>element['#value']</h3>\n\n";  
+  $output .= '<pre>' . check_plain($element['#value']) . "</pre>\n<hr/>"; 
+*/ 
+//  $output .= _print_cat($fields['Personal Information']);
+//  $output .= _print_cat($fields['_categories']['#value']);
+//  $output .= _print_cat($fields);
+
+///////////////////////// DEBUG end
+
+  $output .= "<div class='profile'>\n\n";
+  
   $output .= "<div class='profile_left'>\n";
   $output .= form_render($fields['Personal Information']);
   $output .= "\n</div>\n\n";
+  
   $output .= "<div class='profile_right'>\n";
   $output .= form_render($fields['Team Up']);
   $output .= "\n</div>\n\n";
+  
   $output .= "<div style='clear: both;'>\n";
   $output .= form_render($fields);
   $output .= "\n</div>\n\n";
+
   $output .= "</div>\n";
 
 //$output .= _print_cat($fields['Personal Information']);
 //$output .= _print_cat($fields['Team Up']);
 //$output .= _print_cat($fields);
+//drupal_set_message($output);
 
   return $output;
 }

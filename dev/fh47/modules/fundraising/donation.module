@@ -283,7 +283,8 @@ function donation_prepare($nid) {
     	// Check for user access to node
       if($node && node_access('view', $node) && isset($node->donation) && $node->donation){
         $donation = $node->donation;
-        $donation->presentation = node_view($node, TRUE, TRUE);
+        //$donation->presentation = node_view($node, TRUE, TRUE);
+        $donation->presentation = ''; // Just title and donation form.
       } else {
         return NULL;
       }

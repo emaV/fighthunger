@@ -346,12 +346,12 @@ global $user;
   $role  = ($form_values['volunteer']) ? "volunteer" : "attendee";
   if($form_values['signup_status']==0) {
     $stage = 3;
-    fhsignup_email_notify($nid, $user->uid, 'confirm');
-    fhsignup_email_notify($nid, $user->uid, 'notify_organiser');
+    fhsignup_email_notify($form_values['nid'], $user->uid, 'confirm');
+    fhsignup_email_notify($form_values['nid'], $user->uid, 'notify_organiser');
     $msg = t('Subscribed to this event');
   } else {
     $stage = 2;
-    fhsignup_email_notify($nid, $user->uid, 'wait');
+    fhsignup_email_notify($form_values['nid'], $user->uid, 'wait');
     $msg = t('Your subscription is pending, requiring organiser approvation.');
   }
   _fhsignup_user_add($form_values['nid'], $form_values['uid'], $role, $stage, 
@@ -735,8 +735,6 @@ global $user;
   $trans['%organisername'] = $organiser->name;        //%organisername  
   $trans['%organisermail'] = $organiser->mail;         //%organisermail  
 
-// drupal_set_message("OP: $op");
-
   switch($op) {
     case 'confirm':
       $subject = t('Signup confirmation for event: %event', $trans);
@@ -799,7 +797,7 @@ global $user;
       $from = $organiser->mail;
       break;
   }
-//drupal_set_message("TO: $to<hr/>FROM: $from<hr/>SUBJ: $subject<hr/>MSG: $message");
+//  drupal_set_message("TO: $to<hr/>FROM: $from<hr/>SUBJ: $subject<hr/>MSG: $message");
 
   fhsignup_email_enqueue($to, $from, $subject, $message);
 }

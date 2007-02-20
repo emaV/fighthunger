@@ -338,7 +338,7 @@ function fhwalk_update($node) {
  * @param $sString string to clean
  * @return string cleaned
  * test string:
- * ÁÂäåáã Èéëêè íïì Ôóôõòöø Üüù Ýý ññçðßþ
+ * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 function getRewriteString($sString) {
    $string = strtolower(htmlentities($sString, ENT_QUOTES , UTF));
@@ -1056,6 +1056,9 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
   
   switch ($node->fhwalk_status) {
     case WALK_STATUS_CLOSED:
+      // Unset donations for this event
+      unset($node->donation);
+      // Intentional no break
     case WALK_STATUS_POST:
 
       // Scrapbook

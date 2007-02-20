@@ -755,13 +755,15 @@ ul.block_menu li {
 .block-fhpartner {
   text-align: center;
 }
-.item-partner {
-  text-align: center;
+.block-fhpartner .item-partner {
+  margin: 20px auto;
 }
-.item-partner .image-attach-teaser{
-  margin: 10px auto 0;
+.block-fhpartner .item-partner div {
+  float: none;
 }
-
+.block-fhpartner .item-partner .image-attach-teaser {
+  margin: 0px;
+}
 
 .partner_list .item-partner {
   text-align: center;

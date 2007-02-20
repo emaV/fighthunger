@@ -1,5 +1,5 @@
 /* Colors and borders */
-.fh_orange { color: #FF6500 }
+.fh_orange { color: #FF6600 }
 
 body, #search {
   color: #333333;
@@ -286,7 +286,7 @@ code {
 }
 
 #site-name {
-  font-size: 2.5em;
+  font-size: 2em;
   padding: 25px 0 0.2em 0;
   margin: 0;
 }
@@ -294,7 +294,7 @@ code {
   font-family: Verdana, Helvetica, Arial, Lucida, sans-serif;
   display: inline;
   font-weight: normal;
-  font-size : 1.1em;
+  font-size : 1em;
   padding: 0 0 0 0;
   margin: 0;
 }
@@ -377,10 +377,10 @@ td.sidebar {
 }
 #top-nav ul {
   margin: 0;
-  padding: 4px 0px 4px 100px;
+  padding: 4px 0px 4px 75px;
 }
 #primary {
-  font-size: 1em;
+  font-size: .8em;
 }
 #secondary {
   text-align: right;

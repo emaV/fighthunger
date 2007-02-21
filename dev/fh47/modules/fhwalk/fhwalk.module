@@ -338,7 +338,7 @@ function fhwalk_update($node) {
  * @param $sString string to clean
  * @return string cleaned
  * test string:
- * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * ÁÂäåáã Èéëêè íïì Ôóôõòöø Üüù Ýý ññçðßþ
  */
 function getRewriteString($sString) {
    $string = strtolower(htmlentities($sString, ENT_QUOTES , UTF));
@@ -531,20 +531,25 @@ function fhwalk_merge() {
   $node = node_load($nid);
   $count = _fhsignup_count($nid);
   
-  if( user_access('administer walks') || user_access('coordinate walks') ) {
+  if ( ( _fhsignup_count($nid)==0) && 
+       ( ($user->uid == $node->uid) || user_access('administer walks') || user_access('coordinate walks') ) ) {
+    drupal_goto("node/$nid/delete");
+  } elseif ( user_access('administer walks') || user_access('coordinate walks') ) {
     drupal_set_title(t('Merge Walk') . ": " . $node->location['city']);
   
     $form['delete_merge'] = array(
       '#type'   => 'fieldset',
-      '#title'  => t('Delete or Merge walk'),
       '#weight' => 1
     );
+    $form['delete_merge']['nid_from'] = array('#type' => 'hidden', '#value' => $node->nid); 
     
     $walk_list = fhwalk_get_walks($node->camid, $node->location['country']);
     if(count($walk_list)>1) {
       $options = array('merge' => t('Merge'), 'delete' => t('Delete'));
       foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
       unset($walk_option[$node->nid]);
+      $form['delete_merge']['#title'] = t('Delete or Merge walk');
+      $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Submit'), '#weight' => 99); 
       $form['delete_merge']['action'] = array(
         '#type' => 'select',
         '#title' => t('Select action'),
@@ -557,6 +562,8 @@ function fhwalk_merge() {
         '#options' => $walk_option,
       );
     } else {
+      $form['delete_merge']['#title'] = t('Delete walk');
+      $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Delete'), '#weight' => 99);
       $form['delete_merge']['action'] = array('#type' => 'hidden', '#value' => 'delete');
     }
     $string_substitution = t('Supported string substitutions: %event, %time, %username, %useremail, %info (user signup information).'); 
@@ -568,14 +575,7 @@ function fhwalk_merge() {
       '#description' => t("This text will be sent to all walkers.") . " - <i>$string_substitution</i>",
       '#required' => TRUE,
     );
-
-    $form['delete_merge']['nid_from'] = array('#type' => 'hidden', '#value' => $node->nid); 
-    $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Submit')); 
-
-  
     $output .= drupal_get_form('fhwalk_merge', $form);
-  } elseif ( ($user->uid == $node->uid) && (_fhsignup_count($nid)==0) ) {
-    drupal_goto("node/$nid/delete");
   } else {
     drupal_set_message(t("You are not allowed to delete a walk with signups"));
     drupal_goto("node/$nid/edit");
@@ -613,6 +613,7 @@ function fhwalk_form(&$node) {
     '#default_value' => $node->body,
     '#rows' => 5,
     '#description' => t('Enter basic information for the walk.'),
+    '#required' => TRUE,
     '#weight' => -8,
   );
   $form['format'] = filter_form($node->format);
@@ -1056,9 +1057,10 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
   
   switch ($node->fhwalk_status) {
     case WALK_STATUS_CLOSED:
-      // Unset donations for this event
-      unset($node->donation);
-      // Intentional no break
+      // Unset donations for this event 
+      unset($node->donation); 
+      if($node->hook_view['donation']) unset($node->hook_view['donation']);
+      // Intentional no break 
     case WALK_STATUS_POST:
 
       // Scrapbook
@@ -1068,9 +1070,6 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
         '#value'  => fhwalk_get_photos($node)
       );
       if(!$details['scrapbook']['#value']) unset($details['scrapbook']);
-      
-      // Unset donation
-      if($node->hook_view['donation']) unset($node->hook_view['donation']);
       
       break;
 

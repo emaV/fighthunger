@@ -12,7 +12,8 @@ function clickCountryProvince() {
   acdb = new fh_ACDB(uri);
 
   ac = new fh_jsAC(country, province, acdb);
-  if(province.selectedIndex<0)  ac.populateProvince();
+//  if(province.selectedIndex<0)  ac.populateProvince();
+  if(country.selectedIndex>0 && province.selectedIndex<0)  ac.populateProvince();
 }
 
 /**
@@ -31,11 +32,6 @@ function fh_jsAC(country, province, db) {
  */
 fh_jsAC.prototype.populateProvince = function () {
 
-	// empty existing items
-	for (i = province.options.length; i >= 0; i--) {
-		province.options[i] = null; 
-	}
-
   // call DB object
   this.db.owner = this;
   this.db.search(this.country.options[this.country.selectedIndex].value);
@@ -48,6 +44,13 @@ fh_jsAC.prototype.found = function (matches) {
 
   j=0;
   var ac = this;
+  
+	// empty existing items
+	for (i = province.options.length; i >= 0; i--) {
+		province.options[i] = null; 
+	}
+
+  // Add received Options
   for (key in matches) {
     this.province.options[j] = new Option(matches[key], key);
     j++;
@@ -60,6 +63,7 @@ fh_jsAC.prototype.found = function (matches) {
   } else {
 //    div_province.setAttribute("style", "display:inline;");
     div_province.style.display = "inline";
+    province.selectedIndex = 0;
   } 
   
 }

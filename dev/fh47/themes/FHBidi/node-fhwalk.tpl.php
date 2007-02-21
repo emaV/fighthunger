@@ -62,23 +62,6 @@
     print '<h3>' . t('Walk Information') . "</h3>\n"; 
     print "$node->body_plain\n\n";
   }
-  
-  // When
-  print "<h3>" . t("When") . "</h3>\n";
-  print $node->hook_view['event'] . "\n\n";
-  
-  // Where
-  print $node->hook_view['location'] . "\n\n";
-
-  // Other Details
-  if($node->location['additional']<>'') {
-    print "<h3>" . t("Directions") . "</h3>\n";
-    print $node->location['additional'] . "\n\n";
-  }
-  if($node->route<>'') {
-    print '<h3>' . t('Route') . "</h3>\n";
-    print $node->route . "\n\n";
-  }
 ?>
 <!-- fhwalk teaser end -->
 

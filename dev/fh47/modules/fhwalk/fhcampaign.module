@@ -666,7 +666,6 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
   foreach($sql_array as $key => $value) {
     // Important: check string
     $value = db_escape_string($value);
-    $where[] = "l.type='node'";
     switch ($key) {
 
       case 'coord':

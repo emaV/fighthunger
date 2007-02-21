@@ -138,6 +138,7 @@ ini_set('url_rewriter.tags',        '');
  * We try to set the correct cookie domain. If you are experiencing problems
  * try commenting out the code below or specifying the cookie domain by hand.
  */
+/*
 if (isset($_SERVER['HTTP_HOST'])) {
   $domain = '.'. preg_replace('`^www.`', '', $_SERVER['HTTP_HOST']);
   // Per RFC 2109, cookie domains must contain at least one dot other than the
@@ -146,7 +147,7 @@ if (isset($_SERVER['HTTP_HOST'])) {
     ini_set('session.cookie_domain', $domain);
   }
 }
-
+*/
 /**
  * Variable overrides:
  *

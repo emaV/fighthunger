@@ -685,7 +685,9 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
     }
   }
 
-  $sql = "SELECT n.nid, n.title, n.created, u.name, uc.name AS coord_name, l.city, l.country, c.name AS cname FROM {node} n " . 
+  $sql = "SELECT n.nid, n.title, n.created, u.name, uc.name AS coord_name, " . 
+    "l.city, l.country, l.latitude, l.longitude " . 
+    "FROM {node} n " . 
     "JOIN {gathering_node} gn ON n.nid=gn.nid " .
     "LEFT JOIN {location} l ON n.nid=l.oid " .
     "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .

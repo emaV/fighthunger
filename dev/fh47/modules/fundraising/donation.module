@@ -314,7 +314,7 @@ function donation_prepare($nid) {
       $donation->fixed = TRUE; // For fixed amount and currency
       break;
     case 'event':
-      $donation->title = t('Donate for %name', array('%name' => $node->title));
+      $donation->title = t('Donate to %name', array('%name' => $node->title));
       $donation->partners = fh_node_get_partners($node->nid);
       $donation->affiliation = $donation->partners;
       break;

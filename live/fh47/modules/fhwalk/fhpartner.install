@@ -1,0 +1,17 @@
+<?php
+
+/*
+ * Schema changes 1: change partners_node
+ */
+function fhpartner_update_1() {
+  
+  $ret = array();
+  
+  $sql ="ALTER TABLE {partners_node} ADD url VARCHAR( 128 ) NOT NULL" ; 
+  $ret[] = update_sql($sql);
+  
+  return $ret;
+}
+
+
+?>

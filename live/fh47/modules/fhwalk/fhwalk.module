@@ -338,7 +338,7 @@ function fhwalk_update($node) {
  * @param $sString string to clean
  * @return string cleaned
  * test string:
- * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * ÁÂäåáã Èéëêè íïì Ôóôõòöø Üüù Ýý ññçðßþ
  */
 function getRewriteString($sString) {
    $string = strtolower(htmlentities($sString, ENT_QUOTES , UTF));
@@ -531,20 +531,25 @@ function fhwalk_merge() {
   $node = node_load($nid);
   $count = _fhsignup_count($nid);
   
-  if( user_access('administer walks') || user_access('coordinate walks') ) {
+  if ( ( _fhsignup_count($nid)==0) && 
+       ( ($user->uid == $node->uid) || user_access('administer walks') || user_access('coordinate walks') ) ) {
+    drupal_goto("node/$nid/delete");
+  } elseif ( user_access('administer walks') || user_access('coordinate walks') ) {
     drupal_set_title(t('Merge Walk') . ": " . $node->location['city']);
   
     $form['delete_merge'] = array(
       '#type'   => 'fieldset',
-      '#title'  => t('Delete or Merge walk'),
       '#weight' => 1
     );
+    $form['delete_merge']['nid_from'] = array('#type' => 'hidden', '#value' => $node->nid); 
     
     $walk_list = fhwalk_get_walks($node->camid, $node->location['country']);
     if(count($walk_list)>1) {
       $options = array('merge' => t('Merge'), 'delete' => t('Delete'));
       foreach($walk_list as $walk) $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
       unset($walk_option[$node->nid]);
+      $form['delete_merge']['#title'] = t('Delete or Merge walk');
+      $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Submit'), '#weight' => 99); 
       $form['delete_merge']['action'] = array(
         '#type' => 'select',
         '#title' => t('Select action'),
@@ -557,6 +562,8 @@ function fhwalk_merge() {
         '#options' => $walk_option,
       );
     } else {
+      $form['delete_merge']['#title'] = t('Delete walk');
+      $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Delete'), '#weight' => 99);
       $form['delete_merge']['action'] = array('#type' => 'hidden', '#value' => 'delete');
     }
     $string_substitution = t('Supported string substitutions: %event, %time, %username, %useremail, %info (user signup information).'); 
@@ -568,14 +575,7 @@ function fhwalk_merge() {
       '#description' => t("This text will be sent to all walkers.") . " - <i>$string_substitution</i>",
       '#required' => TRUE,
     );
-
-    $form['delete_merge']['nid_from'] = array('#type' => 'hidden', '#value' => $node->nid); 
-    $form['delete_merge']['submit'] = array('#type' => 'submit', '#value' => t('Submit')); 
-
-  
     $output .= drupal_get_form('fhwalk_merge', $form);
-  } elseif ( ($user->uid == $node->uid) && (_fhsignup_count($nid)==0) ) {
-    drupal_goto("node/$nid/delete");
   } else {
     drupal_set_message(t("You are not allowed to delete a walk with signups"));
     drupal_goto("node/$nid/edit");
@@ -613,6 +613,7 @@ function fhwalk_form(&$node) {
     '#default_value' => $node->body,
     '#rows' => 5,
     '#description' => t('Enter basic information for the walk.'),
+    '#required' => TRUE,
     '#weight' => -8,
   );
   $form['format'] = filter_form($node->format);
@@ -995,6 +996,104 @@ function fhwalk_history_goto_submit($form_id, $form_values) {
 }
 
 /**
+ * Process email form to organiser
+ * use forward.module 
+ * 
+ * @ingroup fhsignup_admin
+ */
+function fhwalk_contact_email_submit($form_id, $form_values) {
+
+  // Set recipient
+  $sql = "SELECT DISTINCT u.mail FROM {node} n " . 
+    "JOIN {users} u ON u.uid=n.uid " .
+    "WHERE n.nid=%d";
+  $recipient = db_result(db_query($sql, $form_values['nid']));
+
+  // Set subject  
+  if($form_values['subject']<>'') {
+    $subject = $form_values['subject'];
+  } else {
+    $subject = "Request info for walk '" .  $form_values['title'] . "'";
+  }
+
+  // Set content 
+  $content->title  = $form_values['title'];
+  $content->nid    = $form_values['nid'];
+  $content->teaser = $form_values['content'];
+  $content->type   = 'fhwalk';
+  
+// Set vars for theming
+  $vars = array(
+	  'forward_header_image' => variable_get('forward_header_image', ''),
+	  'site_name' => variable_get('site_name', 'Drupal'),
+	  'yemail'    => $form_values['yemail'],
+	  'forward_message' => '',
+	  'message'  => '',
+	  'base_url' => '',
+	  'content'  => $content,
+	  'dynamic_content'   => '',
+	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
+	  'forward_footer'    => variable_get('fhsignup_email_footer', '')
+  );
+
+  // Theming body
+  $body = theme('forward_email', $vars);
+  
+  // Enqueue emails
+  module_invoke('fhsignup', 'email_enqueue', $recipient, $form_values['yemail'], $subject, $body);
+//  drupal_set_message("'fhsignup', 'email_enqueue'\n $recipient\n" . $form_values['yemail'] . "\n$subject\n$body");
+
+  drupal_set_message(t('Message sent to organiser.'));
+
+// Set return URL
+//  $returnurl = 'node/'. $form_values['nid'] . '/signup_admin';
+//	drupal_goto($returnurl);
+}
+
+/**
+ * Email contact form to organiser.
+ * 
+ * @ingroup fhwalk_helpers
+ */ 
+function fhwalk_contact_email($node) {
+global $user;
+
+  if($user->uid) {
+    $from_name  =  $user->name;
+    $from_email = $user->mail; 
+  } else {
+    $from_name  = 'anonymous contact';
+    $from_email = 'team@fighthunger.org'; 
+  }
+  $form['contact_message']['yname'] =  array('#type' => 'hidden', '#value' => $from_name);
+  $form['contact_message']['yemail'] = array('#type' => 'hidden', '#value' => $from_email);
+  $form['contact_message']['nid'] =    array('#type' => 'hidden', '#value' => $node->nid);
+  $form['contact_message']['title'] =  array('#type' => 'hidden', '#value' => $node->title);
+   
+  $form['contact_message']['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject of the message'),
+    '#default_value' => "Request info for walk '$node->title'",
+    '#description' => t('This will be the subject of message sent to organiser.'),
+    '#required' => TRUE,
+  );
+  $form['contact_message']['content'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Message to sent'),
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t('This will be the content of message sent to organiser.'),
+    '#required' => TRUE,
+  );
+  $form['contact_message']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send'),
+  );
+
+  return drupal_get_form('fhwalk_contact_email', $form);
+}
+
+/**
  * Implementation of hook_view().
  * 
  * Call all module hook but don't append to body
@@ -1056,9 +1155,10 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
   
   switch ($node->fhwalk_status) {
     case WALK_STATUS_CLOSED:
-      // Unset donations for this event
-      unset($node->donation);
-      // Intentional no break
+      // Unset donations for this event 
+      unset($node->donation); 
+      if($node->hook_view['donation']) unset($node->hook_view['donation']);
+      // Intentional no break 
     case WALK_STATUS_POST:
 
       // Scrapbook
@@ -1068,9 +1168,6 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
         '#value'  => fhwalk_get_photos($node)
       );
       if(!$details['scrapbook']['#value']) unset($details['scrapbook']);
-      
-      // Unset donation
-      if($node->hook_view['donation']) unset($node->hook_view['donation']);
       
       break;
 
@@ -1126,6 +1223,13 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
           '#value'  => $value,
         );
       }
+
+      // contact organiser
+      $actions['contact'] = array(
+        '#title'  => t('Contact Organiser'),
+        '#weight' => 2,
+        '#value'  => fhwalk_contact_email($node)
+      );
 
       // show invite
       $actions['taf'] = array(
@@ -1289,11 +1393,6 @@ function _fhwalk_administer_get_walk($tid, $sql_array) {
   $output .= theme('pager', NULL, 50, 0);
   return $output;
 }
-
-
-
-
-
 
 /**********************
  *
@@ -1491,8 +1590,6 @@ global $user;
 
   return drupal_get_form('fhwalk_coordinate_email', $form);
 }
-
-
 
 /**
  * Get fhwalk campaign status

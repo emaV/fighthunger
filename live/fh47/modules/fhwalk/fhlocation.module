@@ -53,13 +53,12 @@ function fhlocation_menu($may_cache) {
 
 
 
-function _fhlocation_geocode_google($street='', $city, $province='', $country) {
+function _fhlocation_geocode_google($query_params) {
   if(variable_get('googlemap_api_key', '')=='') { 
     $content = array(0,0,0,0,'NO api_key');
   } else {
     $location_geocode_gmap_url = "http://maps.google.com/maps/geo?q=" . 
-          ( ($street)   ? "$street,"   : '') . "$city," .
-          ( ($province) ? "$province," : '') . $country .
+          urlencode(implode(", ", $query_params)) .
           "&output=csv&key=".variable_get('googlemap_api_key', '');
     $result  = file_get_contents("$location_geocode_gmap_url");
     $content = explode(",", $result);
@@ -80,7 +79,10 @@ watchdog('fhlocation', "GOOGLE: $location_geocode_gmap_url<br/>$result<br/>" . p
  * Parsing without j-son decode http://it2.php.net/manual/en/function.json-decode.php
  * 
  */  
-function _fhlocation_geocode_geonames($city, $country) {
+function _fhlocation_geocode_geonames($query_params) {
+  $city = $query_params['city'];
+  $country = $query_params['country'];
+  
   $location_geonames_org_url = "http://ws.geonames.org/postalCodeSearchJSON?" .
     "placename=$city&country=$country&maxRows=1";
   $result  = file_get_contents("$location_geonames_org_url");
@@ -125,33 +127,33 @@ watchdog('fhlocation', "GEONAMES: $location_geonames_org_url<br/>$result<br/>" .
  * @return provinces array related to the country
  */
 function fhlocation_get_latlon($location) {
-  
-// urlencode all
-  $street   = urlencode(utf8_encode($location['street']));
-  $city     = urlencode(utf8_encode($location['city']));
+
+  // set query params
+  $query_params['street']   = $location['street'];
+  $query_params['city']     = $location['city'];
    if($province=$location['province']) {
     if (strlen($province) && $province != 'xx') {
       // chop off the 2-letter code and the '-' from the front of the value
-      $province = substr($province, 3);
-    } else {
-      $province ='';
+      $query_params['province'] = substr($province, 3);
     }
   }
   if($location['country']=='uk') $location['country'] = 'gb';
-  $country = urlencode(utf8_encode(fh_get_country_name($location['country'])));
+  $query_params['country'] = $location['country'];
   
 // Try fetching GOOGLE street, city, province, country
-  $content = _fhlocation_geocode_google($street, $city, $province, $country);
+  $content = _fhlocation_geocode_google($query_params);
 
   if($content[0]<>200) {
     // Then GOOGLE city, province, country
-    $content = _fhlocation_geocode_google('', $city, $province, $country);
+    unset($query_params['street']);
+    $content = _fhlocation_geocode_google($query_params);
     if($content[0]<>200) {
       // Then GOOGLE city, country
-      $content = _fhlocation_geocode_google('', $city, '', $country);
+      unset($query_params['province']);
+      $content = _fhlocation_geocode_google($query_params);
       if($content[0]<>200) {
         // Then geonames city, country
-        $content = _fhlocation_geocode_geonames($city, $location['country']);
+        $content = _fhlocation_geocode_geonames($query_params);
       }
     }
   }

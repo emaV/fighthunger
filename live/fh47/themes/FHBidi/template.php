@@ -14,46 +14,6 @@ function phptemplate_stylesheet_import($stylesheet, $media = 'all') {
   return theme_stylesheet_import($stylesheet, $media);
 }
 
-
-/*
-function phptemplate_form_element($title, $value, $description = NULL, $id = NULL, $required = FALSE, $error = FALSE){
-  if ((arg(0) == "F1") || (arg(1) == "F1")){
-    $output = f1_form_element($title,$value,$description,$id,$required,$error);
-  } else {
-    if ($title){
-      $output  = "\n<dl>\n";
-    }
-  
-    $required = $required ? theme('mark') : '';
-  
-    if ($title) {
-      if ($id) {
-        $output .= " <dt for=\"$id\">$title:$required</dt>\n";
-      }
-      else {
-        $output .= " <dt>$title:$required</dt>\n";
-      }
-      $output .= "<dd>";
-    }
-  
-    
-    if ($description) {
-      $output .= " <div class=\"description\">$description</div>";
-    }
-    if ($error){
-      $output .= " <div class=\"error\">$error</div>";
-    }
-  
-    $output .= "$value";
-  
-    if ($title){
-      $output .= "</dd>\n</dl>\n";
-    }
-  }
-  
-  return $output;
-}
-*/
 function phptemplate_gathering_btn_create($uri) {
   $out  = "<a href='".$uri."'>\n";
   $out .= "<img src='".path_to_theme()."/images/event_create.png' width='79' height='80' class='event_create'/>";
@@ -103,38 +63,6 @@ function phptemplate_gathering_node($node, $fields=NULL) {
 }
 
 
-function phptemplate_user_profile($user, $fields) {
-  $user->longcountry = fh_get_country_name($user->profile_country);
-//  $user->longcountry = $user->profile_country;
-//  $fields['donation_obj'] = donation_prepare($user->donation);
-  return _phptemplate_callback("user_profile",array('user' => $user, 'fields' => $fields));
-}
-
-/*
-function phptemplate_user_edit($form) {
-//  $user->longcountry = fh_get_country_name($user->country);
-//  $user->longcountry = $user->profile_country;
-//  $fields['donation_obj'] = donation_prepare($user->donation);
-
-  return _phptemplate_callback('user_edit',array('form' => $form));
-}
-
-function phptemplate_user_register($form) {
-//  $user->longcountry = fh_get_country_name($user->country);
-//  $user->longcountry = $user->profile_country;
-//  $fields['donation_obj'] = donation_prepare($user->donation);
-  $form_tmp = $form['account']; unset ($form['account']);
-  $form['account']['account'] = $form_tmp;
-  $form_tmp = $form['team_up']; unset ($form['team_up']);
-  $form['team_up']['team_up'] = $form_tmp;
-  $form_tmp = $form['Personal Information']; unset ($form['Personal Information']);
-  $form['Personal Information']['Personal Information'] = $form_tmp;
-  unset($form['civicrm-profile-register']);
-  return _phptemplate_callback('user_edit',array('form' => $form));
-// return "paperina" . form_render($form);
-}
-*/
-
 function phptemplate_gathering_btn_walk() {
   $ats['src'] = path_to_theme()."/images/btn_walk.png";
   return form_button(t("Walk"),NULL,"image",$ats);
@@ -151,31 +79,6 @@ function phptemplate_donation_btn_donate() {
 // <a href="donation/986">Donate to this event</a></div>
 //  return form_submit(t("Donate"));
 }
-
-/* Needs updating for 4.7
-function phptemplate_donation_presentation($donation) {
-  switch($donation->type) {
-    case 'plain':
-      $out = "<div class='info'>$donation->presentation</div>";
-      $out =  form_group(t('Donation details'), $out );
-      break;
-    case 'event':
-    case 'fee':
-      $link = l(_donation_list($donation->nid), "node/$donation->nid");
-      $out = "<div class='info'><div class='links'>" . t('details') . ": $link</div></div>";
-      break;
-    case 'campaign':
-      $camid = substr($donation->nid,1);
-      $link = l($donation->title, "gathering/home/$camid");
-      $out  = "<div class='info'>";
-      $out .= "$donation->presentation";
-      $out .= "<div class='links'>" . t('details') . ": $link</div>";
-      $out .= "</div>";
-      $out =  form_group(t('Donation details'), $out );
-  }
-  return  $out;
-}
-*/
 
 function phptemplate_settings() {
     $settings = variable_get('theme_FHBidi_settings', array());
@@ -231,141 +134,155 @@ function phptemplate_i18n_link($text, $target, $lang, $separator='&nbsp;'){
 /**
  * User profile view
  */
-function phptemplate_fhuser_profile($fields) {
-  $account = $fields['_account']['#value'];
-  $categories = $fields['_categories']['#value'];
+function phptemplate_user_profile($account, $fields, $categories) {
+  //$account = $fields['_account']['#value'];
+  //$categories = $fields['_categories']['#value'];
+  
+  // Change fieldset to profile_set  
+  foreach($categories as $key_set => $cat) {
+      $fields[$key_set]['attributes'] = array('class' => 'profile_set', 'id' => str_replace(' ', '', $key_set) );
+      $fields[$key_set]['type'] = 'profile_set';
+  }  
+  // Rendering fields and categories
+  $output = '';
+  $output .= "<div class='profile'>\n";
 
-  // Set user name
-  if( ($fields['Personal Information']['first_name']['#value']<>'') || 
-      ($fields['Personal Information']['last_name']['#value']<>'') ) {
-    $user_name = trim($fields['Personal Information']['first_name']['#value'] . 
-      ' ' . $fields['Personal Information']['last_name']['#value']); 
+  // Personal information
+  $data = $fields['Personal Information'];
+  $content = '';
+  
+  // User picture, weight -11
+  if($account->picture) {
+    $item = array('value' => theme('user_picture', $account), 'weight' => -11);
+  }
+  $content .= theme('profile_item', $item);
+  
+  // Set user name, weight -10
+  if( ($data['first_name']['value'] != '') || 
+      ($data['last_name']['value'] != '') ) {
+    $user_name = trim($fields['Personal Information']['first_name']['value'] . 
+      ' ' . $fields['Personal Information']['last_name']['value']); 
   } else {
     $user_name = $account->name;
   }
-  $fields['Personal Information']['profile_username'] = array(
-            '#type'   => 'item', 
-            '#attributes'   => array('class' => 'profile_username'),
-            '#theme'  => 'profile_item', 
-            '#value'  => t('My name is') . " $user_name",
-            '#weight' => -10
+  $item = array(
+            //'#type'   => 'item', 
+            'attributes'   => array('class' => 'profile_username'),
+            //'#theme'  => 'profile_item', 
+            'value'  => t('My name is %user_name', array('%user_name' => $user_name)),
+            'weight' => -10
           );
-  unset($fields['Personal Information']['first_name']);
-  unset($fields['Personal Information']['last_name']);
- 
-  // Set country 
-  if($fields['Personal Information']['country']['#value']<>'') {
-    $fields['Personal Information']['country']['#title'] = '';
-    $fields['Personal Information']['country']['#value'] = t("I live in") . ' '.
-      $fields['Personal Information']['country']['#value']; 
+  unset($data['first_name']);
+  unset($data['last_name']);
+  $content .= theme('profile_item', $item);
+
+  // Set country and clean location fields
+  if($country = $data['country']['value']) {
+    $data['country']['title'] = '';
+    $data['country']['value'] = t("I live in %country_name", array('%country_name' => $country));
   } else {
-    unset($fields['Personal Information']['country']);
+    unset($data['country']);
   }
   unset($fields['Location']);
   
   // Set profile_presentation field
-  if( $pres_val = $fields['Personal Information']['profile_presentation']['#value'] ) {
-    $pres_val = $fields['Personal Information']['profile_presentation']['#value'];
-    $fields['Personal Information']['profile_presentation']['#title'] = t("Why I'm supporting Fight Hunger?");
-    $fields['Personal Information']['profile_presentation']['#attributes'] = array('class' => 'profile_motivation');
+  if( $pres_val = $data['profile_presentation']['value'] ) {
+    $data['profile_presentation']['title'] = t("Why I'm supporting Fight Hunger?");
+    $data['profile_presentation']['attributes'] = array('class' => 'profile_motivation');
   }
 
   // Set flickr
-  if($fields['Personal Information']['profile_flickr']['#value']) {
-    $fields['Personal Information']['profile_flickr']['#title'] = '';
-    $fields['Personal Information']['profile_flickr']['#value'] = 
-      theme('profile_flickr', $account);
+  if($info = $data['profile_flickr']['value']) {
+    $data['profile_flickr']['title'] = '';
+    $data['profile_flickr']['value'] = theme('profile_flickr', $account);
   }
   
   // Set blog
-  if($fields['Personal Information']['profile_blog']['#value']) {
-    $fields['Personal Information']['profile_blog']['#title'] = '';
-    $fields['Personal Information']['profile_blog']['#value'] = 
-      theme('profile_blog', $account);
+  if($data['profile_blog']['value']) {
+    $data['profile_blog']['title'] = '';
+    $data['profile_blog']['value'] = theme('profile_blog', $account);
   }
   
   // Set profile_delicious
-  if($fields['Personal Information']['profile_delicious']['#value']) {
-    $fields['Personal Information']['profile_delicious']['#title'] = '';
-    $fields['Personal Information']['profile_delicious']['#value'] = 
-      theme('profile_delicious', $account);
+  if($data['profile_delicious']['value']) {
+    $data['profile_delicious']['title'] = '';
+    $data['profile_delicious']['value'] = theme('profile_delicious', $account);
   }
-    
-  // Change fieldset to profile_set  
-  foreach($fields['_categories']['#value'] as $key_set => $cat) {
-      $fields[$key_set]['#attributes'] = array('class' => 'profile_set', 'id' => str_replace(' ', '', $key_set) );
-      $fields[$key_set]['#type'] = 'profile_set';
-  }
-
-  // Change item to profile_item (ONLY for 'Personal Information')
-  foreach($fields['Personal Information'] as $key_item => $value_item) {
-    if( $key_item{0} <> '#' ) {
-      $fields['Personal Information'][$key_item]['#theme'] = 'profile_item';
-    }
-  }
-
-  // Set picture
-  if($account->picture) {
-    $fields['Personal Information']['profile_picture'] = array('#value' => theme('user_picture', $account), '#weight' => -11);
-  }
-  
-  // Change Team Up title
-  $fields['Team Up']['#title'] = t('Activities');
-
-///////////////////////// DEBUG start
-
-/*
-//  $output .= _print_cat($fields['Team Up']);
-  $output .= _print_cat($fields['Team Up']['donation']);
-//  $output .= form_render($fields['Team Up']['donation']);
-
-  $fields_teamup = $fields['Team Up'];
-  $content = form_render($fields_teamup);
-  $output .= "<hr/><h3>form_render</h3>\n\n";  
-  $output .= '<pre>' . check_plain($content) . "</pre>\n<hr/>";  
-
-
-  $elements = $fields['Team Up']['donation'];
-  $content = theme('item', $elements);
-  $output .= "<hr/><h3>theme('item')</h3>\n\n";  
-  $output .= '<pre>' . check_plain($content) . "</pre>\n<hr/>";  
-
-  $element = $elements;
-  $content = theme('form_element', $element['#title'], $element['#value'] . $element['#children'], $element['#description'], $element['#id'], $element['#required'], $element['#error']); 
-  $output .= "<hr/><h3>theme('form_element')</h3>\n\n";  
-  $output .= '<pre>' . check_plain($content) . "</pre>\n<hr/>";  
-
-  $output .= "<hr/><h3>element['#value']</h3>\n\n";  
-  $output .= '<pre>' . check_plain($element['#value']) . "</pre>\n<hr/>"; 
-*/ 
-//  $output .= _print_cat($fields['Personal Information']);
-//  $output .= _print_cat($fields['_categories']['#value']);
-//  $output .= _print_cat($fields);
-
-///////////////////////// DEBUG end
-
-  $output .= "<div class='profile'>\n\n";
-  
+  // Render data
+  $data['content'] = $content;   
   $output .= "<div class='profile_left'>\n";
-  $output .= form_render($fields['Personal Information']);
-  $output .= "\n</div>\n\n";
+  $output .= theme('profile_fieldset', $data, t('Personal Information'));
+  $output .= "\n</div>\n";
+
+  $content = '';
+  if (is_array($fields[t('Activities')])) {
+    $fields['Team Up']['activities'] = array(
+      'title' => t('My activities'),
+      'value' => theme('profile_fieldset', $fields[t('Activities')])
+    );    
+  }
+  unset($fields[t('Activities')]);
   
   $output .= "<div class='profile_right'>\n";
-  $output .= form_render($fields['Team Up']);
+  $output .= theme('profile_fieldset', $fields['Team Up'], t('Activities') );
   $output .= "\n</div>\n\n";
   
-  $output .= "<div style='clear: both;'>\n";
-  $output .= form_render($fields);
+  //$output .= form_render($fields);
+  $output .= "<div style='clear: both;'>\n";   
   $output .= "\n</div>\n\n";
-
   $output .= "</div>\n";
-
-//$output .= _print_cat($fields['Personal Information']);
-//$output .= _print_cat($fields['Team Up']);
-//$output .= _print_cat($fields);
-//drupal_set_message($output);
-
+  
   return $output;
+}
+
+/**
+ * Theme profile fieldset
+ */
+function phptemplate_profile_fieldset($fields, $title = '') {
+
+  if ( isset($fields['class']) ){
+    $attributes['id'] = $fields['class'];
+    $attributes['class'] = 'profile_set';  
+  } else {
+    $attributes['class'] = 'profile_set';  
+  }
+  $content = isset($fields['content']) ? $fields['content'] : '';
+  foreach($fields as $field) {
+    if( is_array($field)) {
+      // If it's an array, this should be a new field
+      $content .= theme('profile_item', $field);
+    }
+  }
+  $output = '<fieldset' . drupal_attributes($attributes) .'>';
+  $output .= ($title ? '<h2>'. $title .'</h2>' : '');
+  $output .= $content. "</fieldset>\n";
+  
+  return $output;
+}
+
+/**
+ * Theme profile item
+ */
+function phptemplate_profile_item($element) {
+  if ( isset($element['class']) ){
+    if($element['attributes']) var_dump($element);
+    $element['attributes']['id'] = $element['class'];
+    $element['attributes']['class'] = 'profile_item';  
+  } else {
+    $element['attributes']['class'] = 'profile_item';  
+  }
+
+  $out = '<div' . drupal_attributes($element['attributes']) . ">\n";
+  if ($element['title']) {
+    $out .= '<h3>'. t($element['title']) . "</h3>\n";
+  }
+  $value = is_array($element['value']) ? implode('', $element['value']) : $element['value'];
+  $out .= $value . "\n";
+  if ($element['description']) {
+    $out .= ' <div class="description">'. $element['description'] ."</div>\n";
+  }
+  $out .= "</div>\n";
+  return $out;
 }
 
 /**
@@ -403,10 +320,6 @@ function phptemplate_fhuser_user_edit($form) {
   $form['account']['timezone']['#collapsed']  = 1;
   $form['account']['theme_select']['themes']['#collapsed']  = 1;
 
-  // Arrange Team Up
-  $form['Team Up']['fundraising'] = $form['account']['fundraising'];
-  unset($form['account']['fundraising']);
-  
   // Set theme issue
   $item_button = array('#value' => "\n<p class='button'><a href='#top'>" . t('top') ."</a></p>\n",
                        '#weight' => 99);
@@ -480,26 +393,6 @@ function phptemplate_profile_delicious($account) {
   }
   return $output;
 }
-
-function phptemplate_profile_item($element) {
-  if ( isset($element['#attributes']['class']) ){
-    $element['#attributes']['id'] = $element['#attributes']['class'];
-    $element['#attributes']['class'] = 'profile_item';  
-  } else {
-    $element['#attributes']['class'] = 'profile_item';  
-  }
-
-  $out = '<div' . drupal_attributes($element['#attributes']) . ">\n";
-  if ($element['#title']) {
-    $out .= '<h3>'. t($element['#title']) . "</h3>\n";
-  }
-  $out .= $element['#value'] . $element['#children'] . "\n";
-  if ($element['#description']) {
-    $out .= ' <div class="description">'. $element['#description'] ."</div>\n";
-  }
-  $out .= "</div>\n";
-  return $out;
-} 
 
 /**
  * Theme functions for user page:
@@ -656,6 +549,24 @@ function phptemplate_fhbat_banner_view($node) {
   $output .= theme('banner_view_upload', $node) . '<br />';
   $output .= $node->content;
   return "<center>$output</center>";
+}
+
+/**
+ * Theme the body (image_attach)
+ */
+function phptemplate_image_attach_body($node) {
+  theme_add_style(drupal_get_path('module', 'image_attach') .'/image_attach.css');
+
+  $image = node_load($node->iid);
+  
+  $info = image_get_info(file_create_path($image->images['thumbnail']));
+  $url  = ($node->url) ? $node->url : "node/$node->nid";
+  $output = '';
+  $output .= '<div style="width: '. $info['width'] .'px" class="image-attach-body">';
+  $output .= l(image_display($image, 'thumbnail'), $url, array(), NULL, NULL, FALSE, TRUE);
+  $output .= '</div>'."\n";
+  $output .= $node->body;
+  return $output;
 }
 
 /**

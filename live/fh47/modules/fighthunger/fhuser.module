@@ -143,11 +143,13 @@ function fhuser_user_view($uid = 0) {
       //drupal_set_message("DEBUG:fhuser_user_view, module=$module, data=".print_r($data, TRUE));
       foreach ($data as $category => $items) {
         $index = isset($categorytranslation[$category]) ?  $categorytranslation[$category] : $category;
-        $fields[$index]['#title'] = $category;
-        $fields[$index]['#type'] = 'fieldset';
+        //$fields[$index]['#title'] = $category;
+        $fields[$index]['title'] = $category;
+        //$fields[$index]['#type'] = 'fieldset';
         foreach ($items as $item) {
           $class = ($item['class']) ? $item['class'] : $modulename;
           $item['class'] = "$modulename-$class";
+          /*
           $formfield = array(
             '#type'   => 'item', 
             '#title'  => $item['title'], 
@@ -155,10 +157,11 @@ function fhuser_user_view($uid = 0) {
             '#weight' => $item['weight'],
             '#attributes' => array('class' => $item['class'])
           );
+          */
           if (isset($fields[$index][$class])) {
-            $fields[$index][$class][] = $formfield;
+            $fields[$index][$class][] = $item;
           } else {
-            $fields[$index][$class] = $formfield;
+            $fields[$index][$class] = $item;
           }
         }
       }
@@ -172,17 +175,15 @@ function fhuser_user_view($uid = 0) {
   $fields['_categories'] = array('#type' => 'value', '#value' => $categories);  
   
   // Re-arrange some fields
-  $c_team_up = 'Team Up';
-  $c_personal = 'Personal Information';
   $trans_cats = i18nprofile_categories(TRUE); 
-  $fields[$c_personal]['#title'] = $trans_cats[$c_personal] ? $trans_cats[$c_personal] : $c_personal; 
-  $fields[$c_team_up]['#title'] = $trans_cats[$c_team_up] ? $trans_cats[$c_team_up] : $c_team_up; 
+  $fields[USER_CATEGORY_PERSONAL]['title'] = $trans_cats[USER_CATEGORY_PERSONAL] ? $trans_cats[USER_CATEGORY_PERSONAL] : USER_CATEGORY_PERSONAL; 
+  $fields[USER_CATEGORY_TEAM]['title'] = $trans_cats[USER_CATEGORY_TEAM] ? $trans_cats[USER_CATEGORY_TEAM] : USER_CATEGORY_TEAM; 
   
   // Merge Team Up with Personal Information
-  if(is_array($fields[$c_team_up]) && is_array($fields[$c_personal])) {
-    foreach($fields[$c_team_up] as $key => $val) {
+  if(is_array($fields[USER_CATEGORY_TEAM]) && is_array($fields[USER_CATEGORY_PERSONAL])) {
+    foreach($fields[USER_CATEGORY_TEAM] as $key => $val) {
       if (is_array($val)) {
-        $fields[$c_personal][$key] = $val;
+        $fields[USER_CATEGORY_PERSONAL][$key] = $val;
         unset($fields['Team Up'][$key]);
       }
     }
@@ -191,34 +192,38 @@ function fhuser_user_view($uid = 0) {
   // Unset categories
   unset($fields[t('History')]);
 
-  // Merge Donation with Team Up
+  // Merge Team Up with Personal Information
   if ($fields[t('Donation')]) {
-    $fields[$c_team_up]['donation'] = $fields[t('Donation')]['donation']; 
+    $fields[USER_CATEGORY_TEAM]['donation'] = $fields[t('Donation')]['donation']; 
     unset($fields[t('Donation')]);
   } else {
+    /*
     $formfield = array(
       '#type' => 'item', 
       '#title' => '', 
-      '#value' => drupal_eval(variable_get('site_mission', '')),
+      '#value' => variable_get('site_mission', ''),
       '#weight' => -9,
     );
-    $fields[$c_team_up]['site_mission'] = $formfield; 
+    */
+    $fields[USER_CATEGORY_TEAM]['site_mission'] = array(
+      'title' => '',
+      'value' => variable_get('site_mission', ''),
+      'weight' => -9
+    ); //$formfield; 
   }
-  
-  // Merge activities (from fhcampaign) with Team Up
-  if ($fields['activities']) {
-    $fields[$c_team_up]['activities'] = $fields['activities']['fhcampaign']; 
-    unset($fields['activities']);
-  }  
   
   // Add country to Personal information - from location
 
   $country = $account->location['country'];
-  $fields[$c_personal]['country'] = array('#type' => 'item', '#title' => t('Country'), '#value' => fh_get_country_name($country));
-  
+  //$fields[USER_CATEGORY_PERSONAL]['country'] = array('#type' => 'item', '#title' => t('Country'), '#value' => fh_get_country_name($country));
+  $fields[USER_CATEGORY_PERSONAL]['country'] = array(
+    'title' => t('Country'), 
+    'value' => fh_get_country_name($country)
+  );
   // OK, ready for rendering
   drupal_set_title(check_plain($account->name));
-  return theme('fhuser_profile', $fields);
+  //return drupal_get_form('fhuser_profile', $fields);
+  return theme('user_profile', $account, $fields, $categories);
 }
 
 /*
@@ -272,15 +277,17 @@ function fhuser_user_edit(){
     }
   }
   
-  // Re-organize location fields: $form['account'][0]['location'];
+  // Move fundraising to team
+  $form[USER_CATEGORY_TEAM]['fundraising'] = $form['account']['fundraising'];
+  unset($form['account']['fundraising']);  
 
-  $c_personal = 'Personal Information';
+  // Re-organize location fields: $form['account'][0]['location'];
   // Special country field
-  $form[$c_personal][0]['location']['country'] = $form['account'][0]['location']['country'];
-  $form[$c_personal][0]['location']['country']['#required'] = TRUE;
-  $form[$c_personal][0]['location']['#tree'] = TRUE;
+  $form[USER_CATEGORY_PERSONAL][0]['location']['country'] = $form['account'][0]['location']['country'];
+  $form[USER_CATEGORY_PERSONAL][0]['location']['country']['#required'] = TRUE;
+  $form[USER_CATEGORY_PERSONAL][0]['location']['#tree'] = TRUE;
   unset($form['account'][0]['location']['country']);
-  $form[$c_personal][1]['location'] = $form['account'][0]['location'];
+  $form[USER_CATEGORY_PERSONAL][1]['location'] = $form['account'][0]['location'];
   unset($form['account'][0]);
   
   

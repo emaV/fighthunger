@@ -346,7 +346,7 @@ function fhcampaign_country_list($tid) {
  * @param $fhwalk_overview array with data to render
  * @return HTML code
  */
-function theme_fhuser_activities($activities) {
+function theme_fhcampaign_user_activities($activities) {
   $weight = array('attandee' => 0, 'volunteer' => 1, 'organiser' => 2, 'coordinator' => 3);
 
   foreach($activities as $role => $walks) {
@@ -359,7 +359,7 @@ function theme_fhuser_activities($activities) {
     );
     $list = "<ul>\n";
     foreach($walks as $walk) {
-      $url = l($walk['title'], drupal_get_path_alias("node/" . $walk['nid']) );
+      $url = l($walk['title'], "node/" . $walk['nid']);
       $location = $walk['city'] . ' (' . fhlocation_get_iso3166_list($walk['country']) . ')';
       $list .= "<li>$location: $url</li>\n";
     }
@@ -367,7 +367,7 @@ function theme_fhuser_activities($activities) {
     $form[$role]['list'] = array('#value' => $list);
     
   }
-  $output .= drupal_get_form('', $form);
+  $output .= form_render($form);
   return $output;
 }
 
@@ -666,7 +666,6 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
   foreach($sql_array as $key => $value) {
     // Important: check string
     $value = db_escape_string($value);
-    $where[] = "l.type='node'";
     switch ($key) {
 
       case 'coord':
@@ -686,7 +685,9 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
     }
   }
 
-  $sql = "SELECT n.nid, n.title, n.created, u.name, uc.name AS coord_name, l.city, l.country, c.name AS cname FROM {node} n " . 
+  $sql = "SELECT n.nid, n.title, n.created, u.name, uc.name AS coord_name, " . 
+    "l.city, l.country, l.latitude, l.longitude " . 
+    "FROM {node} n " . 
     "JOIN {gathering_node} gn ON n.nid=gn.nid " .
     "LEFT JOIN {location} l ON n.nid=l.oid " .
     "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
@@ -944,19 +945,21 @@ function fhcampaign_user($op, &$edit, &$user, $category = NULL) {
       $activities = fhcampaign_get_user_activities($user->uid);
       
       foreach($activities as $camid => $campaign_activities) {
-        $out_campaign_activities = theme('fhuser_activities', $campaign_activities);
+        $out_campaign_activities = theme('fhcampaign_user_activities', $campaign_activities);
         $first_walk = array_shift(array_shift($campaign_activities));
         $item = array();
         $item['class']  = $first_walk['status'];
         $item['title']  = $first_walk['longname'];
         $item['value']  = $out_campaign_activities;
         $item['weight'] = $first_walk['weight'];
-        $data['activities'][] = $item;
+        $data[] = $item;
       }
-      return $data;
+      if (count($data)) {
+        return array(t('Activities') => $data);
+      }
       break;
   }
-  return $out;
+
 }
 
 

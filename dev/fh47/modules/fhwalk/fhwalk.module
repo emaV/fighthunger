@@ -1006,7 +1006,7 @@ function fhwalk_contact_email_submit($form_id, $form_values) {
   // Set recipient
   $sql = "SELECT DISTINCT u.mail FROM {node} n " . 
     "JOIN {users} u ON u.uid=n.uid " .
-    "WHERE n.tid=%d";
+    "WHERE n.nid=%d";
   $recipient = db_result(db_query($sql, $form_values['nid']));
 
   // Set subject  

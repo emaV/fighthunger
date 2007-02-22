@@ -552,6 +552,24 @@ function phptemplate_fhbat_banner_view($node) {
 }
 
 /**
+ * Theme the body (image_attach)
+ */
+function phptemplate_image_attach_body($node) {
+  theme_add_style(drupal_get_path('module', 'image_attach') .'/image_attach.css');
+
+  $image = node_load($node->iid);
+  
+  $info = image_get_info(file_create_path($image->images['thumbnail']));
+  $url  = ($node->url) ? $node->url : "node/$node->nid";
+  $output = '';
+  $output .= '<div style="width: '. $info['width'] .'px" class="image-attach-body">';
+  $output .= l(image_display($image, 'thumbnail'), $url, array(), NULL, NULL, FALSE, TRUE);
+  $output .= '</div>'."\n";
+  $output .= $node->body;
+  return $output;
+}
+
+/**
  * Theme functions for aggregator block:
  * @ingroup themeable
  */

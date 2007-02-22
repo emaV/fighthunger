@@ -721,6 +721,7 @@ function theme_donation_presentation($donation, $teaser = FALSE) {
   } else {
     $output .= $teaser ? variable_get('donation_presentation_teaser', '') : variable_get('donation_presentation', '');
   }
+	$output = '</div>';
   return $output;
 }
 /**

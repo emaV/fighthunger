@@ -220,7 +220,7 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
     case 'view':
       if ($user->donation && $donation = donation_prepare($user->donation) ) {
         $items[] = array(
-        	'title' =>  variable_get('donation_user_message', t('Make a donation')), 
+        	'title' => variable_get('donation_user_message', t('Make a donation')), 
         	'value' =>  donation_user_form($donation),
           'class' => 'donation');
         $items[] = array(
@@ -233,7 +233,12 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
     case 'form':
       if ($category == 'account') {
         $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Donations link') );
-        $form['fundraising']['donation'] = array('#type' => 'select', '#title' => t('Campaign or event'), '#default_value' => $user->donation, '#options' => _donation_list(), '#description' => t('Link for donations from your user page.'));
+        $form['fundraising']['donation'] = array('#type' => 'select',
+          '#title' => t('Campaign or event'),
+          '#default_value' => $user->donation, 
+          '#options' => _donation_list(), 
+          '#description' => t('Link for donations from your user page.')
+        );
         return $form;
       }
       break;
@@ -283,8 +288,7 @@ function donation_prepare($nid) {
     	// Check for user access to node
       if($node && node_access('view', $node) && isset($node->donation) && $node->donation){
         $donation = $node->donation;
-        //$donation->presentation = node_view($node, TRUE, TRUE);
-        $donation->presentation = ''; // Just title and donation form.
+        $donation->presentation = node_view($node, TRUE, TRUE);
       } else {
         return NULL;
       }
@@ -310,7 +314,7 @@ function donation_prepare($nid) {
       $donation->fixed = TRUE; // For fixed amount and currency
       break;
     case 'event':
-      $donation->title = t('Donate to %name', array('%name' => $node->title));
+      $donation->title = t('Donate for %name', array('%name' => $node->title));
       $donation->partners = fh_node_get_partners($node->nid);
       $donation->affiliation = $donation->partners;
       break;
@@ -669,9 +673,9 @@ function _donation_list($key = NULL) {
           " LEFT JOIN {location} l ON n.nid = l.oid AND l.type = 'node' ".
           " WHERE d.type = 'event' AND tn.tid = %d", $campaign->camid);
       while($event = db_fetch_object($result)) {
-        $list[$event->nid]  = t('Event') . ": $event->title"
+        $list[$event->nid]  = '--'.t('Event') . ': '.$event->title
          . (($event->city)  ? " @ $event->city"  : '')
-         . (($event->country) ? " ($event->country)" : '');
+         . (($event->country) ? ' ('.module_invoke('fh', 'get_country_name', $event->country).')' : '');
       }
     }
   }
@@ -711,13 +715,12 @@ function _donation_currency_name($code) {
  *   $short to produce a short one when possible
  */
 function theme_donation_presentation($donation, $teaser = FALSE) {
-	$output .= "\n<div class='info'>\n";
+	$output = '<div class="info">';
   if(isset($donation->presentation) || $donation->presentation != '') {
     $output .= $donation->presentation;
   } else {
     $output .= $teaser ? variable_get('donation_presentation_teaser', '') : variable_get('donation_presentation', '');
   }
-	$output .= "\n</div>\n";
   return $output;
 }
 /**

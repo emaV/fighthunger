@@ -561,7 +561,7 @@ function fhpartner_view(&$node, $teaser = FALSE, $page = FALSE) {
 
     switch ($node->paud) {
       case 'GLOBAL':
-        $args = array('%campaign' => l($campaign->longname, $campaign->shortname)); 
+        $args = array('%campaign' => l($campaign->name, $campaign->shortname)); 
         $form[$camid] = array(
           '#value'  => t('Global partner for the campaign: %campaign', $args),
           '#weight' => $campaign->weight

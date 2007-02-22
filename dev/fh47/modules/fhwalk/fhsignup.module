@@ -826,6 +826,7 @@ function fhsignup_email_enqueue($recipients, $from, $subject, $body, $nid=0) {
   foreach($recipients as $recipient) {
 // Set headers
     $headers  = "From: $from\n";
+    $headers  = "Reply-To: $from\n";
     $headers .= "MIME-Version: 1.0\n";
     $headers .= "Content-type: text/html; charset=utf-8\n";
 

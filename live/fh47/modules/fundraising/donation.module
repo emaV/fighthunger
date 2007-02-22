@@ -266,7 +266,7 @@ function donation_page($nid = 'plain') {
   if($donation = donation_prepare($nid)) {
     drupal_set_title(check_plain($donation->title));
     $output = donation_form($donation);
-    return "<div class='donation'>$output</div>";
+    return "<div class=\"donation\">$output</div>";
   } else {
     return drupal_access_denied();    
   }
@@ -284,8 +284,8 @@ function donation_page($nid = 'plain') {
 function donation_prepare($nid) {
   if($nid) {
     if(is_numeric($nid)) {
-      $node = node_load($nid);
-    	// Check for user access to node
+       $node = node_load($nid);
+      // Check for user access to node
       if($node && node_access('view', $node) && isset($node->donation) && $node->donation){
         $donation = $node->donation;
         $donation->presentation = node_view($node, TRUE, TRUE);
@@ -314,13 +314,13 @@ function donation_prepare($nid) {
       $donation->fixed = TRUE; // For fixed amount and currency
       break;
     case 'event':
-      $donation->title = t('Donate for %name', array('%name' => $node->title));
+      $donation->title = t('Donate to %name', array('%name' => $node->title));
       $donation->partners = fh_node_get_partners($node->nid);
       $donation->affiliation = $donation->partners;
       break;
     case 'campaign':
       $camid = substr($nid,1);
-      $campaign = db_fetch_object(db_query("SELECT * FROM {gathering_campaign} WHERE camid=$camid"));
+      $campaign = db_fetch_object(db_query("SELECT * FROM {gathering_campaign} WHERE camid = %d", $camid));
       $donation->title = $campaign->name;
       $donation->presentation = $campaign->description;
       break;
@@ -552,7 +552,7 @@ function donation_form($donation) {
   // Presentation
   $form['data'] = array('#type' => 'value', '#value' => $donation);
   $form['presentation'] = array('#value' => theme('donation_presentation', $donation));
-
+ 
   // User data or login/register form
 	//$form['user'] = module_invoke('fhuser', 'subform');
 	// Add a fieldset to be filled by fhuser
@@ -715,13 +715,13 @@ function _donation_currency_name($code) {
  *   $short to produce a short one when possible
  */
 function theme_donation_presentation($donation, $teaser = FALSE) {
-	$output = '<div class="info">';
-  if(isset($donation->presentation) || $donation->presentation != '') {
+  $output = '<div class="info">';
+  if(isset($donation->presentation) && $donation->presentation ) {
     $output .= $donation->presentation;
   } else {
     $output .= $teaser ? variable_get('donation_presentation_teaser', '') : variable_get('donation_presentation', '');
   }
-	$output = '</div>';
+  $output .= '</div>'; 
   return $output;
 }
 /**

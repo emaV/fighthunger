@@ -138,7 +138,7 @@ function fhlocation_get_latlon($location) {
     }
   }
   if($location['country']=='uk') $location['country'] = 'gb';
-  $query_params['country'] = urlencode(fh_get_country_name($location['country']));
+  $query_params['country'] = $location['country'];
   
 // Try fetching GOOGLE street, city, province, country
   $content = _fhlocation_geocode_google($query_params);

@@ -736,7 +736,7 @@ global $user;
   $organiser     = db_fetch_object(db_query("SELECT name, mail FROM {users} WHERE uid=%d", $node->uid));
 
   $trans['%event']      = $node->title;               // %event
-  $trans['%event_link'] = url("node/$nid/signup_admin",NULL,NULL,true);   //%event_link  
+  $trans['%event_link'] = url("node/$node->nid/signup_admin",NULL,NULL,true);   //%event_link  
   $trans['%time']       = $node->event_start;         // %time  
   $trans['%username']   = $signup->name;              // %username
   $trans['%useremail']  = $signup->mail;              //%useremail  

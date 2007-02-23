@@ -154,8 +154,9 @@ function phptemplate_user_profile($account, $fields, $categories) {
   // User picture, weight -11
   if($account->picture) {
     $item = array('value' => theme('user_picture', $account), 'weight' => -11);
+    $content .= theme('profile_item', $item);
   }
-  $content .= theme('profile_item', $item);
+  
   
   // Set user name, weight -10
   if( ($data['first_name']['value'] != '') || 
@@ -178,11 +179,13 @@ function phptemplate_user_profile($account, $fields, $categories) {
 
   // Set country and clean location fields
   if($country = $data['country']['value']) {
-    $data['country']['title'] = '';
-    $data['country']['value'] = t("I live in %country_name", array('%country_name' => $country));
-  } else {
-    unset($data['country']);
+    $item = array(
+      'title' => '',
+      'value' => t("I live in %country_name", array('%country_name' => $country))
+    );
+    $content .= theme('profile_item', $item);
   }
+  unset($data['country']);
   unset($fields['Location']);
   
   // Set profile_presentation field
@@ -265,7 +268,6 @@ function phptemplate_profile_fieldset($fields, $title = '') {
  */
 function phptemplate_profile_item($element) {
   if ( isset($element['class']) ){
-    if($element['attributes']) var_dump($element);
     $element['attributes']['id'] = $element['class'];
     $element['attributes']['class'] = 'profile_item';  
   } else {

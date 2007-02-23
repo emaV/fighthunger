@@ -381,7 +381,7 @@ function _fhwalk_get_alias($node) {
         $alias = "$prefix/$country/$city";
         $province = ''; $sufix = ''; $i = 0;
         while((drupal_lookup_path('source', $alias.$province.$sufix)) ) {
-          if(!$sufix && !$province && isset($node->location['province']) && $province = $node->location['province']) {
+          if(!$sufix && !$province && isset($node->location['province']) && $province = substr($node->location['province'],3)) {
             $province = '_'.$province;
           } else {
             $i++;
@@ -484,7 +484,6 @@ function fhwalk_merge_events($nid_from, $nid_to) {
       "and you'll be redirected to the walk <b>%to_title</b>"; 
     drupal_set_message(t($msg, $vars));
   }
-
 }
 
 /**
@@ -531,10 +530,9 @@ function fhwalk_merge() {
   $node = node_load($nid);
   $count = _fhsignup_count($nid);
   
-  if ( ( _fhsignup_count($nid)==0) && 
-       ( ($user->uid == $node->uid) || user_access('administer walks') || user_access('coordinate walks') ) ) {
+  if ( _fhsignup_count($nid)==0) {
     drupal_goto("node/$nid/delete");
-  } elseif ( user_access('administer walks') || user_access('coordinate walks') ) {
+  } else {
     drupal_set_title(t('Merge Walk') . ": " . $node->location['city']);
   
     $form['delete_merge'] = array(
@@ -576,9 +574,6 @@ function fhwalk_merge() {
       '#required' => TRUE,
     );
     $output .= drupal_get_form('fhwalk_merge', $form);
-  } else {
-    drupal_set_message(t("You are not allowed to delete a walk with signups"));
-    drupal_goto("node/$nid/edit");
   }
   return $output;
 }
@@ -593,7 +588,15 @@ function fhwalk_form(&$node) {
 
 // Little occitan trick
   $op = isset($_POST['op']) ? $_POST['op'] : '';
-  if($op==t('Delete Walk')) drupal_goto("node/$node->nid/walk_merge");
+  if($op==t('Delete Walk')) {
+    if (fhwalk_access('merge', $node)) {
+      drupal_goto("node/$node->nid/walk_merge");
+    } elseif (_fhsignup_count($node->nid)==0) {
+      drupal_goto("node/$node->nid/delete");
+    } else {
+      drupal_set_message(t("You are not allowed to delete a walk with signups."));
+    }
+  }
 
   // Parameters for new nodes $node->camid, $node->cid, $node->country
 

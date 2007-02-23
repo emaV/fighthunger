@@ -133,7 +133,10 @@ function fhlocalpage_validate($node) {
     form_set_error('localpage', t('There is already a Local Country Page in this language for this campaign. See %node.', array('%node' => l($node->title, 'node/'.$node->nid))));
     form_set_error('country');
     form_set_error('language');
-  }  
+  }
+  if( !$node->name ) {
+    form_set_error('name', t('Please selct an user.'));
+  }
 }
 
 
@@ -271,10 +274,11 @@ function fhlocalpage_admin_campaign($tid, $country='') {
   $form['create']['name'] = array(
     '#title' => t('Owner'),
     '#type' => 'textfield',
+    '#required' => TRUE,
     '#autocomplete_path' => 'user/autocomplete',
   );
   $vid = _fhcampaign_vocabulary();
-  $form['create']['taxonomy'] = array("'$vid'" => array('#type' => 'hidden', '#value' => $tid), '#tree'=>true);
+  $form['create']['taxonomy'] = array("$vid" => array('#type' => 'hidden', '#value' => $tid), '#tree'=>true);
   $form['create']['moderate'] = array('#type' => 'hidden', '#value' => 1);
   $form['create']['title'] = array('#type' => 'hidden', '#value' => 'LCP');
   $form['create']['body']  = array('#type' => 'hidden', '#value' => 'edit this');

@@ -207,7 +207,7 @@ function fhuser_user_view($uid = 0) {
     */
     $fields[USER_CATEGORY_TEAM]['site_mission'] = array(
       'title' => '',
-      'value' => variable_get('site_mission', ''),
+      'value' => drupal_eval(variable_get('site_mission', '')),
       'weight' => -9
     ); //$formfield; 
   }

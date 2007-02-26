@@ -95,6 +95,74 @@ function _fhwalk_user_can_create($uid, $camid = NULL) {
       return $count;
   }
 }
+
+/**
+ * theme fhsignup_contact
+ *
+ * @ingroup fhsignup_theme
+ */  
+function theme_fhwalk_contact($account) {
+  $url = "user/$account->uid";
+  if (fhwalk_contact_access($account)) {
+    $link = l($account->name, "$url/contact", array(), drupal_get_destination());
+  } else {
+    $link = l($account->name, $url);
+  }
+  return $link;
+}
+
+/**
+ * contact_walker
+ * Permission for email using contact.module:
+ *                 to:  
+ * from:           W   O   C   A 
+ * Walker          -  (1)  -   -
+ * Organiser       y   -   y   -
+ * Coordinator     -   y   -   -
+ * Administrator   -   y   y   - 
+ *                (1) via walk page
+ *                 
+ * @ingroup fhsignup_helpers
+ * 
+ * @param $account (mail to)
+ * @param $user    (mail from)
+ * @return true or false
+ */
+function fhwalk_contact_access($account) {
+global $user;
+  
+  // permission for organisers (ONLY to their walkers)
+  $sql = "SELECT gs.uid FROM {gathering_node} gn " .
+    "JOIN {node} n ON gn.nid = n.nid " .
+    "JOIN {gathering_signup} gs ON gn.nid = gs.wid " .
+    "WHERE n.uid=%d AND gs.uid=%d";
+  if (db_result(db_query($sql, $user->uid, $account->uid))) return true;
+
+  // permission for coordinator (ONLY to their organisers)
+  if (user_access('coordinate walks')) {
+//    drupal_set_message('PERM: coordinate walks');
+    $sql = "SELECT n.uid FROM {gathering_node} gn " . 
+      "JOIN {node} n ON gn.nid = n.nid  " . 
+      "WHERE gn.cid=%d AND n.uid=%d";
+    if (db_result(db_query($sql, $user->uid, $account->uid))) return true;
+  }
+  
+  // permission for administrator (all organiser and coordinators)
+  if (user_access('administer walks')) {
+    // all organisers
+    $sql = "SELECT n.uid FROM {gathering_node} gn " . 
+      "JOIN {node} n ONfhwalk_menu($may_cache) gn.nid = n.nid  " . 
+      "WHERE n.uid=%d";
+    if (db_result(db_query($sql, $account->uid))) return true;
+    // all coordinators
+    $sql = "SELECT gn.cid FROM {gathering_node} gn " . 
+      "WHERE gn.cid=%d";
+    if (db_result(db_query($sql, $account->uid))) return true;
+  }
+  
+  return false;
+}
+
 /**
  * Implementation of hook_access().
  *  
@@ -112,20 +180,24 @@ function fhwalk_access($op, $node) {
               );
       break;
     case 'update':
-      return (user_access('administer walks') || 
-              user_access('coordinate walks') ||
+      return (user_access('administer walks')    || 
+              fhwalk_access('coordinate', $node) ||
               ($user->uid == $node->uid));
       break;
     case 'delete':
       return (user_access('administer walks') || 
-              user_access('coordinate walks') ||
+              fhwalk_access('coordinate', $node) ||
               ($user->uid == $node->uid));
       break;
     case 'view':
       return TRUE;
       break;
     case 'merge':
-      return (user_access('administer walks') || user_access('coordinate walks'));
+      return (user_access('administer walks') || 
+              fhwalk_access('coordinate', $node) );
+      break;
+    case 'coordinate':
+      return user_access('coordinate walks') && ($node->cid == $user->uid);
       break;
   }
 }
@@ -1339,19 +1411,20 @@ function theme_fhwalk_btn_create($url) {
  * @param $tid taxonomy campaign tid
  * @param $sql_array array with search condition
  * @return walk themed table
- */
+ *
 function _fhwalk_administer_get_walk($tid, $sql_array) {
 
   $header = array(
     array('data' => t('Event'),       'field' => 'title'),
     array('data' => t('City'),        'field' => 'city'),
     array('data' => t('Country'),     'field' => 'cname', 'sort' => 'asc'),
-    array('data' => t('Organiser'),   'field' => 'coord_name'),
+    array('data' => t('Organiser'),   'field' => 'c_name'),
     array('data' => t('Coordinator'), 'field' => 'name'),
     array('data' => t('Operations'),  '')
   );
 
-  $sql = "SELECT n.nid, n.title, u.name, uc.name AS coord_name, l.city, l.country, c.name AS cname FROM {node} n " . 
+  $sql = "SELECT n.nid, n.title, u.uid, u.name, uc.uid AS c_uid, uc.name AS c_name, " .
+    "l.city, l.country, c.name AS cname FROM {node} n " . 
     "LEFT JOIN {gathering_node} gn ON n.nid=gn.nid " .
     "LEFT JOIN {location} l ON n.nid=l.oid " .
     "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
@@ -1377,13 +1450,17 @@ function _fhwalk_administer_get_walk($tid, $sql_array) {
 
   while ($walk = db_fetch_object($result)) {
     $operations = l(t('Edit'),  'node/' . $walk->nid . '/edit');
+    $organiser->uid    = $walk->uid;
+    $organiser->name   = $walk->name;
+    $coordinator->uid  = $walk->c_uid;
+    $coordinator->name = $walk->c_name;
     $rows[] = array(
       'data' => array(
           l($walk->title, 'node/' . $walk->nid),
           $walk->city,
           $walk->cname,
-          $walk->name,
-          $walk->coord_name,
+          theme('fhwalk_contact', $organiser),
+          theme('fhwalk_contact', $coordinator),
           $operations));
   }
 
@@ -1397,202 +1474,6 @@ function _fhwalk_administer_get_walk($tid, $sql_array) {
   return $output;
 }
 
-/**********************
- *
- * COORDINATE TAB
- *  
- **********************/ 
-/**
- * Get a list of walk coordinate by the user.
- * 
- * @ingroup fhwalk_coordinate
- * @param $tid taxonomy campaign tid
- * @param $uid user id of coordinator
- * @return walk themed table
- */
-function _fhwalk_coordinate_get_walk($tid, $cid) {
-
-  $header = array(
-    array('data' => t('Event'),     'field' => 'title'),
-    array('data' => t('City'),      'field' => 'city'),
-    array('data' => t('Country'),   'field' => 'cname', 'sort' => 'asc'),
-    array('data' => t('Organiser'), 'field' => 'name'),
-    array('data' => t('Operations'), '')
-  );
-
-  $sql = "SELECT n.nid, n.title, u.name, l.city, l.country, c.name AS cname FROM {node} n " . 
-    "LEFT JOIN {location} l ON n.nid=l.oid " .
-    "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
-    "JOIN {gathering_node} gn ON n.nid=gn.nid " .
-    "JOIN {users} u ON u.uid=n.uid " .
-    "JOIN {term_node} tn ON tn.nid=n.nid " .
-    "WHERE l.type='node' AND tn.tid=%d AND gn.cid=%d";
-    
-  $tablesort = tablesort_sql($header);
-  $result = pager_query($sql . $tablesort, 20, 0, NULL, $tid, $cid);
-
-  while ($walk = db_fetch_object($result)) {
-    $operations = t('Approve') . ' - ' . t('Deny');
-    $rows[] = array(
-      'data' => array(
-          l($walk->title, 'node/' . $walk->nid),
-          $walk->city,
-          $walk->cname,
-          $walk->name,
-          $operations));
-  }
-
-  if (!$rows) {
-    $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 5));
-  }
-  
-  $output .= '<h2>' . t("Walk you're coordinating") . ': ' . db_num_rows($result) . '</h2>';
-  $output .= theme('table', $header, $rows);
-  $output .= theme('pager', NULL, 50, 0);
-
-  return $output;
-}
-
-/**
- * Process coordinate form mail to organisers
- * use forward.module 
- * CHECK IF WE NEED SOME ENQUEUE SYSTEM
- *  
- * @ingroup fhwalk_coordinate
- * @param $form_id 
- * @param $form_values
- */ 
-function fhwalk_coordinate_email_submit($form_id, $form_values) {
-
-// Set sql query to fetch recipients
-  $sql = "SELECT DISTINCT u.mail FROM {node} n " . 
-    "LEFT JOIN {location} l ON n.nid=l.oid " .
-    "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
-    "JOIN {users} u ON u.uid=n.uid " .
-    "JOIN {term_node} tn ON tn.nid=n.nid " .
-    "WHERE l.type='node' AND tn.tid=" . $form_values['tid'];
-
-  if($form_values['recipient_country']<>'all') $sql .= " AND c.ccid='" . $form_values['recipient_country'] . "'"; 
-  $result = db_query($sql);
-
-  if(db_num_rows($result)>0) {
-// Fetching recipients
-    while($row = db_fetch_array($result))  $dbrecipients[] = $row['mail'];
-    $recipients = implode(',', $dbrecipients);
-
-// Set subject  
-    if($form_values['subject']<>'') {
-      $subject = $form_values['subject'];
-    } else {
-      $subject = "News from  '" .  $form_values['title'] . "'";
-    }
-
-// Set content 
-    $content->title  = $form_values['title'];
-//    $content->nid    = $form_values['nid']; CHECK IF IS A PROBLEM!!!!
-    $content->teaser = $form_values['content'];
-    $content->type = 'fhwalk';
-  
-// Set vars for theming
-    $vars = array(
-  	  'forward_header_image' => variable_get('forward_header_image', ''),
-  	  'site_name' => variable_get('site_name', 'Drupal'),
-  	  'yemail' => $form_values['yemail'],
-  	  'forward_message' => '',
-  	  'message' => '',
-  	  'base_url' => $base_url,
-  	  'content' => $content,
-  	  'dynamic_content' => '',
-  	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
-  	  'forward_footer' => variable_get('forward_footer', '')
-    );
-
-// Theming body
-    $body = theme('forward_email', $vars);
-  
-// Set headers
-    $headers = "From: ".$form_values['yemail']."\n";
-    $headers .= "MIME-Version: 1.0\n";
-    $headers .= "Content-type: text/html; charset=utf-8\n";
-
-// Forward emails
-//    forward_mail($recipients,$subject,$body,$headers);
-  
-// insert record into db to record nid, type and timestamp of send
-    db_query("INSERT INTO {forward_log} (nid, type, timestamp) VALUES ('%d', '%s', %d)", $nid, "SENT", time());
-    variable_set('forward_total', variable_get('forward_total', 0) +1);
-    variable_set('forward_recipients', variable_get('forward_recipients', 0) + substr_count($recipients, ",") + 1);
-    flood_register_event('forward');
-
-    drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)", 'status');
-  } else {
-    drupal_set_message("No recipients selected!", 'status');
-  }
-}
-
-/**
- * Mail form to sent email to organisers.
- * 
- * @ingroup fhwalk_coordinate
- * @param $term campaign taxonomy term
- */ 
-function fhwalk_coordinate_email_form($term) {
-global $user;
-
-  $form['coordinator_message'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Send messages'),
-    '#collapsible' => TRUE,
-    '#collapsed' => TRUE,
-  );
-
-  $from_name =  $user->name;
-  $from_email = $user->mail; 
-  $form['coordinator_message']['yname']  = array('#type' => 'hidden', '#value' => $from_name);
-  $form['coordinator_message']['yemail'] = array('#type' => 'hidden', '#value' => $from_email);
-  $form['coordinator_message']['tid']    = array('#type' => 'hidden', '#value' => $term->tid);
-  $form['coordinator_message']['title']  = array('#type' => 'hidden', '#value' => $term->name);
-   
-  $form['coordinator_message']['subject'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Subject of the message'),
-    '#default_value' => "News from  '$term->name'",
-    '#description' => t('This will be the subject of message sent to selected organisers.'),
-  );
-  $form['coordinator_message']['content'] = array(
-    '#type' => 'textarea',
-    '#title' => t('Message to sent'),
-    '#cols' => 75,
-    '#rows' => 5,
-    '#description' => t('This will be the content of message sent to selected organisers.'),
-  );
-
-// fetch countries where is a walk coordinated
-  $sql = "SELECT l.country, c.name AS cname FROM {node} n " . 
-    "LEFT JOIN {location} l ON n.nid=l.oid " .
-    "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
-    "JOIN {users} u ON u.uid=n.uid " .
-    "JOIN {term_node} tn ON tn.nid=n.nid " .
-    "WHERE l.type='node' AND tn.tid=%d";
-  $result = db_query($sql, $term->tid);
-  $countries['all'] = 'all';
-  while($row = db_fetch_array($result)) $countries[$row['country']] = $row['cname'];   
-
-  $form['coordinator_message']['recipient_country'] = array(
-    '#type' => 'select',
-    '#title' => t('Country'),
-    '#default_value' => 'all',
-    '#options' => $countries,
-    '#description' => t('Select organisers country'),  
-  );
-
-  $form['coordinator_message']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Send'),
-  );
-
-  return drupal_get_form('fhwalk_coordinate_email', $form);
-}
 
 /**
  * Get fhwalk campaign status

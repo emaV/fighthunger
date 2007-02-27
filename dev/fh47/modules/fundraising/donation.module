@@ -215,17 +215,17 @@ function donation_settings() {
  * 
  * Allows user to select a campaign/event to donate.
  */
-function donation_user($type, &$edit, &$user, $category = NULL) {
+function donation_user($type, &$edit, &$account, $category = NULL) {
   switch($type) {
     case 'view':
-      if ($user->donation && $donation = donation_prepare($user->donation) ) {
+      if ($account->donation && $donation = donation_prepare($account->donation) ) {
         $items[] = array(
         	'title' => variable_get('donation_user_message', t('Make a donation')), 
-        	'value' =>  donation_user_form($donation),
+        	'value' =>  donation_user_form($donation, $account),
           'class' => 'donation');
         $items[] = array(
         	'title' => t('My donation to date'),
-          'value' => donation_list($donation->nid, array('donation_source' => $user->uid)),
+          'value' => donation_list($donation->nid, array('donation_source' => $account->uid)),
           'class' => 'donation'); 
         return array(t('Donation') => $items);
       }
@@ -235,7 +235,7 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
         $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Donations link') );
         $form['fundraising']['donation'] = array('#type' => 'select',
           '#title' => t('Campaign or event'),
-          '#default_value' => $user->donation, 
+          '#default_value' => $account->donation, 
           '#options' => _donation_list(), 
           '#description' => t('Link for donations from your user page.')
         );
@@ -247,11 +247,14 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
 
 /**
  * Small form to be presented on user profile page
+ * 
+ * Values to be passed must be on hidden fields
  */
-function donation_user_form($donation) {
+function donation_user_form($donation, $account) {
   $form['presentation'] = array('#value' => theme('donation_presentation', $donation, TRUE));
   $form['amount'] = array('#type' => 'hidden', '#value' => 10);
-  $form['#action'] = url('donation/'.$donation->nid);
+  $form['source'] = array('#type' => 'hidden', '#value' => 'user/'.$account->uid);
+  $form['#action'] = $donation->nid ? url('donation/'.$donation->nid) : url('donation');
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
   return drupal_get_form('donation_user_form', $form);
 }
@@ -390,6 +393,10 @@ function donation_admin_donation($donation) {
   $form['currency'] = array('#type' => 'item', '#title' => t("Currency"), '#value' => $donation->currency, '#weight' => 21);
   $form['created'] = array('#type' => 'item', '#title' => t("Created"), '#value' => format_date($donation->created, 'small'), '#weight' => 22);
   $form['changed'] = array('#type' => 'item', '#title' => t("Updated"), '#value' => format_date($donation->changed, 'small'), '#weight' => 23);
+  $form['source'] = array('#type' => 'item', '#title' => t("Source"), '#value' => $donation->source, '#weight' => 25);
+  $form['comment'] = array('#type' => 'fieldset', '#title' => t('Comment'), '#weight' => 50);
+  $form['comment']['comment_view'] = array('#type' => 'item', '#title' => t("Display"), '#value' => $donation->comment_view ? t('Yes') : t('No'));
+  $form['comment']['comment'] = array('#type' => 'item', '#title' => t("Comment"), '#value' => check_plain($donation->comment));
         
   $output = form_render($form);
   // Stored data
@@ -511,13 +518,16 @@ function donation_save(&$donation) {
   // Serialize additional data
   $data = $donation->data ? serialize($donation->data) : NULL;
   if($donation->trid) {
-    db_query("UPDATE {donation} SET type='%s', uid=%d, nid='%s', amount=%d, currency='%s', status='%s', collected=%d, changed=%d, partnerid = %d, data='%s' WHERE trid=%d",
-      $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->changed, $donation->partnerid, $data, $donation->trid);
+    db_query("UPDATE {donation} SET type='%s', uid=%d, nid='%s', amount=%d, currency='%s', status='%s', collected=%d, changed=%d, partnerid = %d, source = '%s', comment = '%s', comment_view = '%d', data='%s' WHERE trid=%d",
+      $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->changed, $donation->partnerid, $donation->source, $donation->comment, $donation->comment_view, $data, $donation->trid);
   } else {
     $donation->trid = db_next_id("{donation}_trid");
     $donation->created = $donation->changed;
-    db_query("INSERT INTO {donation}(trid, type, uid, nid, amount, currency, status, collected, created, changed, partnerid, data) VALUES(%d, '%s', %d, '%s', %d, '%s', '%s', %d, %d, %d, %d, '%s')", 
-      $donation->trid, $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->created, $donation->changed, $donation->partnerid, $data);
+    db_query("INSERT INTO {donation}(trid, type, uid, nid,  amount, currency, status, collected,  created, changed, partnerid, source,  comment, comment_view, data) VALUES(%d, '%s', %d, '%s',  %d, '%s', '%s', %d,  %d, %d, '%d', '%s',  '%s', '%d', '%s')", 
+      $donation->trid, $donation->type, $donation->uid, $donation->nid, 
+      $donation->amount, $donation->currency, $donation->status, $donation->collected, 
+      $donation->created, $donation->changed, $donation->partnerid, $donation->source,   
+      $donation->comment, $donation->comment_view, $data);
   }
 
   return db_affected_rows() ? TRUE : FALSE;
@@ -549,6 +559,9 @@ function donation_load($params = NULL) {
  */
 function donation_form($donation) {
   $output = '';
+  // There may be some parameters
+  $edit = isset($_POST['edit']) ? $_POST['edit'] : array();
+
   // Presentation
   $form['data'] = array('#type' => 'value', '#value' => $donation);
   $form['presentation'] = array('#value' => theme('donation_presentation', $donation));
@@ -561,8 +574,10 @@ function donation_form($donation) {
 	if($donation->partners) {
     $form['partners'] = array('#title' => t('Partners'), '#value' => theme('item_list', $donation->partners));
   }
-  // Donation source
-  $form['donation_source'] = array('#type' => 'value', '#value' => ($edit['donation_source'] ? $edit['donation_source'] : 'plain_page'));
+  // Donation source. Must be a hidden value to be passed over when validating the field
+  $form['source'] = array('#type' => 'hidden', '#value' => ($edit['source'] ? $edit['source'] : 'plain_page'));
+  //drupal_set_message("Source is:".$form['source']['#value']);
+
   if(isset($donation->affiliation) && count($donation->affiliation)) {
     $form['partnerid'] = array('#type' => 'select', '#title' => t('Affiliation'), '#options' => $donation->affiliation);
   }
@@ -580,6 +595,9 @@ function donation_form($donation) {
       $form['donation']['currency']['#default_value'] = $donation->currency;
     }
   }
+  $form['comments'] = array('#type' => 'fieldset', '#title' => t('Comment'), '#description' => t('You can post a comment to be displayed on the donation page or not.'));
+  $form['comments']['comment_view'] = array('#type' => 'radios', '#title' => t("Options"), '#default_value' => 1, '#options' => array(t('Keep private'), t('Display on public pages')));
+  $form['comments']['comment'] = array('#type' => 'textarea', '#title' => t("Comment"), '#default_value' =>$donation->comment);
   
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
 
@@ -627,14 +645,16 @@ function donation_form_submit($form_id, $form_values){
   // uid, country should be set by fhuser module  
   $donation->uid = $account->uid;
   $donation->mail = $account->mail;
-  $donation->country = $form_values['country'];
-
+  // Collect some fields
   if(!$donation->fixed) {
     $donation->amount = $form_values['amount'];
     $donation->currency = $form_values['currency'];
+  }  
+  foreach(array('country', 'partnerid', 'source', 'comment', 'comment_view') as $field) {
+    $donation->$field = $form_values[$field];
   }
-  $donation->partnerid = $form_values['partnerid'];
-  if($form_values['donation_source']) $donation->data = array('donation_source' => $form_values['donation_source']);
+  $donation->country = $form_values['country'];
+  // if($form_values['donation_source']) $donation->data = array('donation_source' => $form_values['donation_source']);
   // Check out this donation
   $donation->validated = TRUE;
   donation_checkout($donation); // This should not return

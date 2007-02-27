@@ -650,8 +650,7 @@ border:0px;
 }
 
 .block-i18n h2,  #block-i18ntrans-0 h2 {
-  visibility: hidden;
-  height: 0;
+  display:none;
 }
 .block-i18n li,  #block-i18ntrans-0 li {
   display: inline;

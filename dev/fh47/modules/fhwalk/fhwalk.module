@@ -151,7 +151,7 @@ global $user;
   if (user_access('administer walks')) {
     // all organisers
     $sql = "SELECT n.uid FROM {gathering_node} gn " . 
-      "JOIN {node} n ONfhwalk_menu($may_cache) gn.nid = n.nid  " . 
+      "JOIN {node} n ON gn.nid = n.nid  " . 
       "WHERE n.uid=%d";
     if (db_result(db_query($sql, $account->uid))) return true;
     // all coordinators

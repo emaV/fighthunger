@@ -272,7 +272,7 @@ function fhcampaign_menu($may_cache) {
         $items[] = array(
           'path' => "$campaign->shortname/coordinate",
           'callback' => 'fhcampaign_coordinate',
-          'callback arguments' => array($campaign->shortname, $campaign->tid),
+          'callback arguments' => array($campaign->tid),
           'title' => t('Coordinate'),
           'access' => user_access('coordinate walks'),
           'weight' => 1,
@@ -425,7 +425,7 @@ global $user;
 
   // User Activities
   if($fhwalk_overview['user_activities'][$fhwalk_overview['camid']]) {
-    $out_activities = theme('fhuser_activities', $fhwalk_overview['user_activities'][$fhwalk_overview['camid']]);  
+    $out_activities = theme('fhcampaign_user_activities', $fhwalk_overview['user_activities'][$fhwalk_overview['camid']]);  
     $out .= "<div id='fhwalk_user_activities'>\n";
     $out .= "<h3>" . t('Your activities') . "</h3>\n$out_activities\n";
     $out .= "</div>\n";  
@@ -534,6 +534,128 @@ function fhcampaign_overview_submit($form_id, $form_values) { // Was fhwalk_over
   return $form_values['synonym'] . '/' . $form_values['country'];  
 }
 
+/**********************
+ *
+ * ADMIN TAB
+ *  
+ **********************/ 
+
+/**
+ * Process administer search form.
+ * Convert POST request value in GET value 
+ *  
+ * @ingroup fhwalk_administer
+ * @param $form_id 
+ * @param $form_values
+ */
+function fhcampaign_admin_search_submit($form_id, $form_values) {
+  $get = array();
+  $keys = $form_values['_search_keys'];
+  foreach($keys as $field) {
+    if(isset($form_values[$field]) && $form_values[$field]) $get[$field]= $form_values[$field];
+  }
+  /*
+  if($form_values['country']<>'') $get['country'] = $form_values['country'];
+  if($form_values['coordinator']<>'all') $get['coord']   = $form_values['coordinator'];
+  unset($get[0]);
+  */
+  drupal_goto($_GET['q'], drupal_query_string_encode($get));
+}
+
+/**
+ * Get a list of walk coordinate by the user.
+ *  
+ * @ingroup fhwalk_administer
+ * @param $tid taxonomy campaign tid
+ * @param $sql_array array with search condition
+ * @return walk themed table
+ * TO-DO: Delete old function
+ */
+function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwalk_administer_get_walk
+
+  $header = array(
+    array('data' => t('Event'),       'field' => 'title'),
+    array('data' => t('City'),        'field' => 'city'),
+    array('data' => t('Country'),     'field' => 'cname'),
+    array('data' => t('Organiser'),   'field' => 'coord_name'),
+    array('data' => t('Coordinator'), 'field' => 'name'),
+    array('data' => t('Created'),     'field' => 'created', 'sort' => 'desc'),
+    array('data' => t('Operations'),  '')
+  );
+
+  // Pre conditions
+  $where = array(
+    "l.type = 'node'",
+    "tn.tid =". db_escape_string($camid),
+  );
+  $join = array();
+  // set condition from array
+  foreach($sql_array as $key => $value) {
+    // Important: check string
+    $value = db_escape_string($value);
+    switch ($key) {
+
+      case 'coord':
+        $where[] = ($value=='none') ? 'gn.cid IS NULL' : "gn.cid='$value'";
+        break;
+      case 'country':
+        $where[] = "l.country='$value'";
+        break;
+      case 'city':
+        $where[] = "LOWER(l.city) LIKE '%$value%'";
+        break;
+      case 'text':
+        $where[] = "(n.title LIKE '%$value%' OR u.name LIKE '%$value%' OR LOWER(l.city) LIKE '%$value%' OR nr.body LIKE '%$value%')";
+        $join['node_revisions'] = "LEFT JOIN {node_revisions} nr ON n.vid = nr.vid";
+      case 'nolatlon':
+        $where[] = "(l.latitude IS NULL AND l.longitude IS NULL)";
+    }
+  }
+
+  $sql = "SELECT n.nid, n.title, n.created, u.uid, u.name, " . 
+    "uc.uid AS c_uid, uc.name AS c_name, " . 
+    "l.city, l.country, l.latitude, l.longitude " . 
+    "FROM {node} n " . 
+    "JOIN {gathering_node} gn ON n.nid=gn.nid " .
+    "LEFT JOIN {location} l ON n.nid=l.oid " .
+    "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
+    "LEFT JOIN {users} u  ON n.uid=u.uid " .
+    "LEFT JOIN {users} uc ON gn.cid=uc.uid " .
+    "INNER JOIN {term_node} tn ON tn.nid=n.nid " .
+    implode(' ', $join). " WHERE ". implode( ' AND ', $where);
+  $num_rows_total = db_num_rows(db_query($sql));
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL);
+  
+  while ($walk = db_fetch_object($result)) {
+    $operations = l(t('edit'),  'node/' . $walk->nid . '/edit');
+    $latlon = ($walk->latitude && $walk->longitude) ? "" : " *";
+    $organiser->uid    = $walk->uid;
+    $organiser->name   = $walk->name;
+    $coordinator->uid  = $walk->c_uid;
+    $coordinator->name = $walk->c_name;
+    $rows[] = array(
+      'data' => array(
+          l($walk->title, 'node/' . $walk->nid) . $latlon,
+          $walk->city,
+          module_invoke('fhlocation', 'get_iso3166_list', $walk->country),
+          theme('fhwalk_contact', $organiser),
+          theme('fhwalk_contact', $coordinator),
+          format_date($walk->created,'small'),
+          $operations));
+  }
+
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 6));
+  }
+  
+  $output .= '<p>'. t("Walks selected") . ": $num_rows_total</p>";
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+  $output .= '<i>' . t("Walk with * are without latitude and longitude") . '</i>';
+  return $output;
+}
+
 /**
  * Walk campaign administrator page.
  * (param come from callback on menu hook) 
@@ -613,116 +735,192 @@ function fhcampaign_admin_campaign($camid) {
   return $output;
 }
 
-/**
- * Process administer search form.
- * Convert POST request value in GET value 
+/**********************
+ *
+ * COORDINATE TAB
  *  
- * @ingroup fhwalk_administer
- * @param $form_id 
- * @param $form_values
- */
-function fhcampaign_admin_search_submit($form_id, $form_values) {
-  $get = array();
-  $keys = $form_values['_search_keys'];
-  foreach($keys as $field) {
-    if(isset($form_values[$field]) && $form_values[$field]) $get[$field]= $form_values[$field];
-  }
-  /*
-  if($form_values['country']<>'') $get['country'] = $form_values['country'];
-  if($form_values['coordinator']<>'all') $get['coord']   = $form_values['coordinator'];
-  unset($get[0]);
-  */
-  drupal_goto($_GET['q'], drupal_query_string_encode($get));
-}
-
+ **********************/ 
+ 
 /**
  * Get a list of walk coordinate by the user.
- *  
- * @ingroup fhwalk_administer
+ * 
+ * @ingroup fhwalk_coordinate
  * @param $tid taxonomy campaign tid
- * @param $sql_array array with search condition
+ * @param $uid user id of coordinator
  * @return walk themed table
- * TO-DO: Delete old function
  */
-function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwalk_administer_get_walk
+function fhcampaign_coordinate_get_walks($tid, $cid) {
 
   $header = array(
-    array('data' => t('Event'),       'field' => 'title'),
-    array('data' => t('City'),        'field' => 'city'),
-    array('data' => t('Country'),     'field' => 'cname'),
-    array('data' => t('Organiser'),   'field' => 'coord_name'),
-    array('data' => t('Coordinator'), 'field' => 'name'),
-    array('data' => t('Created'),     'field' => 'created', 'sort' => 'desc'),
-    array('data' => t('Operations'),  '')
+    array('data' => t('Event'),      'field' => 'title'),
+    array('data' => t('City'),       'field' => 'city'),
+    array('data' => t('Country'),    'field' => 'cname', 'sort' => 'asc'),
+    array('data' => t('Organiser'),  'field' => 'name'),
+    array('data' => t('Operations'), '')
   );
 
-  // Pre conditions
-  $where = array(
-    "l.type = 'node'",
-    "tn.tid =". db_escape_string($camid),
-  );
-  $join = array();
-  // set condition from array
-  foreach($sql_array as $key => $value) {
-    // Important: check string
-    $value = db_escape_string($value);
-    switch ($key) {
-
-      case 'coord':
-        $where[] = ($value=='none') ? 'gn.cid IS NULL' : "gn.cid='$value'";
-        break;
-      case 'country':
-        $where[] = "l.country='$value'";
-        break;
-      case 'city':
-        $where[] = "LOWER(l.city) LIKE '%$value%'";
-        break;
-      case 'text':
-        $where[] = "(n.title LIKE '%$value%' OR u.name LIKE '%$value%' OR LOWER(l.city) LIKE '%$value%' OR nr.body LIKE '%$value%')";
-        $join['node_revisions'] = "LEFT JOIN {node_revisions} nr ON n.vid = nr.vid";
-      case 'nolatlon':
-        $where[] = "(l.latitude IS NULL AND l.longitude IS NULL)";
-    }
-  }
-
-  $sql = "SELECT n.nid, n.title, n.created, u.name, uc.name AS coord_name, " . 
-    "l.city, l.country, l.latitude, l.longitude " . 
-    "FROM {node} n " . 
-    "JOIN {gathering_node} gn ON n.nid=gn.nid " .
+  $sql = "SELECT n.nid, n.title, u.uid, u.name, l.city, l.country, c.name AS cname FROM {node} n " . 
     "LEFT JOIN {location} l ON n.nid=l.oid " .
     "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
-    "LEFT JOIN {users} uc ON gn.cid=uc.uid " .
-    "INNER JOIN {users} u ON u.uid=n.uid " .
-    "INNER JOIN {term_node} tn ON tn.nid=n.nid " .
-    implode(' ', $join). " WHERE ". implode( ' AND ', $where);
-  $num_rows_total = db_num_rows(db_query($sql));
+    "JOIN {gathering_node} gn ON n.nid=gn.nid " .
+    "JOIN {users} u ON u.uid=n.uid " .
+    "JOIN {term_node} tn ON tn.nid=n.nid " .
+    "WHERE l.type='node' AND tn.tid=%d AND gn.cid=%d";
+    
   $tablesort = tablesort_sql($header);
-  $result = pager_query($sql . $tablesort, 20, 0, NULL);
-  
+  $result = pager_query($sql . $tablesort, 20, 0, NULL, $tid, $cid);
+
   while ($walk = db_fetch_object($result)) {
-    $operations = l(t('edit'),  'node/' . $walk->nid . '/edit');
-    $latlon = ($walk->latitude && $walk->longitude) ? "" : " *";
+    $operations = t('Approve') . ' - ' . t('Deny');
     $rows[] = array(
       'data' => array(
-          l($walk->title, 'node/' . $walk->nid) . $latlon,
+          l($walk->title, 'node/' . $walk->nid),
           $walk->city,
-          module_invoke('fhlocation', 'get_iso3166_list', $walk->country),
-          $walk->name,
-          $walk->coord_name,
-          format_date($walk->created,'small'),
+          $walk->cname,
+          theme('fhwalk_contact', $walk),
           $operations));
   }
 
   if (!$rows) {
-    $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 6));
+    $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 5));
   }
   
-  $output .= '<p>'. t("Walks selected") . ": $num_rows_total</p>";
+  $output .= '<h2>' . t("Walk you're coordinating") . ': ' . db_num_rows($result) . '</h2>';
   $output .= theme('table', $header, $rows);
   $output .= theme('pager', NULL, 50, 0);
-  $output .= '<i>' . t("Walk with * are without latitude and longitude") . '</i>';
+
   return $output;
 }
+
+/**
+ * Process coordinate form mail to organisers
+ * use forward.module 
+ * CHECK IF WE NEED SOME ENQUEUE SYSTEM
+ *  
+ * @ingroup fhwalk_coordinate
+ * @param $form_id 
+ * @param $form_values
+ */ 
+function fhcampaign_coordinate_email_submit($form_id, $form_values) {
+
+// Set sql query to fetch recipients
+  $sql = "SELECT DISTINCT u.mail FROM {node} n " . 
+    "LEFT JOIN {location} l ON n.nid=l.oid " .
+    "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
+    "JOIN {users} u ON u.uid=n.uid " .
+    "JOIN {term_node} tn ON tn.nid=n.nid " .
+    "WHERE l.type='node' AND tn.tid=" . $form_values['tid'];
+
+  if($form_values['recipient_country']<>'all') $sql .= " AND c.ccid='" . $form_values['recipient_country'] . "'"; 
+  $result = db_query($sql);
+
+  if(db_num_rows($result)>0) {
+// Fetching recipients
+    while($row = db_fetch_array($result))  $dbrecipients[] = $row['mail'];
+    $recipients = implode(',', $dbrecipients);
+
+// Set subject  
+    if($form_values['subject']<>'') {
+      $subject = $form_values['subject'];
+    } else {
+      $subject = "News from  '" .  $form_values['title'] . "'";
+    }
+
+// Set content 
+    $content->title  = $form_values['title'];
+//    $content->nid    = $form_values['nid']; CHECK IF IS A PROBLEM!!!!
+    $content->teaser = $form_values['content'];
+    $content->type = 'fhwalk';
+  
+// Set vars for theming
+    $vars = array(
+  	  'forward_header_image' => variable_get('forward_header_image', ''),
+  	  'site_name' => variable_get('site_name', 'Drupal'),
+  	  'yemail' => $form_values['yemail'],
+  	  'forward_message' => '',
+  	  'message' => '',
+  	  'base_url' => $base_url,
+  	  'content' => $content,
+  	  'dynamic_content' => '',
+  	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
+  	  'forward_footer' => variable_get('fhsignup_footer', '')
+    );
+
+// Theming body
+    $body = theme('forward_email', $vars);
+  
+// Forward emails
+//    forward_mail($recipients,$subject,$body,$headers);
+    module_invoke('fhsignup', 'email_enqueue', $recipients ,$form_values['yemail'], $subject, $body);
+  
+    drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)", 'status');
+  } else {
+    drupal_set_message("No recipients selected!", 'status');
+  }
+}
+
+/**
+ * Mail form to sent email to organisers.
+ * 
+ * @ingroup fhwalk_coordinate
+ * @param $term campaign taxonomy term
+ */ 
+function fhcampaign_coordinate_email_form($campaign) {
+global $user;
+
+  $form['coordinator_message'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Send messages'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+
+  $from_name =  $user->name;
+  $from_email = $user->mail; 
+  $form['coordinator_message']['yname']  = array('#type' => 'hidden', '#value' => $from_name);
+  $form['coordinator_message']['yemail'] = array('#type' => 'hidden', '#value' => $from_email);
+  $form['coordinator_message']['tid']    = array('#type' => 'hidden', '#value' => $term->tid);
+  $form['coordinator_message']['title']  = array('#type' => 'hidden', '#value' => $term->name);
+   
+  $form['coordinator_message']['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject of the message'),
+    '#default_value' => "News from  '$campaign->name'",
+    '#description' => t('This will be the subject of message sent to selected organisers.'),
+  );
+  $form['coordinator_message']['content'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Message to sent'),
+    '#cols' => 75,
+    '#rows' => 5,
+    '#description' => t('This will be the content of message sent to selected organisers.'),
+  );
+
+// fetch countries where is a walk coordinated
+  $sql = "SELECT l.country FROM {gathering_node} gn " . 
+    "JOIN {term_node} tn ON gn.nid=tn.nid " .
+    "LEFT JOIN {location} l ON gn.nid=l.oid " .
+    "WHERE l.type='node' AND tn.tid=%d AND gn.cid=%d";
+  $result = db_query($sql, $campaign->camid, $user->uid);
+  $countries[''] = '< ALL >';
+  while($row = db_fetch_array($result)) $countries[$row['country']] = module_invoke('fhlocation', 'get_iso3166_list', $row['country']);
+
+  $form['coordinator_message']['recipient_country'] = array(
+    '#type' => 'select',
+    '#title' => t('Country'),
+    '#default_value' => '',
+    '#options' => $countries,
+    '#description' => t('Select organisers country'),  
+  );
+
+  $form['coordinator_message']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send'),
+  );
+
+  return drupal_get_form('fhcampaign_coordinate_email', $form);
+}
+
 /**
  * Walk campaign coordinate page
  * (param come from callback on menu hook)
@@ -748,12 +946,12 @@ function fhcampaign_coordinate($camid) {
     '#weight' => -1
   );
   $form['walk_status']['list'] = array(
-    '#value' => _fhwalk_coordinate_get_walk($camid, $user->uid),
+    '#value' => fhcampaign_coordinate_get_walks($camid, $user->uid),
   );
-  $output .= drupal_get_form('campaign_coordinate_form', $form);
+  $output .= drupal_get_form('', $form);
 
   // Get email form
-  $output .= fhwalk_coordinate_email_form($campaign);
+  $output .= fhcampaign_coordinate_email_form($campaign);
   return $output;
 }
 
@@ -948,13 +1146,14 @@ function fhcampaign_user($op, &$edit, &$user, $category = NULL) {
         $out_campaign_activities = theme('fhcampaign_user_activities', $campaign_activities);
         $first_walk = array_shift(array_shift($campaign_activities));
         $item = array();
-        $item['class']  = $first_walk['status'];
+        $item['class']  = $first_walk['tid'];
         $item['title']  = $first_walk['longname'];
         $item['value']  = $out_campaign_activities;
         $item['weight'] = $first_walk['weight'];
-        $data[] = $item;
+        $data[$camid] = $item;
       }
       if (count($data)) {
+        ksort($data);
         return array(t('Activities') => $data);
       }
       break;

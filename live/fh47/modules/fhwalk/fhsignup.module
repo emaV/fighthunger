@@ -59,7 +59,13 @@ function fhsignup_help($section) {
  */
 function fhsignup_access($op, $node) {
   global $user;
-
+  
+  switch ($op) {
+    case 'admin signup':
+      return ($user->uid==$node->uid) || fhwalk_access('coordinate', $node) || user_access('administer walks');
+      break;
+  }
+/*
   if ( ($op == 'create') || ($op == 'update') ) {
     return user_access('create walk');
   }
@@ -67,10 +73,10 @@ function fhsignup_access($op, $node) {
   if ($op == 'delete') {
     return user_access('coordinate walks');
   }
-
   if ($op == 'view') {
     return TRUE;
   }
+*/
 }
 
 /**
@@ -90,7 +96,7 @@ function fhsignup_menu($may_cache) {
           'path' => 'node/'. arg(1) .'/signup_admin', 
           'title' => t('Signup Admin'),
           'callback' => 'fhsignup_organiser',
-          'access' => _fhsignup_access('admin signup', arg(1)),
+          'access' => fhsignup_access('admin signup', $node),
           'weight' => 1,
           'type' => MENU_LOCAL_TASK
         );
@@ -104,7 +110,7 @@ function fhsignup_menu($may_cache) {
         $items[] = array(
           'path' => 'node/'. arg(1) .'/signup_user', 
           'callback' => 'fhsignup_organiser_user',
-          'access' => _fhsignup_access('admin signup', arg(1)),
+          'access' => fhsignup_access('admin signup',$node),
           'type' => MENU_CALLBACK
         );
 
@@ -213,7 +219,7 @@ global $user;
 
       // Check for T&C changes (only coords and admins can change without blocking signup)    
       if( $node->signup_waiver <> $node->signup_waiver_old) {
-        if( user_access('coordinate walks') || user_access('administer walks') ) {
+        if( fhwalk_access('coordinate', $node) || user_access('administer walks') ) {
           drupal_set_message(t('This walk T&C changed.'));
         } else {
           drupal_set_message(t('This walk T&C pending for approval. Signup disabled until then.'));
@@ -554,32 +560,6 @@ global $user;
     return $status[$i];
   }
 }
-
-/**
- * Get permissions
- * 
- * @ingroup fhsignup_helpers
- * @param $op  operation
- * @param $nid node id
- * @return true or false  
- */
-
-function _fhsignup_access($op, $nid) {
-global $user;
-$node = node_load($nid);
-
-  if($user->uid) {
-    switch ($op) {
-      case 'admin signup':
-        $access = ($user->uid==$node->uid) || user_access('coordinate walks') || user_access('administer walks');
-      break;
-    }
-  } else {
-    $access = FALSE;
-  } 
-  return $access;
-}
-
 
 /**
  * Get signup for a walk
@@ -950,7 +930,7 @@ global $user;
   );
 
 //  if( ($node->signup_status==3) ) {
-  if( ($node->signup_status==3) && !(user_access('coordinate walks') || user_access('administer walks')) ) {
+  if( ($node->signup_status==3) && !(fhwalk_access('coordinate', $node) || user_access('administer walks')) ) {
     $form['signup']['signup_status_msg'] = array(
       '#value' => '<h3>' . t('Signup for this walk is blocked. Contact your coordinator') . '</h3>',
     );
@@ -1078,7 +1058,7 @@ function fhsignup_walk_signup_table($nid, $show_message=0, $show_guests=0) {
   $result = pager_query($sql . $tablesort, 20, 0, NULL, $nid);
   while ($signup = db_fetch_object($result)) {
     $row = array('data' => array(
-          $signup->name,
+          theme('fhwalk_contact', $signup),
           $signup->role,
           $signup->opencomment ? $signup->comment : '',
           date("j M o", strtotime($signup->timestamp)),
@@ -1096,7 +1076,6 @@ function fhsignup_walk_signup_table($nid, $show_message=0, $show_guests=0) {
   $output .= theme('table', $header, $rows);
   $output .= theme('pager', NULL, 50, 0);
 
-//  $output = "pippo dice: $nid";
   return $output;
 }
 
@@ -1147,11 +1126,10 @@ function _fhsignup_signup_table($nid, $status) {
         break;
     }
     $operations = implode(' - ', $operations);
-//    $operations = 'pippo';
     
     $rows[] = array(
       'data' => array(
-          $signup->name,
+          theme('fhwalk_contact', $signup),
           $signup->role,
           $signup->comment,
             date("j M Y", strtotime($signup->timestamp)),
@@ -1342,8 +1320,6 @@ global $user;
   return drupal_get_form('_fhsignup_organiser_email', $form);
 }
 
-
-
 /**
  * Signup Admin process form mail to users
  * use forward.module and invite.module 
@@ -1355,7 +1331,7 @@ function fhsignup_invite_process($code) {
 global $user;
   $nid = arg(1);
   $url = "node/$nid";
-drupal_set_message("URL: $nid - $url - $code");
+
   if($user->uid) {
     $result = db_query("SELECT * FROM {invite} WHERE reg_code = '%s'", $code);
     if ($registration = db_fetch_object($result)) {
@@ -1598,13 +1574,13 @@ function fhsignup_organiser() {
   );
   $output = drupal_get_form('', $form);
   
-// Send messages to walkers
+  // Send messages to walkers
   if($signup_count) $output .= _fhsignup_organiser_email($node);
   
-// Send invite
+  // Send invite
   $output .= _fhsignup_organiser_invite($node);
   
-// Set email settings
+  // Set email settings
   $output .= _fhsignup_organisers_mail_settings($node);
   
   return $output;

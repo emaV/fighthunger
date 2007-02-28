@@ -300,7 +300,7 @@ function contact_mail_user() {
   global $user;
 
   if ($account = user_load(array('uid' => arg(1)))) {
-    $admin_access = user_access('administer users');
+    $admin_access = user_access('administer users') || module_invoke('fhwalk', 'contact_access', $account);
     if (!$account->status && !$admin_access) {
       drupal_access_denied();
     }

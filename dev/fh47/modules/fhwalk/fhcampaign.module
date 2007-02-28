@@ -360,7 +360,7 @@ function theme_fhcampaign_user_activities($activities) {
     $list = "<ul>\n";
     foreach($walks as $walk) {
       $url = l($walk['title'], "node/" . $walk['nid']);
-      $location = $walk['city'] . ' (' . fhlocation_get_iso3166_list($walk['country']) . ')';
+      $location = $walk['city'] . ' (' . theme('fhlocation_country', $walk['country']) . ')';
       $list .= "<li>$location: $url</li>\n";
     }
     $list .= "</ul>\n";
@@ -577,7 +577,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
     array('data' => t('Event'),       'field' => 'title'),
     array('data' => t('City'),        'field' => 'city'),
     array('data' => t('Country'),     'field' => 'cname'),
-    array('data' => t('Organiser'),   'field' => 'coord_name'),
+    array('data' => t('Organiser'),   'field' => 'c_name'),
     array('data' => t('Coordinator'), 'field' => 'name'),
     array('data' => t('Created'),     'field' => 'created', 'sort' => 'desc'),
     array('data' => t('Operations'),  '')
@@ -595,7 +595,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
     $value = db_escape_string($value);
     switch ($key) {
 
-      case 'coord':
+      case 'coordinator':
         $where[] = ($value=='none') ? 'gn.cid IS NULL' : "gn.cid='$value'";
         break;
       case 'country':
@@ -614,7 +614,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
 
   $sql = "SELECT n.nid, n.title, n.created, u.uid, u.name, " . 
     "uc.uid AS c_uid, uc.name AS c_name, " . 
-    "l.city, l.country, l.latitude, l.longitude " . 
+    "l.city, l.country, l.latitude, l.longitude, c.name as cname " . 
     "FROM {node} n " . 
     "JOIN {gathering_node} gn ON n.nid=gn.nid " .
     "LEFT JOIN {location} l ON n.nid=l.oid " .
@@ -638,7 +638,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
       'data' => array(
           l($walk->title, 'node/' . $walk->nid) . $latlon,
           $walk->city,
-          module_invoke('fhlocation', 'get_iso3166_list', $walk->country),
+          theme('fhlocation_country', $walk->country),
           theme('fhwalk_contact', $organiser),
           theme('fhwalk_contact', $coordinator),
           format_date($walk->created,'small'),
@@ -670,7 +670,7 @@ function fhcampaign_admin_campaign($camid) {
   drupal_set_title(t('Administer') . ": $campaign->name");
   $output = '';  
   // Get search parameters
-  $search_keys = array('coord', 'country', 'city', 'text', 'nolatlon');
+  $search_keys = array('coordinator', 'country', 'city', 'text', 'nolatlon');
   $sql_array = array();
   foreach($search_keys as $key => $field) {
     if(isset($_REQUEST[$field])) {
@@ -706,7 +706,7 @@ function fhcampaign_admin_campaign($camid) {
     '#type' => 'select',
     '#title' => t("Coordinator"),
     '#options' => $coords, 
-    '#default_value' => ($sql_array['coord'] ? $sql_array['coord'] : 'all'),
+    '#default_value' => ($sql_array['coordinator'] ? $sql_array['coordinator'] : 'all'),
   );
   $form['search']['city'] = array(
     '#type' => 'textfield',
@@ -776,7 +776,7 @@ function fhcampaign_coordinate_get_walks($tid, $cid) {
       'data' => array(
           l($walk->title, 'node/' . $walk->nid),
           $walk->city,
-          $walk->cname,
+          theme('fhlocation_country', $walk->country),
           theme('fhwalk_contact', $walk),
           $operations));
   }
@@ -804,15 +804,15 @@ function fhcampaign_coordinate_get_walks($tid, $cid) {
 function fhcampaign_coordinate_email_submit($form_id, $form_values) {
 
 // Set sql query to fetch recipients
-  $sql = "SELECT DISTINCT u.mail FROM {node} n " . 
+  $sql = "SELECT DISTINCT u.mail FROM {gathering_node} gn " .
+    "JOIN {node} n ON gn.nid=n.nid " . 
     "LEFT JOIN {location} l ON n.nid=l.oid " .
-    "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
     "JOIN {users} u ON u.uid=n.uid " .
     "JOIN {term_node} tn ON tn.nid=n.nid " .
-    "WHERE l.type='node' AND tn.tid=" . $form_values['tid'];
+    "WHERE l.type='node' AND gn.cid=%d AND tn.tid=%d";
 
-  if($form_values['recipient_country']<>'all') $sql .= " AND c.ccid='" . $form_values['recipient_country'] . "'"; 
-  $result = db_query($sql);
+  if($form_values['recipient_country']<>'all') $sql .= " AND l.country = '" . $form_values['recipient_country'] . "'"; 
+  $result = db_query($sql, $form_values['cid'], $form_values['tid']);
 
   if(db_num_rows($result)>0) {
 // Fetching recipients
@@ -879,20 +879,23 @@ global $user;
   $from_email = $user->mail; 
   $form['coordinator_message']['yname']  = array('#type' => 'hidden', '#value' => $from_name);
   $form['coordinator_message']['yemail'] = array('#type' => 'hidden', '#value' => $from_email);
-  $form['coordinator_message']['tid']    = array('#type' => 'hidden', '#value' => $term->tid);
-  $form['coordinator_message']['title']  = array('#type' => 'hidden', '#value' => $term->name);
+  $form['coordinator_message']['cid']    = array('#type' => 'hidden', '#value' => $user->uid);
+  $form['coordinator_message']['tid']    = array('#type' => 'hidden', '#value' => $campaign->tid);
+  $form['coordinator_message']['title']  = array('#type' => 'hidden', '#value' => $campaign->name);
    
   $form['coordinator_message']['subject'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Subject of the message'),
+    '#type'     => 'textfield',
+    '#title'    => t('Subject of the message'),
+    '#required' => true,
     '#default_value' => "News from  '$campaign->name'",
-    '#description' => t('This will be the subject of message sent to selected organisers.'),
+    '#description'   => t('This will be the subject of message sent to selected organisers.'),
   );
   $form['coordinator_message']['content'] = array(
-    '#type' => 'textarea',
+    '#type'  => 'textarea',
     '#title' => t('Message to sent'),
-    '#cols' => 75,
-    '#rows' => 5,
+    '#cols'  => 75,
+    '#rows'  => 5,
+    '#required'    => true,
     '#description' => t('This will be the content of message sent to selected organisers.'),
   );
 
@@ -903,14 +906,14 @@ global $user;
     "WHERE l.type='node' AND tn.tid=%d AND gn.cid=%d";
   $result = db_query($sql, $campaign->camid, $user->uid);
   $countries[''] = '< ALL >';
-  while($row = db_fetch_array($result)) $countries[$row['country']] = module_invoke('fhlocation', 'get_iso3166_list', $row['country']);
+  while($row = db_fetch_array($result)) $countries[$row['country']] = theme('fhlocation_country', $row['country']);
 
   $form['coordinator_message']['recipient_country'] = array(
     '#type' => 'select',
     '#title' => t('Country'),
     '#default_value' => '',
     '#options' => $countries,
-    '#description' => t('Select organisers country'),  
+    '#description' => t('Select organisers country.'),  
   );
 
   $form['coordinator_message']['submit'] = array(
@@ -966,8 +969,8 @@ function fhcampaign_get_campaign_countries($tid) {  // Was _fhwalk_get_country_c
   $countries = module_invoke('fhlocation', 'get_iso3166_list');
 
   $sql = "SELECT DISTINCT l.country FROM {location} l " . 
-    "JOIN {node} n ON n.nid=l.oid " .
-    "JOIN {term_node} tn ON tn.nid=n.nid " .
+    "JOIN {gathering_node} gn ON gn.nid=l.oid " .
+    "JOIN {term_node} tn ON gn.nid=tn.nid " .
     "WHERE l.type='node' AND tn.tid=%d;";
   $result=db_query($sql, $tid);
   $country_campaign = array();

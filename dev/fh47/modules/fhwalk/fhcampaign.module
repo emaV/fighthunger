@@ -425,7 +425,7 @@ global $user;
 
   // User Activities
   if($fhwalk_overview['user_activities'][$fhwalk_overview['camid']]) {
-    $out_activities = theme('fhuser_activities', $fhwalk_overview['user_activities'][$fhwalk_overview['camid']]);  
+    $out_activities = theme('fhcampaign_user_activities', $fhwalk_overview['user_activities'][$fhwalk_overview['camid']]);  
     $out .= "<div id='fhwalk_user_activities'>\n";
     $out .= "<h3>" . t('Your activities') . "</h3>\n$out_activities\n";
     $out .= "</div>\n";  
@@ -1146,13 +1146,14 @@ function fhcampaign_user($op, &$edit, &$user, $category = NULL) {
         $out_campaign_activities = theme('fhcampaign_user_activities', $campaign_activities);
         $first_walk = array_shift(array_shift($campaign_activities));
         $item = array();
-        $item['class']  = $first_walk['status'];
+        $item['class']  = $first_walk['tid'];
         $item['title']  = $first_walk['longname'];
         $item['value']  = $out_campaign_activities;
         $item['weight'] = $first_walk['weight'];
-        $data[] = $item;
+        $data[$camid] = $item;
       }
       if (count($data)) {
+        ksort($data);
         return array(t('Activities') => $data);
       }
       break;

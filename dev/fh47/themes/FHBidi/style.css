@@ -91,6 +91,16 @@ a:active { color: #ff6600; }
 .profile_item {
   margin: 10px 0px;
 }
+.profile_item .info {
+  background: #efefef;
+  border: solid 2px #ddd;
+  -moz-border-radius: 5px;
+  margin: 5px 0px 5px 0px;
+  padding: 10px;
+}
+.profile_item .info h3 {
+  margin: 0px;
+}
 
 .profile_set div.picture {
   margin: 10px;

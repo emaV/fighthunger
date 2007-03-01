@@ -445,6 +445,16 @@ function phptemplate_forward_form($form) {
 }
 */
 /**
+ * Format email notification
+ *
+ * @param vars
+ *   An array of email variables
+ */
+function phptemplate_email_message($vars) {
+  return _phptemplate_callback('email_message', $vars);
+}
+
+/**
  * Format email forward
  *
  * @param vars

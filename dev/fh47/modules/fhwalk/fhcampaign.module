@@ -826,7 +826,7 @@ function fhcampaign_coordinate_get_walks($tid, $cid) {
  */ 
 function fhcampaign_coordinate_email_submit($form_id, $form_values) {
 
-// Set sql query to fetch recipients
+  // Set sql query to fetch recipients
   $sql = "SELECT DISTINCT u.mail FROM {gathering_node} gn " .
     "JOIN {node} n ON gn.nid=n.nid " . 
     "LEFT JOIN {location} l ON n.nid=l.oid " .
@@ -838,22 +838,21 @@ function fhcampaign_coordinate_email_submit($form_id, $form_values) {
   $result = db_query($sql, $form_values['cid'], $form_values['tid']);
 
   if(db_num_rows($result)>0) {
-// Fetching recipients
-    while($row = db_fetch_array($result))  $dbrecipients[] = $row['mail'];
-    $recipients = implode(',', $dbrecipients);
+    // Fetching recipients
+    while($row = db_fetch_array($result))  $recipients[] = $row['mail'];
 
-// Set subject  
+    // Set subject  
     if($form_values['subject']<>'') {
       $subject = $form_values['subject'];
     } else {
       $subject = "News from  '" .  $form_values['title'] . "'";
     }
 
-// Set content 
+    // Set content 
     $content->title  = $form_values['title'];
     $content->teaser = $form_values['content'];
   
-// Set vars for theming
+    // Set vars for theming
     $vars = array(
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
@@ -861,19 +860,19 @@ function fhcampaign_coordinate_email_submit($form_id, $form_values) {
   	  'forward_message' => t('Message from Coordinator'),
   	  'message' => $form_values['content'],
   	  'base_url' => $base_url,
-      'content' => $content,  	  
+      'content' => '',  	  
   	  'dynamic_content' => '',
   	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
   	  'forward_footer' => variable_get('fhsignup_footer', '')
     );
 
-// Theming body
-    $body = theme('forward_email', $vars);
+    // Theming body
+    $body = theme('email_message', $vars);
   
-// Forward emails
+    // Forward emails
 //    forward_mail($recipients,$subject,$body,$headers);
     module_invoke('fhsignup', 'email_enqueue', $recipients ,$form_values['yemail'], $subject, $body);
-    drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)<br/>" . print_r($recipients, true), 'status');
+    drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)<br/>:" . implode(',', $recipients), 'status');
   } else {
     drupal_set_message("No recipients selected!", 'status');
   }

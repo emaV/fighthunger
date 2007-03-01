@@ -770,7 +770,7 @@ function fhcampaign_coordinate_get_walks($tid, $cid) {
     array('data' => t('Operations'), '')
   );
 
-  $sql = "SELECT n.nid, n.title, u.uid, u.name, l.city, l.country, c.name AS cname FROM {node} n " . 
+  $sql = "SELECT n.nid, n.title, u.uid, u.name, u.mail, l.city, l.country, c.name AS cname FROM {node} n " . 
     "LEFT JOIN {location} l ON n.nid=l.oid " .
     "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
     "JOIN {gathering_node} gn ON n.nid=gn.nid " .
@@ -834,7 +834,7 @@ function fhcampaign_coordinate_email_submit($form_id, $form_values) {
     "JOIN {term_node} tn ON tn.nid=n.nid " .
     "WHERE l.type='node' AND gn.cid=%d AND tn.tid=%d";
 
-  if($form_values['recipient_country']<>'all') $sql .= " AND l.country = '" . $form_values['recipient_country'] . "'"; 
+  if($form_values['recipient_country']<>'') $sql .= " AND l.country = '" . $form_values['recipient_country'] . "'"; 
   $result = db_query($sql, $form_values['cid'], $form_values['tid']);
 
   if(db_num_rows($result)>0) {
@@ -851,31 +851,27 @@ function fhcampaign_coordinate_email_submit($form_id, $form_values) {
 
 // Set content 
     $content->title  = $form_values['title'];
-//    $content->nid    = $form_values['nid']; CHECK IF IS A PROBLEM!!!!
     $content->teaser = $form_values['content'];
-    $content->type = 'fhwalk';
   
 // Set vars for theming
     $vars = array(
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
   	  'yemail' => $form_values['yemail'],
-  	  'forward_message' => '',
-  	  'message' => '',
+  	  'forward_message' => t('Message from Coordinator'),
+  	  'message' => $form_values['content'],
   	  'base_url' => $base_url,
-  	  'content' => $content,
   	  'dynamic_content' => '',
   	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
   	  'forward_footer' => variable_get('fhsignup_footer', '')
     );
 
 // Theming body
-    $body = theme('forward_email', $vars);
+    $body = theme('email_message', $vars);
   
 // Forward emails
 //    forward_mail($recipients,$subject,$body,$headers);
     module_invoke('fhsignup', 'email_enqueue', $recipients ,$form_values['yemail'], $subject, $body);
-  
     drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)", 'status');
   } else {
     drupal_set_message("No recipients selected!", 'status');

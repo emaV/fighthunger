@@ -322,6 +322,10 @@ function fhlocation_country_select_options() {
   return $countrycodes;
 }
 
+function theme_fhlocation_country($country) {
+  return fhlocation_get_iso3166_list($country);
+}
+
 function fhlocation_get_iso3166_list($country='') {
   static $country_list;
   if (!is_array($country_list)) {

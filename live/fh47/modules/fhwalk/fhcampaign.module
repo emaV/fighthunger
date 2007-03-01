@@ -706,7 +706,7 @@ function fhcampaign_admin_campaign($camid) {
     '#type' => 'select',
     '#title' => t("Coordinator"),
     '#options' => $coords, 
-    '#default_value' => ($sql_array['coordinator'] ? $sql_array['coordinator'] : 'all'),
+    '#default_value' => ($sql_array['coordinator'] ? $sql_array['coordinator'] : ''),
   );
   $form['search']['city'] = array(
     '#type' => 'textfield',

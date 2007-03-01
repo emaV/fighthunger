@@ -867,7 +867,7 @@ function fhcampaign_coordinate_email_submit($form_id, $form_values) {
     );
 
 // Theming body
-    $body = theme('email_message', $vars);
+    $body = theme('forward_email', $vars);
   
 // Forward emails
 //    forward_mail($recipients,$subject,$body,$headers);

@@ -700,7 +700,7 @@ function fhcampaign_admin_campaign($camid) {
   );
   
   $coords = fhwalk_get_coordinators();
-  $coords['all'] = '< ALL >'; 
+  $coords[''] = '< ALL >'; 
   $coords['none'] = '< WITHOUT COORDINATOR >';
   $form['search']['coordinator'] = array(
     '#type' => 'select',

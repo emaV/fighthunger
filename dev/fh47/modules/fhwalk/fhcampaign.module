@@ -867,12 +867,12 @@ function fhcampaign_coordinate_email_submit($form_id, $form_values) {
     );
 
 // Theming body
-    $body = theme('forward_email', $vars);
+    $body = theme('email_message', $vars);
   
 // Forward emails
 //    forward_mail($recipients,$subject,$body,$headers);
     module_invoke('fhsignup', 'email_enqueue', $recipients ,$form_values['yemail'], $subject, $body);
-    drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)", 'status');
+    drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)<br/>" . print_r($recipients, true), 'status');
   } else {
     drupal_set_message("No recipients selected!", 'status');
   }

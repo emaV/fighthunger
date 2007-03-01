@@ -861,13 +861,14 @@ function fhcampaign_coordinate_email_submit($form_id, $form_values) {
   	  'forward_message' => t('Message from Coordinator'),
   	  'message' => $form_values['content'],
   	  'base_url' => $base_url,
+      'content' => $content,  	  
   	  'dynamic_content' => '',
   	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
   	  'forward_footer' => variable_get('fhsignup_footer', '')
     );
 
 // Theming body
-    $body = theme('email_message', $vars);
+    $body = theme('forward_email', $vars);
   
 // Forward emails
 //    forward_mail($recipients,$subject,$body,$headers);

@@ -582,6 +582,16 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
     array('data' => t('Created'),     'field' => 'created', 'sort' => 'desc'),
     array('data' => t('Operations'),  '')
   );
+  $header_download = array(
+    array('data' => t('Node'),        'field' => 'nid'),
+    array('data' => t('Event'),       'field' => 'title'),
+    array('data' => t('City'),        'field' => 'city'),
+    array('data' => t('Country'),     'field' => 'cname'),
+    array('data' => t('Org name'),    'field' => 'name'),
+    array('data' => t('Org email'),   'field' => 'mail'),
+    array('data' => t('Coord name'),  'field' => 'c_name'),
+    array('data' => t('Coord email'), 'field' => 'c_mail'),
+  );
 
   // Pre conditions
   $where = array(
@@ -612,8 +622,8 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
     }
   }
 
-  $sql = "SELECT n.nid, n.title, n.created, u.uid, u.name, " . 
-    "uc.uid AS c_uid, uc.name AS c_name, " . 
+  $sql = "SELECT n.nid, n.title, n.created, u.uid, u.name, u.mail, " . 
+    "uc.uid AS c_uid, uc.name AS c_name, uc.mail AS c_mail, " . 
     "l.city, l.country, l.latitude, l.longitude, c.name as cname " . 
     "FROM {node} n " . 
     "JOIN {gathering_node} gn ON n.nid=gn.nid " .
@@ -652,6 +662,7 @@ function fhcampaign_admin_get_walks($camid, $sql_array = array()) { // Was _fhwa
   $output .= '<p>'. t("Walks selected") . ": $num_rows_total</p>";
   $output .= theme('table', $header, $rows);
   $output .= theme('pager', NULL, 50, 0);
+  $output .= theme('fh_table', 'download', $sql, $header_download);
   $output .= '<i>' . t("Walk with * are without latitude and longitude") . '</i>';
   return $output;
 }
@@ -785,9 +796,21 @@ function fhcampaign_coordinate_get_walks($tid, $cid) {
     $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 5));
   }
   
+  // download data
+  $header_download = array(
+    array('data' => t('Node'),        'field' => 'nid'),
+    array('data' => t('Event'),       'field' => 'title'),
+    array('data' => t('City'),        'field' => 'city'),
+    array('data' => t('Country'),     'field' => 'cname'),
+    array('data' => t('Org name'),    'field' => 'name'),
+    array('data' => t('Org email'),   'field' => 'mail'),
+  );
+  $sql_args = array($tid, $cid);
+  
   $output .= '<h2>' . t("Walk you're coordinating") . ': ' . db_num_rows($result) . '</h2>';
   $output .= theme('table', $header, $rows);
   $output .= theme('pager', NULL, 50, 0);
+  $output .= theme('fh_table', 'download', $sql, $header_download, $sql_args);
 
   return $output;
 }

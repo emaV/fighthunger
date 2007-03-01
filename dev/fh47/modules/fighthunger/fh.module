@@ -12,6 +12,9 @@
  * Some CiviCRM integration code from civinode module, by Rob Thorne
  */
 
+// Define file name and content type
+define('FH_TABLE_FILE_EXTENSION', 'xls');
+define('FH_TABLE_CONTENT_TYPE', 'application/vnd.ms-excel');
 
 /**
  * Implementation of hook_help().
@@ -22,6 +25,25 @@ function fh_help($section) {
       return t('<strong>FH:</strong> Fighthunger site common API. Required by all FH modules.');
   }
 }
+
+/**
+ * Implementation of hook_menu().
+ */
+function fh_menu($may_cache) {
+  $items = array();
+  $access = user_access('administer store');
+  if($may_cache) {
+    $items[] = array(
+      'path'     => 'fh_table',
+      'title'    => 'reports',
+      'callback' => 'fh_table',
+      'type'     => MENU_CALLBACK,
+      'access'   => true
+    );
+  }
+  return $items;
+}
+
 
 /**
  * Get country list, indexed by ISO code
@@ -193,4 +215,80 @@ global $user;
   if (!($user->uid)) {
     form_set_error('',t('You have to register before submitting your clip'));
   }
+}
+
+/**
+ * Formats single data cells
+ */
+function fh_table_output_format($data) {
+  // Replaces decimal points
+  if(is_numeric($data)) {
+    $data = str_replace('.', ',', $data);
+  } else {
+    // Replace tabs and line endings
+    $data = preg_replace("/\t/", "  ", $data);
+    $data = preg_replace("/\n/", "\\n", $data);
+  }
+  return $data;
+}
+
+function fh_table($fh_token) {
+
+  if($data = unserialize(variable_get($fh_token, '')) ) {
+
+    // print HTML header
+    drupal_set_header('Content-type:'.$data['contenttype']);
+
+    // get header
+    if($data['header']) {
+      foreach($data['header'] as $field) {
+        $out_header[] = $field['data'];
+      }
+      print implode($data['fieldseparator'], $out_header).$data['newline'];
+    }
+    
+    // get data
+    $result = db_query($data['sql'], $data['args_array']);
+  
+    while ($row = db_fetch_array($result)) {
+      $out_row = array();
+      if($data['header']) {
+        foreach($data['header'] as $field) {
+          $out_row[] = $row[$field['field']];
+        }
+      } else {
+        foreach($row as $field) {
+          $out_row[] = $field;
+        }
+      }
+      $out_row = array_map('fh_table_output_format', $out_row);
+      print implode($data['fieldseparator'], $out_row).$data['newline'];
+    }
+  }
+  
+//  print_r($data);
+}
+/**
+ * Produces text in tab separated format
+ *  
+ *      fieldseparator newline  
+ * CSV: ","            "\n"
+ * TAB: "\t"           "\n"
+ *  
+ */   
+function theme_fh_table($text, $sql, $header=array(), $args_array=array(), $fieldseparator = "\t", $newline = "\n", $contenttype = FH_TABLE_CONTENT_TYPE) {
+global $conf;
+
+  $data['header'] = $header;
+  $data['sql'] = $sql;
+  $data['args_array'] = $args_array;
+  $data['fieldseparator'] = $fieldseparator;
+  $data['newline'] = $newline;
+  $data['contenttype'] = $contenttype;
+
+  $value    = serialize($data);
+  $name     = "fh_" . md5($value);
+  $base_url = 'fh_table';
+  variable_set($name, $value);
+  return "<p style='text-align: right'>" . l($text, "$base_url/$name") . "</p>";
 }

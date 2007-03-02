@@ -29,7 +29,7 @@
 
 <?php else: ?>       
  
-        <div class="frm_txt"><p><?php print $forward_message ?></p></div>
+        <div class="frm_txt"><?php print $forward_message ?></div>
         <div>
           <h3><?php print l($content->title, 'forward/'.$content->nid.'/email_ref',NULL,NULL,NULL,TRUE) ?></h3>
   <?php if (theme_get_setting('toggle_node_info_'.$content->type)): ?>

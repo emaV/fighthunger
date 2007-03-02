@@ -24,7 +24,7 @@
       <div id="body">
 <?php if ($message): ?>
 
-        <div class="frm_title"><h3><?php print t('Message from Sender') ?>:</h3></div>
+        <div class="frm_title"><h3><?php print t('Message from Sender.') ?></h3></div>
         <div class="frm_txt"><p><?php print $message ?></p></div>
 
 <?php else: ?>       

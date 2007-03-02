@@ -1231,7 +1231,7 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
   	  'yemail'    => $form_values['yemail'],
-  	  'forward_message' => t('Message from Coordinator'),
+  	  'forward_message' => t('Message from Organiser'),
   	  'message'  => $form_values['content'],
   	  'base_url' => $base_url,
   	  'link'     => l(t('Click here to visit %title', array('%title' => $form_values['title'])), 'forward/'.$form_values['nid'].'/email_ref',NULL,NULL,NULL,TRUE),

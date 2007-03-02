@@ -856,14 +856,15 @@ function fhcampaign_coordinate_email_submit($form_id, $form_values) {
     $vars = array(
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
-  	  'yemail' => $form_values['yemail'],
+  	  'yemail'    => $form_values['yemail'],
   	  'forward_message' => t('Message from Coordinator'),
-  	  'message' => $form_values['content'],
+  	  'message'  => $form_values['content'],
   	  'base_url' => $base_url,
-      'content' => '',  	  
-  	  'dynamic_content' => '',
+      'content'  => '',
+      'link'     => l(t('Click here to visit our site'), 'home',NULL,NULL,NULL,TRUE),
+  	  'dynamic_content'   => '',
   	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
-  	  'forward_footer' => variable_get('fhsignup_footer', '')
+  	  'forward_footer'    => variable_get('fhsignup_footer', '')
     );
 
     // Theming body

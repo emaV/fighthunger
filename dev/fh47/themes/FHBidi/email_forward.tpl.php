@@ -31,7 +31,7 @@
  
         <div class="frm_txt"><p><?php print $forward_message ?></p></div>
         <div>
-          <h3><?php l($content->title, 'forward/'.$content->nid.'/email_ref',NULL,NULL,NULL,TRUE) ?></h3>
+          <h3><?php print l($content->title, 'forward/'.$content->nid.'/email_ref',NULL,NULL,NULL,TRUE) ?></h3>
   <?php if (theme_get_setting('toggle_node_info_'.$content->type)): ?>
           <br /><i><?php print t('by %author', array('%author' => $content->name)) ?></i>
   <?php endif; ?>        

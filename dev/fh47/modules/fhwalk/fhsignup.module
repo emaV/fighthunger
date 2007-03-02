@@ -717,7 +717,7 @@ global $user;
 
   $trans['%event']      = $node->title;               // %event
   $trans['%event_link'] = url("node/$node->nid/signup_admin",NULL,NULL,true);   //%event_link  
-  $trans['%time']       = date("j M o", $node->event_start); // %time  
+  $trans['%time']       = date("j M Y", $node->event_start); // %time  
   $trans['%username']   = $signup->name;                     // %username
   $trans['%useremail']  = $signup->mail;                     // %useremail  
   $trans['%organisername'] = $organiser->name;               // %organisername  
@@ -1061,7 +1061,7 @@ function fhsignup_walk_signup_table($nid, $show_message=0, $show_guests=0) {
           theme('fhwalk_contact', $signup),
           $signup->role,
           $signup->opencomment ? $signup->comment : '',
-          date("j M o", strtotime($signup->timestamp)),
+          date("j M Y", strtotime($signup->timestamp)),
           $signup->guests,
       ));
     if(!$show_guests)  unset($row['data'][4]);

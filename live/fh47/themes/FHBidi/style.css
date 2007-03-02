@@ -5,10 +5,14 @@ body, #search {
   color: #333333;
   background: #ffffff;
 }
+table {
+  width : 100%;
+}
 a, a:link { color: #006699; }
 a:visited { color: #006699; }
 a:hover, a:focus { color: #ff6600; }
 a:active { color: #ff6600; }
+
 #header a:visited { color: #006699; }
 #header a:hover { background: #006699; }
 #site-slogan { color: #006699; }
@@ -90,6 +94,16 @@ a:active { color: #ff6600; }
 
 .profile_item {
   margin: 10px 0px;
+}
+.profile_item .info {
+  background: #efefef;
+  border: solid 2px #ddd;
+  -moz-border-radius: 5px;
+  margin: 5px 0px 5px 0px;
+  padding: 10px;
+}
+.profile_item .info h3 {
+  margin: 0px;
 }
 
 .profile_set div.picture {

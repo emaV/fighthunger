@@ -445,13 +445,27 @@ function phptemplate_forward_form($form) {
 }
 */
 /**
+ * Format email notification
+ *
+ * @param vars
+ *   An array of email variables
+ */
+function phptemplate_email_message($vars) {
+  return _phptemplate_callback('email_message', $vars);
+}
+
+/**
  * Format email forward
  *
  * @param vars
  *   An array of email variables
  */
+function phptemplate_email_forward($vars) {
+  return _phptemplate_callback('email_forward', $vars);
+}
 function phptemplate_forward_email($vars) {
-
+  return _phptemplate_callback('email_forward', $vars);
+/*
 	$style = "<style>
       <!--
       	html, body {margin:0; padding:0; background-color:#fff;}
@@ -499,6 +513,7 @@ function phptemplate_forward_email($vars) {
 </html>';
 
   return $output;
+*/
 }
 
 /**

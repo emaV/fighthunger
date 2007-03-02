@@ -792,13 +792,13 @@ global $user;
       $from = $organiser->mail;
       break;
   }
-//  drupal_set_message("TO: $to<hr/>FROM: $from<hr/>SUBJ: $subject<hr/>MSG: $message");
-    // Set vars for theming
+  
+  // Set vars for theming
   $vars = array(
 	  'forward_header_image' => variable_get('forward_header_image', ''),
 	  'site_name' => variable_get('site_name', 'Drupal'),
 	  'yemail'    => $from,
-	  'message'  => $message,
+	  'message'  => check_markup($message),
 	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
 	  'forward_footer'    => variable_get('fhsignup_email_footer', '')
   );
@@ -831,9 +831,7 @@ function fhsignup_email_enqueue($recipients, $from, $subject, $body, $nid=0) {
 
     // Send email
     user_mail($recipient, $subject, $body, $headers);
-
-drupal_set_message("FROM: $from<hr/>TO: $recipient<hr/>SUB: $subject<hr/>BODY: $body");
-
+    
     // insert record into db to record nid, type and timestamp of send
     db_query("INSERT INTO {forward_log} (nid, type, timestamp) VALUES ('%d', '%s', %d)", $nid, "SENT", time());
     variable_set('forward_total', variable_get('forward_total', 0) +1);
@@ -1245,8 +1243,8 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
   	  'yemail'    => $form_values['yemail'],
-  	  'forward_message' => t('Message from Organiser:'),
-  	  'message'  => $form_values['content'],
+  	  'forward_message' => t('Message from Organiser.'),
+  	  'message'  =>  check_markup($form_values['content']),
   	  'base_url' => $base_url,
   	  'link'     => l(t('Click here to visit %title', array('%title' => $form_values['title'])), 'forward/'.$form_values['nid'].'/email_ref',NULL,NULL,NULL,TRUE),
   	  'dynamic_content'   => '',
@@ -1269,7 +1267,7 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
     drupal_set_message("No recipients selected!", 'status');
   }
 
-// Set return URL
+  // Set return URL
   $returnurl = 'node/'. $form_values['nid'] . '/signup_admin';
 	drupal_goto($returnurl);
 }
@@ -1404,7 +1402,7 @@ global $user;
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
   	  'yemail' => $form_values['yemail'],
-  	  'forward_message' => $forward_message,
+  	  'forward_message' => check_markup($forward_message),
   	  'message' => '',
   	  'base_url' => $base_url,
   	  'content' => $content,

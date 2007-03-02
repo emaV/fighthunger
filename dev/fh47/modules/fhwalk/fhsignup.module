@@ -1243,8 +1243,12 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
     // Theming body
     $body = theme('email_message', $vars);
   
-    // Enqueue emails
-    fhsignup_email_enqueue($recipients, $form_values['yemail'],$subject,$body);
+    // Enqueue emails to walkers
+    module_invoke('fhsignup', 'email_enqueue', $recipients ,$form_values['yemail'], $subject, $body);
+    // Copy for the sender
+    $vars['dynamic_content'] = t('Copy for the sender');
+    $body = theme('email_message', $vars);
+    module_invoke('fhsignup', 'email_enqueue', $form_values['yemail'] ,$form_values['yemail'], $subject, $body);
 
     drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)", 'status');
   } else {

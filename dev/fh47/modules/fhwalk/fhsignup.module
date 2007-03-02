@@ -717,11 +717,11 @@ global $user;
 
   $trans['%event']      = $node->title;               // %event
   $trans['%event_link'] = url("node/$node->nid/signup_admin",NULL,NULL,true);   //%event_link  
-  $trans['%time']       = $node->event_start;         // %time  
-  $trans['%username']   = $signup->name;              // %username
-  $trans['%useremail']  = $signup->mail;              //%useremail  
-  $trans['%organisername'] = $organiser->name;        //%organisername  
-  $trans['%organisermail'] = $organiser->mail;         //%organisermail  
+  $trans['%time']       = date("j M o", $node->event_start)  // %time  
+  $trans['%username']   = $signup->name;                     // %username
+  $trans['%useremail']  = $signup->mail;                     // %useremail  
+  $trans['%organisername'] = $organiser->name;               // %organisername  
+  $trans['%organisermail'] = $organiser->mail;               // %organisermail  
 
   switch($op) {
     case 'confirm':
@@ -732,7 +732,7 @@ global $user;
       break;
     case 'notify_organiser':
       $subject = t('New user signup for event: %event', $trans);
-      $message = t("%organisername,\n\n%username has offered to work at %event. You can check the status of that event, see all available signup, and approve, deny by clicking here:\n\n%event_link", $trans);
+      $message = t("%organisername,\n\n%username has volunteered to help with %event. You can check the status of that event, see all available signup, and approve, deny by clicking here:\n\n%event_link", $trans);
       $to   = $organiser->mail;
       $from = $signup->mail;
       break;
@@ -1210,23 +1210,18 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
   $result = db_query($sql);
 
   if(db_num_rows($result)>0) {
-// Fetching recipients
+  
+    // Fetching recipients
     while($row = db_fetch_array($result))  $recipients[] = $row['mail'];
 
-// Set subject  
+    // Set subject  
     if($form_values['subject']<>'') {
       $subject = $form_values['subject'];
     } else {
       $subject = "News from walk '" .  $form_values['title'] . "'";
     }
-/*
-// Set content 
-    $content->title  = $form_values['title'];
-    $content->nid    = $form_values['nid'];
-    $content->teaser = $form_values['content'];
-    $content->type = 'fhwalk';
-*/  
-// Set vars for theming
+    
+    // Set vars for theming
     $vars = array(
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
@@ -1244,11 +1239,11 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
     $body = theme('email_message', $vars);
   
     // Enqueue emails to walkers
-    module_invoke('fhsignup', 'email_enqueue', $recipients ,$form_values['yemail'], $subject, $body);
+    module_invoke('fhsignup', 'email_enqueue', $recipients, $form_values['yemail'], $subject, $body);
     // Copy for the sender
     $vars['dynamic_content'] = t('Copy for the sender');
     $body = theme('email_message', $vars);
-    module_invoke('fhsignup', 'email_enqueue', $form_values['yemail'] ,$form_values['yemail'], $subject, $body);
+    module_invoke('fhsignup', 'email_enqueue', $form_values['yemail'], $form_values['yemail'], $subject, $body);
 
     drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)", 'status');
   } else {

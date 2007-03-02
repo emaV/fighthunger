@@ -1378,7 +1378,7 @@ global $user;
       $subject = "Invitation to join '" .  $form_values['title'] . "'";
     }
     // Set forward message
-    $forward_message  = '<h3>' . t('Message from %name:', array('%name' => l($edit['yname'], 'mailto:'.$edit['yemail'],NULL,NULL,NULL,TRUE))) . '</h3>';
+    $forward_message  = '<h3>' . t('Message from %name:', array('%name' => l($form_values['yname'], 'mailto:'.$form_values['yemail'],NULL,NULL,NULL,TRUE))) . '</h3>';
     $forward_message .= '<p>' . $form_values['content'] . '</p>';
     
     // Get content

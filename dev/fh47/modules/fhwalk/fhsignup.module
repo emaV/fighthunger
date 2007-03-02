@@ -1231,7 +1231,7 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
   	  'yemail'    => $form_values['yemail'],
-  	  'forward_message' => t('Message from Organiser'),
+  	  'forward_message' => t('Message from Organiser:'),
   	  'message'  => $form_values['content'],
   	  'base_url' => $base_url,
   	  'link'     => l(t('Click here to visit %title', array('%title' => $form_values['title'])), 'forward/'.$form_values['nid'].'/email_ref',NULL,NULL,NULL,TRUE),
@@ -1377,18 +1377,20 @@ global $user;
     } else {
       $subject = "Invitation to join '" .  $form_values['title'] . "'";
     }
-// Set content 
-    $content->title  = $form_values['title'];
-    $content->nid    = $form_values['nid'];
-    $content->teaser = $form_values['content'];
-    $content->type = 'fhwalk';
+    // Set forward message
+    $forward_message  = '<h3>' . t('Message from %name:', array('%name' => l($edit['yname'], 'mailto:'.$edit['yemail'],NULL,NULL,NULL,TRUE))) . '</h3>';
+    $forward_message .= '<p>' . $form_values['content'] . '</p>';
+    
+    // Get content
+    $content = node_load($form_values['nid']);
+    $content->teaser = check_markup($content->teaser, $content->format, FALSE);
     
 // Set vars for theming
     $vars = array(
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
   	  'yemail' => $form_values['yemail'],
-  	  'forward_message' => '',
+  	  'forward_message' => $forward_message,
   	  'message' => '',
   	  'base_url' => $base_url,
   	  'content' => $content,
@@ -1402,8 +1404,8 @@ global $user;
 // Set invite
       $code = _invite_create_regcode();  
       $invite_url = url('node/'. $form_values['nid'] . "/signup_invite/$code");
-      $invite = "<p>To accept this invite, <a href='http://www.fighthunger.org/user'>login or register</a> on fightunger.org " .
-        "then click on this <a href='$invite_url'>link</a></p>";
+      $invite = "<p><b>To accept this invite, <a href='http://www.fighthunger.org/user'>login or register</a> on fightunger.org " .
+        "then click on this <a href='$invite_url'>link</a></b></p>";
       $vars['forward_ad_footer'] = $invite;
    
 // Theming body

@@ -362,7 +362,7 @@ global $user;
     $stage = 3;
     fhsignup_email_notify($form_values['nid'], $user->uid, 'confirm');
     fhsignup_email_notify($form_values['nid'], $user->uid, "notify_organiser_$role");
-    $msg = t('Subscribed to this event');
+    $msg = t('Subscribed to this event.');
   } else {
     $stage = 2;
     fhsignup_email_notify($form_values['nid'], $user->uid, 'wait');
@@ -371,7 +371,7 @@ global $user;
   _fhsignup_user_add($form_values['nid'], $form_values['uid'], $role, $stage, 
     $form_values['comment'], $form_values['opencomment'], $form_values['guests']);
 
-//  drupal_set_message($msg . print_r($form_values, true));
+  drupal_set_message($msg);
 }
 
 function fhsignup_user_form_validate($form_id, $form_values) {

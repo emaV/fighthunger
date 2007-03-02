@@ -24,7 +24,7 @@
       <div id="body">
         <div class="frm_title"><h3><?php print $forward_message ?>:</h3></div>
         <div class="frm_txt"><p><?php print $message ?></p></div>
-        <div class="links"><?php print l(t('Click here to read more on our site'), 'home',NULL,NULL,NULL,TRUE) ?></div>
+        <div class="links"><?php print l(t('Click here to visit our site'), 'home',NULL,NULL,NULL,TRUE) ?></div>
         <div class="dyn_content"><br /><?php print $dynamic_content ?></div>
         <div class="ad_footer"><br /><?php print $forward_ad_footer ?><br></div>
       </div>

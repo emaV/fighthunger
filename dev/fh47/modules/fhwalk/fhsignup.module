@@ -811,7 +811,7 @@ function fhsignup_email_enqueue($recipients, $from, $subject, $body, $nid=0) {
     $headers .= "Content-type: text/html; charset=utf-8\n";
 
 // Forward emails
-    forward_mail($recipient,$subject,$body,$headers);
+    user_mail($recipient,$subject,$body,$headers);
 
 // drupal_set_message("FROM: $from<hr/>TO: $recipient<hr/>SUB: $subject<hr/>BODY: $body");
 

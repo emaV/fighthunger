@@ -288,7 +288,8 @@ function fhsignup_users_merge($node) {
       _fhsignup_user_remove($nid_from, $uid);
       _fhsignup_user_add($nid_to, $uid, $signup['role'], $signup['stage'], 
         $signup['comment'],$signup['opencomment'], $signup['guests']);
-      fhsignup_email_notify($node_from, $uid, 'merge walk', $node->merge_email);
+        module_invoke('fhmail', 'notify', 'signup merge walk', $node_from, $uid);
+//      fhsignup_email_notify($node_from, $uid, 'merge walk', $node->merge_email);
     }
     $vars = array(
       '%from_city'  => $node_from->location['city'],
@@ -315,7 +316,8 @@ function fhsignup_users_delete($node) {
   if( $list = fhsignup_walk_signup_list($nid_from) ) {
     foreach($list as $uid => $signup) {
       _fhsignup_user_remove($nid_from, $uid);
-      fhsignup_email_notify($nid_from, $uid, 'delete walk', $node->signup_email_unsubscribe);
+      module_invoke('fhmail', 'notify', 'signup delete walk', $node, $uid);
+//      fhsignup_email_notify($nid_from, $uid, 'delete walk', $node->signup_email_unsubscribe);
     }
     $vars = array(
       '%from_city'  => $node_from->location['city'],
@@ -360,12 +362,15 @@ global $user;
   $role  = ($form_values['volunteer']) ? "volunteer" : "attendee";
   if($form_values['signup_status']==0) {
     $stage = 3;
-    fhsignup_email_notify($form_values['nid'], $user->uid, 'confirm');
-    fhsignup_email_notify($form_values['nid'], $user->uid, "notify_organiser_$role");
+    module_invoke('fhmail', 'notify', 'signup confirm', $form_values['nid'], $user->uid);
+//    fhsignup_email_notify($form_values['nid'], $user->uid, 'confirm');
+    module_invoke('fhmail', 'notify', "signup notify_organiser_$role", $form_values['nid'], $user->uid);
+//    fhsignup_email_notify($form_values['nid'], $user->uid, "notify_organiser_$role");
     $msg = t('Subscribed to this event.');
   } else {
     $stage = 2;
-    fhsignup_email_notify($form_values['nid'], $user->uid, 'wait');
+    module_invoke('fhmail', 'notify', "signup wait", $form_values['nid'], $user->uid);
+//    fhsignup_email_notify($form_values['nid'], $user->uid, 'wait');
     $msg = t('Your subscription is pending, requiring organiser approvation.');
   }
   _fhsignup_user_add($form_values['nid'], $form_values['uid'], $role, $stage, 
@@ -549,7 +554,7 @@ function _fhsignup_stages($i=0) {
 function _fhsignup_status($i=-1) {
 global $user;
 
-  $status = array(0 => t('no approval required'),
+  $status = array(0 => t('no approval required - public event'),
                   1 => t('approval required'),
                   2 => t('only invitation'),
                   3 => t('blocked event (contact your walk coordinator)'));
@@ -1180,7 +1185,8 @@ global $user;
   switch($action) {
     case 'unsubscribe':
       if(_fhsignup_user_remove($nid, $uid)) {
-        fhsignup_email_notify($nid, $uid, 'unsubscribe');
+        module_invoke('fhmail', 'notify', 'signup unsubscribe', $nid, $uid);
+//        fhsignup_email_notify($nid, $uid, 'unsubscribe');
         $msg = t("User $uid unsubscribed");
       } else {
         $msg = t("Error unsubscribing user $uid");
@@ -1188,7 +1194,8 @@ global $user;
       break;
     case 'approve':
       if(_fhsignup_user_update($nid, $uid, 3)) {
-        fhsignup_email_notify($nid, $uid, 'approve');
+        module_invoke('fhmail', 'notify', 'signup approve', $nid, $uid);
+//        fhsignup_email_notify($nid, $uid, 'approve');
         $msg = t("User $uid approved");
       } else {
         $msg = t("Error approving user $uid");
@@ -1196,7 +1203,8 @@ global $user;
       break;
     case 'deny':
       if(_fhsignup_user_remove($nid, $uid)) {
-        fhsignup_email_notify($nid, $uid, 'deny');
+        module_invoke('fhmail', 'notify', 'signup deny', $nid, $uid);
+//        fhsignup_email_notify($nid, $uid, 'deny');
         $msg = t("User $uid denied");
       } else {
         $msg = t("Error denying user $uid");
@@ -1246,7 +1254,7 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
   	  'forward_message' => t('Message from Organiser.'),
   	  'message'  =>  check_markup($form_values['content']),
   	  'base_url' => $base_url,
-  	  'link'     => l(t('Click here to visit %title', array('%title' => $form_values['title'])), 'forward/'.$form_values['nid'].'/email_ref',NULL,NULL,NULL,TRUE),
+  	  'link'     => l(t('Click here to visit %title', array('%title' => $form_values['title'])), 'node/'.$form_values['nid'],NULL,NULL,NULL,TRUE),
   	  'dynamic_content'   => '',
   	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
   	  'forward_footer'    => variable_get('fhsignup_email_footer', '')
@@ -1256,11 +1264,14 @@ function _fhsignup_organiser_email_submit($form_id, $form_values) {
     $body = theme('email_message', $vars);
   
     // Enqueue emails to walkers
-    module_invoke('fhsignup', 'email_enqueue', $recipients, $form_values['yemail'], $subject, $body);
+    module_invoke('fhmail', 'enqueue', $recipients, $form_values['yemail'], $subject, $body);
+//    module_invoke('fhsignup', 'email_enqueue', $recipients, $form_values['yemail'], $subject, $body);
+
     // Copy for the sender
     $vars['dynamic_content'] = t('Copy for the sender');
     $body = theme('email_message', $vars);
-    module_invoke('fhsignup', 'email_enqueue', $form_values['yemail'], $form_values['yemail'], $subject, $body);
+    module_invoke('fhmail', 'enqueue', $form_values['yemail'], $form_values['yemail'], $subject, $body);
+//    module_invoke('fhsignup', 'email_enqueue', $form_values['yemail'], $form_values['yemail'], $subject, $body);
 
     drupal_set_message("You sent the message to " . db_num_rows($result) . " recipient(s)", 'status');
   } else {
@@ -1353,8 +1364,10 @@ global $user;
     if ($registration = db_fetch_object($result)) {
       _invite_set_timestamp($user->mail, $user->uid, $code);
       _fhsignup_user_add($nid, $user->uid, 'attendee', 6);
-      fhsignup_email_notify($nid, $user->uid, 'confirm');
-      fhsignup_email_notify($nid, $user->uid, 'notify_invite');
+        module_invoke('fhmail', 'notify', 'confirm', $nid, $user->uid);
+//      fhsignup_email_notify($nid, $user->uid, 'confirm');
+        module_invoke('fhmail', 'notify', 'notify_invite', $nid, $user->uid);
+//      fhsignup_email_notify($nid, $user->uid, 'notify_invite');
       $msg = t("Invitation processed!");
     }
   } else {
@@ -1374,7 +1387,7 @@ global $user;
 function _fhsignup_organiser_invite_submit($form_id, $form_values) {
 global $user;
 
-// Fetching recipients
+  // Fetching recipients
   $recipients = trim($form_values['recipients']);
   $recipients = str_replace(array("\r\n", "\n", "\r"), ', ', $recipients);
   $recipients = str_replace(',', ', ', $recipients);
@@ -1383,7 +1396,7 @@ global $user;
   
   if(count($recipients)>0) {
 
-// Set subject  
+    // Set subject  
     if($form_values['subject']<>'') {
       $subject = $form_values['subject'];
     } else {
@@ -1391,18 +1404,18 @@ global $user;
     }
     // Set forward message
     $forward_message  = '<h3>' . t('Message from %name:', array('%name' => l($form_values['yname'], 'mailto:'.$form_values['yemail'],NULL,NULL,NULL,TRUE))) . '</h3>';
-    $forward_message .= '<p>' . $form_values['content'] . '</p>';
+    $forward_message .= '<p>' . check_markup($form_values['content']) . '</p>';
     
     // Get content
     $content = node_load($form_values['nid']);
     $content->teaser = check_markup($content->teaser, $content->format, FALSE);
     
-// Set vars for theming
+    // Set vars for theming
     $vars = array(
   	  'forward_header_image' => variable_get('forward_header_image', ''),
   	  'site_name' => variable_get('site_name', 'Drupal'),
   	  'yemail' => $form_values['yemail'],
-  	  'forward_message' => check_markup($forward_message),
+  	  'forward_message' => $forward_message,
   	  'message' => '',
   	  'base_url' => $base_url,
   	  'content' => $content,
@@ -1410,33 +1423,33 @@ global $user;
   	  'forward_footer' => variable_get('forward_footer', '')
     );
   
-// foreach recipient we have to set a different invitation code and enqueue email
+    // foreach recipient we have to set a different invitation code and enqueue email
     foreach($recipients as $recipient) {
 
-// Set invite
+      // Set invite
       $code = _invite_create_regcode();  
       $invite_url = url('node/'. $form_values['nid'] . "/signup_invite/$code");
       $invite = "<p><b>To accept this invite, <a href='http://www.fighthunger.org/user'>login or register</a> on fightunger.org " .
         "then click on this <a href='$invite_url'>link</a></b></p>";
       $vars['forward_ad_footer'] = $invite;
    
-// Theming body
+      // Theming body
       $body = theme('forward_email', $vars);
 
-// enqueue email
-      fhsignup_email_enqueue($recipient,$form_values['yemail'],$subject,$body);
+      // enqueue email
+//      fhsignup_email_enqueue($recipient,$form_values['yemail'],$subject,$body);
+      module_invoke('fhmail', 'send', $recipient, $form_values['yemail'], $subject, $body);
       db_query("INSERT INTO {invite} (email, reg_code, uid, expiry) VALUES ('%s', '%s', %d, %d)",$recipient, $code, $user->uid, time()+(variable_get('invite_expiry', 30)*60*60*24));  
 
     }
-
     drupal_set_message("You sent the message to " . count($recipients) . " recipient(s)", 'status');
   } else {
     drupal_set_message("No recipients selected!", 'status');
   }
 
-// Set return URL
-  $returnurl = 'node/'. $form_values['nid'] . '/signup_admin';
-	drupal_goto($returnurl);
+  // Set return URL
+//  $returnurl = 'node/'. $form_values['nid'] . '/signup_admin';
+//	drupal_goto($returnurl);
 }
 
 /**

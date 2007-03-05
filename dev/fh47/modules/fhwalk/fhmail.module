@@ -71,7 +71,7 @@ function fhmail_debug($recipients, $from, $subject, $body, $nid=0) {
 }
 
 function fhmail_send($to, $from, $subject, $body, $nid=0) {
-//  fhmail_debug($to, $from, $subject, $body);
+  fhmail_debug($to, $from, $subject, $body);
 
   // Set headers
   $headers  = "From: $from\n";

@@ -134,8 +134,8 @@ function fhlocalpage_validate($node) {
     form_set_error('country');
     form_set_error('language');
   }
-  if( !$node->name ) {
-    form_set_error('name', t('Please selct an user.'));
+  if( !$node->name && !$node->nid ) {
+    form_set_error('name', t('Please select an user.'));
   }
 }
 

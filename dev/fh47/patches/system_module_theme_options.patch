@@ -1,0 +1,27 @@
+--- ../../svn_dev47/modules/system.module	2007-02-05 09:44:35.000000000 +0100
++++ ../modules/system.module	2007-03-06 15:37:42.000000000 +0100
+@@ -1207,17 +1207,16 @@ function system_theme_settings($key = ''
+   }
+ 
+   if ($key) {
++    // Switch themes to enable phptemplate theme specific settings
++    global $theme, $custom_theme;
++
++    $custom_theme = $key;
++    init_theme();
++
+     // Template-specific settings
+     $function = $themes[$key]->prefix .'_settings';
+     if (function_exists($function)) {
+-      if ($themes[$key]->template) {
+-        // file is a template or a style of a template
+-        $form['specific'] = array('#type' => 'fieldset', '#title' => t('Engine-specific settings'), '#description' => t('These settings only exist for all the templates and styles based on the %engine theme engine.', array('%engine' => $themes[$key]->prefix)));
+-      }
+-      else {
+-        // file is a theme or a style of a theme
+-        $form['specific'] = array('#type' => 'fieldset', '#title' => t('Theme-specific settings'), '#description' => t('These settings only exist for the %theme theme and all the styles based on it.', array('%theme' => $themes[$key]->prefix)));
+-      }
++      $form['specific'] = array('#type' => 'fieldset', '#title' => t('Theme-specific settings'), '#description' => t('These settings only exist for the %theme theme and all the styles based on it.', array('%theme' => $theme)));
+       $group = $function();
+       $form['specific'] = array_merge($form['specific'], (is_array($group) ? $group : array()));
+     }

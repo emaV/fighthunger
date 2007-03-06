@@ -22,14 +22,18 @@
     <div id="container">
       <div id="header"><?php print l("<img src='$forward_header_image' border='0' alt='$site_name'>", '',NULL,NULL,NULL,TRUE,TRUE) ?></div>
       <div id="body">
-<?php if ($message): ?>
 
-        <div class="frm_title"><h3><?php print t('Message from Sender.') ?></h3></div>
-        <div class="frm_txt"><p><?php print $message ?></p></div>
-
+<?php if ($forward_message): ?>      
+        <div class="frm_title"><h3><?php print $forward_message ?></h3></div>
 <?php else: ?>       
- 
-        <div class="frm_txt"><?php print $forward_message ?></div>
+        <div class="frm_title"><h3><?php print t('Message from Sender.') ?></h3></div>
+<?php endif; ?> 
+      
+<?php if ($message): ?>
+        <div class="frm_txt"><p><?php print $message ?></p></div>
+<?php endif; ?> 
+        
+<?php if ($content): ?>
         <div>
           <h3><?php print l($content->title, 'forward/'.$content->nid.'/email_ref',NULL,NULL,NULL,TRUE) ?></h3>
   <?php if (theme_get_setting('toggle_node_info_'.$content->type)): ?>

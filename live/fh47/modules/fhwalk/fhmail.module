@@ -1,0 +1,258 @@
+<?php
+/* $Id: fhmail.module,v 0.1 2007/03/05 19:47:47 ema Exp $ */
+
+/**
+ * fhmail helpers
+ * WFP
+ *
+ * Written by Emanuele Quinto
+ *
+ * http://www.fighthunger.org
+ *
+ */
+
+/**
+ * Permissions
+ */
+function fhmail_perm() {
+  return array("administer fhmail");
+}
+ 
+function fhmail_help($section) {
+  if ($section == "admin/modules#description") {
+    return t('<strong>FH:</strong> Mail helpers for walk events. <b>Require fhwalk, forward</b>');
+  }
+}
+
+/**
+ * Menu Hooks
+ */
+function fhmail_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'path'     => 'admin/fhmail',
+      'title'    => t('fhmail admin'),
+      'callback' => 'fhmail_admin',
+      'callback arguments' => array(),
+      'access'   => (user_access('administer fhmail')),
+    );
+  }
+  return $items;
+}
+
+ /**
+ * hook_nodeapi implementation
+ *
+ * @ingroup fhsignup_core
+ */
+function fhmail_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+global $user;
+
+  if($node->type == 'fhwalk') {
+    switch ($op) {
+      case 'insert': 
+        break;
+      case 'update':
+        break;
+      case 'delete':
+        break;
+    }
+  }
+}
+
+
+function fhmail_debug($recipients, $from, $subject, $body, $nid=0) {
+  $out =  "RECP: " . print_r($recipients, true) . "<br/>";
+  $out .= "FROM: $from<br/>";
+  $out .= "SUBJ: $subject<hr/>";
+  $out .= "$body<hr/>";
+  drupal_set_message($out);
+}
+
+function fhmail_send($to, $from, $subject, $body, $nid=0) {
+//  fhmail_debug($to, $from, $subject, $body);
+
+  // Set headers
+  $headers  = "From: $from\n";
+  $headers .= "Reply-To: $from\n";
+  $headers .= "MIME-Version: 1.0\n";
+  $headers .= "Content-type: text/html; charset=utf-8\n";
+
+  // Send email
+  user_mail($to, $subject, $body, $headers);
+  
+  // insert record into db to record nid, type and timestamp of send
+  db_query("INSERT INTO {forward_log} (nid, type, timestamp) VALUES ('%d', '%s', %d)", $nid, "SENT", time());
+  variable_set('forward_total', variable_get('forward_total', 0) +1);
+  variable_set('forward_recipients', variable_get('forward_recipients', 0) + substr_count($recipients, ",") + 1);
+  flood_register_event('forward');
+}
+
+/**
+ * Enqueue emails
+ *  
+ * @ingroup fhmail_helpers
+ * @param $recipients array or string of recipients
+ * @param $subject
+ * @param $body
+ * @param $headers
+ */
+function fhmail_enqueue($recipients, $from, $subject, $body, $nid=0) {
+
+  if( !(is_array($recipients)) ) $recipients = array($recipients);
+
+  foreach($recipients as $recipient) {
+    fhmail_send($recipient, $from, $subject, $body);
+  
+/*
+    // Set headers
+    $headers  = "From: $from\n";
+    $headers .= "Reply-To: $from\n";
+    $headers .= "MIME-Version: 1.0\n";
+    $headers .= "Content-type: text/html; charset=utf-8\n";
+
+    // Send email
+    user_mail($recipient, $subject, $body, $headers);
+    
+    // insert record into db to record nid, type and timestamp of send
+    db_query("INSERT INTO {forward_log} (nid, type, timestamp) VALUES ('%d', '%s', %d)", $nid, "SENT", time());
+    variable_set('forward_total', variable_get('forward_total', 0) +1);
+    variable_set('forward_recipients', variable_get('forward_recipients', 0) + substr_count($recipients, ",") + 1);
+    flood_register_event('forward');
+*/
+  }
+}
+
+/**
+ * Email notification
+ *  
+ * @ingroup  fhmail_helpers
+ * @param    $nid
+ * @param    $uid
+ * @param    $op
+ * @return   content with substitutions
+ */
+function fhmail_notify($op, $node, $uid, $add_msg='') {
+  if(is_numeric($node)) $node = node_load($node);
+
+  $user_notify   = user_load(array('uid' => $uid));
+  $organiser     = user_load(array('uid' => $node->uid));
+  // Set vars for theming
+  $vars = array(
+	  'forward_header_image' => variable_get('forward_header_image', ''),
+	  'site_name'            => variable_get('site_name', 'fighthunger.org'),
+	  'forward_ad_footer'    => variable_get('forward_ad_footer', ''),
+	  'forward_footer'       => variable_get('fhsignup_email_footer', '')
+  );
+
+  // Set vars for message
+  $trans['%event'] = $node->title;
+  $trans['%event_link']  = url("node/$node->nid",NULL,NULL,true);  
+  $trans['%time']  = date("j M Y", $node->event_start);  
+  $trans['%username'] = $user_notify->name;
+  $trans['%usermail'] = $user_notify->mail;
+  $trans['%organisername']   = $organiser->name;
+  $trans['%organisermail']   = $organiser->mail;
+  
+  switch($op) {
+  // Walk notification
+    case 'walk create':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("New walk: %event", $trans);
+      $message = t("%organisername create a new walk.\n\nYou can check the event here:\n\n%event_link", $trans);
+      break;
+    case 'walk change coordinator':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("Coordinator change: %event", $trans);
+      $trans['%coord_tab'] = url($node->campaign->shortname . '/coordinate',NULL,NULL,true);  
+      $message = t("%username,\n\n you're now coordinating walk %event.\n\nYou can check the event here:\n\n%event_link\n\nYou can check events you're coordinating here: %coord_tab", $trans);
+      break;
+    case 'walk delete':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("Walk deleted: %event", $trans);
+      $message = t("Walk deleted: %event", $trans);
+      break;
+
+  // Signup notification
+    case 'signup confirm':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t('Signup confirmation for event: %event', $trans);
+      $message = t($node->signup_email_confirm, $trans);
+      break;
+    case 'signup notify_organiser_attendee':
+      $to   = $organiser->mail;
+      $from = $user_notify->mail;
+      $trans['%event_signup']  = url("node/$node->nid/signup_admin",NULL,NULL,true);  
+      $subject = t('New user signup for event: %event', $trans);
+      $message = t("%organisername,\n\n%username signup for %event.\n\nYou can check the status of that event, see all available signup, and approve, deny by clicking here: %event_signup", $trans);
+      break;
+    case 'signup notify_organiser_volunteer':
+      $to   = $organiser->mail;
+      $from = $user_notify->mail;
+      $trans['%event_signup']  = url("node/$node->nid/signup_admin",NULL,NULL,true);  
+      $subject = t('New user signup for event: %event', $trans);
+      $message = t("%organisername,\n\n%username has volunteered to help with %event.\n\nYou can check the status of that event, see all available signup, and approve, deny by clicking here: %event_signup", $trans);
+      break;
+    case 'signup notify_invite':
+      $to   = $organiser->mail;
+      $from = $user_notify->mail;
+      $trans['%event_signup']  = url("node/$node->nid/signup_admin",NULL,NULL,true);  
+      $subject = t('User accept your invite to signup for event: %event', $trans);
+      $message = t("%organisername,\n\n%username signup for at %event.\n\nYou can check the status of that event, see all available signup, and approve, deny by clicking here: %event_signup", $trans);
+      break;
+    case 'signup unsubscribe':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("You've beeen unsubscribed from %event!", $trans);
+      $message = t($node->signup_email_unsubscribe, $trans);
+      break;
+    case 'signup approve':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("You've beeen approved for %event!", $trans);
+      $message = t($node->signup_email_approve, $trans);
+      break;
+    case 'signup deny':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("You've beeen denied for %event!", $trans);
+      $message = t($node->signup_email_deny, $trans);
+      break;
+    case 'signup wait':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("You've been placed on the waiting list for %event", $trans);
+      $message = t($node->signup_email_wait, $trans);
+      break;
+    case 'signup remind':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = $subject = t("Reminder about %event", $trans);
+      $message = t($node->signup_email_remind, $trans);
+      break;
+    case 'signup merge walk':
+      $to   = $signup->mail;
+      $from = $organiser->mail;
+      $subject = $subject = t("Merge notification: %event", $trans);
+      $message = t($node->merge_email, $trans);
+      break;
+    case 'signup delete walk':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("Cancel notification: %event", $trans);
+      $message = t($node->signup_email_unsubscribe, $trans);
+      break;
+  }
+
+  // Theming body
+  $vars['yemail'] = $from;
+  $vars['message'] = check_markup($message);
+  $body = theme('email_message', $vars);
+
+  fhmail_send($to, $from, $subject, $body);
+}

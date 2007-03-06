@@ -224,9 +224,9 @@ function donation_user($type, &$edit, &$account, $category = NULL) {
         	'value' =>  donation_user_form($donation, $account),
           'class' => 'donation');
         $items[] = array(
-        	'title' => t('My donation to date'),
-          'value' => donation_list($donation->nid, array('donation_source' => $account->uid)),
-          'class' => 'donation'); 
+          'title' => t('My donations to date'),
+          'value' => donation_list(array('source' => 'user/'.$account->uid)),
+          'class' => 'donation-list'); 
         return array(t('Donation') => $items);
       }
       break;
@@ -236,7 +236,7 @@ function donation_user($type, &$edit, &$account, $category = NULL) {
         $form['fundraising']['donation'] = array('#type' => 'select',
           '#title' => t('Campaign or event'),
           '#default_value' => $account->donation, 
-          '#options' => _donation_list(), 
+          '#options' => _donation_event_list(), 
           '#description' => t('Link for donations from your user page.')
         );
         return $form;
@@ -394,9 +394,9 @@ function donation_admin_donation($donation) {
   $form['created'] = array('#type' => 'item', '#title' => t("Created"), '#value' => format_date($donation->created, 'small'), '#weight' => 22);
   $form['changed'] = array('#type' => 'item', '#title' => t("Updated"), '#value' => format_date($donation->changed, 'small'), '#weight' => 23);
   $form['source'] = array('#type' => 'item', '#title' => t("Source"), '#value' => $donation->source, '#weight' => 25);
-  $form['comment'] = array('#type' => 'fieldset', '#title' => t('Comment'), '#weight' => 50);
-  $form['comment']['comment_view'] = array('#type' => 'item', '#title' => t("Display"), '#value' => $donation->comment_view ? t('Yes') : t('No'));
-  $form['comment']['comment'] = array('#type' => 'item', '#title' => t("Comment"), '#value' => check_plain($donation->comment));
+  $form['options'] = array('#type' => 'fieldset', '#title' => t('Display options and comment'), '#weight' => 50);
+  $form['options']['display'] = array('#type' => 'item', '#title' => t("Show name"), '#value' => $donation->display ? t('Yes') : t('No'));
+  $form['options']['comment'] = array('#type' => 'item', '#title' => t("Comment"), '#value' => check_plain($donation->comment));
         
   $output = form_render($form);
   // Stored data
@@ -412,49 +412,73 @@ function donation_admin_donation($donation) {
 }
 
 /**
- * Administration: Paged list of donations
+ * List of donations for user page
  */
-function donation_list($nid = NULL, $data = NULL) {
-  $sql = 'SELECT * FROM {donation} ';
-  $header = array(
-      array('data' => t('transaction'), 'field' => 'trid'),
-		  array('data' => t('status')     , 'field' => 'status'),
-		  array('data' => t('amount')     , 'field' => 'amount'),
-		  array('data' => t('currency')   , 'field' => 'currency'),
-		  array('data' => t('created')    , 'field' => 'created', 'sort' => 'desc')
-  );
-  if ($nid || $data) {
-    $sql_where  = " WHERE ";
-    $sql_where .= ($nid)  ? (" nid = '$nid' " . (($data) ? " AND " : "") ) : "";
-// with serialized data problems with curly braces http://drupal.org/node/12762
-// so we extract fragment serialized from braces 
-    preg_match('/\{(.*)\}/', serialize($data), $matches);
-    $unbraced_serialized_data = $matches[1];
-    $sql_where .= ($data) ? " data LIKE '%$unbraced_serialized_data%' " : "";
-  } else {
-    $sql_where  = "";
+function donation_list($params = array()) {
+  // Default query parameters
+  $conditions = array('status' => 'cleared');
+  $conditions = array_merge($conditions, $params);
+  // Build query
+  $where = array();
+  foreach($conditions as $field => $value) {
+    $where[] = "d.$field = '".db_escape_string($value)."'";
   }
-  $sql .= $sql_where . tablesort_sql($header); 
+  $sql = 'SELECT d.*, u.name FROM {donation} d INNER JOIN {users} u ON d.uid = u.uid WHERE '. implode(' AND ', $where) ;
+  $header = array(
+    array('data' => t('user'), 'field' => 'u.name'),
+	array('data' => t('amount')     , 'field' => 'd.amount'),
+	array('data' => t('currency')   , 'field' => 'd.currency'),
+	array('data' => t('date')    , 'field' => 'd.created', 'sort' => 'desc'),
+    t('comment')
+  );
+  // Fetch and prepare data for display
+  $sql .=  tablesort_sql($header); 
   $result = pager_query($sql, 20);
   if (db_num_rows($result)) {
     while ($data = db_fetch_object($result)) {
       $rows[] = array(
-        $data->trid, $data->status, $data->amount, 
-        $data->currency, format_date($data->created, 'small'));
+        $data->display ? theme('username', $data) : '',
+        $data->amount, 
+        $data->currency, 
+        format_date($data->created, 'small'),
+        $data->comment ? check_plain($data->comment) : ''
+      );
     }
-    $pager = theme('pager', NULL, 20, 0, tablesort_pager());
+    $pager = theme('pager', NULL, 20, 0);
   
     if (!empty($pager)) {
       $rows[] = array(array('data' => $pager, 'colspan' => '5'));
     }
     
     $output = theme('table', $header, $rows);
+    $output .= donation_summary($conditions);
   } else {
     $output = t('No donations yet');
   }
   return $output;  
 }
 
+/**
+ * Summary of donation amount by currency
+ */
+function donation_summary($params = array()) {
+  $where = array();
+  foreach($params as $field => $value) {
+    $where[] = "d.$field = '".db_escape_string($value)."'";
+  }
+  $sql = 'SELECT d.currency, SUM(d.amount) AS total FROM {donation} d';
+  if ($where) {
+    $sql .= ' WHERE '. implode(' AND ', $where) ;
+  }
+  $sql .= ' GROUP BY d.currency';
+  $header = array(t('currency'), t('amount'));
+  $rows = array();
+  $result = db_query($sql);
+  while($data = db_fetch_object($result)) {
+    $rows[] = array(_donation_currency_name($data->currency), $data->total);
+  }
+  return theme('table', $header, $rows, array('class' => 'donation-summary'), t('Summary'));
+}
 
 /**
  * Process the payment.
@@ -518,16 +542,16 @@ function donation_save(&$donation) {
   // Serialize additional data
   $data = $donation->data ? serialize($donation->data) : NULL;
   if($donation->trid) {
-    db_query("UPDATE {donation} SET type='%s', uid=%d, nid='%s', amount=%d, currency='%s', status='%s', collected=%d, changed=%d, partnerid = %d, source = '%s', comment = '%s', comment_view = '%d', data='%s' WHERE trid=%d",
-      $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->changed, $donation->partnerid, $donation->source, $donation->comment, $donation->comment_view, $data, $donation->trid);
+    db_query("UPDATE {donation} SET type='%s', uid=%d, nid='%s', amount=%d, currency='%s', status='%s', collected=%d, changed=%d, partnerid = %d, source = '%s', comment = '%s', display = '%d', data='%s' WHERE trid=%d",
+      $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->changed, $donation->partnerid, $donation->source, $donation->comment, $donation->display, $data, $donation->trid);
   } else {
     $donation->trid = db_next_id("{donation}_trid");
     $donation->created = $donation->changed;
-    db_query("INSERT INTO {donation}(trid, type, uid, nid,  amount, currency, status, collected,  created, changed, partnerid, source,  comment, comment_view, data) VALUES(%d, '%s', %d, '%s',  %d, '%s', '%s', %d,  %d, %d, '%d', '%s',  '%s', '%d', '%s')", 
+    db_query("INSERT INTO {donation}(trid, type, uid, nid,  amount, currency, status, collected,  created, changed, partnerid, source,  comment, display, data) VALUES(%d, '%s', %d, '%s',  %d, '%s', '%s', %d,  %d, %d, '%d', '%s',  '%s', '%d', '%s')", 
       $donation->trid, $donation->type, $donation->uid, $donation->nid, 
       $donation->amount, $donation->currency, $donation->status, $donation->collected, 
       $donation->created, $donation->changed, $donation->partnerid, $donation->source,   
-      $donation->comment, $donation->comment_view, $data);
+      $donation->comment, $donation->display, $data);
   }
 
   return db_affected_rows() ? TRUE : FALSE;
@@ -595,9 +619,9 @@ function donation_form($donation) {
       $form['donation']['currency']['#default_value'] = $donation->currency;
     }
   }
-  $form['comments'] = array('#type' => 'fieldset', '#title' => t('Comment'), '#description' => t('You can post a comment to be displayed on the donation page or not.'));
-  $form['comments']['comment_view'] = array('#type' => 'radios', '#title' => t("Options"), '#default_value' => 1, '#options' => array(t('Keep private'), t('Display on public pages')));
-  $form['comments']['comment'] = array('#type' => 'textarea', '#title' => t("Comment"), '#default_value' =>$donation->comment);
+  $form['options'] = array('#type' => 'fieldset', '#title' => t('Options'), '#description' => t('Display options and comment.'));
+  $form['options']['display'] = array('#type' => 'radios', '#title' => t("Show your name"), '#default_value' => 1, '#options' => array(t('Keep private'), t('Display on public pages')));
+  $form['options']['comment'] = array('#type' => 'textarea', '#title' => t("Comment"), '#default_value' =>$donation->comment, '#description' => t('Optionally you can post a comment to be displayed with the donation data.'));
   
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
 
@@ -650,7 +674,7 @@ function donation_form_submit($form_id, $form_values){
     $donation->amount = $form_values['amount'];
     $donation->currency = $form_values['currency'];
   }  
-  foreach(array('country', 'partnerid', 'source', 'comment', 'comment_view') as $field) {
+  foreach(array('country', 'partnerid', 'source', 'comment', 'display') as $field) {
     $donation->$field = $form_values[$field];
   }
   $donation->country = $form_values['country'];
@@ -678,7 +702,7 @@ function donation_transaction($donation, $success) {
 /**
  * List of events and campaigns for user page
  */
-function _donation_list($key = NULL) {
+function _donation_event_list($key = NULL) {
   $list[0] = t('None');
   $list['plain'] = t('Plain donation');
   // $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");

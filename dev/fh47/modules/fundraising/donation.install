@@ -54,3 +54,12 @@ function donation_update_3() {
   }
   return array('#finished' => $_SESSION['donation_update_3'] / $_SESSION['donation_update_3_max']); 
 }
+
+/**
+ * Add table for 'user_view'
+ */
+function donation_update_4() {
+  $ret = array();
+  $ret[] = update_sql("ALTER TABLE {donation} CHANGE COLUMN `comment_view` `display` TINYINT(2)  NOT NULL DEFAULT 0;");
+  return $ret;
+}

@@ -1181,33 +1181,35 @@ function _fhsignup_signup_table($nid, $status) {
 function fhsignup_organiser_user($uid, $action) {
 global $user;
   $nid = arg(1);
+  $contact = user_load(array('uid' => $uid));
+  $vars = array('%username' => "$contact->name");
 
   switch($action) {
     case 'unsubscribe':
       if(_fhsignup_user_remove($nid, $uid)) {
         module_invoke('fhmail', 'notify', 'signup unsubscribe', $nid, $uid);
 //        fhsignup_email_notify($nid, $uid, 'unsubscribe');
-        $msg = t("User $uid unsubscribed");
+        $msg = t("User %username unsubscribed.", $vars);
       } else {
-        $msg = t("Error unsubscribing user $uid");
+        $msg = t("Error unsubscribing user %username.", $vars);
       }
       break;
     case 'approve':
       if(_fhsignup_user_update($nid, $uid, 3)) {
         module_invoke('fhmail', 'notify', 'signup approve', $nid, $uid);
 //        fhsignup_email_notify($nid, $uid, 'approve');
-        $msg = t("User $uid approved");
+        $msg = t("User %username approved.", $vars);
       } else {
-        $msg = t("Error approving user $uid");
+        $msg = t("Error approving user %username.", $vars);
       }
       break;
     case 'deny':
       if(_fhsignup_user_remove($nid, $uid)) {
         module_invoke('fhmail', 'notify', 'signup deny', $nid, $uid);
 //        fhsignup_email_notify($nid, $uid, 'deny');
-        $msg = t("User $uid denied");
+        $msg = t("User %username denied.", $vars);
       } else {
-        $msg = t("Error denying user $uid");
+        $msg = t("Error denying user %username.", $vars);
       }
       break;
   }
@@ -1215,7 +1217,6 @@ global $user;
   drupal_set_message($msg);
   drupal_goto("node/$nid/signup_admin");
 }
-
 
 /**
  * Signup Admin process form mail to users

@@ -1132,19 +1132,17 @@ function _fhsignup_signup_table($nid, $status) {
     $user_approve = "<a href='signup_user/$signup->uid/approve'>" . t('Approve') . '</a>';
     $user_deny    = "<a href='signup_user/$signup->uid/deny'>" . t('Deny') . '</a>';
     $operations = array();
-    switch ($status) {
-      case 0: // no approval required
-      case 2: // only invitation
-      case 3: // closed event
-        $operations[] = $user_unsub;
+    switch ($signup->stage) {
+      case 1: // waitlist
+      case 2: // pending
+        $operations[] = $user_deny;
+        $operations[] = $user_approve;
         break;
-      case 1: // approval required
-        if($signup->stage==2) {
-          $operations[] = $user_deny;
-          $operations[] = $user_approve;
-        } else {
-          $operations[] = $user_unsub;
-        }
+      case 3: // approved
+      case 4: // reminded  
+      case 5: // followupsent
+      case 6: // invited
+        $operations[] = $user_unsub;
         break;
     }
     $operations = implode(' - ', $operations);
@@ -1154,7 +1152,7 @@ function _fhsignup_signup_table($nid, $status) {
           theme('fhwalk_contact', $signup),
           $signup->role,
           $signup->comment,
-            date("j M Y", strtotime($signup->timestamp)),
+          date("j M Y", strtotime($signup->timestamp)),
           _fhsignup_stages($signup->stage),
           $operations),
       'class' => _fhsignup_stages($signup->stage));

@@ -3004,7 +3004,7 @@ function store_build_countries() {
     'tz' => t('Tanzania'),
     'ua' => t('Ukraine'),
     'ug' => t('Uganda'),
-    'uk' => t('United Kingdom'),
+    'gb' => t('United Kingdom'),
     'um' => t('United States Minor Outlying Islands'),
     'us' => t('United States'),
     'uy' => t('Uruguay'),

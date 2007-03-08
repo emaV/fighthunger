@@ -1119,7 +1119,7 @@ function fhwalk_contact_email_submit($form_id, $form_values) {
 	  'forward_header_image' => variable_get('forward_header_image', ''),
 	  'site_name' => variable_get('site_name', 'Drupal'),
 	  'yemail'    => $form_values['yemail'],
-	  'forward_message' => t('Request info.'),
+	  'forward_message' => t('%username request info.', array('%username' => $form_values['yname']) ),
 	  'message'  =>  check_markup($form_values['content']),
 	  'base_url' => $base_url,
 	  'link'     => l(t('Request info for %title', array('%title' => $form_values['title'])), 'node/'.$form_values['nid'],NULL,NULL,NULL,TRUE),
@@ -1146,18 +1146,24 @@ function fhwalk_contact_email_submit($form_id, $form_values) {
 function fhwalk_contact_email($node) {
 global $user;
 
-  if($user->uid) {
-    $from_name  =  $user->name;
-    $from_email = $user->mail; 
-  } else {
-    $from_name  = 'anonymous contact';
-    $from_email = 'team@fighthunger.org'; 
-  }
-  $form['contact_message']['yname'] =  array('#type' => 'hidden', '#value' => $from_name);
-  $form['contact_message']['yemail'] = array('#type' => 'hidden', '#value' => $from_email);
   $form['contact_message']['nid'] =    array('#type' => 'hidden', '#value' => $node->nid);
   $form['contact_message']['title'] =  array('#type' => 'hidden', '#value' => $node->title);
-   
+  if($user->uid) {
+    $form['contact_message']['yname'] =  array('#type' => 'hidden', '#value' => $user->name);
+    $form['contact_message']['yemail'] = array('#type' => 'hidden', '#value' => $user->mail);
+  } else {
+    $form['contact_message']['yname'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your name'),
+      '#required' => TRUE,
+    );
+    $form['contact_message']['yemail'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your email'),
+      '#description' => t('Enter your email to receive an answer from the organiser.'),
+      '#required' => TRUE,
+    );
+  }
   $form['contact_message']['subject'] = array(
     '#type' => 'textfield',
     '#title' => t('Subject of the message'),

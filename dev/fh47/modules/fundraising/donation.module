@@ -391,14 +391,16 @@ function donation_admin_donation($donation) {
   $output .= form_item(t("Created"), format_date($donation->created, 'small'));
   $output .= form_item(t("Updated"), format_date($donation->changed, 'small'));
   */
-  $form['amount'] = array('#type' => 'item', '#title' => t("Amount"), '#value' => $donation->amount, '#weight' => 20);
-  $form['currency'] = array('#type' => 'item', '#title' => t("Currency"), '#value' => $donation->currency, '#weight' => 21);
-  $form['created'] = array('#type' => 'item', '#title' => t("Created"), '#value' => format_date($donation->created, 'small'), '#weight' => 22);
-  $form['changed'] = array('#type' => 'item', '#title' => t("Updated"), '#value' => format_date($donation->changed, 'small'), '#weight' => 23);
-  $form['source'] = array('#type' => 'item', '#title' => t("Source"), '#value' => $donation->source, '#weight' => 25);
+  $form['amount']   = array('#type' => 'item', '#title' => t("Amount"),      '#value' => $donation->amount,   '#weight' => 20);
+  $form['currency'] = array('#type' => 'item', '#title' => t("Currency"),    '#value' => $donation->currency, '#weight' => 21);
+  $form['created']  = array('#type' => 'item', '#title' => t("Created"),     '#value' => format_date($donation->created, 'small'), '#weight' => 22);
+  $form['changed']  = array('#type' => 'item', '#title' => t("Updated"),     '#value' => format_date($donation->changed, 'small'), '#weight' => 23);
+  $form['type']     = array('#type' => 'item', '#title' => t("Type"),        '#value' => $donation->type,   '#weight' => 24);
+  $form['nid']      = array('#type' => 'item', '#title' => t("Destination"), '#value' => $donation->nid,    '#weight' => 25);
+  $form['source']   = array('#type' => 'item', '#title' => t("Source"),      '#value' => $donation->source, '#weight' => 26);
   $form['options'] = array('#type' => 'fieldset', '#title' => t('Display options and comment'), '#weight' => 50);
   $form['options']['display'] = array('#type' => 'item', '#title' => t("Show name"), '#value' => $donation->display ? t('Yes') : t('No'));
-  $form['options']['comment'] = array('#type' => 'item', '#title' => t("Comment"), '#value' => check_plain($donation->comment));
+  $form['options']['comment'] = array('#type' => 'item', '#title' => t("Comment"),   '#value' => check_plain($donation->comment));
         
   $output = form_render($form);
   // Stored data

@@ -247,6 +247,12 @@ function fhmail_notify($op, $node, $uid, $add_msg='') {
       $subject = t("Cancel notification: %event", $trans);
       $message = t($node->signup_email_unsubscribe, $trans);
       break;
+    case 'signup notify_coordinator TaC':
+      $to   = $user_notify->mail;
+      $from = $organiser->mail;
+      $subject = t("Terms and conditions changed: %event", $trans);
+      $message = t("%username,\n\n%organisername changed Terms and Conditions for the walk %event.\n\nSignup disabled until your approval.", $trans);
+      break;
   }
 
   // Theming body

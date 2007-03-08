@@ -63,3 +63,16 @@ function donation_update_4() {
   $ret[] = update_sql("ALTER TABLE {donation} CHANGE COLUMN `comment_view` `display` TINYINT(2)  NOT NULL DEFAULT 0;");
   return $ret;
 }
+
+/**
+ * Change field comment
+ */
+function donation_update_5() {
+  $sql = "ALTER TABLE {donation} CHANGE comment comment VARCHAR( 150 ) NOT NULL";
+  $ret = array();
+  $ret[] = update_sql($sql);
+  
+  return $ret;
+}
+
+ 

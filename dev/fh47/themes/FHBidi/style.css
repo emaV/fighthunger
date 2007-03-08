@@ -95,19 +95,28 @@ a:active { color: #ff6600; }
 .profile_item {
   margin: 10px 0px;
 }
-.profile_item .info {
+.profile_item h3 {
+  margin: 0px;
+  clear: both;
+}
+
+.profile_item .info, .donation .info {
   background: #efefef;
   border: solid 2px #ddd;
   -moz-border-radius: 5px;
   margin: 5px 0px 5px 0px;
   padding: 10px;
 }
-.profile_item .info h3 {
+.profile_item .info h3, .donation .info h3  {
   margin: 0px;
+}
+.profile_item .info .link, .donation .info .link {
+  margin: 10px 0px 0px;
+  text-align: right;
 }
 
 .profile_set div.picture {
-  margin: 10px;
+  margin: 0px 10px 10px 0px;
   float: left;
 }
 
@@ -124,7 +133,11 @@ a:active { color: #ff6600; }
 
 #crm-container input, #crm-container select {
   width: 300px;
-} 
+}
+
+.profile_set .form-text, .profile_set .form-select {
+  width: 90%;
+}
 
 .main-content .sticky { border: 1px solid #eee; }
 .main-content .h2 {color: #333333;}
@@ -149,43 +162,41 @@ blockquote { border: 1px 0px #006699 solid; }
   color: #444;
   background: #fffff;
 }
+
 .donation_link {
-  background: #0065B5; 
-  padding: 20px; 
+  font-family: Verdana, Helvetica, Arial, Lucida, sans-serif;
+  font-size: 1em;
+  font-weight: bold;
+  font-style:normal;
+  text-align: center;
+  
   width: 200px; 
   margin: 10px auto; 
-  text-align: center;
-  font-weight: bold;
-  font-size: 1.2em;
-  font-family: Verdana, Helvetica, Arial, Lucida, sans-serif;
+  padding: 10px 5px;
+  
+  background: #FF6600; 
   -moz-border-radius: 0.5em;
 }
-
 .donation_link a, .donation_link a:link { color: #FFFFFF; }
 .donation_link a:visited { color: #FFFFFF; }
-.donation_link a:hover, a:focus { color: #FF6600; }
+.donation_link a:hover, a:focus { color: #006699; }
 .donation_link a:active { color: #FFFFFF; }
 
 .profile_right .form-submit {
   font-family: Verdana, Helvetica, Arial, Lucida, sans-serif;
-  font-size:1.2em;
+  font-size:1em;
   font-weight:bold;
   font-style:normal;
   text-align: center;
-//  vertical-align: bottom;
-
+  
+  width: 200px;
+  margin: 10px auto; 
+  padding: 10px 5px;
+  
   color:#FFFFFF;
-  background-color:#FF9933;
-
+  background-color:#FF6600;
   border-style:none;
   border-width:0px;
-  border-color:#0065B5;
-
-//  padding-bottom: 10px; 
-  padding: 10px; 
-  width: 200px;
-  height: 60px; 
-  //margin: 10px auto; 
 
   -moz-border-radius: 0.5em;
 }

@@ -220,8 +220,8 @@ function donation_user($type, &$edit, &$account, $category = NULL) {
     case 'view':
       if ($account->donation && $donation = donation_prepare($account->donation) ) {
         $items[] = array(
-        	'title' => variable_get('donation_user_message', t('Make a donation')), 
-        	'value' =>  donation_user_form($donation, $account),
+        	'title' => $donation->title, 
+        	'value' => donation_user_form($donation, $account),
           'class' => 'donation');
         $items[] = array(
           'title' => t('My donations to date'),
@@ -232,12 +232,12 @@ function donation_user($type, &$edit, &$account, $category = NULL) {
       break;
     case 'form':
       if ($category == 'account') {
-        $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Donations link') );
+        $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Take donations on behalf of FightHunger.org') );
         $form['fundraising']['donation'] = array('#type' => 'select',
           '#title' => t('Campaign or event'),
           '#default_value' => $account->donation, 
           '#options' => _donation_event_list(), 
-          '#description' => t('Link for donations from your user page.')
+          '#description' => t('You can choose to take donations to help end child hunger. You can also choose which event your funds are tracked to.')
         );
         return $form;
       }
@@ -291,7 +291,8 @@ function donation_prepare($nid) {
       // Check for user access to node
       if($node && node_access('view', $node) && isset($node->donation) && $node->donation){
         $donation = $node->donation;
-        $donation->presentation = node_view($node, TRUE, TRUE);
+        $donation->presentation = theme('donation_presentation_event',$node);
+        $donation->link = l($node->title, "node/$nid");
       } else {
         return NULL;
       }
@@ -309,7 +310,7 @@ function donation_prepare($nid) {
     case 'plain':
       //$donation->presentation = variable_get('donation_presentation', '');
       $donation->partners = NULL;    
-      $donation->title = t('Donate to %name', array('%name' => variable_get('site_name', 'Drupal')));
+      $donation->title = variable_get('donation_user_message', t('Make a donation'));
       break;
     case 'fee':
       $donation->title = t('Event fee for %name', array('%name' => $node->title));
@@ -323,9 +324,10 @@ function donation_prepare($nid) {
       break;
     case 'campaign':
       $camid = substr($nid,1);
-      $campaign = db_fetch_object(db_query("SELECT * FROM {gathering_campaign} WHERE camid = %d", $camid));
-      $donation->title = $campaign->name;
+      $campaign = module_invoke('fhcampaign', 'get_campaign', $camid); 
+      $donation->title = t('Donate to %campaign', array('%campaign' => $campaign->name));
       $donation->presentation = $campaign->description;
+      $donation->link = l($campaign->name, $campaign->shortname) ;
       break;
   }
   return $donation;   
@@ -574,7 +576,6 @@ function donation_load($params = NULL) {
   }
 }
 
-
 /**
  * Builds donation edit form
  * 
@@ -759,14 +760,24 @@ function _donation_currency_name($code) {
  *   $short to produce a short one when possible
  */
 function theme_donation_presentation($donation, $teaser = FALSE) {
-  $output = '<div class="info">';
+  $output = "<div class='info'>\n";
+  $output .= "<div class='presentation'>\n";
   if(isset($donation->presentation) && $donation->presentation ) {
     $output .= $donation->presentation;
   } else {
     $output .= $teaser ? variable_get('donation_presentation_teaser', '') : variable_get('donation_presentation', '');
   }
-  $output .= '</div>'; 
+  $output .= "</div>\n";
+  if($donation->link) $output .= "<div class='link'>$donation->link</div>\n";
+  $output .= "</div>\n"; 
   return $output;
+}
+/**
+ * Theming event donation presentations 
+ */
+function theme_donation_presentation_event($node) {
+  $out .= node_view($node, TRUE, TRUE);
+  return  $out;
 }
 /**
  * Theming donation link for hook_nodeapi()
@@ -775,4 +786,5 @@ function theme_donation_link($dl) {
   $out = ($dl['link']<>'') ? l($dl['text'], $dl['link']) : $dl['text'];
   return  "<div class='donation_link'>$out</div>";
 }
+
 ?>

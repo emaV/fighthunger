@@ -418,7 +418,7 @@ function donation_admin_donation($donation) {
 /**
  * List of donations for user page
  */
-function donation_list($params = array()) {
+function donation_list($params = array(), $element=0) {
   // Default query parameters
   $conditions = array('status' => 'cleared');
   $conditions = array_merge($conditions, $params);
@@ -429,15 +429,15 @@ function donation_list($params = array()) {
   }
   $sql = 'SELECT d.*, u.name FROM {donation} d INNER JOIN {users} u ON d.uid = u.uid WHERE '. implode(' AND ', $where) ;
   $header = array(
-    array('data' => t('user'), 'field' => 'u.name'),
-	array('data' => t('amount')     , 'field' => 'd.amount'),
-	array('data' => t('currency')   , 'field' => 'd.currency'),
-	array('data' => t('date')    , 'field' => 'd.created', 'sort' => 'desc'),
-    t('comment')
+    array('data' => t('user'),     'field' => 'u.name'),
+    array('data' => t('amount'),   'field' => 'd.amount'),
+    array('data' => t('currency'), 'field' => 'd.currency'),
+    array('data' => t('date'),     'field' => 'd.created', 'sort' => 'desc'),
+    array('data' => t('comment'),  'field' => 'd.comment')
   );
   // Fetch and prepare data for display
   $sql .=  tablesort_sql($header); 
-  $result = pager_query($sql, 20);
+  $result = pager_query($sql, 20, $element);
   if (db_num_rows($result)) {
     while ($data = db_fetch_object($result)) {
       $rows[] = array(
@@ -448,7 +448,7 @@ function donation_list($params = array()) {
         $data->comment ? check_plain($data->comment) : ''
       );
     }
-    $pager = theme('pager', NULL, 20, 0);
+    $pager = theme('pager', NULL, 20, $element);
   
     if (!empty($pager)) {
       $rows[] = array(array('data' => $pager, 'colspan' => '5'));
@@ -615,16 +615,20 @@ function donation_form($donation) {
     $form['donation']['currency'] = array('#type' => 'item', '#title' => t('Currency'), '#value' => _donation_currency_name($donation->currency));
   } else {
     $form['donation']['amount'] = array('#type' => 'textfield', '#title' => t('Amount'), '#size' => 10);
-    $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency'), '#options' => _donation_currencies(array('' => '--')));
+    $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency') . $donation->type, '#options' => _donation_currencies(array('' => '--')));
     // There may be recommended values, though not fixed
     if($donation->amount && $donation->currency) {
     	$form['donation']['amount']['#default_value'] = $donation->amount;
       $form['donation']['currency']['#default_value'] = $donation->currency;
     }
   }
-  $form['options'] = array('#type' => 'fieldset', '#title' => t('Options'), '#description' => t('Display options and comment.'));
-  $form['options']['display'] = array('#type' => 'radios', '#title' => t("Show your name"), '#default_value' => 1, '#options' => array(t('Keep private'), t('Display on public pages')));
-  $form['options']['comment'] = array('#type' => 'textarea', '#title' => t("Comment"), '#default_value' =>$donation->comment, '#description' => t('Optionally you can post a comment to be displayed with the donation data.'));
+  if($donation->type == 'fee') {
+    $form['options']['display'] = array('#type' => 'hidden', '#value' => 1);
+  } else {
+    $form['options'] = array('#type' => 'fieldset', '#title' => t('Options'),'#description' => t('Display options and comment.'));
+    $form['options']['display'] = array('#type' => 'radios', '#title' => t("Show your name"), '#default_value' => 1, '#options' => array(t('Keep private'), t('Display on public pages')));
+    $form['options']['comment'] = array('#type' => 'textarea', '#title' => t("Comment"), '#default_value' =>$donation->comment, '#description' => t('Optionally you can post a comment to be displayed with the donation data.'));
+  }
   
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
 

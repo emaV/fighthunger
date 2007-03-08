@@ -226,6 +226,15 @@ function fhwalk_menu($may_cache) {
     if (arg(0) == 'node' && is_numeric(arg(1)) && $node = node_load(arg(1))) {
       if (($node->type == 'fhwalk') && ($node->fhwalk_status == WALK_STATUS_ACTIVE)) {
         $items[] = array(
+          'path' => 'node/'. arg(1) .'/fundraising', 
+          'title' => t('Fundraising'),
+          'callback' => 'fhwalk_fundraising',
+          'callback arguments' => array(arg(1)),
+          'access' => fhwalk_access('update', $node),
+          'weight' => 10,
+          'type' => MENU_LOCAL_TASK
+        );
+        $items[] = array(
           'path' => 'node/'. arg(1) .'/walk_merge', 
           'title' => t('Walk Merge'),
           'callback' => 'fhwalk_merge',
@@ -1709,6 +1718,59 @@ function fhwalk_get_photos($node, $instructions=NULL) {
     };
   }
   return $out;
+}
+
+/**
+ * fhwalk funds page.
+ *  
+ * @ingroup fhwalk_core
+ */  
+function fhwalk_fundraising($nid) {
+
+  $node = node_load($nid);
+  drupal_set_title(t('Fundraising') . ": $node->title");
+
+  if ($_REQUEST['page'] && $page = $_REQUEST['page']) {
+    // GET current pager pages
+    $pager_page_array = explode(',', $page);
+    // compare with previous page (session saved)
+    $collapsed_fee = ($pager_page_array[1] ==  $_SESSION['fhwalk_fundraising'][1]);
+    $collapsed_don = ($pager_page_array[2] ==  $_SESSION['fhwalk_fundraising'][2]);
+    // save in session variable
+    $_SESSION['fhwalk_fundraising'] = $pager_page_array;
+  } else {
+    $_SESSION['fhwalk_fundraising'] = array(0,0,0);
+    $collapsed_fee = true;
+    $collapsed_don = true;
+  }
+
+  // Fee
+  if($node->donation->type == 'fee') {
+    $form['fee'] = array(
+      '#type'        => 'fieldset', 
+      '#title'       => t('Fee'),
+      '#collapsible' => TRUE, 
+      '#collapsed'   => $collapsed_fee, 
+    );
+    $form['fee']['list'] = array(
+      '#value' => "<div>" . donation_list(array('nid' => $nid, 'type' => 'fee'), 1) . "</div>",
+    );
+    $output .= form_render($form['fee']);
+  }
+
+  // Donation
+  $form['donation'] = array(
+    '#type'        => 'fieldset', 
+    '#title'       => t('Donation'),
+    '#collapsible' => TRUE, 
+    '#collapsed'   => $collapsed_don, 
+  );
+  $form['donation']['list'] = array(
+    '#value' => "<div>" . donation_list(array('nid' => $nid, 'type' => 'event'), 2) . "</div>",
+  );
+  $output .= form_render($form['donation']);
+
+  return $output;
 }
 
 /* gmap key

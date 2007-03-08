@@ -67,7 +67,7 @@
       '#collapsed'   => TRUE, 
     );
     $form['info']['body_plain'] = array(
-      '#value' => $node->body_plain,
+      '#value' => "<div>$node->body_plain</div>",
     );
     $info = form_render($form['info']);
   }

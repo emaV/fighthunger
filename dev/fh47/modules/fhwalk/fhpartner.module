@@ -178,7 +178,6 @@ function fhpartner_add() {
   
   if (arg(3) && in_array(arg(3), array_keys($ptypes))) {
     $ptype = arg(3);
-
     // Initialize settings
     $node = array(
       'uid' => $user->uid, 
@@ -189,7 +188,14 @@ function fhpartner_add() {
       'startdate' => date('Y-m-d'),
       'enddate' => date('Y-m-d', time()+ 15552000) // about 6 months
     );
-    
+    if ( $nid=arg(4) ) {
+      $access = module_invoke('fhwalk','access', 'update', ($walk=node_load($nid)));
+      $node['country'] = $walk->location['country'];
+      $node['camid']   = $walk->camid;
+//drupal_set_message("Walk: $nid ACCESS: $access");
+//drupal_set_message("Node: " . print_r($node, true));
+    }
+
     $output = node_form($node);
     drupal_set_title(t('Submit %name Partner', array('%name' => $ptypes[$ptype])));
   } else {
@@ -271,7 +277,6 @@ function fhpartner_settings() {
 
   return $form;
 }
-
 
 /**
  * Implementation of hook_form().
@@ -528,6 +533,8 @@ function fhpartner_form_alter($form_id, &$form) {
           } else {
             $form['fhpartner']['partners'] = array('#value' => t('There are no local partners available.'));
           }
+//          $form['fhpartner']['add'] = array('#value' => l(t('Add new local partner'), "node/add/partner/LOCAL/$node->nid", array(), drupal_get_destination() ) );
+          
           return $form;
         }
         break;
@@ -611,39 +618,6 @@ function fhpartner_view(&$node, $teaser = FALSE, $page = FALSE) {
     }
   }
   $node->body .= "<div class='partner_events'>" . form_render($form) . "</div>";
-
-/*
-  $rs = db_query("SELECT n.nid FROM {partners_partners} pp LEFT JOIN {node} n ON pp.nid = n.nid WHERE pp.pid=%d", $node->nid);
-  while ($a = db_fetch_array($rs)){
-    $e = node_load(array("nid"=>$a['nid']));
-    $title = l($e->title,"node/".$e->nid);
-
-    if (!empty($e->country)) {
-      if (!empty($e->city)) {
-        $title .= ", " . $e->city;
-      }
-//      $countries = _gathering_get_countries();
-//      $title .= ", " . $countries[$e->country];
-      $title .= ", " . $e->country;
-    }
-
-    $events[] = $title;
-  }
-  switch (count($events)) {
-    case 0:
-      $eventlist = "";
-      break;
-    case 1:
-      $e = array_pop($events);
-      $eventlist = "<h3>".$node->title."&nbsp;".t("is partnered with").":<br/>".$e."</h3>";
-      break;
-    default:
-      $eventlist = "<h3>".$node->title."&nbsp;".t("is partnered with these events").":</h3>";
-      $eventlist .= theme("item_list",$events);
-      break;
-  }
-*/
-  
 }
 
 /**
@@ -835,11 +809,11 @@ function fhpartner_node_get_partners($node, $conditions = array('audience' => 'L
 function fhpartner_admin_get_partners($sql_array) {
 
   $headers = array(
-    array('data' => t('Title'), 'field' => 'title', 'sort' => 'asc'),
-    array('data' => t('Campaign'),  'field' => 'shortname'),
-    array('data' => t('Audience'),  'field' => 'paud'),
-    array('data' => t('Country'),   'field' => 'country'),
-    array('data' => t('Type'),  'field' => 'ptid'),
+    array('data' => t('Title'),      'field' => 'title', 'sort' => 'asc'),
+    array('data' => t('Campaign'),   'field' => 'shortname'),
+    array('data' => t('Audience'),   'field' => 'paud'),
+    array('data' => t('Country'),    'field' => 'country'),
+    array('data' => t('Type'),       'field' => 'ptid'),
     array('data' => t('Operations'), 'colspan' => 2)
   );
 
@@ -860,7 +834,7 @@ function fhpartner_admin_get_partners($sql_array) {
         $where[] = "pn.ptid=$value";
         break;
       case 'paud':
-        $where[] = "pn.paud=$value";
+        $where[] = "pn.paud='$value'";
         break;
     }
   }
@@ -953,6 +927,7 @@ function fhpartner_admin() {
   $options[''] = '< ALL >';
   $form['search']['campaign']['#options'] = $options;
   $form['search']['campaign']['#title'] = t('Campaign');
+  $form['search']['campaign']['#default_value'] = ($sql_array['campaign'] ? $sql_array['campaign'] : '');
   
   // Type
   $options = array_merge(array('' => '< ALL >'), _fhpartner_partner_type());

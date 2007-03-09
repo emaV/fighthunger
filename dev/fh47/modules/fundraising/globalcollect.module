@@ -426,7 +426,7 @@ function globalcollect_create_orderline($donation, $linenumber = 1){
   $line->AMOUNTSIGN = '+';                                                                                 
   $line->LINEAMOUNT = 100 * $donation->amount;
   // Line date, with some padding (GC requirement)
-  $description = t("Your donation to %site_name", array('%site_name' => variable_get('site_name', 'Walk the World')));
+  $description = $donation->concept;
   if(strlen($description) > 116 ) {
     $description = substr($description, 0, 116);
   }

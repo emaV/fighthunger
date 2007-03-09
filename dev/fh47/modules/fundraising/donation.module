@@ -306,21 +306,25 @@ function donation_prepare($nid) {
   }
   
   // Complete donation information
+  // Also prepare concept for payment
   switch($donation->type) {
     case 'plain':
       //$donation->presentation = variable_get('donation_presentation', '');
       $donation->partners = NULL;    
       $donation->title = variable_get('donation_user_message', t('Make a donation'));
+      $donation->concept = t('Your donation to %site_name', array('%site_name' => variable_get('site_name', 'Walk the World'))); 
       break;
     case 'fee':
       $donation->title = t('Event fee for %name', array('%name' => $node->title));
       $donation->partners = fh_node_get_partners($node->nid);
       $donation->fixed = TRUE; // For fixed amount and currency
+      $donation->concept = $donation->title;
       break;
     case 'event':
       $donation->title = t('Donate to %name', array('%name' => $node->title));
       $donation->partners = fh_node_get_partners($node->nid);
       $donation->affiliation = $donation->partners;
+      $donation->concept = t('Donation to %name', array('%name' => $node->title));
       break;
     case 'campaign':
       $camid = substr($nid,1);
@@ -328,6 +332,7 @@ function donation_prepare($nid) {
       $donation->title = t('Donate to %campaign', array('%campaign' => $campaign->name));
       $donation->presentation = $campaign->description;
       $donation->link = l($campaign->name, $campaign->shortname) ;
+      $donation->concept = t('Donation to %campaign', array('%campaign' => $campaign->name));
       break;
   }
   return $donation;   
@@ -497,9 +502,13 @@ function donation_checkout($donation) {
   $donation->payment = 'globalcollect';
   // Quick fix for wrong country codes
   $donation->country = _donation_fix_countrycode($donation->country);
-
-  if(donation_save($donation)) {
-    // User may be redirected to payment site
+  // Set some default for donation concept -for invoice- if not present
+  if (!$donation->concept) {
+    $donation->concept = t('Your donation to %site_name', array('%site_name' => variable_get('site_name', 'Walk the World'))); 
+  }
+  // Data ready. Let's go
+  if (donation_save($donation)) {
+    // User should be redirected to payment site
     $output = module_invoke($donation->payment, 'proceed', $donation);
   } else {
     drupal_set_message(t('An error has occurred. Cannot proceed with donation'), 'error');

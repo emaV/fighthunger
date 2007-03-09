@@ -145,7 +145,8 @@ function image_attach_nodeapi(&$node, $op, $teaser, $page) {
   }
   switch ($op) {
     case 'prepare':
-      $image->title = $_POST['edit']['image_title'];
+      $image->title = $_POST['edit']['image_title'] ? $_POST['edit']['image_title'] : $_POST['edit']['title'];
+//      $image->title = $_POST['edit']['image_title'];
       $image->uid = $node->uid;
       $image->name = $node->name;
       $image->created = $node->created;

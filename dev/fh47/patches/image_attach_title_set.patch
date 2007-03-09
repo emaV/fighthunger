@@ -1,0 +1,12 @@
+--- /var/www/svn_dev47/modules/image/contrib/image_attach/image_attach.module	2007-03-09 11:59:10.000000000 +0100
++++ /var/www/dev47/modules/image/contrib/image_attach/image_attach.module	2007-03-09 14:06:03.000000000 +0100
+@@ -145,7 +145,8 @@ function image_attach_nodeapi(&$node, $o
+   }
+   switch ($op) {
+     case 'prepare':
+-      $image->title = $_POST['edit']['image_title'];
++      $image->title = $_POST['edit']['image_title'] ? $_POST['edit']['image_title'] : $_POST['edit']['title'];
++//      $image->title = $_POST['edit']['image_title'];
+       $image->uid = $node->uid;
+       $image->name = $node->name;
+       $image->created = $node->created;

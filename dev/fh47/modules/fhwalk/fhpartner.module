@@ -40,9 +40,9 @@ ALTER TABLE `partners_node` ADD `url` VARCHAR( 128 ) NOT NULL ;
  
  */
 
-define('PARTNER_AUDIENCE_GLOBAL', 'GLOBAL');
+define('PARTNER_AUDIENCE_GLOBAL',  'GLOBAL');
 define('PARTNER_AUDIENCE_COUNTRY', 'COUNTRY');
-define('PARTNER_AUDIENCE_LOCAL', 'LOCAL');
+define('PARTNER_AUDIENCE_LOCAL',   'LOCAL');
 
 /**
  * Implementation of hook_help().
@@ -188,16 +188,26 @@ function fhpartner_add() {
       'startdate' => date('Y-m-d'),
       'enddate' => date('Y-m-d', time()+ 15552000) // about 6 months
     );
-    if ( $nid=arg(4) ) {
-      $access = module_invoke('fhwalk','access', 'update', ($walk=node_load($nid)));
-      $node['country'] = $walk->location['country'];
-      $node['camid']   = $walk->camid;
-//drupal_set_message("Walk: $nid ACCESS: $access");
-//drupal_set_message("Node: " . print_r($node, true));
+    switch ($ptype) {
+      case PARTNER_AUDIENCE_LOCAL:
+        $node['camid']   = arg(4);
+        $node['country'] = arg(5);
+        break;      
+      case PARTNER_AUDIENCE_COUNTRY:
+        $node['camid']   = arg(4);
+        $node['country'] = arg(5);
+        break;      
+      case PARTNER_AUDIENCE_GLOBAL:
+        $node['camid']   = $camid;
+        break;      
     }
-
-    $output = node_form($node);
-    drupal_set_title(t('Submit %name Partner', array('%name' => $ptypes[$ptype])));
+    $node = (object)$node;
+    if(fhpartner_access('create', $node)) {
+      $output .= node_form($node);
+      drupal_set_title(t('Submit %name Partner', array('%name' => $ptypes[$ptype])));
+    } else {
+      drupal_access_denied(); 
+    }
   } else {
     $link = 'node/add/partner';
     // If no (valid) parther type has been provided, display a partner type overview.
@@ -238,11 +248,11 @@ function fhpartner_access($op, $node) {
       return TRUE;
   } elseif($op != 'view') {
     switch ($node->paud) {
-      case 'GLOBAL':
+      case PARTNER_AUDIENCE_GLOBAL:
         return user_access('manage global partners');
-      case 'COUNTRY':
+      case PARTNER_AUDIENCE_COUNTRY:
         return user_access('manage country partners');
-      case 'LOCAL':
+      case PARTNER_AUDIENCE_LOCAL:
         if($op = 'create' && user_access('create partners')) {
           return TRUE;
         } else {
@@ -392,6 +402,8 @@ function fhpartner_form(&$node) {
   $form['logos']['large'] = array('#type' => 'fieldset', '#title' => 'Big Logo');  
   $form['logos']['large']['logo'] = fhpartner_field_logo('form', 'logolarge', $node);
   */
+  $form['camid'] = array('#type' => 'hidden', '#value' => $node->camid);
+
   return $form;
 }
 
@@ -433,8 +445,10 @@ function fhpartner_validate(&$node, $form) {
   if ($node->paud != PARTNER_AUDIENCE_GLOBAL && !$node->country) {
     form_set_error('country', t('You must select a country'));
   } 
+//  form_set_error('', t('qweeqw'));
+  drupal_set_message('$form[taxonomy]: ' . print_r($form['taxonomy'], true));
+  drupal_set_message('$node->taxonomy: ' . print_r($node->taxonomy, true));
 }
-
 
 /**
  * Manage date fields
@@ -533,8 +547,7 @@ function fhpartner_form_alter($form_id, &$form) {
           } else {
             $form['fhpartner']['partners'] = array('#value' => t('There are no local partners available.'));
           }
-//          $form['fhpartner']['add'] = array('#value' => l(t('Add new local partner'), "node/add/partner/LOCAL/$node->nid", array(), drupal_get_destination() ) );
-          
+          $form['fhpartner']['add'] = array('#value' => l(t('Add new local partner'), "node/add/partner/LOCAL/$node->camid/$country" , array(), drupal_get_destination() ) );  
           return $form;
         }
         break;

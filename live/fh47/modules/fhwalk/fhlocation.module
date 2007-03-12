@@ -304,11 +304,11 @@ function fhlocation_form_rewrite(&$form, $field = 'location') {
   // Set js
   drupal_add_js(drupal_get_path('module', 'fhlocation') . '/fh_provinces.js');
   $form[$field]['country']['#attributes']['fh_autocomplete_path'] = url('fh_provinces_autocomplete', NULL,  NULL, TRUE);     
-  if(($country = $form['location']['country']['#default_value']) && $country != '-') {
+  if(($country = $form[$field]['country']['#default_value']) && $country != '-') {
     $form[$field]['province']['#options'] = _fhlocation_country_provinces($country);
   }
-  if($form['location']['country']['#options'])
-    $form['location']['country']['#options'] = fhlocation_country_select_options();
+  if($form[$field]['country']['#options'])
+    $form[$field]['country']['#options'] = fhlocation_country_select_options();
 }
 
 /**

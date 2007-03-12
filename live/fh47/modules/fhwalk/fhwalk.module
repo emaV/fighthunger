@@ -226,6 +226,15 @@ function fhwalk_menu($may_cache) {
     if (arg(0) == 'node' && is_numeric(arg(1)) && $node = node_load(arg(1))) {
       if (($node->type == 'fhwalk') && ($node->fhwalk_status == WALK_STATUS_ACTIVE)) {
         $items[] = array(
+          'path' => 'node/'. arg(1) .'/fundraising', 
+          'title' => t('Fundraising'),
+          'callback' => 'fhwalk_fundraising',
+          'callback arguments' => array(arg(1)),
+          'access' => fhwalk_access('update', $node),
+          'weight' => 10,
+          'type' => MENU_LOCAL_TASK
+        );
+        $items[] = array(
           'path' => 'node/'. arg(1) .'/walk_merge', 
           'title' => t('Walk Merge'),
           'callback' => 'fhwalk_merge',
@@ -1119,7 +1128,7 @@ function fhwalk_contact_email_submit($form_id, $form_values) {
 	  'forward_header_image' => variable_get('forward_header_image', ''),
 	  'site_name' => variable_get('site_name', 'Drupal'),
 	  'yemail'    => $form_values['yemail'],
-	  'forward_message' => t('Request info.'),
+	  'forward_message' => t('%username request info.', array('%username' => $form_values['yname']) ),
 	  'message'  =>  check_markup($form_values['content']),
 	  'base_url' => $base_url,
 	  'link'     => l(t('Request info for %title', array('%title' => $form_values['title'])), 'node/'.$form_values['nid'],NULL,NULL,NULL,TRUE),
@@ -1146,18 +1155,24 @@ function fhwalk_contact_email_submit($form_id, $form_values) {
 function fhwalk_contact_email($node) {
 global $user;
 
-  if($user->uid) {
-    $from_name  =  $user->name;
-    $from_email = $user->mail; 
-  } else {
-    $from_name  = 'anonymous contact';
-    $from_email = 'team@fighthunger.org'; 
-  }
-  $form['contact_message']['yname'] =  array('#type' => 'hidden', '#value' => $from_name);
-  $form['contact_message']['yemail'] = array('#type' => 'hidden', '#value' => $from_email);
   $form['contact_message']['nid'] =    array('#type' => 'hidden', '#value' => $node->nid);
   $form['contact_message']['title'] =  array('#type' => 'hidden', '#value' => $node->title);
-   
+  if($user->uid) {
+    $form['contact_message']['yname'] =  array('#type' => 'hidden', '#value' => $user->name);
+    $form['contact_message']['yemail'] = array('#type' => 'hidden', '#value' => $user->mail);
+  } else {
+    $form['contact_message']['yname'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your name'),
+      '#required' => TRUE,
+    );
+    $form['contact_message']['yemail'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your email'),
+      '#description' => t('Enter your email to receive an answer from the organiser.'),
+      '#required' => TRUE,
+    );
+  }
   $form['contact_message']['subject'] = array(
     '#type' => 'textfield',
     '#title' => t('Subject of the message'),
@@ -1703,6 +1718,59 @@ function fhwalk_get_photos($node, $instructions=NULL) {
     };
   }
   return $out;
+}
+
+/**
+ * fhwalk funds page.
+ *  
+ * @ingroup fhwalk_core
+ */  
+function fhwalk_fundraising($nid) {
+
+  $node = node_load($nid);
+  drupal_set_title(t('Fundraising') . ": $node->title");
+
+  if ($_REQUEST['page'] && $page = $_REQUEST['page']) {
+    // GET current pager pages
+    $pager_page_array = explode(',', $page);
+    // compare with previous page (session saved)
+    $collapsed_fee = ($pager_page_array[1] ==  $_SESSION['fhwalk_fundraising'][1]);
+    $collapsed_don = ($pager_page_array[2] ==  $_SESSION['fhwalk_fundraising'][2]);
+    // save in session variable
+    $_SESSION['fhwalk_fundraising'] = $pager_page_array;
+  } else {
+    $_SESSION['fhwalk_fundraising'] = array(0,0,0);
+    $collapsed_fee = true;
+    $collapsed_don = true;
+  }
+
+  // Fee
+  if($node->donation->type == 'fee') {
+    $form['fee'] = array(
+      '#type'        => 'fieldset', 
+      '#title'       => t('Fee'),
+      '#collapsible' => TRUE, 
+      '#collapsed'   => $collapsed_fee, 
+    );
+    $form['fee']['list'] = array(
+      '#value' => "<div>" . donation_list(array('nid' => $nid, 'type' => 'fee'), 1) . "</div>",
+    );
+    $output .= form_render($form['fee']);
+  }
+
+  // Donation
+  $form['donation'] = array(
+    '#type'        => 'fieldset', 
+    '#title'       => t('Donation'),
+    '#collapsible' => TRUE, 
+    '#collapsed'   => $collapsed_don, 
+  );
+  $form['donation']['list'] = array(
+    '#value' => "<div>" . donation_list(array('nid' => $nid, 'type' => 'event'), 2) . "</div>",
+  );
+  $output .= form_render($form['donation']);
+
+  return $output;
 }
 
 /* gmap key

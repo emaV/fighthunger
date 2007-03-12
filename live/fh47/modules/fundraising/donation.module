@@ -215,29 +215,29 @@ function donation_settings() {
  * 
  * Allows user to select a campaign/event to donate.
  */
-function donation_user($type, &$edit, &$user, $category = NULL) {
+function donation_user($type, &$edit, &$account, $category = NULL) {
   switch($type) {
     case 'view':
-      if ($user->donation && $donation = donation_prepare($user->donation) ) {
+      if ($account->donation && $donation = donation_prepare($account->donation) ) {
         $items[] = array(
-        	'title' => variable_get('donation_user_message', t('Make a donation')), 
-        	'value' =>  donation_user_form($donation),
+        	'title' => $donation->title, 
+        	'value' => donation_user_form($donation, $account),
           'class' => 'donation');
         $items[] = array(
-        	'title' => t('My donation to date'),
-          'value' => donation_list($donation->nid, array('donation_source' => $user->uid)),
-          'class' => 'donation'); 
+          'title' => t('My donations to date'),
+          'value' => donation_list(array('source' => 'user/'.$account->uid)),
+          'class' => 'donation-list'); 
         return array(t('Donation') => $items);
       }
       break;
     case 'form':
       if ($category == 'account') {
-        $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Donations link') );
+        $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Take donations on behalf of FightHunger.org') );
         $form['fundraising']['donation'] = array('#type' => 'select',
           '#title' => t('Campaign or event'),
-          '#default_value' => $user->donation, 
-          '#options' => _donation_list(), 
-          '#description' => t('Link for donations from your user page.')
+          '#default_value' => $account->donation, 
+          '#options' => _donation_event_list(), 
+          '#description' => t('You can choose to take donations to help end child hunger. You can also choose which event your funds are tracked to.')
         );
         return $form;
       }
@@ -247,11 +247,14 @@ function donation_user($type, &$edit, &$user, $category = NULL) {
 
 /**
  * Small form to be presented on user profile page
+ * 
+ * Values to be passed must be on hidden fields
  */
-function donation_user_form($donation) {
+function donation_user_form($donation, $account) {
   $form['presentation'] = array('#value' => theme('donation_presentation', $donation, TRUE));
   $form['amount'] = array('#type' => 'hidden', '#value' => 10);
-  $form['#action'] = url('donation/'.$donation->nid);
+  $form['source'] = array('#type' => 'hidden', '#value' => 'user/'.$account->uid);
+  $form['#action'] = $donation->nid ? url('donation/'.$donation->nid) : url('donation');
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
   return drupal_get_form('donation_user_form', $form);
 }
@@ -288,7 +291,8 @@ function donation_prepare($nid) {
       // Check for user access to node
       if($node && node_access('view', $node) && isset($node->donation) && $node->donation){
         $donation = $node->donation;
-        $donation->presentation = node_view($node, TRUE, TRUE);
+        $donation->presentation = theme('donation_presentation_event',$node);
+        $donation->link = l($node->title, "node/$nid");
       } else {
         return NULL;
       }
@@ -302,27 +306,33 @@ function donation_prepare($nid) {
   }
   
   // Complete donation information
+  // Also prepare concept for payment
   switch($donation->type) {
     case 'plain':
       //$donation->presentation = variable_get('donation_presentation', '');
       $donation->partners = NULL;    
-      $donation->title = t('Donate to %name', array('%name' => variable_get('site_name', 'Drupal')));
+      $donation->title = variable_get('donation_user_message', t('Make a donation'));
+      $donation->concept = t('Your donation to %site_name', array('%site_name' => variable_get('site_name', 'Walk the World'))); 
       break;
     case 'fee':
       $donation->title = t('Event fee for %name', array('%name' => $node->title));
       $donation->partners = fh_node_get_partners($node->nid);
       $donation->fixed = TRUE; // For fixed amount and currency
+      $donation->concept = $donation->title;
       break;
     case 'event':
       $donation->title = t('Donate to %name', array('%name' => $node->title));
       $donation->partners = fh_node_get_partners($node->nid);
       $donation->affiliation = $donation->partners;
+      $donation->concept = t('Donation to %name', array('%name' => $node->title));
       break;
     case 'campaign':
       $camid = substr($nid,1);
-      $campaign = db_fetch_object(db_query("SELECT * FROM {gathering_campaign} WHERE camid = %d", $camid));
-      $donation->title = $campaign->name;
+      $campaign = module_invoke('fhcampaign', 'get_campaign', $camid); 
+      $donation->title = t('Donate to %campaign', array('%campaign' => $campaign->name));
       $donation->presentation = $campaign->description;
+      $donation->link = l($campaign->name, $campaign->shortname) ;
+      $donation->concept = t('Donation to %campaign', array('%campaign' => $campaign->name));
       break;
   }
   return $donation;   
@@ -386,10 +396,16 @@ function donation_admin_donation($donation) {
   $output .= form_item(t("Created"), format_date($donation->created, 'small'));
   $output .= form_item(t("Updated"), format_date($donation->changed, 'small'));
   */
-  $form['amount'] = array('#type' => 'item', '#title' => t("Amount"), '#value' => $donation->amount, '#weight' => 20);
-  $form['currency'] = array('#type' => 'item', '#title' => t("Currency"), '#value' => $donation->currency, '#weight' => 21);
-  $form['created'] = array('#type' => 'item', '#title' => t("Created"), '#value' => format_date($donation->created, 'small'), '#weight' => 22);
-  $form['changed'] = array('#type' => 'item', '#title' => t("Updated"), '#value' => format_date($donation->changed, 'small'), '#weight' => 23);
+  $form['amount']   = array('#type' => 'item', '#title' => t("Amount"),      '#value' => $donation->amount,   '#weight' => 20);
+  $form['currency'] = array('#type' => 'item', '#title' => t("Currency"),    '#value' => $donation->currency, '#weight' => 21);
+  $form['created']  = array('#type' => 'item', '#title' => t("Created"),     '#value' => format_date($donation->created, 'small'), '#weight' => 22);
+  $form['changed']  = array('#type' => 'item', '#title' => t("Updated"),     '#value' => format_date($donation->changed, 'small'), '#weight' => 23);
+  $form['type']     = array('#type' => 'item', '#title' => t("Type"),        '#value' => $donation->type,   '#weight' => 24);
+  $form['nid']      = array('#type' => 'item', '#title' => t("Destination"), '#value' => $donation->nid,    '#weight' => 25);
+  $form['source']   = array('#type' => 'item', '#title' => t("Source"),      '#value' => $donation->source, '#weight' => 26);
+  $form['options'] = array('#type' => 'fieldset', '#title' => t('Display options and comment'), '#weight' => 50);
+  $form['options']['display'] = array('#type' => 'item', '#title' => t("Show name"), '#value' => $donation->display ? t('Yes') : t('No'));
+  $form['options']['comment'] = array('#type' => 'item', '#title' => t("Comment"),   '#value' => check_plain($donation->comment));
         
   $output = form_render($form);
   // Stored data
@@ -405,49 +421,73 @@ function donation_admin_donation($donation) {
 }
 
 /**
- * Administration: Paged list of donations
+ * List of donations for user page
  */
-function donation_list($nid = NULL, $data = NULL) {
-  $sql = 'SELECT * FROM {donation} ';
-  $header = array(
-      array('data' => t('transaction'), 'field' => 'trid'),
-		  array('data' => t('status')     , 'field' => 'status'),
-		  array('data' => t('amount')     , 'field' => 'amount'),
-		  array('data' => t('currency')   , 'field' => 'currency'),
-		  array('data' => t('created')    , 'field' => 'created', 'sort' => 'desc')
-  );
-  if ($nid || $data) {
-    $sql_where  = " WHERE ";
-    $sql_where .= ($nid)  ? (" nid = '$nid' " . (($data) ? " AND " : "") ) : "";
-// with serialized data problems with curly braces http://drupal.org/node/12762
-// so we extract fragment serialized from braces 
-    preg_match('/\{(.*)\}/', serialize($data), $matches);
-    $unbraced_serialized_data = $matches[1];
-    $sql_where .= ($data) ? " data LIKE '%$unbraced_serialized_data%' " : "";
-  } else {
-    $sql_where  = "";
+function donation_list($params = array(), $element=0) {
+  // Default query parameters
+  $conditions = array('status' => 'cleared');
+  $conditions = array_merge($conditions, $params);
+  // Build query
+  $where = array();
+  foreach($conditions as $field => $value) {
+    $where[] = "d.$field = '".db_escape_string($value)."'";
   }
-  $sql .= $sql_where . tablesort_sql($header); 
-  $result = pager_query($sql, 20);
+  $sql = 'SELECT d.*, u.name FROM {donation} d INNER JOIN {users} u ON d.uid = u.uid WHERE '. implode(' AND ', $where) ;
+  $header = array(
+    array('data' => t('user'),     'field' => 'u.name'),
+    array('data' => t('amount'),   'field' => 'd.amount'),
+    array('data' => t('currency'), 'field' => 'd.currency'),
+    array('data' => t('date'),     'field' => 'd.created', 'sort' => 'desc'),
+    array('data' => t('comment'),  'field' => 'd.comment')
+  );
+  // Fetch and prepare data for display
+  $sql .=  tablesort_sql($header); 
+  $result = pager_query($sql, 20, $element);
   if (db_num_rows($result)) {
     while ($data = db_fetch_object($result)) {
       $rows[] = array(
-        $data->trid, $data->status, $data->amount, 
-        $data->currency, format_date($data->created, 'small'));
+        $data->display ? theme('username', $data) : '',
+        $data->amount, 
+        $data->currency, 
+        format_date($data->created, 'small'),
+        $data->comment ? check_plain($data->comment) : ''
+      );
     }
-    $pager = theme('pager', NULL, 20, 0, tablesort_pager());
+    $pager = theme('pager', NULL, 20, $element);
   
     if (!empty($pager)) {
       $rows[] = array(array('data' => $pager, 'colspan' => '5'));
     }
     
     $output = theme('table', $header, $rows);
+    $output .= donation_summary($conditions);
   } else {
     $output = t('No donations yet');
   }
   return $output;  
 }
 
+/**
+ * Summary of donation amount by currency
+ */
+function donation_summary($params = array()) {
+  $where = array();
+  foreach($params as $field => $value) {
+    $where[] = "d.$field = '".db_escape_string($value)."'";
+  }
+  $sql = 'SELECT d.currency, SUM(d.amount) AS total FROM {donation} d';
+  if ($where) {
+    $sql .= ' WHERE '. implode(' AND ', $where) ;
+  }
+  $sql .= ' GROUP BY d.currency';
+  $header = array(t('currency'), t('amount'));
+  $rows = array();
+  $result = db_query($sql);
+  while($data = db_fetch_object($result)) {
+    $rows[] = array(_donation_currency_name($data->currency), $data->total);
+  }
+  return theme('table', $header, $rows, array('class' => 'donation-summary'), t('Summary'));
+}
 
 /**
  * Process the payment.
@@ -462,9 +502,13 @@ function donation_checkout($donation) {
   $donation->payment = 'globalcollect';
   // Quick fix for wrong country codes
   $donation->country = _donation_fix_countrycode($donation->country);
-
-  if(donation_save($donation)) {
-    // User may be redirected to payment site
+  // Set some default for donation concept -for invoice- if not present
+  if (!$donation->concept) {
+    $donation->concept = t('Your donation to %site_name', array('%site_name' => variable_get('site_name', 'Walk the World'))); 
+  }
+  // Data ready. Let's go
+  if (donation_save($donation)) {
+    // User should be redirected to payment site
     $output = module_invoke($donation->payment, 'proceed', $donation);
   } else {
     drupal_set_message(t('An error has occurred. Cannot proceed with donation'), 'error');
@@ -511,13 +555,16 @@ function donation_save(&$donation) {
   // Serialize additional data
   $data = $donation->data ? serialize($donation->data) : NULL;
   if($donation->trid) {
-    db_query("UPDATE {donation} SET type='%s', uid=%d, nid='%s', amount=%d, currency='%s', status='%s', collected=%d, changed=%d, partnerid = %d, data='%s' WHERE trid=%d",
-      $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->changed, $donation->partnerid, $data, $donation->trid);
+    db_query("UPDATE {donation} SET type='%s', uid=%d, nid='%s', amount=%d, currency='%s', status='%s', collected=%d, changed=%d, partnerid = %d, source = '%s', comment = '%s', display = '%d', data='%s' WHERE trid=%d",
+      $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->changed, $donation->partnerid, $donation->source, $donation->comment, $donation->display, $data, $donation->trid);
   } else {
     $donation->trid = db_next_id("{donation}_trid");
     $donation->created = $donation->changed;
-    db_query("INSERT INTO {donation}(trid, type, uid, nid, amount, currency, status, collected, created, changed, partnerid, data) VALUES(%d, '%s', %d, '%s', %d, '%s', '%s', %d, %d, %d, %d, '%s')", 
-      $donation->trid, $donation->type, $donation->uid, $donation->nid, $donation->amount, $donation->currency, $donation->status, $donation->collected, $donation->created, $donation->changed, $donation->partnerid, $data);
+    db_query("INSERT INTO {donation}(trid, type, uid, nid,  amount, currency, status, collected,  created, changed, partnerid, source,  comment, display, data) VALUES(%d, '%s', %d, '%s',  %d, '%s', '%s', %d,  %d, %d, '%d', '%s',  '%s', '%d', '%s')", 
+      $donation->trid, $donation->type, $donation->uid, $donation->nid, 
+      $donation->amount, $donation->currency, $donation->status, $donation->collected, 
+      $donation->created, $donation->changed, $donation->partnerid, $donation->source,   
+      $donation->comment, $donation->display, $data);
   }
 
   return db_affected_rows() ? TRUE : FALSE;
@@ -540,7 +587,6 @@ function donation_load($params = NULL) {
   }
 }
 
-
 /**
  * Builds donation edit form
  * 
@@ -549,6 +595,9 @@ function donation_load($params = NULL) {
  */
 function donation_form($donation) {
   $output = '';
+  // There may be some parameters
+  $edit = isset($_POST['edit']) ? $_POST['edit'] : array();
+
   // Presentation
   $form['data'] = array('#type' => 'value', '#value' => $donation);
   $form['presentation'] = array('#value' => theme('donation_presentation', $donation));
@@ -561,8 +610,10 @@ function donation_form($donation) {
 	if($donation->partners) {
     $form['partners'] = array('#title' => t('Partners'), '#value' => theme('item_list', $donation->partners));
   }
-  // Donation source
-  $form['donation_source'] = array('#type' => 'value', '#value' => ($edit['donation_source'] ? $edit['donation_source'] : 'plain_page'));
+  // Donation source. Must be a hidden value to be passed over when validating the field
+  $form['source'] = array('#type' => 'hidden', '#value' => ($edit['source'] ? $edit['source'] : 'plain_page'));
+  //drupal_set_message("Source is:".$form['source']['#value']);
+
   if(isset($donation->affiliation) && count($donation->affiliation)) {
     $form['partnerid'] = array('#type' => 'select', '#title' => t('Affiliation'), '#options' => $donation->affiliation);
   }
@@ -573,12 +624,19 @@ function donation_form($donation) {
     $form['donation']['currency'] = array('#type' => 'item', '#title' => t('Currency'), '#value' => _donation_currency_name($donation->currency));
   } else {
     $form['donation']['amount'] = array('#type' => 'textfield', '#title' => t('Amount'), '#size' => 10);
-    $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency'), '#options' => _donation_currencies(array('' => '--')));
+    $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency') . $donation->type, '#options' => _donation_currencies(array('' => '--')));
     // There may be recommended values, though not fixed
     if($donation->amount && $donation->currency) {
     	$form['donation']['amount']['#default_value'] = $donation->amount;
       $form['donation']['currency']['#default_value'] = $donation->currency;
     }
+  }
+  if($donation->type == 'fee') {
+    $form['options']['display'] = array('#type' => 'hidden', '#value' => 1);
+  } else {
+    $form['options'] = array('#type' => 'fieldset', '#title' => t('Options'),'#description' => t('Display options and comment.'));
+    $form['options']['display'] = array('#type' => 'radios', '#title' => t("Show your name"), '#default_value' => 1, '#options' => array(t('Keep private'), t('Display on public pages')));
+    $form['options']['comment'] = array('#type' => 'textarea', '#title' => t("Comment"), '#default_value' =>$donation->comment, '#description' => t('Optionally you can post a comment to be displayed with the donation data.'));
   }
   
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));
@@ -627,14 +685,16 @@ function donation_form_submit($form_id, $form_values){
   // uid, country should be set by fhuser module  
   $donation->uid = $account->uid;
   $donation->mail = $account->mail;
-  $donation->country = $form_values['country'];
-
+  // Collect some fields
   if(!$donation->fixed) {
     $donation->amount = $form_values['amount'];
     $donation->currency = $form_values['currency'];
+  }  
+  foreach(array('country', 'partnerid', 'source', 'comment', 'display') as $field) {
+    $donation->$field = $form_values[$field];
   }
-  $donation->partnerid = $form_values['partnerid'];
-  if($form_values['donation_source']) $donation->data = array('donation_source' => $form_values['donation_source']);
+  $donation->country = $form_values['country'];
+  // if($form_values['donation_source']) $donation->data = array('donation_source' => $form_values['donation_source']);
   // Check out this donation
   $donation->validated = TRUE;
   donation_checkout($donation); // This should not return
@@ -658,7 +718,7 @@ function donation_transaction($donation, $success) {
 /**
  * List of events and campaigns for user page
  */
-function _donation_list($key = NULL) {
+function _donation_event_list($key = NULL) {
   $list[0] = t('None');
   $list['plain'] = t('Plain donation');
   // $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");
@@ -715,14 +775,24 @@ function _donation_currency_name($code) {
  *   $short to produce a short one when possible
  */
 function theme_donation_presentation($donation, $teaser = FALSE) {
-  $output = '<div class="info">';
+  $output = "<div class='info'>\n";
+  $output .= "<div class='presentation'>\n";
   if(isset($donation->presentation) && $donation->presentation ) {
     $output .= $donation->presentation;
   } else {
     $output .= $teaser ? variable_get('donation_presentation_teaser', '') : variable_get('donation_presentation', '');
   }
-  $output .= '</div>'; 
+  $output .= "</div>\n";
+  if($donation->link) $output .= "<div class='link'>$donation->link</div>\n";
+  $output .= "</div>\n"; 
   return $output;
+}
+/**
+ * Theming event donation presentations 
+ */
+function theme_donation_presentation_event($node) {
+  $out .= node_view($node, TRUE, TRUE);
+  return  $out;
 }
 /**
  * Theming donation link for hook_nodeapi()
@@ -731,4 +801,5 @@ function theme_donation_link($dl) {
   $out = ($dl['link']<>'') ? l($dl['text'], $dl['link']) : $dl['text'];
   return  "<div class='donation_link'>$out</div>";
 }
+
 ?>

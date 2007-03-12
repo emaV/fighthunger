@@ -54,15 +54,28 @@
 
   <?php if ($teaser == 1): //teaser view ?>
 
-<!-- fhwalk teaser start -->
-
 <?php
-  // Walk Information
+  // Walk location
+  $city    = $node->location['city'];
+  $country = theme('fhlocation_country', $node->location['country']); 
+  // Walk info
   if($node->body_plain) {
-    print '<h3>' . t('Walk Information') . "</h3>\n"; 
-    print "$node->body_plain\n\n";
+    $form['info'] = array(
+      '#type'        => 'fieldset', 
+      '#title'       => t('Walk Information.'),
+      '#collapsible' => TRUE, 
+      '#collapsed'   => TRUE, 
+    );
+    $form['info']['body_plain'] = array(
+      '#value' => "<div>$node->body_plain</div>",
+    );
+    $info = form_render($form['info']);
   }
 ?>
+<!-- fhwalk teaser start -->
+    <p><b><?php print t('City') ?>: </b><?php print $city ?></p>
+    <p><b><?php print t('Country') ?>: </b><?php print $country ?></p>
+    <?php print $info ?>
 <!-- fhwalk teaser end -->
 
   <?php else: //full node view ?>

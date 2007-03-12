@@ -283,13 +283,17 @@ function fhuser_user_edit(){
 
   // Re-organize location fields: $form['account'][0]['location'];
   // Special country field
+    // Location rewriting
+  if (function_exists('fhlocation_form_rewrite')) {
+    fhlocation_form_rewrite($form['account'][0]);
+  }
+  
   $form[USER_CATEGORY_PERSONAL][0]['location']['country'] = $form['account'][0]['location']['country'];
   $form[USER_CATEGORY_PERSONAL][0]['location']['country']['#required'] = TRUE;
   $form[USER_CATEGORY_PERSONAL][0]['location']['#tree'] = TRUE;
   unset($form['account'][0]['location']['country']);
   $form[USER_CATEGORY_PERSONAL][1]['location'] = $form['account'][0]['location'];
   unset($form['account'][0]);
-  
   
   // Complete the form
   $form['_categories'] = array('#type' => 'value', '#value' => $categories);
@@ -407,6 +411,7 @@ function fhuser_login_validate($form_id, $form_values) {
  * Rewrite some fields from user form
  */
 function fhuser_form_user_alter($form_id, &$form, $category) {
+
   if($category) {
     $categories = is_array($category) ? $category : array($category);
   } else {
@@ -427,7 +432,7 @@ function fhuser_form_user_alter($form_id, &$form, $category) {
 	    $form[$category]['country']['#options'] = fh_get_country_list();
 	  }
   }
-};
+}
 
 /**
  * Rewrites form with user data

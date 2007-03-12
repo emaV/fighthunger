@@ -135,12 +135,12 @@ function fhsignup_settings() {
     '#description' => t('Enter default walk coordinator.')
   );
   $form['fhsignup_waiver'] = array(
-    '#title' => t('Standard walk Term & Conditions'),
+    '#title' => t('Standard walk Terms & Conditions'),
     '#type' => 'textarea',
     '#cols' => 75,
     '#rows' => 15,
     '#default_value' => variable_get('fhsignup_waiver', ''),
-    '#description' => t("Standard Term and Conditions for walkers signup."),
+    '#description' => t("Standard Terms and Conditions for walkers signup."),
   );
   $form['fhsignup_email_footer'] = array(
     '#type' => 'textarea', 
@@ -223,6 +223,7 @@ global $user;
           drupal_set_message(t('This walk T&C changed.'));
         } else {
           drupal_set_message(t('This walk T&C pending for approval. Signup disabled until then.'));
+          module_invoke('fhmail', 'notify', 'signup notify_coordinator TaC', $node, $node->cid);
           $node->signup_status=3;
         }
       }    
@@ -381,7 +382,7 @@ global $user;
 
 function fhsignup_user_form_validate($form_id, $form_values) {
   if ($form_values['TaC_accept'] == '') {
-    form_set_error('', t('You must agree with Term & Condition.'));
+    form_set_error('', t('You must agree with Terms & Conditions.'));
   }
 }
 
@@ -434,18 +435,18 @@ global $user;
 
   $form['signup']['TaC_accept'] =  array(
     '#type'     => 'checkbox',
-    '#title'    => ('I agree to these Term & Conditions.'),
+    '#title'    => ('I agree to these Terms & Conditions.'),
     '#weight'   => 41,
   ); 
   $form['signup']['TaC'] = array(
     '#type'        => 'fieldset', 
-    '#title'       => t('Term & Conditions'),
+    '#title'       => t('Terms & Conditions'),
     '#collapsible' => TRUE, 
     '#collapsed'   => TRUE, 
     '#weight'      => 42
   );
   $form['signup']['TaC']['waiver'] = array(
-    '#value' => "<label>$node->signup_waiver</label>",
+    '#value' => check_markup($node->signup_waiver),
   );
 
   $output =  drupal_get_form('fhsignup_user_form', $form);
@@ -1363,9 +1364,9 @@ global $user;
     if ($registration = db_fetch_object($result)) {
       _invite_set_timestamp($user->mail, $user->uid, $code);
       _fhsignup_user_add($nid, $user->uid, 'attendee', 6);
-        module_invoke('fhmail', 'notify', 'confirm', $nid, $user->uid);
+      module_invoke('fhmail', 'notify', 'confirm', $nid, $user->uid);
 //      fhsignup_email_notify($nid, $user->uid, 'confirm');
-        module_invoke('fhmail', 'notify', 'notify_invite', $nid, $user->uid);
+      module_invoke('fhmail', 'notify', 'notify_invite', $nid, $user->uid);
 //      fhsignup_email_notify($nid, $user->uid, 'notify_invite');
       $msg = t("Invitation processed!");
     }

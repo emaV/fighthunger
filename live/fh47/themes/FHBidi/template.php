@@ -147,18 +147,21 @@ function phptemplate_user_profile($account, $fields, $categories) {
   $output = '';
   $output .= "<div class='profile'>\n";
 
+// PROFILE LEFT 
+
   // Personal information
   $data = $fields['Personal Information'];
-  $content = '';
   
-  // User picture, weight -11
+  // User picture
+  $user_info = '';
   if($account->picture) {
-    $item = array('value' => theme('user_picture', $account), 'weight' => -11);
-    $content .= theme('profile_item', $item);
+    $data['user_picture'] = array(
+      'value' => theme('user_picture', $account), 
+      'weight' => -12
+    );
   }
   
-  
-  // Set user name, weight -10
+  // User name
   if( ($data['first_name']['value'] != '') || 
       ($data['last_name']['value'] != '') ) {
     $user_name = trim($fields['Personal Information']['first_name']['value'] . 
@@ -166,28 +169,26 @@ function phptemplate_user_profile($account, $fields, $categories) {
   } else {
     $user_name = $account->name;
   }
-  $item = array(
-            //'#type'   => 'item', 
+  $data['user_name'] = array(
             'attributes'   => array('class' => 'profile_username'),
-            //'#theme'  => 'profile_item', 
             'value'  => t('My name is %user_name', array('%user_name' => $user_name)),
-            'weight' => -10
+            'weight' => -11
           );
   unset($data['first_name']);
   unset($data['last_name']);
-  $content .= theme('profile_item', $item);
+//  $user_info .= theme('profile_item', $item);
 
-  // Set country and clean location fields
+  // User country and clean location fields
   if($country = $data['country']['value']) {
-    $item = array(
+    $data['user_country'] = array(
       'title' => '',
-      'value' => t("I live in %country_name", array('%country_name' => $country))
+      'value' => t("I live in %country_name", array('%country_name' => $country)),
+      'weight' => -10
     );
-    $content .= theme('profile_item', $item);
   }
   unset($data['country']);
   unset($fields['Location']);
-  
+
   // Set profile_presentation field
   if( $pres_val = $data['profile_presentation']['value'] ) {
     $data['profile_presentation']['title'] = t("Why I'm supporting Fight Hunger?");
@@ -195,7 +196,7 @@ function phptemplate_user_profile($account, $fields, $categories) {
   }
 
   // Set flickr
-  if($info = $data['profile_flickr']['value']) {
+  if($data['profile_flickr']['value']) {
     $data['profile_flickr']['title'] = '';
     $data['profile_flickr']['value'] = theme('profile_flickr', $account);
   }
@@ -212,26 +213,32 @@ function phptemplate_user_profile($account, $fields, $categories) {
     $data['profile_delicious']['value'] = theme('profile_delicious', $account);
   }
   // Render data
-  $data['content'] = $content;   
   $output .= "<div class='profile_left'>\n";
   $output .= theme('profile_fieldset', $data, t('Personal Information'));
   $output .= "\n</div>\n";
 
-  $content = '';
+// PROFILE RIGHT 
+  
+  // Activities
   if (is_array($fields[t('Activities')])) {
     $fields['Team Up']['activities'] = array(
-      'title' => t('My activities'),
-      'value' => theme('profile_fieldset', $fields[t('Activities')])
+      'title'  => t('My activities'),
+      'value'  => theme('profile_fieldset', $fields[t('Activities')]),
+      'weight' => 9
     );    
   }
   unset($fields[t('Activities')]);
+  
+  if(isset($fields['Team Up']['donation'])) {
+    $fields['Team Up']['donation']['weight'] = 0;
+  }
+  if(isset($fields['Team Up']['donation-list'])) $fields['Team Up']['donation-list']['weight'] = 0.01;
   
   $output .= "<div class='profile_right'>\n";
   $output .= theme('profile_fieldset', $fields['Team Up'], t('Activities') );
   $output .= "\n</div>\n\n";
   
-  //$output .= form_render($fields);
-  $output .= "<div style='clear: both;'>\n";   
+  $output .= "<div style='clear: both;'>\n";
   $output .= "\n</div>\n\n";
   $output .= "</div>\n";
   
@@ -241,9 +248,19 @@ function phptemplate_user_profile($account, $fields, $categories) {
 /**
  * Theme profile fieldset
  */
+function fh_profile_sort($a, $b) {
+  if(is_array($a) && is_array($b)) {
+    $a_val = isset($a['weight']) ? $a['weight'] : 99;
+    $b_val = isset($b['weight']) ? $b['weight'] : 99;
+    return ($a_val == $b_val) ? 0 : ( ($a_val > $b_val) ? 1 : -1);
+  } else {
+    return 0;
+  }
+} 
+ 
 function phptemplate_profile_fieldset($fields, $title = '') {
-
-  if ( isset($fields['class']) ){
+  usort($fields, "fh_profile_sort");
+  if ( isset($fields['class']) ) {
     $attributes['id'] = $fields['class'];
     $attributes['class'] = 'profile_set';  
   } else {
@@ -295,6 +312,7 @@ function phptemplate_fhuser_user_edit($form) {
 //  $output  .= _print_cat($form['_categories']['#value']);
 //  $output  .= _print_cat($form);
 //  $output  .= _print_cat($form['account']['theme_select']);
+//  $output  .= _print_cat($form['account']);
 //  $output .= _print_cat($form['Team Up']);
 //  $output .= _print_cat($form['Personal Information']);
 
@@ -322,6 +340,20 @@ function phptemplate_fhuser_user_edit($form) {
   $form['account']['timezone']['#collapsed']  = 1;
   $form['account']['theme_select']['themes']['#collapsed']  = 1;
 
+  // Reorder Personal Information
+  if (isset($form['Personal Information']['profile_flickr']))
+    $form['Personal Information']['profile_flickr']['#weight']    = 11;
+  if (isset($form['Personal Information']['profile_blog']))
+    $form['Personal Information']['profile_blog']['#weight']      = 12;
+  if (isset($form['Personal Information']['profile_delicious']))
+    $form['Personal Information']['profile_delicious']['#weight'] = 13;
+  
+  // Change titles
+  $form['_categories']['#value']['Team Up']['title'] = t('Activities');
+  $form['Team Up']['#title'] = t('Activities');
+  $form['_categories']['#value']['account']['title'] = t('Account Settings');
+  $form['account']['#title'] = t('Account Settings');
+  
   // Set theme issue
   $item_button = array('#value' => "\n<p class='button'><a href='#top'>" . t('top') ."</a></p>\n",
                        '#weight' => 99);
@@ -354,6 +386,11 @@ function phptemplate_fhuser_user_edit($form) {
   $output .= "\n</div>\n\n";
   $output .= "<div style='clear: both;'>\n";
   $output .= form_render($form);
+
+//$output .= _print_cat($form['account']);
+//$output .= _print_cat($form['Team Up']);
+//$output .= _print_cat($form['Personal Information']);
+  
   $output .= "\n</div>\n\n";
   $output .= "</div>\n";
   

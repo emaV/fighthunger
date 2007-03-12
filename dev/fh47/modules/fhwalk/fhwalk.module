@@ -907,7 +907,7 @@ global $user;
       );
 
       // day form
-      if(user_access('coordinate fhwalk')) {
+      if(user_access('administer walks')) {
         $form['whenwhere']['start_day']   = $form['event_start']['date']['start_day'];
         $form['whenwhere']['start_month'] = $form['event_start']['date']['start_month'];
         $form['whenwhere']['start_year']  = $form['event_start']['date']['start_year'];
@@ -945,7 +945,7 @@ global $user;
       $form['whenwhere']['location']['#tree'] = true;
 
       // unset latitude and longitud for non admin
-      if(! ( user_access('admininster walks') || 
+      if(! ( user_access('administer walks') || 
              user_access('coordinate walks') ) ) {
         unset($form['location']['latitude']);
         unset($form['location']['longitude']);

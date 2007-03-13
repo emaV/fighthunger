@@ -236,7 +236,7 @@ function fhmail_notify($op, $node, $uid, $add_msg='') {
       $message = t($node->signup_email_remind, $trans);
       break;
     case 'signup merge walk':
-      $to   = $signup->mail;
+      $to   = $user_notify->mail;
       $from = $organiser->mail;
       $subject = $subject = t("Merge notification: %event", $trans);
       $message = t($node->merge_email, $trans);

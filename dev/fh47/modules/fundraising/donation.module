@@ -636,7 +636,7 @@ function donation_form($donation) {
   } else {
     $form['options'] = array('#type' => 'fieldset', '#title' => t('Options'),'#description' => t('Display options and comment.'));
     $form['options']['display'] = array('#type' => 'radios', '#title' => t("Show your name"), '#default_value' => 1, '#options' => array(t('Keep private'), t('Display on public pages')));
-    $form['options']['comment'] = array('#type' => 'textarea', '#title' => t("Comment"), '#default_value' =>$donation->comment, '#description' => t('Optionally you can post a comment to be displayed with the donation data.'));
+    $form['options']['comment'] = array('#type' => 'textarea', '#title' => t("Comment"), '#default_value' =>$donation->comment, '#description' => t('If you wish you may leave a comment to be displayed.'));
   }
   
   $form['submit'] = array('#type' => 'submit', '#value' => t('Donate'));

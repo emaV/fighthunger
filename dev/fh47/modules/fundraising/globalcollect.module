@@ -144,13 +144,13 @@ function globalcollect_check_status($donation, $cancel = FALSE){
       }
       // Update status and data 
       globalcollect_donation_update($donation, (array)$params);
-      watchdog('globalcollect', "Status for donation $donation->trid : $params->statusid = $status", WATCHDOG_NOTICE, l("admin/donation/$donation->trid", "admin/donation/$donation->trid"));
+      watchdog('globalcollect', "Status for donation $donation->trid: $params->statusid ($status)<br/>" . print_r($donation,true), WATCHDOG_NOTICE, l("admin/donation/$donation->trid", "admin/donation/$donation->trid"));
     }
     // DEBUG
     // print "status= $params->statusid $status <br/>";
   } else {
     $error = _globalcollect_response_error($response);
-    watchdog('globalcollect', "Status for donation $donation->trid : $error", WATCHDOG_ERROR, l("admin/donation/$donation->trid", "admin/donation/$donation->trid"));
+    watchdog('globalcollect', "Status for donation $donation->trid: $error", WATCHDOG_ERROR, l("admin/donation/$donation->trid", "admin/donation/$donation->trid"));
     // If there's been a response, update donation
     if($response){
       $donation->status = 'error';

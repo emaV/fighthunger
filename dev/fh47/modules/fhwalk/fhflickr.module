@@ -335,12 +335,12 @@ function fhflickr_tags4flickr ($tag) {
 }
 
 function _fhflickr_set_node_flickrtag() {
-  $campaigns = fhcampaign_get_all_campaigns();
+  $campaigns = module_invoke('fhcampaign' , 'get_all_campaigns');
   foreach($campaigns as $camid => $campaign) {
     $walks = fhwalk_get_walks($camid);
     foreach($walks as $nid => $walk) {
       // get tag
-      switch($campaign) {
+      switch($campaign->description) {
         case 'Walk the World 2007':
         case 'Walk the World 2006':
           $node = node_load($nid);

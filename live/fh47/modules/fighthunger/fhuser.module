@@ -140,24 +140,13 @@ function fhuser_user_view($uid = 0) {
     // Do not fetch profile module fields as they will be better provided by i18nprofile
     if ($module != 'profile' && $module != 'civicrm' && $data = module_invoke($module, 'user', 'view', '', $account)) {
       $modulename = $module == 'i18nprofile' ? 'profile' : $module;
-      //drupal_set_message("DEBUG:fhuser_user_view, module=$module, data=".print_r($data, TRUE));
       foreach ($data as $category => $items) {
         $index = isset($categorytranslation[$category]) ?  $categorytranslation[$category] : $category;
-        //$fields[$index]['#title'] = $category;
         $fields[$index]['title'] = $category;
-        //$fields[$index]['#type'] = 'fieldset';
+        // Reorganize array, using class as index
         foreach ($items as $item) {
           $class = ($item['class']) ? $item['class'] : $modulename;
           $item['class'] = "$modulename-$class";
-          /*
-          $formfield = array(
-            '#type'   => 'item', 
-            '#title'  => $item['title'], 
-            '#value'  => $item['value'],
-            '#weight' => $item['weight'],
-            '#attributes' => array('class' => $item['class'])
-          );
-          */
           if (isset($fields[$index][$class])) {
             $fields[$index][$class][] = $item;
           } else {
@@ -194,7 +183,8 @@ function fhuser_user_view($uid = 0) {
 
   // Merge Team Up with Personal Information
   if ($fields[t('Donation')]) {
-    $fields[USER_CATEGORY_TEAM]['donation'] = $fields[t('Donation')]['donation']; 
+    $fields[USER_CATEGORY_TEAM]['donation'] = $fields[t('Donation')]['donation'];
+    $fields[USER_CATEGORY_TEAM]['donation-list'] = $fields[t('Donation')]['donation-list'];
     unset($fields[t('Donation')]);
   } else {
     $fields[USER_CATEGORY_TEAM]['site_mission'] = array(

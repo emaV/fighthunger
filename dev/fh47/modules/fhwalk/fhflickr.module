@@ -74,14 +74,20 @@ function fhflickr_menu($may_cache) {
  */
 function fhflickr_settings() {
   $form['fhflickr_user_id'] = array(
-    '#type' => 'textfield', 
+    '#type'  => 'textfield', 
     '#title' => t('flickr user id'),
     '#default_value' => variable_get('fhflickr_user_id', '62728578@N00'),
   );
   $form['fhflickr_apiKey'] = array(
-    '#type' => 'textfield', 
+    '#type'  => 'textfield', 
     '#title' => t('flickr apiKey'),
     '#default_value' => variable_get('fhflickr_apiKey', 'b9937eed5e47e753b717ddd7a2045bc7'),
+  );
+  $form['fhflickr_proxy'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('flickr proxy'),
+    '#default_value' => variable_get('fhflickr_proxy', ''),
+    '#description'   => t('Enter proxy configuration (ex: 10.11.40.110:8080)'),
   );
   return $form;
 }
@@ -246,14 +252,18 @@ function fhflickr_photos_search_tag($tags) {
   foreach ($params as $k => $v) {
 	  $encoded_params[] = urlencode($k).'='.urlencode($v);
   }
-  // proxy!
-  $aContext = array(
-   'http' => array(
-       'proxy' => 'tcp://10.11.40.110:8080', // This needs to be the server and the port of the NTLM Authentication Proxy Server.
-       'request_fulluri' => True,
-       ),
-  );
-  $cxContext = stream_context_create($aContext);
+  // proxy
+  if($proxy=variable_get('fhflickr_proxy', '')) {
+    $aContext = array(
+     'http' => array(
+         'proxy' => "tcp://$proxy", 
+         'request_fulluri' => True,
+         ),
+    );
+    $cxContext = stream_context_create($aContext);
+  } else  {
+    $cxContext = NULL;
+  }
 
   // call the API and decode the response
   $url = "http://api.flickr.com/services/rest/?".implode('&', $encoded_params);

@@ -197,14 +197,6 @@ function fhuser_user_view($uid = 0) {
     $fields[USER_CATEGORY_TEAM]['donation'] = $fields[t('Donation')]['donation']; 
     unset($fields[t('Donation')]);
   } else {
-    /*
-    $formfield = array(
-      '#type' => 'item', 
-      '#title' => '', 
-      '#value' => variable_get('site_mission', ''),
-      '#weight' => -9,
-    );
-    */
     $fields[USER_CATEGORY_TEAM]['site_mission'] = array(
       'title' => '',
       'value' => drupal_eval(variable_get('site_mission', '')),
@@ -215,14 +207,12 @@ function fhuser_user_view($uid = 0) {
   // Add country to Personal information - from location
 
   $country = $account->location['country'];
-  //$fields[USER_CATEGORY_PERSONAL]['country'] = array('#type' => 'item', '#title' => t('Country'), '#value' => fh_get_country_name($country));
   $fields[USER_CATEGORY_PERSONAL]['country'] = array(
     'title' => t('Country'), 
     'value' => fh_get_country_name($country)
   );
   // OK, ready for rendering
   drupal_set_title(check_plain($account->name));
-  //return drupal_get_form('fhuser_profile', $fields);
   return theme('user_profile', $account, $fields, $categories);
 }
 

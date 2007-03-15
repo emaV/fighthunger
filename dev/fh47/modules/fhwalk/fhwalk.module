@@ -1263,7 +1263,7 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
       $details['scrapbook']  = array(
         '#title'  => t('Scrapbook'),
         '#weight' => -1,
-        '#value'  => fhwalk_get_photos($node)
+        '#value'  => $node->hook_view['fhflickr']
       );
       if(!$details['scrapbook']['#value']) unset($details['scrapbook']);
       

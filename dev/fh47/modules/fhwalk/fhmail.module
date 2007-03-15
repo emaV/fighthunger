@@ -189,14 +189,14 @@ function fhmail_notify($op, $node, $uid, $add_msg='') {
       $from = $user_notify->mail;
       $trans['%event_signup']  = url("node/$node->nid/signup_admin",NULL,NULL,true);  
       $subject = t('New user signup for event: %event', $trans);
-      $message = t("%organisername,\n\n%username signup for %event.\n\nYou can check the status of that event, see all available signup, and approve, deny by clicking here: %event_signup", $trans);
+      $message = t("%organisername,\n\n%username signup for %event.\n\nYou can check the status of that event, see all available signup by clicking here: %event_signup", $trans);
       break;
     case 'signup notify_organiser_volunteer':
       $to   = $organiser->mail;
       $from = $user_notify->mail;
       $trans['%event_signup']  = url("node/$node->nid/signup_admin",NULL,NULL,true);  
       $subject = t('New user signup for event: %event', $trans);
-      $message = t("%organisername,\n\n%username has volunteered to help with %event.\n\nYou can check the status of that event, see all available signup, and approve, deny by clicking here: %event_signup", $trans);
+      $message = t("%organisername,\n\n%username has volunteered to help with %event.\n\nYou can check the status of that event, see all available signup by clicking here: %event_signup", $trans);
       break;
     case 'signup notify_invite':
       $to   = $organiser->mail;

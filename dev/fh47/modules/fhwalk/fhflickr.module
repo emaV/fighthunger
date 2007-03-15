@@ -39,34 +39,6 @@ function fhflickr_perm() {
   ); 
 }
 
-
-/**
- * Implementation of hook_menu().
- *  
- * @ingroup fhflickr_core
- */
-function fhflickr_menu($may_cache) {
-  $items = array();
-
-  if ($may_cache) {
-  } else {
-    // Add options for walks
-    if (arg(0) == 'node' && is_numeric(arg(1)) && $node = node_load(arg(1))) {
-      if (($node->type == 'fhwalk')) {
-        $items[] = array(
-          'path' => 'node/'. arg(1) .'/scrapbook', 
-          'title' => t('Scrapbook'),
-          'callback' => 'fhflickr_scrapbook',
-          'access' => true,
-          'weight' => 11,
-          'type' => MENU_LOCAL_TASK
-        );
-      }
-    }
-  }
-  return $items;
-}
-
 /**
  * Implementation of hook_settings().
  *  

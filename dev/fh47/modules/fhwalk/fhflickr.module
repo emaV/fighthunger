@@ -340,7 +340,7 @@ function _fhflickr_set_node_flickrtag() {
     $walks = fhwalk_get_walks($camid);
     foreach($walks as $nid => $walk) {
       // get tag
-      switch($campaign->description) {
+      switch($campaign->name) {
         case 'Walk the World 2007':
         case 'Walk the World 2006':
           $node = node_load($nid);

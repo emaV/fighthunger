@@ -1,9 +1,9 @@
 <?php
-
-/*
- * Schema change 1: Create fh_flickr and modify gathering_node tables
+/**
+ * Create database tables
  */
-function fhflickr_update_1() {
+
+function fhflickr_install() {
   $ret = array();
 
   // Set table
@@ -21,8 +21,22 @@ function fhflickr_update_1() {
       PRIMARY KEY  (nid,photo_id)  ) 
     ENGINE=MyISAM DEFAULT CHARSET=utf8;";  
   $ret[] =  update_sql($sql);
+
+  return $ret;
+}
+
+
+/*
+ * Schema change 1: Modify gathering_node tables
+ */
+function fhflickr_update_1() {
+  $ret = array();
+
   $sql = "ALTER TABLE {gathering_node} ADD tag VARCHAR( 50 ) NOT NULL AFTER camid;";  
   $ret[] =  update_sql($sql);
+
+  return $ret;
+
 }
 
 ?>

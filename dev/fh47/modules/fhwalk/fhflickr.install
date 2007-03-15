@@ -8,7 +8,7 @@ function fhflickr_install() {
 
   // Set table
   $sql = "DROP TABLE IF EXISTS {fh_flickr}";
-  db_queryl($sql);
+  db_query($sql);
   $sql = "CREATE TABLE {fh_flickr} (
       nid int(10) NOT NULL,
       title varchar(128) NOT NULL,

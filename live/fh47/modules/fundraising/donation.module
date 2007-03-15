@@ -423,12 +423,14 @@ function donation_admin_donation($donation) {
 /**
  * List of donations for user page
  */
-function donation_list($params = array(), $element=0) {
-  // Default query parameters
-  $conditions = array('status' => 'cleared');
-  $conditions = array_merge($conditions, $params);
+function donation_list($conditions = array(), $element=0) {
+  // Default query parameters (if not overrided by $params!)
+  if(!isset($conditions['status'])) {
+    $where[] = "(d.status = 'cleared' OR d.status = 'accepted')";
+  } else {
+    $where = array();
+  }
   // Build query
-  $where = array();
   foreach($conditions as $field => $value) {
     $where[] = "d.$field = '".db_escape_string($value)."'";
   }
@@ -470,9 +472,15 @@ function donation_list($params = array(), $element=0) {
 /**
  * Summary of donation amount by currency
  */
-function donation_summary($params = array()) {
-  $where = array();
-  foreach($params as $field => $value) {
+function donation_summary($conditions = array()) {
+  // Default query parameters (if not overrided by $params!)
+  if(!isset($conditions['status'])) {
+    $where[] = "(d.status = 'cleared' OR d.status = 'accepted')";
+  } else {
+    $where = array();
+  }
+  // Build query
+  foreach($conditions as $field => $value) {
     $where[] = "d.$field = '".db_escape_string($value)."'";
   }
   $sql = 'SELECT d.currency, SUM(d.amount) AS total FROM {donation} d';

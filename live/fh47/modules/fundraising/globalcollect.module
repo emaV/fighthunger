@@ -150,7 +150,7 @@ function globalcollect_check_status($donation, $cancel = FALSE){
       }
       // Update status and data 
       $save_status = globalcollect_donation_update($donation, (array)$params);
-      watchdog('globalcollect', "Status for donation $donation->trid: $params->statusid ($status) - update result: $save_status<br/>" . print_r($donation,true), WATCHDOG_NOTICE, l("admin/donation/$donation->trid", "admin/donation/$donation->trid"));
+      watchdog('globalcollect', "Status for donation $donation->trid: $params->statusid ($donation->status) - update result: $save_status<br/>" . print_r($donation,true), WATCHDOG_NOTICE, l("admin/donation/$donation->trid", "admin/donation/$donation->trid"));
     }
     // DEBUG
     // print "status= $params->statusid $status <br/>";

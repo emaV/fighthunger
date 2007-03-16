@@ -170,14 +170,13 @@ function fhpartner_block($op = 'list', $delta = 0) {
 /**
  * Menu callback: create partners main page
  */
-function fhpartner_add() {
+function fhpartner_add($ptype = NULL, $camid = 0, $country = NULL) {
   global $user;
   $output = '';
 
   $ptypes = _fhpartner_audience();
-  
-  if (arg(3) && in_array(arg(3), array_keys($ptypes))) {
-    $ptype = arg(3);
+  // Process url parameters. /partner/add/AUDIENCE/
+  if ($ptype && in_array($ptype, array_keys($ptypes))) {
     // Initialize settings
     $node = array(
       'uid' => $user->uid, 
@@ -186,19 +185,18 @@ function fhpartner_add() {
       'paud' => $ptype,
       'active' => 1,
       'startdate' => date('Y-m-d'),
-      'enddate' => date('Y-m-d', time()+ 15552000) // about 6 months
+      'enddate' => date('Y-m-d', time()+ 15552000), // about 6 months
+      'camid' => $camid 
     );
     switch ($ptype) {
       case PARTNER_AUDIENCE_LOCAL:
-        $node['camid']   = arg(4);
-        $node['country'] = arg(5);
+        $node['country'] = $country; //arg(5);
         break;      
       case PARTNER_AUDIENCE_COUNTRY:
-        $node['camid']   = arg(4);
-        $node['country'] = arg(5);
+        $node['country'] = $camid; //arg(4);
         break;      
       case PARTNER_AUDIENCE_GLOBAL:
-        $node['camid']   = $camid;
+        // Nothing to do here ?
         break;      
     }
     $node = (object)$node;
@@ -209,6 +207,7 @@ function fhpartner_add() {
       drupal_access_denied(); 
     }
   } else {
+    // No valid audience selected. Present list
     $link = 'node/add/partner';
     // If no (valid) parther type has been provided, display a partner type overview.
     $node = new StdClass();
@@ -570,64 +569,70 @@ function fhpartner_load($node) {
 
 /**
  * Implementation of hook_view().
+ * 
+ * TO-DO: Get SQL out of here, should be enclosed in some function anywhere else.
+ * TO-DO: List items should be produced with themeing functions. Please, get HTML out of here.
  */
 function fhpartner_view(&$node, $teaser = FALSE, $page = FALSE) {
   $node->body = "<div class='partner_description'>\n".
                 "$node->body\n " .
                 "</div>\n";
 
-  foreach($node->campaigns as $campaign) {
-    $camid  = $campaign->tid;
-
-    switch ($node->paud) {
-      case 'GLOBAL':
-        $args = array('%campaign' => l($campaign->name, $campaign->shortname)); 
-        $form[$camid] = array(
-          '#value'  => t('Global partner for the campaign: %campaign', $args),
-          '#weight' => $campaign->weight
-        );
-        break;
-      case 'COUNTRY':
-        $args = array('%campaign' => $campaign->longname,
-                      '%country'  => l(fhlocation_get_iso3166_list($node->country), "$campaign->shortname/$node->country")); 
-        $form[$camid] = array(
-          '#value'  => t('Country partner for the campaign %campaign in %country.', $args),
-          '#weight' => $campaign->weight
-        );
-        break;      
-      case 'LOCAL':
-        $args = array('%campaign' => $campaign->longname,
-                      '%country'  => l(fhlocation_get_iso3166_list($node->country), "$campaign->shortname/$node->country")); 
-        $form[$camid] = array(
-          '#value'  => t('Local country partner for the campaign %campaign in %country.', $args),
-          '#weight' => $campaign->weight
-        );
-
-        $sql = "SELECT n.nid, n.title, l.city, l.country " .
-          "FROM {partners_partners} pp " .
-          "JOIN {node} n ON pp.nid=n.nid " .
-          "LEFT JOIN {location} l ON pp.nid=l.oid " .
-          "LEFT JOIN {term_node} tn ON pp.pid = tn.nid " .
-          "WHERE l.type= 'node' AND pp.pid = %d AND tn.nid = %d ORDER BY l.city";
-        $result = db_query($sql, $node->nid, $camid);
-        if(db_num_rows($result)>0) {
-          $list = "<ul>\n";
-          while ($walk = db_fetch_array($result)) {
-            $url = l($walk['title'], drupal_get_path_alias("node/" . $walk['nid']) );
-            $location = $walk['city'] . ' (' . fhlocation_get_iso3166_list($walk['country']) . ')';
-            $list .= "<li>$location: $url</li>\n";
-          }
-          $list .= "</ul>\n";
-          $form[$camid]['walks'] = array(
-            '#type' => 'fieldset',
-            '#title' => t('List of walks'),
-            '#collapsible' => TRUE,
-            '#collapsed' => ($campaign->status <> 2),
-            '#weight' => $weight[$role],
+  // We do check everything to avoid runtime errors
+  if($node->campaigns) {
+    foreach($node->campaigns as $campaign) {
+      $camid  = $campaign->tid;
+  
+      switch ($node->paud) {
+        case 'GLOBAL':
+          $args = array('%campaign' => l($campaign->name, $campaign->shortname)); 
+          $form[$camid] = array(
+            '#value'  => t('Global partner for the campaign: %campaign', $args),
+            '#weight' => $campaign->weight
           );
-          $form[$camid]['walks']['list'] = array('#value' => $list);
-        }
-        break;
+          break;
+        case 'COUNTRY':
+          $args = array('%campaign' => $campaign->longname,
+                        '%country'  => l(fhlocation_get_iso3166_list($node->country), "$campaign->shortname/$node->country")); 
+          $form[$camid] = array(
+            '#value'  => t('Country partner for the campaign %campaign in %country.', $args),
+            '#weight' => $campaign->weight
+          );
+          break;      
+        case 'LOCAL':
+          $args = array('%campaign' => $campaign->longname,
+                        '%country'  => l(fhlocation_get_iso3166_list($node->country), "$campaign->shortname/$node->country")); 
+          $form[$camid] = array(
+            '#value'  => t('Local country partner for the campaign %campaign in %country.', $args),
+            '#weight' => $campaign->weight
+          );
+  
+          $sql = "SELECT n.nid, n.title, l.city, l.country " .
+            "FROM {partners_partners} pp " .
+            "JOIN {node} n ON pp.nid=n.nid " .
+            "LEFT JOIN {location} l ON pp.nid=l.oid " .
+            "LEFT JOIN {term_node} tn ON pp.pid = tn.nid " .
+            "WHERE l.type= 'node' AND pp.pid = %d AND tn.nid = %d ORDER BY l.city";
+          $result = db_query($sql, $node->nid, $camid);
+          if(db_num_rows($result)>0) {
+            $list = "<ul>\n";
+            while ($walk = db_fetch_array($result)) {
+              $url = l($walk['title'], drupal_get_path_alias("node/" . $walk['nid']) );
+              $location = $walk['city'] . ' (' . fhlocation_get_iso3166_list($walk['country']) . ')';
+              $list .= "<li>$location: $url</li>\n";
+            }
+            $list .= "</ul>\n";
+            $form[$camid]['walks'] = array(
+              '#type' => 'fieldset',
+              '#title' => t('List of walks'),
+              '#collapsible' => TRUE,
+              '#collapsed' => ($campaign->status <> 2),
+              '#weight' => $weight[$role],
+            );
+            $form[$camid]['walks']['list'] = array('#value' => $list);
+          }
+          break;
+      }
     }
   }
   $node->body .= "<div class='partner_events'>" . form_render($form) . "</div>";

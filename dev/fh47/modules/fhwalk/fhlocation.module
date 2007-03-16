@@ -51,8 +51,6 @@ function fhlocation_menu($may_cache) {
   return $items;
 }
 
-
-
 function _fhlocation_geocode_google($query_params) {
   if(variable_get('googlemap_api_key', '')=='') { 
     $content = array(0,0,0,0,'NO api_key');
@@ -60,7 +58,7 @@ function _fhlocation_geocode_google($query_params) {
     $location_geocode_gmap_url = "http://maps.google.com/maps/geo?q=" . 
           urlencode(implode(", ", $query_params)) .
           "&output=csv&key=".variable_get('googlemap_api_key', '');
-    $result  = file_get_contents("$location_geocode_gmap_url");
+    $result  = fh_file_get_contents("$location_geocode_gmap_url");
     $content = explode(",", $result);
     $content[4] = 'google';
   }
@@ -85,7 +83,7 @@ function _fhlocation_geocode_geonames($query_params) {
   
   $location_geonames_org_url = "http://ws.geonames.org/postalCodeSearchJSON?" .
     "placename=$city&country=$country&maxRows=1";
-  $result  = file_get_contents("$location_geonames_org_url");
+  $result  = fh_file_get_contents("$location_geonames_org_url");
   
   $result_tmp =  substr($result, 1, -1);                // strip curly braces
   $result_array_tmp = split(":", $result_tmp, 2);       // split in two

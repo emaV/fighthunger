@@ -195,12 +195,18 @@ function fhuser_user_view($uid = 0) {
   }
   
   // Add country to Personal information - from location
-
   $country = $account->location['country'];
   $fields[USER_CATEGORY_PERSONAL]['country'] = array(
     'title' => t('Country'), 
     'value' => fh_get_country_name($country)
   );
+  
+  // Add tell a friend
+  $fields[USER_CATEGORY_PERSONAL]['taf'] = array(
+    'title' => t('Tell a friend'), 
+    'value' => fhuser_taf($uid)
+  );
+  
   // OK, ready for rendering
   drupal_set_title(check_plain($account->name));
   return theme('user_profile', $account, $fields, $categories);
@@ -1029,6 +1035,112 @@ function _location2civicrm() {
     'country_id' => array('field' => 'country', 'function' => 'fh_crm_country_iso2id'),
   );
   return variable_get('location2civicrm', $fields);
+}
+
+
+/**
+ * TAF personal page email form and submit
+ * 
+ * @ingroup fhsignup_admin
+ */ 
+function fhuser_taf($uid) {
+global $user;
+
+/*
+  $form['message'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Tell a friend'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+*/
+  $form['message']['uid'] =  array('#type' => 'hidden', '#value' => $uid);
+  if($user->uid) {
+    $form['message']['yname'] =  array('#type' => 'hidden', '#value' => $user->name);
+    $form['message']['yemail'] = array('#type' => 'hidden', '#value' => $user->mail);
+  } else {
+    $form['message']['yname'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your name'),
+      '#required' => TRUE,
+    );
+    $form['message']['yemail'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Your email'),
+      '#description' => t('Enter your email to receive an answer from the organiser.'),
+      '#required' => TRUE,
+    );
+  }
+  $form['message']['recipients'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Send To'),
+    '#default_value' => str_replace(', ', '\n', $recipients),
+    '#cols' => 50,
+    '#rows' => 5,
+    '#description' => t('Enter multiple addresses on separate lines or separate them with commas.'),
+    '#attributes' => NULL,
+    '#required' => TRUE,
+  );
+  $form['message']['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject of the message'),
+    '#value' => t('A message from fighthunger.org'),
+    '#required' => TRUE,
+  );
+  $form['message']['content'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Message to sent'),
+    '#cols' => 75,
+    '#rows' => 5,
+    '#value' => t("I thought you'll be interested in this page."),
+    '#required' => TRUE,
+  );
+  $form['message']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send'),
+  );
+  return drupal_get_form('fhuser_taf', $form);
+}
+
+function fhuser_taf_submit($form_id, $form_values) {
+
+  // Fetching recipients
+  $recipients = trim($form_values['recipients']);
+  $recipients = str_replace(array("\r\n", "\n", "\r"), ', ', $recipients);
+  $recipients = str_replace(',', ', ', $recipients);
+  $recipients = str_replace(',  ', ', ', $recipients);
+  $recipients = explode(", ", $recipients);
+
+  // Set subject  
+  $subject = $form_values['subject'];
+  
+  // Set from
+  $from = $form_values['yemail'];
+  
+  // Set message
+  $vars = array(
+    '%name' => l($edit['yname'], 'mailto:'.$edit['yemail'],NULL,NULL,NULL,TRUE),
+    '%site' => l(t('personal page'), "user/" . $edit['uid'],NULL,NULL,NULL,TRUE) 
+  );
+	$fwd_msg =  t('%name thought you would like to see this %site.', $vars);
+
+  // Set vars for theming
+  $vars = array(
+	  'forward_header_image' => variable_get('forward_header_image', ''),
+	  'site_name' => variable_get('site_name', 'FightHunger'),
+	  'yemail'    => $from,
+	  'forward_message' => $fwd_msg,
+	  'message'  =>  check_markup($form_values['content']),
+	  'dynamic_content'   => '',
+	  'forward_ad_footer' => variable_get('forward_ad_footer', ''),
+	  'forward_footer'    => variable_get('forward_footer', '')
+  );
+
+  // Theming body
+  $body = theme('email_message', $vars);
+  
+  // Enqueue emails
+  module_invoke('fhmail', 'enqueue', $recipients, $from, $subject, $body); 
 }
 
 ?>

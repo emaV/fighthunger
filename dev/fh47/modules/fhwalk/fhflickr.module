@@ -55,12 +55,6 @@ function fhflickr_settings() {
     '#title' => t('flickr apiKey'),
     '#default_value' => variable_get('fhflickr_apiKey', 'b9937eed5e47e753b717ddd7a2045bc7'),
   );
-  $form['fhflickr_proxy'] = array(
-    '#type'  => 'textfield', 
-    '#title' => t('flickr proxy'),
-    '#default_value' => variable_get('fhflickr_proxy', ''),
-    '#description'   => t('Enter proxy configuration (ex: 10.11.40.110:8080)'),
-  );
   return $form;
 }
 
@@ -89,7 +83,7 @@ function theme_flickr_img_s($photo) {
   $out = '';
   if($photo) {
     $flickr_square = "http://farm" . $photo->farm . ".static.flickr.com/$photo->server/$photo->photo_id" . "_" . $photo->secret . "_s.jpg";
-    $out = '<img src="' . $flickr_square . '" alt="' . check_plain($photo->title) . '" title="' . check_plain($photo->title) . '" width="75" height="75" vspace="5" hspace="5">';
+    $out = '<img src="' . $flickr_square . '" alt="' . check_plain($photo->title) . '" title="' . check_plain($photo->title) . '" class="flickr_img_s" width="75" height="75" vspace="5" hspace="5">';
   }
   return $out;
 }
@@ -112,7 +106,7 @@ function theme_flickr_album_plain($node) {
     if (($i%$photos_x_rows)==0) $out_album.= "  <tr class='photo_album'>\n";
     $out_album .= "    <td class='photo_album'>\n";
 //    $out_album .= "<a href='$flickr_link'><img src='$flickr_square' alt='$photo->title' title='$photo->title' width='75' height='75' vspace='5' hspace='5'></a>\n";
-    $out_album .= "<a href='$flickr_link'>" . theme('flickr_img_s', $photo) . "</a>\n";
+    $out_album .= l(theme('flickr_img_s', $photo), $flickr_link, array('class' => 'flickr_img_s'),  NULL,  NULL, FALSE,  TRUE);
     $out_album .= "    </td>\n";
     if (($i%$photos_x_rows)==($photos_x_rows-1)) $out_album .= "  </tr>\n";
     $i++;
@@ -172,10 +166,23 @@ global $user;
   if($node->type != 'fhwalk') return;
 
   switch ($op) {
+    case 'fh_settings':
+      return fhflickr_settings();
+      break;
+    case 'insert':
+//    case 'update':
+      if(!$node->tag && $node->path) {
+        $tags = split('/',  $node->path );
+        $tag_event = fhflickr_tags4flickr(array_pop($tags));
+        $sql = "UPDATE {gathering_node} SET tag='%s' WHERE nid = %d";
+        db_query($sql, $tag_event, $node->nid);
+      }
+      break;  
     case 'load':
       $sql = "SELECT tag FROM {gathering_node} WHERE nid = %d";
       $additions = db_fetch_array(db_query($sql, $node->nid));
       return $additions;
+      break;
     case 'view':
       $node->body .= fhflickr_nodeapi_view($node);
       break;
@@ -224,22 +231,10 @@ function fhflickr_photos_search_tag($tags) {
   foreach ($params as $k => $v) {
 	  $encoded_params[] = urlencode($k).'='.urlencode($v);
   }
-  // proxy
-  if($proxy=variable_get('fhflickr_proxy', '')) {
-    $aContext = array(
-     'http' => array(
-         'proxy' => "tcp://$proxy", 
-         'request_fulluri' => True,
-         ),
-    );
-    $cxContext = stream_context_create($aContext);
-  } else  {
-    $cxContext = NULL;
-  }
 
   // call the API and decode the response
   $url = "http://api.flickr.com/services/rest/?".implode('&', $encoded_params);
-  $rsp = file_get_contents($url, False, $cxContext );
+  $rsp = fh_file_get_contents($url);
   $rsp_obj = unserialize($rsp);
   return ($rsp_obj['stat'] == 'ok') ? $rsp_obj : $url;
 } 

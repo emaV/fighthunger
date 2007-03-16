@@ -214,6 +214,10 @@ global $user;
   if($node->type != 'fhwalk') return;
 
   switch ($op) {
+    case 'fh_settings':
+      return fhsignup_settings();
+      break;
+  
     case 'insert':
     case 'update':
 

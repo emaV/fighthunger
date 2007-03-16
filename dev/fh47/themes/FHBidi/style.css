@@ -32,12 +32,25 @@ a:active { color: #ff6600; }
   background: #ffffff;
   border: solid 1px #006699;
 }
+.main-content .content-title {color: #333333; }
+
+/* links */
 .block .more-link a { color: #ff6600; }
 .block .more-link a:hover { color: #ff6600; }
 .breadcrumb, .main-content .links a.read-more { color: #006699; }
-.main-content .content-title {color: #333333; }
 .links a.read-more:hover { color: #006699; }
-.main-content .node .content a, .comment .content a, .book .body a { border-bottom: 1px solid; }
+
+.main-content .node .content a,
+.comment .content a, .book .body a { 
+  border-bottom: 1px solid; 
+}
+/* flickr album links */
+.main-content .node .content a.flickr_img_s,
+.main-content .node .content #pager a
+ {
+  border-bottom-style: none;
+}
+
 .main-content .node .info, .main-content .node .terms { color: #999; }
 .main-content .donation .info { 
   background: #efefef;
@@ -137,6 +150,13 @@ a:active { color: #ff6600; }
 
 .profile_set .form-text, .profile_set .form-select {
   width: 90%;
+}
+.profile_set .required {
+  background: #efefef;
+}
+.profile_set #edit-pass-pass1,
+.profile_set #edit-pass-pass2 {
+  width: 40%;
 }
 
 .main-content .sticky { border: 1px solid #eee; }

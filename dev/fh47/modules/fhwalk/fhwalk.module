@@ -268,13 +268,28 @@ function fhwalk_settings() {
     '#default_value' => variable_get('fhwalk_vocabulary', 0),
     '#options' => $voc_options
   );
+/*  
   $form['fhwalk_signup'] = array(
     '#type' => 'fieldset', 
     '#title' => t('Signup Settings'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
-  $form['fhwalk_signup'][] = fhsignup_settings();
+*/
+  $node->type = 'fhwalk';
+  foreach (module_implements('nodeapi') as $name) {
+    $function = $name .'_nodeapi';
+    $form_add = $function($node, 'fh_settings', NULL, NULL);
+    if($form_add) {
+      $form[$name] = array(
+        '#type' => 'fieldset', 
+        '#title' => t('Settings') . ": <b>$name</b>",
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+      );
+      $form[$name][] = $form_add;
+    }
+  }
   
   return $form;
 }

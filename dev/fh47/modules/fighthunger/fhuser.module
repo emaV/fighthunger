@@ -1119,7 +1119,7 @@ function fhuser_taf_submit($form_id, $form_values) {
   
   // Set message
   $vars = array(
-    '%name' => l($edit['yname'], 'mailto:'.$form_values['yemail'],NULL,NULL,NULL,TRUE),
+    '%name' => l($form_values['yname'], 'mailto:'.$form_values['yemail'],NULL,NULL,NULL,TRUE),
     '%site' => l(t('personal page'), "user/" . $form_values['uid'],NULL,NULL,NULL,TRUE) 
   );
 	$fwd_msg =  t('%name thought you would like to see this %site.', $vars);

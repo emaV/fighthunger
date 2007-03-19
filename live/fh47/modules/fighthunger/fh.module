@@ -27,6 +27,21 @@ function fh_help($section) {
 }
 
 /**
+ * Implementation of hook_settings().
+ *  
+ */
+function fh_settings() {
+  $form['fh_proxy'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('flickr proxy'),
+    '#default_value' => variable_get('fh_proxy', ''),
+    '#description'   => t('Enter proxy configuration (ex: 10.11.40.110:8080)'),
+  );
+  return $form;
+}
+
+
+/**
  * Implementation of hook_menu().
  */
 function fh_menu($may_cache) {
@@ -291,4 +306,24 @@ global $conf;
   $base_url = 'fh_table';
   variable_set($name, $value);
   return "<p style='text-align: right'>" . l($text, "$base_url/$name") . "</p>";
+}
+
+/**
+ * Implement file_get_contents with proxy
+ * string file_get_contents ( 
+ *   string $filename [, bool $use_include_path [, resource $context [, int $offset [, int $maxlen]]]] 
+ */  
+function fh_file_get_contents($url, $use_include_path=False, $cxContext=NULL ) {
+
+  // check if proxy set
+  if(!$cxContext && ($proxy=variable_get('fh_proxy', ''))) {
+    $aContext = array(
+     'http' => array(
+         'proxy' => "tcp://$proxy", 
+         'request_fulluri' => True,
+         ),
+    );
+    $cxContext = stream_context_create($aContext);
+  }
+  return file_get_contents($url, $use_include_path, $cxContext );
 }

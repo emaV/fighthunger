@@ -1,0 +1,40 @@
+<?php
+/**
+ * Create database tables
+ */
+
+function fhflickr_install() {
+  $ret = array();
+
+  // Set table
+  $sql = "DROP TABLE IF EXISTS {fh_flickr}";
+  db_query($sql);
+  $sql = "CREATE TABLE {fh_flickr} (
+      nid int(10) NOT NULL,
+      title varchar(128) NOT NULL,
+      tags varchar(50) NOT NULL,
+      photo_id int(10) unsigned NOT NULL default '0',
+      secret varchar(12) NOT NULL,
+      server char(2) NOT NULL,
+      farm char(2) NOT NULL,
+      timestamp int(10) unsigned NOT NULL default '0',
+      PRIMARY KEY  (nid,photo_id)  ) 
+    ENGINE=MyISAM DEFAULT CHARSET=utf8;";  
+  db_query($sql);
+}
+
+
+/*
+ * Schema change 1: Modify gathering_node tables
+ */
+function fhflickr_update_1() {
+  $ret = array();
+
+  $sql = "ALTER TABLE {gathering_node} ADD tag VARCHAR( 50 ) NOT NULL AFTER camid;";  
+  $ret[] =  update_sql($sql);
+
+  return $ret;
+
+}
+
+?>

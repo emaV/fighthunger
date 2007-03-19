@@ -1,5 +1,5 @@
 <?php
-// $Id: fhwalk.module,v 0.1 2007/01/09 09:02:48 ema Exp $
+// $Id: fhwalk.module,v 1.0 2007/03/16 19:02:48 ema Exp $
 
 /**
  * @file
@@ -140,7 +140,6 @@ global $user;
 
   // permission for coordinator (ONLY to their organisers)
   if (user_access('coordinate walks')) {
-//    drupal_set_message('PERM: coordinate walks');
     $sql = "SELECT n.uid FROM {gathering_node} gn " . 
       "JOIN {node} n ON gn.nid = n.nid  " . 
       "WHERE gn.cid=%d AND n.uid=%d";
@@ -268,13 +267,20 @@ function fhwalk_settings() {
     '#default_value' => variable_get('fhwalk_vocabulary', 0),
     '#options' => $voc_options
   );
-  $form['fhwalk_signup'] = array(
-    '#type' => 'fieldset', 
-    '#title' => t('Signup Settings'),
-    '#collapsible' => TRUE,
-    '#collapsed' => TRUE,
-  );
-  $form['fhwalk_signup'][] = fhsignup_settings();
+  $node->type = 'fhwalk';
+  foreach (module_implements('nodeapi') as $name) {
+    $function = $name .'_nodeapi';
+    $form_add = $function($node, 'fh_settings', NULL, NULL);
+    if($form_add) {
+      $form[$name] = array(
+        '#type' => 'fieldset', 
+        '#title' => t('Settings') . ": <b>$name</b>",
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+      );
+      $form[$name][] = $form_add;
+    }
+  }
   
   return $form;
 }
@@ -686,8 +692,6 @@ function fhwalk_form(&$node) {
     }
   }
 
-  // Parameters for new nodes $node->camid, $node->cid, $node->country
-
   // Regular fields
   $form['title'] = array(
     '#type' => 'textfield',
@@ -772,7 +776,6 @@ global $user;
       $campaign = $node->campaign;
       
       if (isset($form['delete'])) {
-//        $form['merge'] = array('#type' => 'button', '#value' => t('Merge Walk'), '#weight' => 51);
         $form['delete']['#value'] = t('Delete Walk');
       }
 
@@ -826,10 +829,10 @@ global $user;
       }
     
       // Set tid from parameters
+      // Further processing will be done on campaign module, after_build hook
       if(isset($node->camid)) {
         $form['taxonomy'][$vid]['#default_value'] = $node->camid;
       }
-      // recover $tid and reset $form['taxonomy'][$vid]
       
       if($campaign) {
         $tid = $campaign->tid;
@@ -846,12 +849,8 @@ global $user;
         // Just set date from latest campaign
         list($year, $month, $day) = explode("-", fhcampaign_default_date());
       }
-      // Further processing will be done on campaign module, after_build hook
 
-//      $form['taxdump2'] = array('#value' => '<hr/>' .  print_r($form['location'], true) . '<hr/>');  
-//      $form['taxdump3'] = array('#value' => "i = $i<hr/>");  
-
-// change location form
+      // change location form
       $form['location']['name']['#title'] = t('Start Location');  
       $form['location']['street']['#title'] = t('Street Address');  
       $form['location']['street']['#required'] = 1;  
@@ -878,7 +877,7 @@ global $user;
       unset( $form['event_end']['date']['end_hour']['#prefix'] );
       unset( $form['event_end']['date']['end_day']['#prefix'] );
 
-  // ...minutes options (with leading 0s)
+      // ...minutes options (with leading 0s)
       for ($i = 0; $i <= 59; $i += 5) $minutes[$i] = $i < 10 ? "0$i" : $i;
 
 
@@ -987,11 +986,6 @@ global $user;
       if (isset($form['location']))    $form['location']['#weight'] = 23;
       if (isset($form['donation']))    $form['donation']['#weight'] = 24;
 
-/*
-      if (($node->nid && node_access('delete', $node)) {
-        $form['delete'] = array('#type' => 'button', '#value' => t('Delete'), '#weight' => 50);
-      }
-*/
     /* DEBUG:
     foreach ($form as $category => $items) {
       if (is_array($items)) {
@@ -1014,6 +1008,7 @@ global $user;
 
   return $form;
 }
+
 /**
  * Themed history.
  *  
@@ -1142,7 +1137,6 @@ function fhwalk_contact_email_submit($form_id, $form_values) {
     
   // Enqueue emails
   module_invoke('fhmail', 'send', $recipient, $form_values['yemail'], $subject, $body);
-//  drupal_set_message("'fhsignup', 'email_enqueue'\n $recipient\n" . $form_values['yemail'] . "\n$subject\n$body");
 
   drupal_set_message(t('Message sent to organiser.'));
 }
@@ -1263,7 +1257,7 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
       $details['scrapbook']  = array(
         '#title'  => t('Scrapbook'),
         '#weight' => -1,
-        '#value'  => fhwalk_get_photos($node)
+        '#value'  => $node->hook_view['fhflickr']
       );
       if(!$details['scrapbook']['#value']) unset($details['scrapbook']);
       
@@ -1426,77 +1420,6 @@ function theme_fhwalk_btn_create($url) {
  * ADMINISTER TAB
  *  
  **********************/ 
- 
-/**
- * Get a list of walk coordinate by the user.
- *  
- * @ingroup fhwalk_administer
- * @param $tid taxonomy campaign tid
- * @param $sql_array array with search condition
- * @return walk themed table
- *
-function _fhwalk_administer_get_walk($tid, $sql_array) {
-
-  $header = array(
-    array('data' => t('Event'),       'field' => 'title'),
-    array('data' => t('City'),        'field' => 'city'),
-    array('data' => t('Country'),     'field' => 'cname', 'sort' => 'asc'),
-    array('data' => t('Organiser'),   'field' => 'c_name'),
-    array('data' => t('Coordinator'), 'field' => 'name'),
-    array('data' => t('Operations'),  '')
-  );
-
-  $sql = "SELECT n.nid, n.title, u.uid, u.name, uc.uid AS c_uid, uc.name AS c_name, " .
-    "l.city, l.country, c.name AS cname FROM {node} n " . 
-    "LEFT JOIN {gathering_node} gn ON n.nid=gn.nid " .
-    "LEFT JOIN {location} l ON n.nid=l.oid " .
-    "LEFT JOIN {countries} c ON UPPER(l.country)=c.ccid " .
-    "LEFT JOIN {users} uc ON gn.cid=uc.uid " .
-    "JOIN {users} u ON u.uid=n.uid " .
-    "JOIN {term_node} tn ON tn.nid=n.nid " .
-    "WHERE l.type='node' AND tn.tid=%d";
-    
-// set condition from array
-  foreach($sql_array as $key => $value) {
-    switch ($key) {
-      case 'coord':
-        $sql .= ($value=='none') ? ' AND gn.cid IS NULL' : " AND gn.cid=$value ";
-        break;
-      case 'country':
-        $sql .= " AND l.country='$value'";
-    }
-  }
-
-  $num_rows_total = db_num_rows(db_query($sql, $tid));
-  $tablesort = tablesort_sql($header);
-  $result = pager_query($sql . $tablesort, 20, 0, NULL, $tid);
-
-  while ($walk = db_fetch_object($result)) {
-    $operations = l(t('Edit'),  'node/' . $walk->nid . '/edit');
-    $organiser->uid    = $walk->uid;
-    $organiser->name   = $walk->name;
-    $coordinator->uid  = $walk->c_uid;
-    $coordinator->name = $walk->c_name;
-    $rows[] = array(
-      'data' => array(
-          l($walk->title, 'node/' . $walk->nid),
-          $walk->city,
-          $walk->cname,
-          theme('fhwalk_contact', $organiser),
-          theme('fhwalk_contact', $coordinator),
-          $operations));
-  }
-
-  if (!$rows) {
-    $rows[] = array(array('data' => t('No walk available.'), 'colspan' => 6));
-  }
-  
-  $output .= '<h2>' . t("Walk selected") . ": $num_rows_total</h2>";
-  $output .= theme('table', $header, $rows);
-  $output .= theme('pager', NULL, 50, 0);
-  return $output;
-}
-
 
 /**
  * Get fhwalk campaign status
@@ -1526,11 +1449,10 @@ function _fhwalk_status( $sid= FALSE ) {
 function fhwalk_admin_submit($form_id, $form_values) {
   $msg = print_r($form_values, true);
   $variable = 'fhwalk_' . $form_values['tid'] . '_status';
-//  drupal_set_message("pippo dice: $form_id - $msg - $variable");
-// set walk name and description
+  // set walk name and description
   $sql = "UPDATE {term_data} SET name = '%s', description = '%s' WHERE tid = %d";
   db_query($sql, $form_values['name'], $form_values['description'], $form_values['tid'] );
-// set status
+  // set status
   variable_set("$variable", $form_values['status']);  
 }
 
@@ -1559,7 +1481,6 @@ function fhwalk_admin() {
       '#collapsible' => TRUE,
       '#collapsed' => (variable_get("$status_variable", 0) == 0),
     );
-//    $form_out = taxonomy_admin_term_edit($term->tid);
     $form["fhwalk_admin_$term->tid"]['name'] = array(
       '#type' => 'textfield', 
       '#title' => t('Campaign name'), 
@@ -1605,120 +1526,15 @@ function fhwalk_admin() {
     ); 
     $form["fhwalk_admin_$term->tid"]['submit'] = array('#type' => 'submit', '#value' => t('Submit')); 
     $out .=  drupal_get_form("fhwalk_admin", $form);
-
-/*    
-    $out .= taxonomy_admin_term_edit($term->tid);
-*/
   }
-//  $out = drupal_get_form('fhwalk_admin_form_term', $form); 
   return $out;
 }
 
-/******************************
+/**********************
  *
- * Local Country Pages function and helpers
- *
- *******************************/  
-
-function theme_event_album_flash($node) {
-
-  list($tag_campaign, $tag_event) = split('/',  $node->path );
-  $tags = "$tag_campaign,$tag_event";
-  
-  $qry_params  = "user_id=62728578@N00";
-  $qry_params .= "&tags=$tags&tag_mode=all";
-  $qry_params .= "&nsid=&text=&firstId=&v=1.6&codeV=1.26";
-  $src = "http://www.flickr.com/slideShow/index.gne?$qry_params";
-  $style  = "style='margin-top:10px' ";
-  $style .= "frameBorder='0' width='500' height='500' scrolling='no'";
-  $out = "<iframe src='$src' $style></iframe>";
-//  $out .= "<p>$src</p>";
-  return $out;
-}
-
-// remove _ and / from tag for flickr search
-function _tags4flickr ($tag) {
-  return str_replace(array("/","_"), "", $tag);
-}
-
-function theme_event_album_plain($node) {
-//  global $flickr;
-  list($tag_campaign, $tag_event) = split('/',  $node->path );
-  $tags = "$tag_campaign $tag_event";
-/*  
-  $photos = $flickr->searchForTags('rome', 'all', 300);
-  for ($j = 0; $j < count($photos); $j++) {
-    $out .= print_r($photos[$j],true) . "<br />\n";
-  }
-*/
-//  $out = print_r(_echo_slideshow_list_photos('cus'),true);
-  $tag_flickr = _tags4flickr ($tag_event); 
-  $query  = "SELECT * FROM {wtw_gallery_tags} WHERE tag = '$tag_flickr'";
-
-  $photos_x_rows = 5;
-  $num_rows = 6;
-  $photos_x_page = $photos_x_rows * $num_rows;
-  $result = pager_query($query, $photos_x_page);
-//  $result = db_query($query);
-  
-  $out_album = "\n<!-- event_album_plain START -->\n";
-  $out_album .= "<table class='photo_album' style='padding:5px; margin: auto;'>\n";
-  $i = 0;
-  while ($row = db_fetch_array($result)) {
-    $pid = $row['photo_id'];
-    $secret = $row['secret'];
-    $server = $row['server'];
-    
-    $flickr_link = "http://www.flickr.com/photos/walktheworld/$pid/";
-    $flickr_square = "http://static.flickr.com/$server/" . $pid . "_" . $secret . "_s.jpg";
-/*
-<img src="http://static.flickr.com/15/18866088_94e31da099_s.jpg" width="75" height="75" alt="Nyc registration" />    
-*/
-//    $base = 'http://www1.fighthunger.org/modules/echo_slideshow/photo.php/';
-    if (($i%$photos_x_rows)==0) $out_album.= "  <tr class='photo_album'>\n";
-    
-    $out_album .= "    <td class='photo_album'>\n";
-    $out_album .= "<a href='$flickr_link'><img src='$flickr_square' width='75' height='75' vspace='5' hspace='5'></a>\n";
-    $out_album .= "    </td>\n";
-//    $out_album .= "    <td style='border: 1px; solid #ddd; padding: 5px'><a href='$flickr_link'><img src='' width='75' height='75'></a></td>\n";
-//    $out_album .= "    <td><img src=''><br />$i</td>\n";
-    if (($i%$photos_x_rows)==($photos_x_rows-1)) $out_album .= "  </tr>\n";
-    $i++;
-  }
-  $out_album .= "</table>\n";
-  $out_album .= theme('pager', NULL, $photos_x_page);
-  $out_album .= "\n<!-- event_album_plain END -->\n";
-  
-//  $photo_info = $flickr->getPhotoInfo(18873349);
-  
-//  $out_album .= $pid . " - " . print_r($photo_info,true);
-//  $out_album .= print_r($flickr,true);
-  
-
-//  $out .= $out_album . theme('pager', 10, 0, array('noflash' => 'value'));
-
-  return ($i) ? $out_album : '';
-}
-
-
-function fhwalk_get_photos($node, $instructions=NULL) {
-  $flash = (isset($_GET['flash']));
-//  $out .= echo_slideshow_slideshow($tags, $instructions, $flash);
-  $out ='';
-  if ($flash) {
-    $out = theme('event_album_flash',$node);
-    $msg = "If you'd like to see these photos without Flash, " .
-      "<a href='node/$node->nid' class='active'>click here</a>";
-    $out .= "<p align='center'><font size='-2'>$msg</font></p>";
-  } else {
-    if($out = theme('event_album_plain',$node)) {
-      $msg .= "If you'd like to see these photos in Flash, " .
-        "<a href='node/$node->nid?flash' class='active'>click here</a>";
-      $out .= "<p align='center'><font size='-2'>$msg</font></p>";
-    };
-  }
-  return $out;
-}
+ * Fundraising TAB
+ *  
+ **********************/ 
 
 /**
  * fhwalk funds page.

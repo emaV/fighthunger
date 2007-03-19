@@ -1,0 +1,326 @@
+<?php
+// $Id: fhwalk.module,v 0.1 2007/01/09 09:02:48 ema Exp $
+
+/**
+ * @file
+ * Enables users to manage fh wtw events.
+ *
+ * @defgroup fhflickr_core        Core drupal hooks
+ * @defgroup fhflickr_helpers     various fhwalk helpers
+ * @defgroup fhflickr_theme       theming functions
+ * @defgroup fhflickr_administer  administer tab
+ *   
+ **/
+ 
+/**
+ * Implementation of hook_help().
+ *  
+ * @ingroup fhflickr_core
+ * @param $section the page which is requesting help
+ * @return the help text
+ */
+function fhflickr_help($section) {
+  switch ($section) {
+    case 'admin/help#fhflickr':
+      return '<p>'. t('The fhflickr module is used to manage flickr photo for walk events') .'</p>';
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Allows managing flickr photo for walk events. <b>Require fhwalk</b>');
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ *  
+ * @ingroup fhwalk_core
+ */
+function fhflickr_perm() {
+  return array(
+    'administer fhflickr'       // was admin fhwalk
+  ); 
+}
+
+/**
+ * Implementation of hook_settings().
+ *  
+ * @ingroup fhflickr_core
+ */
+function fhflickr_settings() {
+  $form['fhflickr_user_id'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('flickr user id'),
+    '#default_value' => variable_get('fhflickr_user_id', '62728578@N00'),
+  );
+  $form['fhflickr_apiKey'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('flickr apiKey'),
+    '#default_value' => variable_get('fhflickr_apiKey', 'b9937eed5e47e753b717ddd7a2045bc7'),
+  );
+  return $form;
+}
+
+/**
+ * Theme functions
+ *  
+ * @ingroup fhflickr_theme
+ */
+function theme_flickr_album_flash($node) {
+  $tag_event    = $node->tag;
+  $tag_campaign = $node->campaign->shortname;
+  $tags="$tag_campaign, $tag_event";
+  
+  $qry_params  = "user_id=" . variable_get('fhflickr_user_id', '62728578@N00');
+  $qry_params .= "&tags=$tags&tag_mode=all";
+  $qry_params .= "&nsid=&text=&firstId=&v=1.6&codeV=1.26";
+  $src = "http://www.flickr.com/slideShow/index.gne?$qry_params";
+  $style  = "style='margin-top:10px' ";
+  $style .= "frameBorder='0' width='500' height='500' scrolling='no'";
+  $out = "<iframe src='$src' $style></iframe>";
+
+  return $out;
+}
+
+function theme_flickr_img_s($photo) {
+  $out = '';
+  if($photo) {
+    $flickr_square = "http://farm" . $photo->farm . ".static.flickr.com/$photo->server/$photo->photo_id" . "_" . $photo->secret . "_s.jpg";
+    $out = '<img src="' . $flickr_square . '" alt="' . check_plain($photo->title) . '" title="' . check_plain($photo->title) . '" class="flickr_img_s" width="75" height="75" vspace="5" hspace="5">';
+  }
+  return $out;
+}
+ 
+function theme_flickr_album_plain($node) {
+  // get photos
+  $sql  = "SELECT * FROM {fh_flickr} WHERE nid=%d";
+  $photos_x_rows = 5;
+  $num_rows = 6;
+  $photos_x_page = $photos_x_rows * $num_rows;
+  $result = pager_query($sql, $photos_x_page, 0, NULL, $node->nid);
+
+  $out_album = "\n<!-- event_album_plain START -->\n";
+  $out_album .= "<table class='photo_album' style='padding:5px; margin: auto;'>\n";
+  $i = 0;
+  while ($photo = db_fetch_object($result)) {
+    $flickr_link = "http://www.flickr.com/photos/walktheworld/$photo->photo_id/";
+//    $flickr_square = "http://farm" . $photo->farm . ".static.flickr.com/$photo->server/$photo->photo_id" . "_" . $photo->secret . "_s.jpg";
+
+    if (($i%$photos_x_rows)==0) $out_album.= "  <tr class='photo_album'>\n";
+    $out_album .= "    <td class='photo_album'>\n";
+//    $out_album .= "<a href='$flickr_link'><img src='$flickr_square' alt='$photo->title' title='$photo->title' width='75' height='75' vspace='5' hspace='5'></a>\n";
+    $out_album .= l(theme('flickr_img_s', $photo), $flickr_link, array('class' => 'flickr_img_s'),  NULL,  NULL, FALSE,  TRUE);
+    $out_album .= "    </td>\n";
+    if (($i%$photos_x_rows)==($photos_x_rows-1)) $out_album .= "  </tr>\n";
+    $i++;
+  }
+  $out_album .= "</table>\n";
+  $out_album .= theme('pager', NULL, $photos_x_page);
+  $out_album .= "\n<!-- event_album_plain END -->\n";
+  
+//  $photo_info = $flickr->getPhotoInfo(18873349);
+//  $out_album .= $pid . " - " . print_r($photo_info,true);
+//  $out_album .= print_r($flickr,true);
+//  $out .= $out_album . theme('pager', 10, 0, array('noflash' => 'value'));
+
+  return ($i) ? $out_album : '';
+}
+ 
+function theme_flickr_album_msg($msg, $nid, $flash=NULL) {
+  $link = l(t('click here'), "node/$nid", NULL, $flash);
+  return "<div class='flickr_album_msg'>$msg, $link</div>\n";
+}
+
+/**
+ * Implementation of op view for hook_nodeapi().
+ *  
+ * @ingroup fhflickr_helpers
+ */
+function fhflickr_nodeapi_view($node) {
+  global $user;
+  $flash = (isset($_GET['flash']));
+
+  $sql  = "SELECT count(*) FROM {fh_flickr} WHERE nid=%d";
+  if(db_result(db_query($sql,$node->nid))>0) {
+    if ($flash) {
+      $album  = theme('flickr_album_flash', $node);
+      $msg  = theme('flickr_album_msg', t("If you'd like to see these photos without Flash"), $node->nid);
+    } else {
+      $album  = theme('flickr_album_plain',$node);
+      $msg  = theme('flickr_album_msg', t("If you'd like to see these photos with Flash"), $node->nid, 'flash');
+    }
+    $out  = "<div class='flickr_album'>\n";
+    $out .= "$album\n$msg\n";
+    $out .= "</div>\n";
+  } else {
+    $out = '';
+  }
+  return $out;
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ *  
+ * @ingroup fhflickr_core
+ */
+function fhflickr_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+global $user;
+
+  if($node->type != 'fhwalk') return;
+
+  switch ($op) {
+    case 'fh_settings':
+      return fhflickr_settings();
+      break;
+    case 'insert':
+//    case 'update':
+      if(!$node->tag && $node->path) {
+        $tags = split('/',  $node->path );
+        $tag_event = fhflickr_tags4flickr(array_pop($tags));
+        $sql = "UPDATE {gathering_node} SET tag='%s' WHERE nid = %d";
+        db_query($sql, $tag_event, $node->nid);
+      }
+      break;  
+    case 'load':
+      $sql = "SELECT tag FROM {gathering_node} WHERE nid = %d";
+      $additions = db_fetch_array(db_query($sql, $node->nid));
+      return $additions;
+      break;
+    case 'view':
+      $node->body .= fhflickr_nodeapi_view($node);
+      break;
+  }
+}
+
+/********************
+ * HELPERS          *
+ ********************/
+function fhflickr_get_rnd_photo($nid) {
+  $sql  = "SELECT * FROM {fh_flickr} WHERE nid=%d";
+  
+  if($num_rows=db_num_rows(db_query($sql, $nid))) {
+    $num_skip = floor(rand(0, $num_rows));
+    $sql .= " LIMIT %d,1";
+    $photo = db_fetch_object(db_query($sql, $nid, $num_skip));
+    $out = theme('flickr_img_s', $photo)   . '<br/>';
+  } else {
+    $out = '';
+  }
+  return $out;
+}
+
+/**
+ * get photos from flickr
+ *  
+ * @ingroup fhflickr_helpers
+ */
+function fhflickr_photos_search_tag($tags) {
+  // set param  
+  $apiKey = variable_get('fhflickr_apiKey', 'b9937eed5e47e753b717ddd7a2045bc7');
+  $userID = variable_get('fhflickr_user_id', '62728578@N00');
+  
+  $perPage = 500;
+  $params = array(
+    'api_key'  => $apiKey,
+    'user_id'  => $userID,
+	  'format'   => 'php_serial',  
+    'method'   => 'flickr.photos.search', 
+    'per_page' => $perPage,
+    'tags'     => $tags,
+    'tag_mode' => 'all',
+    'page'     => 1,
+  );
+  $encoded_params = array();
+  foreach ($params as $k => $v) {
+	  $encoded_params[] = urlencode($k).'='.urlencode($v);
+  }
+
+  // call the API and decode the response
+  $url = "http://api.flickr.com/services/rest/?".implode('&', $encoded_params);
+  $rsp = fh_file_get_contents($url);
+  $rsp_obj = unserialize($rsp);
+  return ($rsp_obj['stat'] == 'ok') ? $rsp_obj : $url;
+} 
+
+/**
+ * refresh node
+ *  
+ * @ingroup fhflickr_helpers
+ * 
+  [page] => 1 [pages] => 1 [perpage] => 100 [total] => 88 
+  Array ( 
+    [id] => 20927759 
+    [owner] => 62728578@N00 
+    [secret] => 47cd5b577c 
+    [server] => 16 
+    [farm] => 1 
+    [title] => wtw islamabad 1/2 
+    [ispublic] => 1 
+    [isfriend] => 0 
+    [isfamily] => 0 ) 
+*/
+function fhflickr_refresh_node($node) {
+  if(is_numeric($node)) $node = node_load($node);
+  
+  $tag_event    = $node->tag;
+  $tag_campaign = $node->campaign->shortname;
+  $tags="$tag_campaign, $tag_event";
+  // get photos
+  if($rsp_obj = fhflickr_photos_search_tag($tags)) {
+    $sql = "DELETE FROM {fh_flickr} WHERE nid=%d";
+    db_query($sql, $node->nid);
+    $sql = "INSERT INTO {fh_flickr} " .
+      "(nid, title, tags, photo_id, secret, server, farm, timestamp) " .
+      " VALUES " . 
+      "(%d,  '%s',  '%s', '%d',     '%s',   '%s',   '%s', %d);";
+
+    foreach ($rsp_obj['photos']['photo'] as $photo) {
+      db_query($sql, $node->nid, $photo['title'], $tags, $photo['id'], $photo['secret'],$photo['server'],$photo['farm'], time() );
+    }
+    return $rsp_obj['photos']['total'];
+  } else {
+    return -1;
+  }
+}
+
+function fhflickr_refresh_campaign($camid=NULL) {
+  $res = array();
+  if($camid) {
+    $campaigns = array($camid => ''); 
+  } else {
+    $campaigns = module_invoke('fhcampaign' , 'get_all_campaigns');
+  }
+  foreach($campaigns as $camid => $campaign) {
+    $walks = fhwalk_get_walks($camid);
+    foreach($walks as $nid => $walk) {
+      $res[$nid] = fhflickr_refresh_node($nid);
+    }
+  }
+  return $res;
+}
+
+// remove _ and / from tag for flickr search
+function fhflickr_tags4flickr ($tag) {
+  return str_replace(array("/","_"), "", $tag);
+}
+
+function _fhflickr_set_node_flickrtag() {
+  $campaigns = module_invoke('fhcampaign' , 'get_all_campaigns');
+  foreach($campaigns as $camid => $campaign) {
+    $walks = fhwalk_get_walks($camid);
+    foreach($walks as $nid => $walk) {
+      // get tag
+      switch($campaign->name) {
+        case 'Walk the World 2007':
+        case 'Walk the World 2006':
+          $node = node_load($nid);
+          $tags = split('/',  $node->path );
+          $tag_event = array_pop($tags);
+          break;
+        default:
+          $tag_event = "a" . $nid;          
+          break;
+      }
+      $tag_event= fhflickr_tags4flickr($tag_event);
+      $sql = "UPDATE {gathering_node} SET tag='%s' WHERE nid=%d;";
+      db_query($sql, $tag_event, $nid );
+    }
+  }
+}

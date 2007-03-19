@@ -1084,7 +1084,7 @@ global $user;
   $form['message']['subject'] = array(
     '#type' => 'textfield',
     '#title' => t('Subject of the message'),
-    '#value' => t('A message from fighthunger.org'),
+    '#default_value' => t('A message from fighthunger.org'),
     '#required' => TRUE,
   );
   $form['message']['content'] = array(
@@ -1092,7 +1092,7 @@ global $user;
     '#title' => t('Message to sent'),
     '#cols' => 75,
     '#rows' => 5,
-    '#value' => t("I thought you'll be interested in this page."),
+    '#default_value' => t("I thought you'll be interested in this page."),
     '#required' => TRUE,
   );
   $form['message']['submit'] = array(

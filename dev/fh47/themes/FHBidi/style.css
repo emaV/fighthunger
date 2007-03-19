@@ -151,9 +151,6 @@ a:active { color: #ff6600; }
 .profile_set .form-text, .profile_set .form-select {
   width: 90%;
 }
-.profile_set .required {
-  background: #efefef;
-}
 .profile_set #edit-pass-pass1,
 .profile_set #edit-pass-pass2 {
   width: 40%;

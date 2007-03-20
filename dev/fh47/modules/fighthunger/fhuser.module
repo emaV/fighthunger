@@ -1089,10 +1089,10 @@ global $user;
   );
   $form['message']['content'] = array(
     '#type' => 'textarea',
-    '#title' => t('Message to sent'),
+    '#title' => t('Message to send.'),
     '#cols' => 75,
     '#rows' => 5,
-    '#default_value' => t("I thought you'll be interested in this page."),
+    '#default_value' => t("I thought you would be interested in this page."),
     '#required' => TRUE,
   );
   $form['message']['submit'] = array(

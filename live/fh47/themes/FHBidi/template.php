@@ -117,6 +117,12 @@ function phptemplate_settings() {
       '#default_value' => $settings['FH_profile_TeamUp'],
       '#description' => t('Team Up help text')
     );
+    $form['profile']['FH_profile_help'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Profile Help'),
+      '#default_value' => $settings['FH_profile_help'],
+      '#description' => t('Generic help text')
+    );
     return $form;
 }
 
@@ -368,14 +374,19 @@ function phptemplate_fhuser_user_edit($form) {
     $out_header .= "<dd>" . $settings["FH_profile_$id"] . "</dd>\n";     
   }
   $out_header .= "</dl>\n";
+  if($FH_profile_help = $settings['FH_profile_help']) {
+    $out_header .= "<div class='profile_top'>\n$FH_profile_help\n</div>\n";
+  }
 
 //  $output  .= _print_cat($form['account']);
 //  $form['#prefix'] = '<div class="profile">';
 //  $form['#suffix'] = "</div>\n<div style='clear: both;'>&nbsp;</div>\n";
 
   // Renders elements
-  $output .= "<div class='profile'><a name='top'/>\n\n";
+  $output .= "<div class='profile'>\n\n";
+  $output .= "<div class='profile_top'><a name='top'/>\n";
   $output .= "$out_header \n";
+  $output .= "</div>\n";
   
   $output .= "<div class='profile_left'>\n";
   $output .= form_render($form['account']);

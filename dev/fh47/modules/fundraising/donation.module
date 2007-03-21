@@ -156,16 +156,32 @@ function donation_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
 function donation_form_alter($form_id, &$form) {
   if (isset($form['type'])) {
     // Get settings for this node type
-    $settings = variable_get('donation_settings_'.$form['type']['#value'], 0);
-    $settings = is_array($settings) ? $settings : array();
+    $settings = variable_get('donation_settings_'.$form['type']['#value'], array());
+ //   $settings = is_array($settings) ? $settings : array();
     // Content type administration form
     if ($form['type']['#value'] .'_node_settings' == $form_id) {
- 	    //return form_checkboxes(t('Donation types'), "donation_settings_$node->type", $settings, _donation_types(), t('Check the donation options allowed for this content type'));
-      $form['workflow']['donation_settings_'. $form['type']['#value']] = array(
-      	'#type' => 'checkboxes', '#title' => t('Donation types'), 
-      	'#default_value' => variable_get('donation_'. $form['type']['#value'], array()), 
+      $form['donation'] = array(
+        '#type'   => 'fieldset', 
+        '#weight' => 0,
+        '#title'  => t('Donation options'), 
+        '#collapsible' => TRUE
+      );
+      $form['donation']['donation_settings_'. $form['type']['#value']] = array(
+      	'#type' => 'checkboxes', 
+        '#title' => t('Donation types'), 
+      	'#default_value' => $settings, 
       	'#options' => _donation_types(), 
-      	'#description' => t('Check the donation options allowed for this content type'));
+      	'#description' => t('Check the donation options allowed for this content type')
+      );
+      $options = array_merge(array(''=>t('none')), $settings);
+      $form['donation']['donation_default_'. $form['type']['#value']] = array(
+      	'#type' => 'select', 
+        '#title' => t('Donation default'), 
+      	'#default_value' => variable_get('donation_default_'. $form['type']['#value'], ''), 
+      	'#options' => $options, 
+      	'#description' => t('Set donation default for this content type')
+      );
+
     }
     // Node form. Only if there are settings for this node type
     if ($form['type']['#value'] .'_node_form' == $form_id) {
@@ -176,10 +192,27 @@ function donation_form_alter($form_id, &$form) {
 	      foreach($settings as $type) {
           $allowed_types[$type] = $alltypes[$type];
 	      }
-        $form['donation'] = array('#type' => 'fieldset', '#tree' => TRUE, '#title' => t('Donations'), '#collapsible' => TRUE);
-        $form['donation']['type'] = array('#type' => 'radios', '#default_value' => $node->donation->type, '#options' => $allowed_types);
-	      $form['donation']['amount'] = array('#type' => 'textfield', '#title' => t('Amount'), '#default_value' => $node->donation->amount, '#size' => 10, '#maxlength' => 10);
-	      $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency'), '#default_value' => $node->donation->currency, '#options' => _donation_currencies());
+        $form['donation'] = array(
+          '#type' => 'fieldset', 
+          '#tree' => TRUE, 
+          '#title' => t('Donations'), 
+          '#collapsible' => TRUE);
+        $form['donation']['type'] = array(
+          '#type' => 'radios', 
+          '#default_value' => $node->donation->type ? $node->donation->type : $settings[variable_get('donation_default_'. $form['type']['#value'], '')], 
+          '#options' => $allowed_types
+        );
+	      $form['donation']['amount'] = array(
+          '#type' => 'textfield', 
+          '#title' => t('Amount'), 
+          '#default_value' => $node->donation->amount, 
+          '#size' => 10, 
+          '#maxlength' => 10);
+	      $form['donation']['currency'] = array(
+          '#type' => 'select', 
+          '#title' => t('Currency'), 
+          '#default_value' => $node->donation->currency, 
+          '#options' => _donation_currencies());
 	    }
     }
   }
@@ -195,9 +228,24 @@ function donation_perm() {
  * Implementation of hook_settings()
  */
 function donation_settings() {
-  $form['donation_presentation'] = array('#type' => 'textarea', '#title' => t('Presentation'), '#default_value' => variable_get('donation_presentation', ''), '#rows' => 10, '#description' => t('Presentation text for plain donations. This may contain HTML markup.'));
-  $form['donation_presentation_teaser'] = array('#type' => 'textarea', '#title' => t('Short Presentation'), '#default_value' => variable_get('donation_presentation_teaser', ''), '#rows' => 10, '#description' => t('Short presentation text for user forms. This may contain HTML markup.'));
-  $form['donation_user_message'] = array('#type' => 'textfield', '#title' => t('User message'), '#default_value' => variable_get('donation_user_message', t('Make a donation')), '#description' => t('Donation message for user profile page.'));
+
+  $form['presentation'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Presentation settings'));
+  $form['presentation']['donation_presentation'] = array('#type' => 'textarea', '#title' => t('Presentation'), '#default_value' => variable_get('donation_presentation', ''), '#rows' => 10, '#description' => t('Presentation text for plain donations. This may contain HTML markup.'));
+  $form['presentation']['donation_presentation_teaser'] = array('#type' => 'textarea', '#title' => t('Short Presentation'), '#default_value' => variable_get('donation_presentation_teaser', ''), '#rows' => 10, '#description' => t('Short presentation text for user forms. This may contain HTML markup.'));
+
+  $form['user'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('User settings'));
+  $form['user']['donation_user_message'] = array('#type' => 'textfield', '#title' => t('User message'), '#default_value' => variable_get('donation_user_message', t('Make a donation')), '#description' => t('Donation message for user profile page.'));
+  $form['user']['donation_default_user'] = array(
+    '#type' => 'select', 
+    '#title' => t('Donation default'), 
+    '#default_value' => variable_get('donation_default_user', ''), 
+   	'#options' => _donation_event_list(NULL, FALSE), 
+    '#description' => t('Set donation default for user page')
+  );
   
   $form['email_success'] = array('#type' => 'fieldset', '#title' => t('Success e-mail'), '#description' => t('E-mail to send to the user uppon successful donation.'));
   $form['email_success']['donation_success_subject'] = array('#type' => 'textfield', '#title' => t('Subject'), '#default_value' => variable_get('donation_success_subject', t('Thanks for your donation')));
@@ -235,7 +283,7 @@ function donation_user($type, &$edit, &$account, $category = NULL) {
         $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Take donations on behalf of FightHunger.org') );
         $form['fundraising']['donation'] = array('#type' => 'select',
           '#title' => t('Campaign or event'),
-          '#default_value' => $account->donation, 
+          '#default_value' => $account->donation ? $account->donation : variable_get('donation_default_user', ''), 
           '#options' => _donation_event_list(), 
           '#description' => t('You can choose to take donations to help end child hunger. You can also choose which event your funds are tracked to.')
         );
@@ -726,24 +774,26 @@ function donation_transaction($donation, $success) {
 /**
  * List of events and campaigns for user page
  */
-function _donation_event_list($key = NULL) {
+function _donation_event_list($key = NULL, $list_event=TRUE) {
   $list[0] = t('None');
   $list['plain'] = t('Plain donation');
   // $result = db_query("SELECT * FROM {gathering_campaign} WHERE active");
   if ($active = module_invoke('fhcampaign', 'get_active_campaigns')) {
     foreach($active as $campaign) {
       $list['c' . $campaign->camid] = t('Campaign') . ": $campaign->name";
-      // Objects linked through taxonomy now
-      $result = db_query("SELECT n.nid, n.title, l.city, l.country " .
-          " FROM {node} n " .
-          " INNER JOIN {donation_node} d ON d.nid = n.nid " .
-          " INNER JOIN {term_node} tn ON n.nid = tn.nid " .
-          " LEFT JOIN {location} l ON n.nid = l.oid AND l.type = 'node' ".
-          " WHERE d.type = 'event' AND tn.tid = %d", $campaign->camid);
-      while($event = db_fetch_object($result)) {
-        $list[$event->nid]  = '--'.t('Event') . ': '.$event->title
-         . (($event->city)  ? " @ $event->city"  : '')
-         . (($event->country) ? ' ('.module_invoke('fh', 'get_country_name', $event->country).')' : '');
+      if($list_event) {
+        // Objects linked through taxonomy now
+        $result = db_query("SELECT n.nid, n.title, l.city, l.country " .
+            " FROM {node} n " .
+            " INNER JOIN {donation_node} d ON d.nid = n.nid " .
+            " INNER JOIN {term_node} tn ON n.nid = tn.nid " .
+            " LEFT JOIN {location} l ON n.nid = l.oid AND l.type = 'node' ".
+            " WHERE d.type = 'event' AND tn.tid = %d", $campaign->camid);
+        while($event = db_fetch_object($result)) {
+          $list[$event->nid]  = '--'.t('Event') . ': '.$event->title
+           . (($event->city)  ? " @ $event->city"  : '')
+           . (($event->country) ? ' ('.module_invoke('fh', 'get_country_name', $event->country).')' : '');
+        }
       }
     }
   }
@@ -751,9 +801,9 @@ function _donation_event_list($key = NULL) {
 }
 
 function _donation_types($types = array()) {
-  $types['plain'] = t('Plain donation');
-  $types['fee'] = t('Event fee');
-  $types['event'] = t('Event donation');
+  $types['plain']    = t('Plain donation');
+  $types['fee']      = t('Event fee');
+  $types['event']    = t('Event donation');
   $types['campaign'] = t('Campaign donation');
   return $types;
 }

@@ -197,7 +197,7 @@ function phptemplate_user_profile($account, $fields, $categories) {
 
   // Set profile_presentation field
   if( $pres_val = $data['profile_presentation']['value'] ) {
-    $data['profile_presentation']['title'] = t("Why I'm supporting Fight Hunger?");
+    $data['profile_presentation']['title'] = t("Why I'm supporting Fight Hunger");
     $data['profile_presentation']['attributes'] = array('class' => 'profile_motivation');
   }
 

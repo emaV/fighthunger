@@ -134,7 +134,6 @@ ini_set('session.use_only_cookies', 1);
 ini_set('session.use_trans_sid',    0);
 ini_set('url_rewriter.tags',        '');
 ini_set('memory_limit',             '32M');
-ini_set('upload_max_filesize',      '10485760');
 
 /**
  * We try to set the correct cookie domain. If you are experiencing problems

@@ -40,6 +40,7 @@ DirectoryIndex index.php
   php_value magic_quotes_gpc                0
   php_value register_globals                0
   php_value session.auto_start              0
+  php_value upload_max_filesize            8M
 </IfModule>
 
 # Reduce the time dynamically generated pages are cache-able.

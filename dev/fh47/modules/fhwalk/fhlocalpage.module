@@ -330,7 +330,8 @@ function fhlocalpage_get_nodes($country, $tid) {
     "INNER JOIN {location} l ON l.oid = n.nid AND l.type = 'node'" .
     "INNER JOIN {i18n_node} i18n ON n.nid = i18n.nid " .
     "WHERE n.type = 'fhlocalpage' AND n.status=1 " .
-    "AND l.country='%s' AND tn.tid=%d";
+    "AND l.country='%s' AND tn.tid=%d " .
+    "ORDER BY n.changed";
   $result=db_query($sql, $country, $tid);
   $nodes = array();
   while($row=db_fetch_array($result)) {

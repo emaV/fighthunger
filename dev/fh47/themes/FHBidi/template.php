@@ -334,6 +334,9 @@ function phptemplate_user_register($form) {
   }
 
   $output .= "<div class='profile'>\n\n";
+  $output .= "<div class='profile_top'><a name='top'/>\n";
+  $output .= form_render($form['user_registration_help'] );
+  $output .= "</div>\n";
   
   $output .= "<div class='profile_left'>\n";
   $output .= form_render($form['account']);

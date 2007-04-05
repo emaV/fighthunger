@@ -36,16 +36,6 @@ function webcollect_paymentapi(&$txn, $op, $arg = '') {
     case 'form': // To display on the 'method selection' page
       // DEBUG data here
       break;
-    case 'on checkout': // Preparing for checkout
-      // DEBUG: Show complete request before submission
-      /*
-      $params = webcollect_create_order_params($txn);
-      $request = webcollect_prepare_request('INSERT_ORDER', $params);
-      print theme('page',  
-      xml_debug_xml($request, "Request")
-      xml_debug_array((array)$txn, "Transaction"));
-			*/
-      break;
     case 'payment page':
       webcollect_insert($txn);
       watchdog('webcollect', 'paymentapi, paymentpage, store transaction data<br/>'.xml_debug_array($txn, 'transaction'));
@@ -98,7 +88,7 @@ function webcollect_ec_transactionapi(&$txn, $op, $a3 = NULL, $a4 = NULL) {
  */
 function webcollect_cron(){
   if($number = variable_get('webcollect_cron', 10)){
-    $timeout = variable_get('webcollect_payment_timeout', 0);
+    $timeout = variable_get('webcollect_check_time', 3600);
     $result = db_query_range("SELECT w.* FROM {ec_webcollect} w INNER JOIN {ec_transaction} t ON w.txnid =t.txnid WHERE t.payment_method = 'webcollect' AND t.payment_status = '%d' AND w.checked < %d ORDER BY w.checked", payment_get_status_id('pending'), time() - $timeout, 0, $number);
     while($payment = db_fetch_object($result)){
       webcollect_check_status($payment);
@@ -112,7 +102,7 @@ function webcollect_cron(){
 // TO-DO: Remove testing page
 function webcollect_menu($may_cache) {
   $items = array();
-
+  $access = user_access('administer store');
   if ($may_cache) {
     $items[] = array('path' => 'webcollect/paymentstatus', 'title' => 'webcollect',
       'type' => MENU_CALLBACK,
@@ -124,11 +114,11 @@ function webcollect_menu($may_cache) {
       'access' => TRUE);
     $items[] = array('path' => 'admin/store/webcollect', 'title' => t('webcollect'),
       'callback' => 'webcollect_admin',
-      'access' => user_access('administer payment'));
+      'access' => $access);
     $items[] = array('path' => 'webcollect/test', 'title' => t('test'),
       'type' => MENU_CALLBACK,
       'callback' => 'webcollect_test',
-      'access' => user_access('administer payment'));     
+      'access' => $access);     
   }
   return $items;
 }
@@ -158,10 +148,15 @@ function webcollect_settings(){
     '#size' => 10, '#maxlength' => 10, 
     '#description' =>t("Number of transactions to process on each cron execution. Zero to disable.")
   );
-  $form['webcollect_payment_timeout'] = array('#type' => 'textfield', '#title' => t('Payment timeout'), 
-    '#default_value' => variable_get('webcollect_payment_timeout', 0), 
+  $form['webcollect_check_time'] = array('#type' => 'textfield', '#title' => t('Transaction check time (seconds)'), 
+    '#default_value' => variable_get('webcollect_check_time', 3600), 
     '#size' => 10, '#maxlength' => 10, 
-    '#description' =>t("Time, in seconds, after which pending donations will be checked again.")
+    '#description' =>t("Time, in seconds, after which pending payments will be checked again.")
+  );
+  $form['webcollect_payment_timeout'] = array('#type' => 'textfield', '#title' => t('Payment timeout (hours)'), 
+    '#default_value' => variable_get('webcollect_payment_timeout', 24), 
+    '#size' => 10, '#maxlength' => 10, 
+    '#description' =>t("Time, in hours, after which pending payments will be cancelled. Zero for unlimited.")
   );
   $form['webcollect_local_ip'] = array('#type' => 'textfield', '#title' => t('Local IP address'), 
     '#default_value' => variable_get('webcollect_local_ip', ''), 
@@ -223,13 +218,14 @@ function webcollect_save(&$txn){
   }
 }
 /**
- * Check && update the status of the donation.
- * @param $cancel = Set to cancelled if status is not completed
+ * Check && update the status of the transaction.
+ * 
+ * @param $payment
+ *   Payment object
+ * @param $cancel
+ *   Set to cancelled if status is not completed and time out
  */
-function webcollect_check_status($payment){
-  // DEBUG
-  //print "<br/> DEBUG: Checking status for donation $payment->txnid..";
-  
+function webcollect_check_status($payment, $cancel = TRUE){
   // Request
   $order = array('ORDERID' => $payment->txnid);
   $params = array('ORDER' => $order);
@@ -240,21 +236,33 @@ function webcollect_check_status($payment){
   $response = webcollect_response($fullresponse);
   if(_webcollect_response_ok($response)){
     $params = $response->row[0];
+    $timeout = 3600 * variable_get('webcollect_payment_timeout', 24); // Hours to seconds
+    // Check for time outs
     // Check if valid status and status changed
-    if($params &&  isset($params->statusid) && $params->statusid != $payment->statusid) {
-      $txn = store_transaction_load($payment->txnid);
-      // Double translation of statusid(wc) -> status(string, ec) -> payment_status(ec)
-      $txn->payment_status = payment_get_status_id(_webcollect_status($params->statusid));
-      $txn->payment->statusid = $params->statusid;
-      // Update status and transaction data 
-      store_transaction_save($txn);
-      watchdog('webcollect', "Updated status for transaction $txn->txnid : $param->statusid = "._webcollect_status($param->statusid), WATCHDOG_NOTICE, 'admin/donation/'.$txn->trid);
+    if($params &&  isset($params->statusid) ) {
+      if($params->statusid != $payment->statusid) {
+        // Status has changed, update
+        $txn = store_transaction_load($payment->txnid);
+        // Double translation of statusid(wc) -> status(string, ec) -> payment_status(ec)
+        $txn->payment_status = payment_get_status_id(_webcollect_status($params->statusid));
+        $txn->payment->statusid = $params->statusid;
+        // Time out for no payment attempt
+        // Update status and transaction data 
+        store_transaction_save($txn);
+        watchdog('webcollect', "Updated status for transaction $txn->txnid : $param->statusid = "._webcollect_status($param->statusid), WATCHDOG_NOTICE, 'admin/store/webcollect/'.$txn->trid);
+      } elseif($cancel &&  $timeout && $txn->created + $timeout < time()) {
+        // Time-out for pending transaction.
+        $txn = store_transaction_load($payment->txnid);        
+        $txn->payment_status = payment_get_status_id('failed');
+        store_transaction_save($txn);
+        watchdog('webcollect', "Time-out for transaction $txn->txnid : $param->statusid = "._webcollect_status($param->statusid), WATCHDOG_NOTICE, 'admin/store/webcollect'.$txn->trid);   
+      }
     }
     // DEBUG
     // print "status= $params->statusid $status <br/>";
   } elseif($response){
     // If there's been a response, update transaction
-    watchdog('webcollect', "Status for transaction $payment->txnid : $payment->error", WATCHDOG_ERROR, 'admin/donation/'.$txn->trid);
+    watchdog('webcollect', "Status for transaction $payment->txnid : $payment->error", WATCHDOG_ERROR, 'admin/store/webcollect/'.$txn->trid);
     $txn = store_transaction_load($payment->txnid);
     $txn->payment->error_message = _webcollect_response_error($response);
     $txn->payment_status = payment_get_status_id('failed');
@@ -275,11 +283,14 @@ function webcollect_check_status($payment){
   return $txn;
 }
 
-// Translates webcollect status into our transaction status
+/**
+ * Translates webcollect status into our transaction status
+ */ 
 function _webcollect_status($statusid){
   switch($statusid){
     case 0: // Created
-    case 600: // PENDING VERIFICATION    
+    case 600: // PENDING VERIFICATION  
+    case 100: // NO PAYMENT ATTEMPT      
       return 'pending';
     case 800: // READY
     case 850: // MARKED FOR SENDING
@@ -288,7 +299,6 @@ function _webcollect_status($statusid){
     case 1000: // PAID
     case 1010: // ACCOUNT DEBITED
       return 'completed'; // Was 'cleared'
-    case 100: // REJECTED
     case 1100: // REJECTED
       return 'failed'; // Was 'rejected'
     case 1500: // CHARGED BACK BY CONSUMER
@@ -417,9 +427,14 @@ function webcollect_test($trid = 0, $action='status'){
   print theme('page', $output);
 }
 
+/**
+ * Debug function
+ * 
+ * Retry order insert for transaction and output debug information
+ */
 function webcollect_test_order($trid = 0){
   $output = '';
-  if( $txn = donation_load(array('trid' => $trid)) ) {
+  if( $txn = store_transaction_load($trid) ) {
     $params = webcollect_create_order_params($txn);
     $request = webcollect_prepare_request('INSERT_ORDER', $params);
     $response = webcollect_request($request);
@@ -438,14 +453,19 @@ function webcollect_test_order($trid = 0){
     $output .= xml_debug_array($txn, 'Donation');
     $output .= xml_debug_xml($request, "Request");
   } else {
-    $output = 'Donation not found';
+    $output = 'Transaction not found';
   }
   return $output;
 }
 
+/**
+ * Debug function
+ * 
+ * Test order status for transaction and output debug information
+ */
 function webcollect_test_status($trid = 0){
   $output = '';
-  if( $txn = donation_load(array('trid' => $trid)) ) {
+  if( $txn = store_transaction_load($trid) ) {
     $order = array('ORDERID' => $trid);
     $action = 'GET_ORDERSTATUS';
     $params = array('ORDER' => $order);
@@ -466,11 +486,14 @@ function webcollect_test_status($trid = 0){
     $output .= xml_debug_array($txn, 'Donation');
     $output .= xml_debug_xml($request, "Request");
   } else {
-    $output = 'Donation not found';
+    $output = 'Transaction not found';
   }
   return $output;
 }
 
+/**
+ * Throws HTTP request to payment server
+ */
 function webcollect_request($data){
   $url = variable_get('webcollect_paymentserver_url', '');
   $headers = array("Content-Type" => "text/xml");
@@ -487,7 +510,9 @@ function webcollect_request($data){
   return $result;
 }
 
-// Parses xml response into an object
+/**
+ * Parses XML response into an object
+ */ 
 function webcollect_response($data){
   if( $data && $response = xml_extract_tag($data, "RESPONSE") ){
     return xml_xml2object($response);
@@ -638,13 +663,15 @@ function webcollect_admin_overview() {
 }
 
 /**
- * Administration: Single donation
+ * Administration: Single transaction
+ * 
+ * Show or check for status again
  */
 function webcollect_admin_transaction($txn, $op) {
   $output = '';
   if($op == 'test'){
-    // Check status, real time
-    $txn = webcollect_check_status($txn->payment);
+    // Check status, real time, no time out
+    $txn = webcollect_check_status($txn->payment, FALSE);
     $payment = $txn->payment;
     $output .= '<h2>'.t('Results ').'</h2>';
     $output .= xml_debug_array($payment->response, "Response Object");

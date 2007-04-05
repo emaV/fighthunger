@@ -594,6 +594,16 @@ function forward_form_submit($form_id, $edit) {
   $recipients = str_replace(',', ', ', $recipients);
   $recipients = str_replace(',  ', ', ', $recipients);
 
+  $recipients = explode(", ", $recipients);
+  if($recipients) {
+    foreach($recipients as $recipient) {
+      forward_mail($recipient,$subject,$body,$headers);
+      // insert record into db to record nid, type and timestamp of send
+      db_query("INSERT INTO {forward_log} (nid, type, timestamp) VALUES ('%d', '%s', %d)", $nid, "SENT", time());
+      variable_set('forward_total', variable_get('forward_total', 0) +1);
+      variable_set('forward_recipients', variable_get('forward_recipients', 0) + 1);
+   }
+/*
   forward_mail($recipients,$subject,$body,$headers);
   // insert record into db to record nid, type and timestamp of send
   db_query("INSERT INTO {forward_log} (nid, type, timestamp) VALUES ('%d', '%s', %d)", $nid, "SENT", time());
@@ -604,6 +614,12 @@ function forward_form_submit($form_id, $edit) {
 
   drupal_set_message(variable_get('forward_thankyou', t('Thank you for your help in spreading the word about').' '.variable_get('site_name', 'drupal').'. '.t('We appreciate your help.')), 'status');
 	drupal_goto($returnurl);
+*/
+    flood_register_event('forward');
+    
+    drupal_set_message(variable_get('forward_thankyou', t('Thank you for your help in spreading the word about').' '.variable_get('site_name', 'drupal').'. '.t('We appreciate your help.')), 'status');
+  	drupal_goto($returnurl);
+  }
 }
 
 function forward_mail($mail, $subject, $message, $header) {

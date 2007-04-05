@@ -290,6 +290,16 @@ function donation_user($type, &$edit, &$account, $category = NULL) {
         return $form;
       }
       break;
+    case 'register':
+        $form['fundraising'] = array('#type' => 'fieldset', '#title' => t('Take donations on behalf of FightHunger.org') );
+        $form['fundraising']['donation'] = array('#type' => 'select',
+          '#title' => t('Campaign or event'),
+          '#default_value' => variable_get('donation_default_user', ''), 
+          '#options' => _donation_event_list(), 
+          '#description' => t('You can choose to take donations to help end child hunger. You can also choose which event your funds are tracked to.')
+        );
+        return $form;
+      break;
   }
 }
 
@@ -812,12 +822,12 @@ function _donation_types($types = array()) {
  * Returns list of currency codes and names
  */
 function _donation_currencies($list = array()) {
+		$list['USD'] = t("US Dollar");
 		$list['AUD'] = t("Australian Dollar");
 		$list['CAD'] = t("Canadian Dollar");
 		$list['EUR'] = t("Euro");
 		$list['GBP'] = t("Pound Sterling");
 		$list['JPY'] = t("Yen");
-		$list['USD'] = t("US Dollar");
     return $list;
 }
 

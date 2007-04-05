@@ -144,10 +144,6 @@ a:active { color: #ff6600; }
   margin: -5px 5px;
 }
 
-#crm-container input, #crm-container select {
-  width: 300px;
-}
-
 .profile_set .form-text, .profile_set .form-select {
   width: 90%;
 }

@@ -313,6 +313,61 @@ function phptemplate_profile_item($element) {
 /**
  * User edit
  */
+function phptemplate_user_register($form) {
+
+  if (function_exists('fhlocation_form_rewrite')) {
+    fhlocation_form_rewrite($form['Personal Information'][0]);
+  }
+  if($form['fundraising']) {
+    $form['Team Up']['fundraising'] = $form['fundraising'];
+    unset($form['fundraising']);
+  }
+  $form['Team Up']['#title'] = t('Activities');
+  $cats = array('account' => 1, 'Personal Information' => 2, 'Team Up' => 3);
+  
+  foreach($cats as $key_set => $weight) {
+    $id = str_replace(' ', '', $key_set);
+//    $form[$key_set]['button'] = $item_button;
+    $form[$key_set]['#weight'] = $weight;
+    $form[$key_set]['#attributes'] = array('class' => 'profile_set', 'id' => "$id" );
+    $form[$key_set]['#type'] = 'profile_set';
+  }
+
+  $output .= "<div class='profile'>\n\n";
+  $output .= "<div class='profile_top'><a name='top'/>\n";
+  $output .= form_render($form['user_registration_help'] );
+  $output .= "</div>\n";
+  
+  $output .= "<div class='profile_left'>\n";
+  $output .= form_render($form['account']);
+  $output .= form_render($form['Personal Information']);
+  $output .= "\n</div>\n\n";
+
+  $output .= "<div class='profile_right'>\n";
+  $output .= form_render($form['Team Up']);
+  $output .= "\n</div>\n\n";
+
+  $output .= "<div style='clear: both;'>\n";
+  $output .= form_render($form);
+  $output .= "\n</div>\n\n";
+
+  $output .= "\n</div>\n\n";
+  
+//  $output  .= '<hr/>';
+//  $output  .= _print_cat($form['Personal Information']);
+//  $output  .= _print_cat($form);
+
+// Personal Information
+// account
+// Team Up
+// #type	profile_set
+  
+  return $output;
+}
+
+/**
+ * User edit
+ */
 function phptemplate_fhuser_user_edit($form) {
 
 //  $output  .= _print_cat($form['_categories']['#value']);

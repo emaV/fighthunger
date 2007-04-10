@@ -240,6 +240,19 @@ function fhuser_user_edit(){
     drupal_goto('admin/user');
   }
   $edit = $_POST['op'] ? $_POST['edit'] : (array)$account;
+
+  if (arg(2) == 'delete') {
+    $form = array();
+    $form['account'] = array('#type' => 'value', '#value' => $account);
+    return confirm_form('user_confirm_delete', $form, t('Are you sure you want to delete the account %name?', array('%name' => theme('placeholder', $account->name))), 'user/'. $account->uid, t('All submissions made by this user will be attributed to the anonymous account. This action cannot be undone.'), t('Delete'), t('Cancel'));
+  } else if ($_POST['op'] == t('Delete')) {
+    if ($_REQUEST['destination']) {
+      $destination = drupal_get_destination();
+      unset($_REQUEST['destination']);
+    }
+    // Note: we redirect from user/uid/edit to user/uid/delete to make the tabs disappear.
+    drupal_goto("user/$account->uid/delete", $destination);
+  }
   
   // Fetch categories and build form
   $form = array();

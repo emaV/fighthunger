@@ -741,16 +741,22 @@ function donation_form_validate($form_id, $form_values){
 /**
  * Process donation form submission
  */
-function donation_form_submit($form_id, $form_values){
+function donation_form_submit($form_id, $form_values) {
+  global $user;
+
   // Get user from fhuser. May be just registered, not logged in
   //module_invoke('fhuser', 'subform_submit');
   //$user = module_invoke('fhuser', 'get_user');
+  
   // Build donation object
   $donation = $form_values['data'];
-  $account = $form_values['_user_account'];
+ 
+  // user data (if not logged take values from form)
   // uid, country should be set by fhuser module  
+  $account = ($user) ?  $user : $form_values['_user_account'];
   $donation->uid = $account->uid;
   $donation->mail = $account->mail;
+
   // Collect some fields
   if(!$donation->fixed) {
     $donation->amount = $form_values['amount'];

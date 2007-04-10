@@ -640,10 +640,12 @@ function fhuser_subform_user_register() {
   }
   
   // Special handling for country
-  $form['country'] = array('#type' => 'select',
+  $form['country'] = array(
+    '#type'  => 'select',
     '#title' => t("Country"),
-    '#options' => fh_get_country_list(), 
-    '#required' => TRUE);  
+    '#options'  => fh_get_country_list(), 
+    '#required' => TRUE,
+  );  
 
   // keep track of the fields to use for registering
   $form['_user_fields'] = array('#type' => 'value', '#value' => $user_fields);
@@ -699,7 +701,8 @@ function fhuser_subform_validate($form_id, $form_values) {
         // drupal_set_message(t("Your user name is %name", array('%name' => $name)));
         $form_values['name'] = $name;
         $GLOBALS['form_values']['name'] = $name;
-      } 
+      }
+      $GLOBALS['form_values']['location']['country'] = $form_values['country'];
       user_register_validate($form_id, $form_values);
       break;
     case 'password':

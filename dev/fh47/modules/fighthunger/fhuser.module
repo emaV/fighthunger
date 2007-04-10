@@ -481,11 +481,13 @@ function fhuser_subform_alter($form_id, &$form, $base = 'fhuser') {
   }
   // Merge validate and submit functions with container form
   if($form[$base]['#validate']) {
-    $form['#validate'] += $form[$base]['#validate'];
+//    $form['#validate'] += $form[$base]['#validate'];
+    $form['#validate'] = array_merge($form[$base]['#validate'], $form['#validate']);
     unset($form[$base]['#validate']);
   }
   if($form[$base]['#submit']) {
-    $form['#submit'] += $form[$base]['#submit'];
+    $form['#submit'] = array_merge($form[$base]['#submit'], $form['#submit']);
+//    $form['#submit'] += $form[$base]['#submit'];
     unset($form[$base]['#submit']);
   }
 }

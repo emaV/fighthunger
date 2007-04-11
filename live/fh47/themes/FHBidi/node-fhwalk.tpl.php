@@ -138,6 +138,12 @@
   // Footer tabs
   print $node->tabs['footer'] . "\n";
   print "<div style='clear:both;'>&nbsp;</div>\n\n";
+  
+  // upload (attachment)
+  if($node->hook_view['upload']) {
+    print $node->hook_view['upload'];
+  }
+  
 ?>
 
 <!-- fhwalk body end -->

@@ -1028,9 +1028,12 @@ function theme_fhpartner_list($partners) {
   $out = "<div class=\"partner_list\">";
   if($partners) {
     foreach($partners as $key => $value) {
-      $img = "<img src=\"".file_create_url($value->logosmall)."\" width='75' vspace='5' hspace='5'>";
+//      $img = "<img src=\"".file_create_url($value->logosmall)."\" width='75' vspace='5' hspace='5'>";
+      $partner = node_load($key);
+      
       $out_partner = "<div class='item-partner'><p>\n";
-      $out_partner .= l($img, "node/$key", NULL, NULL, NULL, NULL, TRUE);
+//      $out_partner .= l($img, "node/$key", NULL, NULL, NULL, NULL, TRUE);
+      $out_partner .= theme('partner_logo_small', $partner);
       $out_partner .= "<br />\n";
       $out_partner .= l($value->title, "node/$key");
       $out_partner .= "\n</p></div>\n\n";

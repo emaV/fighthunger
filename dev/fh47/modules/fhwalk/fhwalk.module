@@ -234,6 +234,11 @@ function fhwalk_menu($may_cache) {
           'type' => MENU_LOCAL_TASK
         );
         $items[] = array(
+          'path' => 'node/'. arg(1) .'/banner.png', 
+          'callback' => 'fhwalk_fundraising_banner',
+          'callback arguments' => array(arg(1)),
+        );
+        $items[] = array(
           'path' => 'node/'. arg(1) .'/walk_merge', 
           'title' => t('Walk Merge'),
           'callback' => 'fhwalk_merge',
@@ -1586,7 +1591,64 @@ function fhwalk_fundraising($nid) {
   );
   $output .= form_render($form['donation']);
 
+  $url_img  = file_create_url("files/banner/banner_" . "$nid.png");
+  $url_walk = url("node/$nid", NULL, NULL, TRUE);
+  $output .= "<h3>" . t('Web banners') . "</h3>";
+  $output .= '<p>' . t ("Help spread the word about Fight Hunger: Walk the World 
+    by including a banner on your website. Simply copy and paste the code 
+    snippets below.") . '</p>';
+  $output .= "<img src='banner.png'>";
+  $output .= '<textarea class="button" cols="60" rows="4">';
+  $output .= '&lt;a href="' . $url_walk .'" target="_blank"&gt;';
+  $output .= '&lt;img src="' . $url_img . '" width="180" border="0"&gt;&lt;/a&gt;';
+  $output .= '</textarea>';
+
   return $output;
+}
+
+/**
+ * Create banner png
+ *
+ * font 5 -> max 20 chars
+ * font 4 -> max 22 chars
+ * font 3 -> max 25 chars
+ * font 2 -> max 30 chars
+ **/ 
+function fhwalk_fundraising_banner($nid) {
+  $file_banner = "banner_$nid.png";
+  $file_banner_path = file_check_location('files/banner/' . $file_banner);
+  
+  if(is_file($file_banner_path )) {
+    $dest_img = imagecreatefrompng($file_banner_path);
+  } else {
+    $node = node_load($nid);
+    $file_empty_path = drupal_get_path('module', $node->type) . '/banner_empty.png';
+    $dest_img = imagecreatefrompng($file_empty_path);
+    $font_color = imagecolorallocate($dest_img, 0x00, 0x66, 0x99);
+    $text = $node->location['city'] .  ', ' .  fhlocation_get_iso3166_list($node->location['country']);
+    $len = strlen($text);
+    if ($len<=20) {
+      $font_size = 5;
+      $x = (20-$len) * 90 / 20;
+    } elseif($len<=22) {
+      $font_size = 4;
+      $x = (22-$len) * 90 / 22;
+    } elseif($len<=25) {
+      $font_size = 3;
+      $x = (25-$len) * 90 / 25;
+    } elseif($len<=30) {
+      $font_size = 2;
+      $x = (30-$len) * 90 / 30;
+    } else {
+      $font_size = 1;
+      $x = 0;
+    }
+    imagestring ( $dest_img, $font_size, $x, 80, $text , $font_color );
+    imagepng($dest_img, $file_banner_path);
+  }
+
+  header('Content-type: image/png');
+  imagepng($dest_img);
 }
 
 /* gmap key

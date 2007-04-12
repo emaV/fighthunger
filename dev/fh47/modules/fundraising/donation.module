@@ -64,9 +64,12 @@ function donation_menu($may_cache) {
   $items = array();
 
   if ($may_cache) {
-    $items[] = array('path' => 'donation', 'title' => t('donation'),
+    $items[] = array(
+      'path' => 'donation', 
+      'title' => t('donation'),
       'callback' => 'donation_page',
       'access' => TRUE);
+      
     $items[] = array('path' => 'admin/donation', 'title' => t('donations'),
       'callback' => 'donation_admin',
       'access' => user_access('administer donations'));     
@@ -326,7 +329,12 @@ function donation_page($nid = 'plain') {
   // Get donation info and double check everything
   if($donation = donation_prepare($nid)) {
     drupal_set_title(check_plain($donation->title));
-    $output = donation_form($donation);
+    $output  = donation_form($donation);
+    
+    $output .= '<h3>' . t('Donation comments') . '</h3>';
+//    $output .= donation_list(array('nid' => $nid));
+    $output .= donation_list_comments(array('nid' => $nid));
+
     return "<div class=\"donation\">$output</div>";
   } else {
     return drupal_access_denied();    
@@ -476,6 +484,52 @@ function donation_admin_donation($donation) {
   }
   
   return $output;
+}
+
+/**
+ * List of comments
+ */
+function donation_list_comments($conditions = array(), $days=0, $limit=0) {
+  // Default query parameters (if not overrided by $params!)
+  $where = array("d.comment <>''", "d.display = 1");
+  if(!isset($conditions['status'])) {
+    $where[] = "(d.status = 'cleared' OR d.status = 'accepted')";
+  }
+  if($days>0) {
+    $where[] = "d.created > " . time() - 60 * 60 * 24 * $days;
+  }
+  foreach($conditions as $field => $value) {
+    $where[] = "d.$field = '".db_escape_string($value)."'";
+  }
+  $sql = 'SELECT d.*, u.name FROM {donation} d INNER JOIN {users} u ON d.uid = u.uid WHERE '. implode(' AND ', $where) ;
+
+  $header = array(
+    array('data' => t('user'),     'field' => 'u.name'),
+    array('data' => t('comment'),  'field' => 'd.comment')
+  );
+  // Fetch and prepare data for display
+  $sql .=  tablesort_sql($header);
+  if($limit>0) {
+    $result = db_query($sql);
+  } else {
+    $result = pager_query($sql, 20);
+    $pager = theme('pager', NULL, 20);
+  }
+  if (db_num_rows($result)) {
+    while ($data = db_fetch_object($result)) {
+      $rows[] = array(
+        theme('username', $data),
+        check_plain($data->comment)
+      );
+    }
+    if (!empty($pager)) {
+      $rows[] = array(array('data' => $pager, 'colspan' => '3'));
+    }
+    $output = theme('table', $header, $rows);
+  } else {
+    $output = t('No comments yet');
+  }
+  return $output;  
 }
 
 /**

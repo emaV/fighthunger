@@ -124,6 +124,11 @@
   print $node->tabs['actions'] . "\n";
   print "<div style='clear:both;'>&nbsp;</div>\n\n";
 
+
+  // Banners
+  print "<h3>" . t("Web Banners") . "</h3>\n"; 
+  print theme('fhwalk_banner', $node->nid);
+
   // Country Partners
   if($node->partners_country) {
     print "<h3>" . t("Country Partners") . "</h3>\n"; 

@@ -82,7 +82,10 @@ function globalcollect_proceed($donation){
   $request = globalcollect_prepare_request('INSERT_ORDER', $params);
   $result = globalcollect_request($request);
   // DEBUG: Log all messages
-  watchdog('globalcollect', 'GlobalCollect response<br/>'.debug_xml($result, 'Returned XML'));
+  watchdog('globalcollect', 
+    'GlobalCollect request<br/>'.debug_xml($request, 'Request XML'). '<hr/>' .
+    'GlobalCollect response<br/>'.debug_xml($result, 'Returned XML')
+  );
   // Process response
   if( $response = globalcollect_response($result) ){
     // We have a valid response. Check returned parameters

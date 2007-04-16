@@ -425,8 +425,8 @@ function globalcollect_create_orderline($donation, $linenumber = 1){
   $line->LINENUMBER = $linenumber;
   $line->AMOUNTSIGN = '+';                                                                                 
   $line->LINEAMOUNT = 100 * $donation->amount;
-  // Line date, with some padding (GC requirement)
-  $description = $donation->concept;
+  // Line date, with some padding (GC requirement); Character Set Encoding ISO 8859 (pg. 29/210 of Programmers Guide)
+  $description =  htmlspecialchars($donation->concept, ENT_QUOTES, 'ISO8859-1');
   if(strlen($description) > 116 ) {
     $description = substr($description, 0, 116);
   }

@@ -803,18 +803,12 @@ ul.block_menu li {
 }
 
 .partner_list .item-partner {
-  text-align: center;
   width : 100px;
-  height: 150px;
-  float : left;
-  margin : auto 10px;
-  position: relative;
-
+  margin : 5px 0px;
 }
 .partner_list .item-partner p {
- position:absolute;
- bottom: 0;
 }
+
 .main-content .partner_list .item-partner a {
   border: 0px;
 }

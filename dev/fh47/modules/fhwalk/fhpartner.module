@@ -122,6 +122,18 @@ function theme_partner_block_content($partnerlist) {
 }
 
 /**
+ * Theming partner item. 
+ * 
+ */
+function theme_partner_item($partner) {
+  $out .= "\n<div class='item-partner'><center>\n";
+  $out .= theme('partner_logo_small', $partner);
+  $out .= "<div class='item-partner-link'>" . l($partner->title, "node/$partner->nid") . "</div>";    
+  $out .= "\n</center></div>\n";
+  return $out;
+}
+
+/**
  * Theming partner logos. 
  * 
  * Going through this function will be helpful if we finally use other image method
@@ -130,7 +142,7 @@ function theme_partner_logo_small($node) {
   if($node->iid && function_exists('image_display') && $image = node_load($node->iid) ) {
     $info = image_get_info(file_create_path($image->images['thumbnail']));
     $output = '';
-    $output .= "<div  class='image-attach-teaser'>\n";
+    $output .= "<div  class='partner_logo_small'>\n";
     $output .= l(image_display($image, 'thumbnail'), "node/$node->nid", array(), NULL, NULL, FALSE, TRUE);
     $output .= "\n</div>\n";
     return $output;
@@ -1025,23 +1037,22 @@ function _fhpartner_partner_type() {
 }
 
 function theme_fhpartner_list($partners) {
-  $out = "<div class=\"partner_list\">";
+  $out ='';
   if($partners) {
+    $out = "<div class='partner_list'>\n";
+    $out .= "<table>\n";
+    $i=0;
+    $partner_x_rows = 5;
     foreach($partners as $key => $value) {
-//      $img = "<img src=\"".file_create_url($value->logosmall)."\" width='75' vspace='5' hspace='5'>";
+      if (($i % $partner_x_rows)==0) $out.= "<tr>\n";
       $partner = node_load($key);
-      
-      $out_partner = "<div class='item-partner'><p>\n";
-//      $out_partner .= l($img, "node/$key", NULL, NULL, NULL, NULL, TRUE);
-      $out_partner .= theme('partner_logo_small', $partner);
-      $out_partner .= "<br />\n";
-      $out_partner .= l($value->title, "node/$key");
-      $out_partner .= "\n</p></div>\n\n";
-      $out .= $out_partner;
+      $out .= "<td valign='bottom'>" . theme('partner_item', $partner) . "</td>\n";
+      if (($i % $partner_x_rows)==($partner_x_rows-1)) $out .= "</tr>\n";
+      $i++;
     }
+    $out.= "</table>\n";
+    $out.= "</div>\n";
   }
-  $out.= "<div style='clear:both;'>&nbsp;</div>";
-  $out.= "</div>";
   return $out;
 }
 

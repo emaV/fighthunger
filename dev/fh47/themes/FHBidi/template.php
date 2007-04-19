@@ -123,6 +123,12 @@ function phptemplate_settings() {
       '#default_value' => $settings['FH_profile_help'],
       '#description' => t('Generic help text')
     );
+    $form['profile']['FH_profile_message'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Profile Message'),
+      '#default_value' => $settings['FH_profile_message'],
+      '#description' => t('User profile (my area) top message')
+    );
     return $form;
 }
 
@@ -143,6 +149,7 @@ function phptemplate_i18n_link($text, $target, $lang, $separator='&nbsp;'){
 function phptemplate_user_profile($account, $fields, $categories) {
   //$account = $fields['_account']['#value'];
   //$categories = $fields['_categories']['#value'];
+  $settings = variable_get('theme_FHBidi_settings', array());
   
   // Change fieldset to profile_set  
   foreach($categories as $key_set => $cat) {
@@ -152,6 +159,10 @@ function phptemplate_user_profile($account, $fields, $categories) {
   // Rendering fields and categories
   $output = '';
   $output .= "<div class='profile'>\n";
+
+  if($FH_profile_message = $settings['FH_profile_message']) {
+    $output .= "<div class='profile_top'>\n$FH_profile_message\n</div>\n";
+  }
 
 // PROFILE LEFT 
 

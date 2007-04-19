@@ -1230,7 +1230,7 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
     $node->body_hooked .= $node->body;
     $node->body = '';
   }
- 
+   
   $node->hook_view_array = $result;
   $node->body = $node->body_plain;
 
@@ -1270,6 +1270,11 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
 
     case WALK_STATUS_ACTIVE:  
 
+      if($node->hook_view['donation']) {
+        $link = l(t('How to fundraise for this walk'), "help/fundraising", array('target' => 'nwin'));
+        $node->hook_view['donation'] .= "<center>$link</center>";
+      }
+      
       // Walk History
       $footers['history']  = array(
         '#title'  => t('Previous Walks in this country'),
@@ -1355,6 +1360,38 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
    
   // Set footer tabs (only history now)
   $node->tabs['footer'] = theme('fhwalk_tabs', $footers);
+
+  // create google calendar button
+  $query = array(
+    'action'   => 'TEMPLATE',
+    'text'     => $node->title,
+    'dates'    => date('Ymd', $node->event_start) . '/' . date('Ymd', $node->event_start + 24 * 60 *60),
+    'details'  => $node->body_plain,
+    'location' => $node->location['city'] . ' (' . $node->location['province'] . '), ' . $node->location['country'],
+    'trp'      => 'false',
+    'sprop'    => url("node/$node->nid", NULL, NULL, TRUE),
+    'sprop'    => 'name:FightHunger'
+  );
+  foreach ($query as $key => $val) $query[$key] = "$key=" . drupal_urlencode($val);
+  $href  = 'http://www.google.com/calendar/event?' . implode('&', $query);
+  $node->gcal  = "<a href='$href' target='_blank'>\n" .
+    "    <img src='http://www.google.com/calendar/images/ext/gc_button1.gif' border=0>\n" .
+    "</a>\n";
+
+ /* 
+  <a href="
+  http://www.google.com/calendar/event?
+    action=TEMPLATE&
+    text=Walk%20the%20World%202007&
+    dates=20070513/20070514&
+    details=On%2013%20May%202007%20people%20all%20over%20the%20world%20will%20walk%20calling%20for%20an%20end%20to%20child%20hunger.%20Take%20a%20step%20against%20hunger%20and%20join%20us.&
+    location=Sori%20(IT)&
+    trp=false&
+    sprop=http%3A%2F%2Fwww.fighthunger.org%2Fen%2Fwtw07&
+    sprop=name:FightHunger" target="_blank">
+    <img src="http://www.google.com/calendar/images/ext/gc_button1.gif" border=0></a>   
+ */
+
  
 }
 

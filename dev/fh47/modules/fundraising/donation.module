@@ -885,8 +885,12 @@ function _donation_currencies($list = array()) {
 		$list['USD'] = t("US Dollar");
 		$list['AUD'] = t("Australian Dollar");
 		$list['CAD'] = t("Canadian Dollar");
+		$list['DKK'] = t("Danish Krone");
 		$list['EUR'] = t("Euro");
+		$list['NOK'] = t("Norwegian Krone");
 		$list['GBP'] = t("Pound Sterling");
+		$list['SEK'] = t("Swedish Krona");
+		$list['CHF'] = t("Swiss Franc");
 		$list['JPY'] = t("Yen");
     return $list;
 }

@@ -805,11 +805,11 @@ ul.block_menu li {
 .partner_list .item-partner {
   width : 100px;
   margin : 5px 0px;
+  line-height: 1.1em;
 }
 
 .partner_description {
   margin-top: 0.5em;
-  line-height: 1.1em;
 }
 
 .partner_events {

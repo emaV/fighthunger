@@ -1042,7 +1042,7 @@ function theme_fhpartner_list($partners) {
     $out = "<div class='partner_list'>\n";
     $out .= "<table>\n";
     $i=0;
-    $partner_x_rows = 5;
+    $partner_x_rows = 3;
     foreach($partners as $key => $value) {
       if (($i % $partner_x_rows)==0) $out.= "<tr>\n";
       $partner = node_load($key);

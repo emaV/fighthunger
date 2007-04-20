@@ -806,10 +806,23 @@ ul.block_menu li {
   width : 100px;
   margin : 5px 0px;
 }
-.partner_list .item-partner p {
+
+.partner_description {
+  margin-top: 0.5em;
 }
 
-.main-content .partner_list .item-partner a {
+.partner_events {
+  margin-top: 2em;
+  margin-bottom: 1em;
+}
+.partner_events fieldset {
+  margin-top: 0.5em;
+}
+
+/* exclude underline */
+.main-content .partner_list .item-partner a,
+.main-content .node .content legend a,
+.main-content .node .content .image-attach-body a {
   border: 0px;
 }
 

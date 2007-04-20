@@ -1046,7 +1046,7 @@ function theme_fhpartner_list($partners) {
     foreach($partners as $key => $value) {
       if (($i % $partner_x_rows)==0) $out.= "<tr>\n";
       $partner = node_load($key);
-      $out .= "<td valign='bottom'>" . theme('partner_item', $partner) . "</td>\n";
+      $out .= "<td valign='baseline'>" . theme('partner_item', $partner) . "</td>\n";
       if (($i % $partner_x_rows)==($partner_x_rows-1)) $out .= "</tr>\n";
       $i++;
     }

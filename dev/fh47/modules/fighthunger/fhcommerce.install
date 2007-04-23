@@ -1,0 +1,16 @@
+<?php
+
+/**
+ * Install function
+ */
+function fhcommerce_install() {
+  //db_query("ALTER TABLE {ec_product} ADD COLUMN `cost` decimal(10,2)  NOT NULL DEFAULT 0");
+}
+/**
+ * Add product cost
+ */
+function fhcommerce_update_1() {
+  $ret = array();
+  $ret[] = update_sql("ALTER TABLE {ec_product} ADD COLUMN `cost` decimal(10,2)  NOT NULL DEFAULT 0");
+  return $ret;
+}

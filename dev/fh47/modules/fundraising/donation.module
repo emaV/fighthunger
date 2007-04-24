@@ -417,24 +417,229 @@ function donation_admin($trid = NULL) {
 }
 
 /**
- * Administration: Paged list of donations
+ * List of donations for admin page
  */
-function donation_admin_overview() {
-  $result = pager_query('SELECT d.* FROM {donation} d ORDER BY d.created DESC', 20);
+function donation_admin_list($conditions = array()) {
+
+  $header = array(
+    array('data' => t('Transaction'), 'field' => 'trid', 'sort' => 'desc'),
+    array('data' => t('Type'),        'field' => 'type'),
+    array('data' => t('Status'),      'field' => 'status'),
+    array('data' => t('Node'),        'field' => 'nid'),
+    array('data' => t('Source'),      'field' => 'source'),
+    array('data' => t('User'),        'field' => 'uid'),
+    array('data' => t('Amount'),      'field' => 'amount'),
+    array('data' => t('Currency'),    'field' => 'currency'),
+    array('data' => t('Created'),     'field' => 'created'),
+    array('data' => t('Updated'),     'field' => 'changed'),
+  );
+  
+  
+  $header_dl = array(
+    array('data' => t('Transaction'), 'field' => 'trid'),
+    array('data' => t('Type'),        'field' => 'type'),
+    array('data' => t('Status'),      'field' => 'status'),
+    array('data' => t('Node'),        'field' => 'nid'),
+    array('data' => t('Source'),      'field' => 'source'),
+    array('data' => t('User'),        'field' => 'uid'),
+    array('data' => t('Amount'),      'field' => 'amount'),
+    array('data' => t('Currency'),    'field' => 'currency'),
+    array('data' => t('Created'),     'field' => 'created'),
+  );
+  $sql_dl = "SELECT d.trid, d.type, d.status, " .
+    "CONCAT(d.nid,IFNULL(CONCAT(' - ',IF(d.nid='plain', 'Plain', IF(LEFT(d.nid,1)='c',gc.longname,nn.title))),'')) as nid, " .
+    "CONCAT(d.source, ' - ', IF(d.source='plain_page', 'Plain Page', us.name)) as source, " .
+    "CONCAT(d.uid, ' - ', u.name) as uid, " .
+    "d.amount, d.currency, FROM_UNIXTIME(d.created) as created " .
+    "FROM donation d " .
+    "LEFT JOIN node nn ON d.nid=nn.nid " .
+    "LEFT JOIN gathering_campaign gc ON SUBSTRING(d.nid,2)=gc.camid "  .
+    "LEFT JOIN users us ON SUBSTRING(d.source,6)=us.uid " .
+    "LEFT JOIN users u ON d.uid=u.uid ";
+  
+  
+  // set condition from array
+  foreach($conditions as $key => $value) {
+    $where[] = "d.$key = '" . db_escape_string($value) . "'";
+  }
+  $sql = "SELECT d.* FROM {donation} d " .
+    (($where) ? ("WHERE ". implode(' AND ', $where)) : '');
+  $sql_dl .= ($where) ? ("WHERE ". implode(' AND ', $where)) : '';
+  $num_rows_total = db_num_rows(db_query($sql));
+  $tablesort = tablesort_sql($header);
+  $result = pager_query($sql . $tablesort, 20, 0, NULL);
 
   if (db_num_rows($result)) {
-    $header = array(t('transacion'), t('type'),t('status'), t('node'), t('user'), t('amount'), t('currency'), t('created'), t('updated'));
     while ($data = db_fetch_object($result)) {
       $rows[] = array(
-        l($data->trid, "admin/donation/$data->trid"), $data->type, $data->status, 
-        $data->nid, $data->uid, $data->amount, 
-        $data->currency, format_date($data->created, 'small'), format_date($data->changed, 'small'));
+        l($data->trid, "admin/donation/$data->trid"), 
+        $data->type, 
+        $data->status, 
+        $data->nid, 
+        $data->source, 
+        $data->uid, 
+        $data->amount, 
+        $data->currency, 
+        format_date($data->created, 'small'), 
+        format_date($data->changed, 'small')
+      );
     }
-    $output = theme('table', $header, $rows);
+    $output  = theme('table', $header, $rows);
     $output .= theme('pager', NULL, 20);
+    $output .= theme('fh_table', 'download', $sql_dl, $header_dl);
   } else {
     $output = t('No donations yet');
   }
+  return $output;
+}
+
+/**
+ * Process administer search form.
+ * Convert POST request value in GET value 
+ *  
+ * @ingroup donation_administer
+ * @param $form_id 
+ * @param $form_values
+ */
+function donation_admin_search_submit($form_id, $form_values) {
+  $get = array();
+  $keys = $form_values['_search_keys'];
+  foreach($keys as $field) {
+    if(isset($form_values[$field]) && $form_values[$field]) $get[$field]= $form_values[$field];
+  }
+  drupal_goto($_GET['q'], drupal_query_string_encode($get));
+}
+
+/**
+ * Get node with donation
+ */ 
+function _donation_admin_search_nodes() {
+  $sql = "SELECT DISTINCT d.nid, n.title FROM {donation} d LEFT JOIN {node} n ON d.nid=n.nid ORDER BY d.nid";
+  $result = db_query($sql);
+  $nodes = array();
+  if (db_num_rows($result)) {
+    while ($data = db_fetch_object($result)) {
+      $nodes[$data->nid] = $data->nid . ( ($data->title) ? " - $data->title" : '');
+    }
+  }
+  return $nodes;
+}
+/**
+ * Gets users with donation
+ */ 
+function _donation_admin_search_users() {
+  $sql = "SELECT DISTINCT d.uid, u.name FROM {donation} d LEFT JOIN {users} u ON d.uid=u.uid ORDER BY d.uid";
+  $result = db_query($sql);
+  $users = array();
+  if (db_num_rows($result)) {
+    while ($data = db_fetch_object($result)) {
+      $users[$data->uid] = $data->uid . ( ($data->name) ? " - $data->name" : '');
+    }
+  }
+  return $users;
+}
+
+/**
+ * Gets users with donation
+ */ 
+function _donation_admin_search_sources() {
+  $sql = "SELECT d.source, COUNT( d.trid ) as num, u.name as name FROM {donation} d " .
+    "LEFT JOIN {users} u ON SUBSTRING(d.source,6,99) = u.uid " . 
+    "GROUP BY d.source ORDER BY d.source";
+  $result = db_query($sql);
+  $sources = array();
+  if (db_num_rows($result)) {
+    while ($data = db_fetch_object($result)) {
+      if($data->source=='plain_page') {
+        $source = t('Plain page');
+      } elseif(substr($data->source,0,4) == 'user') {
+        $source = t('User page') . ": $data->name (" . substr($data->source,5) . ")";
+      } else {
+        $source = $data->source;
+      }
+      $sources[$data->source] = $source;
+    }
+  }
+  return $sources;
+}
+
+/**
+ * Administration: Paged list of donations
+ */
+function donation_admin_overview() {
+
+  // Get search parameters
+  $search_keys = array('type', 'status', 'nid', 'uid', 'source');
+  $sql_array = array();
+  foreach($search_keys as $field) {
+    if(isset($_REQUEST[$field])) {
+      $sql_array[$field] = $_REQUEST[$field];
+    }
+  }
+  $form['_search_keys'] = array('#type' => 'value', '#value' => $search_keys);
+  $output .= theme('box', t('Donation List'), donation_admin_list($sql_array));
+
+  // Search form
+  $form['search'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Search'),
+    '#collapsible' => TRUE,
+    '#collapsed' => (count($sql_array)===0),
+    '#weight' => 1
+  );
+  // Type
+  $types = _donation_types();
+  $types[''] = '< ALL >';
+  $form['search']['type'] = array(
+    '#type' => 'select',
+    '#title' => t("Type"),
+    '#options' => $types,
+    '#default_value' => ($sql_array['type'] ? $sql_array['type'] : ''), 
+  );
+  // Status
+  $status = _donation_status();
+  $status[''] = '< ALL >';
+  $form['search']['status'] = array(
+    '#type' => 'select',
+    '#title' => t("Status"),
+    '#options' => $status,
+    '#default_value' => ($sql_array['status'] ? $sql_array['status'] : ''), 
+  );
+  // Node
+  $nodes = _donation_admin_search_nodes();
+  $nodes[''] = '< ALL >';
+  $form['search']['nid'] = array(
+    '#type' => 'select',
+    '#title' => t("Node"),
+    '#options' => $nodes,
+    '#default_value' => ($sql_array['nid'] ? $sql_array['nid'] : ''), 
+  );
+  // User
+  $users = _donation_admin_search_users();
+  $users[''] = '< ALL >';
+  $form['search']['uid'] = array(
+    '#type' => 'select',
+    '#title' => t("User"),
+    '#options' => $users,
+    '#default_value' => ($sql_array['uid'] ? $sql_array['uid'] : ''), 
+  );
+  // Source
+  $sources = _donation_admin_search_sources();
+  $sources[''] = '< ALL >';
+  $form['search']['source'] = array(
+    '#type' => 'select',
+    '#title' => t("Source"),
+    '#options' => $sources,
+    '#default_value' => ($sql_array['source'] ? $sql_array['source'] : ''), 
+  );
+  
+  $form['search']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Search')
+  );
+
+  $output .= drupal_get_form('donation_admin_search', $form);
+
   return $output;  
 }
 
@@ -876,6 +1081,16 @@ function _donation_types($types = array()) {
   $types['event']    = t('Event donation');
   $types['campaign'] = t('Campaign donation');
   return $types;
+}
+
+function _donation_status($status = array()) {
+  $status['pending']  = t('pending');
+  $status['accepted'] = t('accepted');
+  $status['cleared']  = t('cleared');
+  $status['rejected'] = t('rejected');
+  $status['reversed'] = t('reversed');
+  $status['unknown']  = t('unknown');
+  return $status;
 }
 
 /**

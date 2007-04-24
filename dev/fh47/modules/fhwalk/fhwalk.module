@@ -1273,6 +1273,7 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
       if($node->hook_view['donation']) {
         $link = l(t('How to fundraise for this walk'), "help/fundraising", array('target' => 'nwin'));
         $node->hook_view['donation'] .= "<center>$link</center>";
+        $node->hook_view['donation'] .= "<div class='donation-list'>" . donation_list(array('nid' => $node->nid, 'type' => 'event')) . "</div>";
       }
       
       // Walk History
@@ -1599,7 +1600,7 @@ function fhwalk_fundraising($nid) {
   } else {
     $_SESSION['fhwalk_fundraising'] = array(0,0,0);
     $collapsed_fee = true;
-    $collapsed_don = true;
+    $collapsed_don = false;
   }
 
   // Fee

@@ -50,13 +50,13 @@
 <table border="0" width="100%" class="tbcenter">
   <tr>
     <td width="20%" nowrap="nowrap">
-<a href="<?php print url($language) ?>" title="Index Page"><img src="<?php print($logo) ?>" alt="logo" title="Index Page" /></a>
+<a href="http://www.wfp.org/" title="World Food Programme page"><img src="<?php print($logo) ?>" alt="World Food Programme logo" title="World Food Programme page" /></a>
     </td>
     <td width="60%" align="center">
 <img src="<?php print base_path() . theme_get_setting('banner_path') ?>" alt="banner" title="banner"/>
     </td>
     <td width="20%" nowrap="nowrap">
-<span id="site-mission"><?php print(drupal_eval(variable_get('site_mission', ''))) ?></span>
+<span id="site-mission"><a href="<?php print url($language) ?>" title="Index Page"><?php print(drupal_eval(variable_get('site_mission', ''))) ?></a></span>
     </td>
   </tr>
   <tr>

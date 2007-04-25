@@ -292,7 +292,7 @@ function fhsignup_users_merge($node) {
     foreach($list as $uid => $signup) {
       _fhsignup_user_remove($nid_from, $uid);
       _fhsignup_user_add($nid_to, $uid, $signup['role'], $signup['stage'], 
-        $signup['comment'],$signup['opencomment'], $signup['guests']);
+        $signup['comment'],$signup['opencomment'], $signup['guests'], $signup['memberof'], $signup['othercompany']);
         module_invoke('fhmail', 'notify', 'signup merge walk', $node_from, $uid);
 //      fhsignup_email_notify($node_from, $uid, 'merge walk', $node->merge_email);
     }
@@ -345,9 +345,12 @@ function fhsignup_user_unsubscribe_submit($form_id, $form_values) {
 }
 
 function fhsignup_user_unsubscribe($user_status) {
+  $affiliation = ($user_status['memberof'] < 3) ? _fhsignup_affiliation($user_status['memberof']) : $user_status['othercompany'];
+
   $output  = '<h3>' .  t('Your signup information') . '</h3>';
   $output .= '<p><b>' . t('Role')   . ':</b> ' . $user_status['role'] . '</p>';
   $output .= '<p><b>' . t('Status') . ':</b> ' . _fhsignup_stages($user_status['stage']) . '</p>';
+  if($affiliation) $output .= '<p><b>' . t('Affiliation') . ":</b> $affiliation</p>";
   // create remove form
   $form['unsubscribe']['submit'] = array('#type' => 'submit', '#value' => t('Unsubscribe from this event'));
   $form['unsubscribe']['nid']    = array('#type' => 'hidden', '#value' => $user_status['wid']);
@@ -378,8 +381,11 @@ global $user;
 //    fhsignup_email_notify($form_values['nid'], $user->uid, 'wait');
     $msg = t('Your subscription is pending, requiring organiser approvation.');
   }
+  if($form_values['memberof']=='' && $form_values['othercompany']!=''){
+  $form_values['memberof']=99;
+  }
   _fhsignup_user_add($form_values['nid'], $form_values['uid'], $role, $stage, 
-    $form_values['comment'], $form_values['opencomment'], $form_values['guests']);
+    $form_values['comment'], $form_values['opencomment'], $form_values['guests'], $form_values['memberof'], $form_values['othercompany']);
 
   drupal_set_message($msg);
 }
@@ -388,13 +394,33 @@ function fhsignup_user_form_validate($form_id, $form_values) {
   if ($form_values['TaC_accept'] == '') {
     form_set_error('', t('You must agree with Terms & Conditions.'));
   }
+  if (($form_values['memberof'] == '' && $form_values['othercompany'] == '') || ($form_values['memberof'] == 99 && $form_values['othercompany'] == '')) {
+    form_set_error('', t('Choose the company you are working for, or <br /> choose <em>Individual</em> if you are not participating as a company employee'));
+  }
+    if ($form_values['memberof'] != 99 && $form_values['memberof'] != '' && $form_values['othercompany'] != '') {
+    form_set_error('', t('<em>Other company</em> field, can only be chosen in combination with the <br /><em>Other company employee</em> option.'));
+  }
 }
+
 
 /**
  * Signup form
  * 
  * @ingroup fhsignup_user
  */ 
+function _fhsignup_affiliation($i=-1){
+  $affiliation = array(
+                  0  => t('Individual'),
+                  1  => t('Unilever employee'),
+                  2  => t('TNT employee'),
+                  99 => t('Other company employee'));
+  if($i<0) {
+    return $affiliation;
+  } else {
+    return $affiliation[$i];
+  }
+}
+
 function fhsignup_user_form($node) {
 global $user;
 
@@ -415,7 +441,22 @@ global $user;
     );
   } else {
     $form['signup']['comment']['#description'] .= ' <strong>' . t('Your comments will be visible only to organisers.') . '</strong>';
-  }   
+  }
+
+ /*drupal_add_js(drupal_get_path('module', 'fhwalk') . '/wforms_switch.js');*/
+ $form['signup']['memberof'] = array(
+    '#type' => 'radios',
+    '#title' => t("Joining as"),
+/*    '#default_value' => variable_get('memberof', 0),*/
+    '#options' => _fhsignup_affiliation(),
+  );
+ $form['signup']['othercompany'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Other company'),
+    '#size' => 20,
+    '#maxlength' => 19,
+    '#description' => t('I am joining as an employee of this company'),
+  );
   if($node->signup_allow_guest) {
     $form['signup']['guests'] = array(
       '#type' => 'textfield',
@@ -642,13 +683,13 @@ function fhsignup_user_status($tid, $uid) {
  * @param $guest
  * @return  
  */
-function _fhsignup_user_add($nid, $uid, $role='attendee', $stage=3, $comment='', $opencomment=0, $guest=0) {
+function _fhsignup_user_add($nid, $uid, $role='attendee', $stage=3, $comment='', $opencomment=0, $guest=0, $memberof=999, $othercompany='') {
   $sql = "SELECT * FROM {gathering_signup} WHERE wid=%d AND uid=%d";
   if( db_num_rows(db_query($sql,$nid, $uid))==0) {
     $sql = "INSERT INTO {gathering_signup} " . 
       "SET wid=%d, uid=%d, role='%s', timestamp=CURRENT_TIMESTAMP, " .
-      "stage=%d, comment='%s', opencomment=%d, guests=%d"; 
-    db_query($sql, $nid, $uid, $role, $stage, $comment, $opencomment, $guest);
+      "stage=%d, comment='%s', opencomment=%d, guests=%d, memberof=%d, othercompany='%s'"; 
+    db_query($sql, $nid, $uid, $role, $stage, $comment, $opencomment, $guest, $memberof, $othercompany);
   } else {
     drupal_set_message( t('User alread signed up!') );
   }
@@ -1116,12 +1157,13 @@ function fhsignup_walk_signup_table($nid, $show_message=0, $show_guests=0) {
 function _fhsignup_signup_table($nid, $status) {
 
   $header = array(
-    array('data' => t('User'),      'field' => 'u.name'),
-    array('data' => t('Role'),      'field' => 'gs.role'),
-    array('data' => t('Comment'),   'field' => 'gs.comment'),
-    array('data' => t('Date'),      'field' => 'gs.timestamp', 'sort' => 'desc'),
-    array('data' => t('Status'),    'field' => 'gs.stage'),
-    array('data' => t('Operations'), '')
+    array('data' => t('User'),        'field' => 'u.name'),
+    array('data' => t('Role'),        'field' => 'gs.role'),
+    array('data' => t('Comment'),     'field' => 'gs.comment'),
+    array('data' => t('Date'),        'field' => 'gs.timestamp', 'sort' => 'desc'),
+    array('data' => t('Status'),      'field' => 'gs.stage'),
+    array('data' => t('Affiliation'), 'field' => 'gs.memberof'),
+    array('data' => t('Operations'),  '')
   );
 
   $sql = 'SELECT gs.*, u.name, u.mail, u.uid ' .
@@ -1159,13 +1201,14 @@ function _fhsignup_signup_table($nid, $status) {
           $signup->comment,
           date("j M Y", strtotime($signup->timestamp)),
           _fhsignup_stages($signup->stage),
+          ($signup->memberof < 99) ? _fhsignup_affiliation($signup->memberof) : $signup->othercompany,
           $operations),
       'class' => _fhsignup_stages($signup->stage));
 
   }
 
   if (!$rows) {
-    $rows[] = array(array('data' => t('No signup available.'), 'colspan' => 6));
+    $rows[] = array(array('data' => t('No signup available.'), 'colspan' => 7));
   }
   
   $output .= theme('table', $header, $rows);

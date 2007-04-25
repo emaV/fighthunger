@@ -47,23 +47,24 @@
 	</form>
   <?php endif; ?>
 
-<table border="0" width='100%'>
+<table border="0" width="100%" class="tbcenter">
   <tr>
-    <td width='180'>
+    <td width="20%" nowrap="nowrap">
 <a href="<?php print url($language) ?>" title="Index Page"><img src="<?php print($logo) ?>" alt="logo" title="Index Page" /></a>
     </td>
-    <td>
-<img src="<?php print base_path() . theme_get_setting('banner_path') ?>" alt="banner" title="banner" />
+    <td width="60%" align="center">
+<img src="<?php print base_path() . theme_get_setting('banner_path') ?>" alt="banner" title="banner"/>
     </td>
-    <td align="center" cellpadding='5'>
+    <td width="20%" nowrap="nowrap">
 <span id="site-mission"><?php print(drupal_eval(variable_get('site_mission', ''))) ?></span>
     </td>
   </tr>
   <tr>
     <td>&nbsp;</td>
-    <td colspan=3>
-<span id="site-slogan"><?php print($site_slogan) ?></span>
+    <td>
+      <span id="site-slogan"><?php print($site_slogan) ?></span>
     </td>
+    <td>&nbsp;</td>
   </tr>
 </table>
 

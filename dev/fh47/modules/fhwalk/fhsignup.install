@@ -35,5 +35,19 @@ function fhsignup_update_2() {
   return $ret;
 }
 
+/*
+ * Schema changes 3: add affiliation on gathering_signup
+ */
+function fhsignup_update_3() {
+  $ret = array();
+  
+  $sql = "ALTER TABLE {gathering_signup} " .
+    "ADD memberof INT( 2 ) NOT NULL, " .
+    "ADD othercompany mediumtext NOT NULL";
+    
+  $ret[] = update_sql($sql);
+
+  return $ret;
+}
 
 ?>

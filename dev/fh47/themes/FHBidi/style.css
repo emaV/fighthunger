@@ -826,6 +826,7 @@ ul.block_menu li {
 .main-content .node .content .image-attach-body a {
   border: 0px;
 }
+#header a:hover {background: 0px;}
 
 /* button create */
 #fhwalk_create {
@@ -848,12 +849,33 @@ div #fhwalk_btn_register {
 }
 
 #primary {background-color: #005088}
+
 #primary a {color: white}
+
 #primary a:link {color: white}
+
 #primary a:visited {color: white}
+
 #primary a:hover {color: white}
+
 #primary a.active {color:white}
+
 #primary a.active:hover {color:white}
+
 #primary {text-align: left}
+
 #countdownbanner {text-align:center}
+
 .tbcenter {text-align: center;}
+
+ul#aboutuslist {
+  list-style-image: url(/themes/FHBidi/images/bulletpointus.gif);
+  color: #FF9900;
+  margin: 0; padding: 0;
+  margin-left: 31px;
+  margin-top: 10px;
+}
+
+li#aboutusbullet {
+  margin-bottom: 3px;
+}

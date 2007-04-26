@@ -1,5 +1,5 @@
 /* Colors and borders */
-.fh_orange { color: #FF6600 }
+.fh_orange { color: #FF7800 }
 
 body, #search {
   color: #333333;
@@ -8,37 +8,36 @@ body, #search {
 table {
   width : 100%;
 }
-a, a:link { color: #006699; }
-a:visited { color: #006699; }
-a:hover, a:focus { color: #ff6600; }
-a:active { color: #ff6600; }
+a, a:link { color: #005088; }
+a:visited { color: #005088; }
+a:hover, a:focus { color: #FF7800; }
+a:active { color: #FF7800; }
 
-#header a:visited { color: #006699; }
-#header a:hover { background: #006699; }
-#site-slogan { color: #006699; }
-#primary { border-top: solid 3px #ff6600; }
-#primary { border-bottom: solid 3px #ff6600; }
-#primary a { color: #006699; }
-#primary a:hover { color: #ff6600; }
-#secondary a { color: #ff6600; }
-#secondary a:hover { color: #ff6600; }
-#primary a.active, #primary a.active:hover, #secondary a.active, #secondary a.active:hover { color: #ff6600; }
+#header a:visited { color: #005088; }
+#header a:hover { background: #005088; }
+#primary { border-top: solid 2px #FF7800; }
+#primary { border-bottom: solid 2px #FF7800; }
+#primary a { color: #005088; }
+#primary a:hover { color: #FF7800; }
+#secondary a { color: #FF7800; }
+#secondary a:hover { color: #FF7800; }
+#primary a.active, #primary a.active:hover, #secondary a.active, #secondary a.active:hover { color: #FF7800; }
 .sidebar .sidebar .block { color: #333333; }
-.sidebar .block a { color: #006699; }
-.sidebar .block a:visited, .sidebar .sidebar .block h3 { color: #006699; }
+.sidebar .block a { color: #005088; }
+.sidebar .block a:visited, .sidebar .sidebar .block h3 { color: #005088; }
 .sidebar .block h2, .sidebar .block h3 { color: #333333; }
-.sidebar .block a:hover { color: #ff6600; }
+.sidebar .block a:hover { color: #FF7800; }
 .sidebar .block {
   background: #ffffff;
-  border: solid 1px #006699;
+  border: solid 1px #005088;
 }
 .main-content .content-title {color: #333333; }
 
 /* links */
-.block .more-link a { color: #ff6600; }
-.block .more-link a:hover { color: #ff6600; }
-.breadcrumb, .main-content .links a.read-more { color: #006699; }
-.links a.read-more:hover { color: #006699; }
+.block .more-link a { color: #FF7800; }
+.block .more-link a:hover { color: #FF7800; }
+.breadcrumb, .main-content .links a.read-more { color: #005088; }
+.links a.read-more:hover { color: #005088; }
 
 .main-content .node .content a,
 .comment .content a, .book .body a { 
@@ -63,7 +62,7 @@ a:active { color: #ff6600; }
 }
 
 .button { 
-  color: #ff6600;
+  color: #FF7800;
   padding: 2px 5px;
   margin: 5px;
   background: #efefef;
@@ -73,7 +72,7 @@ a:active { color: #ff6600; }
   border: solid 1px #ddd;
 }
 .form-submit, .form-submit:hover, .form-submit:focus  {
-  background-color:#ff6600;
+  background-color:#FF7800;
   color:#fff;
 }
 
@@ -155,13 +154,13 @@ a:active { color: #ff6600; }
 .main-content .sticky { border: 1px solid #eee; }
 .main-content .h2 {color: #333333;}
 img { border: 0; }
-blockquote { border: 1px 0px #006699 solid; }
+blockquote { border: 1px 0px #005088 solid; }
 #mission {
   color: #000;
   background: #ffffff;
   border: solid 1px #999;
 }
-.box { border: 1px solid #006699; }
+.box { border: 1px solid #005088; }
 .box h2 { color: #999; }
 .comment {
   border-top: solid 1px #eee;
@@ -187,12 +186,12 @@ blockquote { border: 1px 0px #006699 solid; }
   margin: 10px auto; 
   padding: 10px 5px;
   
-  background: #FF6600; 
+  background: #FF7800; 
   -moz-border-radius: 0.5em;
 }
 .donation_link a, .donation_link a:link { color: #FFFFFF; }
 .donation_link a:visited { color: #FFFFFF; }
-.donation_link a:hover, a:focus { color: #006699; }
+.donation_link a:hover, a:focus { color: #005088; }
 .donation_link a:active { color: #FFFFFF; }
 
 .profile_right .form-submit {
@@ -207,7 +206,7 @@ blockquote { border: 1px 0px #006699 solid; }
   padding: 10px 5px;
   
   color:#FFFFFF;
-  background-color:#FF6600;
+  background-color:#FF7800;
   border-style:none;
   border-width:0px;
 
@@ -217,7 +216,7 @@ blockquote { border: 1px 0px #006699 solid; }
 #footer {
   color: #666;
   background: #fffff;
-  border-top: solid 3px #ff6600;
+  border-top: solid 3px #FF7800;
 }
 form .form-item .title  {
   border: 0;
@@ -320,7 +319,7 @@ code {
 }
 #header img { 
   margin: 15px 5px 5px 5px;
-  float: left;
+  float: center;
 }
 
 #site-name {
@@ -329,6 +328,7 @@ code {
   margin: 0;
 }
 #site-slogan {
+  color: #005088; 
   font-family: Verdana, Helvetica, Arial, Lucida, sans-serif;
   display: inline;
   font-weight: normal;
@@ -707,7 +707,7 @@ border:0px;
 
 ul.block_menu li:before {
    content: "\0020 \0020 \0020 \00BB \0020";
-   color: #ff6600;
+   color: #FF7800;
 }
 ul.block_menu li {
    margin-top: 0.2em;
@@ -738,7 +738,7 @@ ul.block_menu li {
   display: inline;
 }
 #subproducts_add_to_cart .form-submit {
-  background-color:#ff6600;
+  background-color:#FF7800;
   color:#fff;
   float: right;
 }
@@ -752,7 +752,7 @@ ul.block_menu li {
   background-color:#fff;
 }
 #fhproducts_add_to_cart .form-submit {
-  background-color:#ff6600;
+  background-color:#FF7800;
   color:#fff;
   float: right;
 }
@@ -762,7 +762,7 @@ ul.block_menu li {
 }
 
 #fhbat_page .form-submit {
-  background-color:#ff6600;
+  background-color:#FF7800;
   color:#fff;
 }
 
@@ -772,7 +772,7 @@ ul.block_menu li {
 
 /* block on central column */
 .main-content div.block {
-  background-color:#ff6600;
+  background-color:#FF7800;
   margin-top : 1em;
   padding: 5px;
   width: 20em;
@@ -826,6 +826,7 @@ ul.block_menu li {
 .main-content .node .content .image-attach-body a {
   border: 0px;
 }
+#header a:hover {background: 0px;}
 
 /* button create */
 #fhwalk_create {
@@ -845,4 +846,36 @@ div #fhwalk_btn_register {
 #fhwalk_create p {
   float: left;
   width: 600px;
+}
+
+#primary {background-color: #005088}
+
+#primary a {color: white}
+
+#primary a:link {color: white}
+
+#primary a:visited {color: white}
+
+#primary a:hover {color: white}
+
+#primary a.active {color:white}
+
+#primary a.active:hover {color:white}
+
+#primary {text-align: left}
+
+#countdownbanner {text-align:center}
+
+.tbcenter {text-align: center;}
+
+ul#aboutuslist {
+  list-style-image: url(/themes/FHBidi/images/bulletpointus.gif);
+  color: #FF9900;
+  margin: 0; padding: 0;
+  margin-left: 31px;
+  margin-top: 10px;
+}
+
+li#aboutusbullet {
+  margin-bottom: 3px;
 }

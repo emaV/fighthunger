@@ -427,6 +427,9 @@ global $user;
   $form['signup'] = array(
     '#type' => 'fieldset',
   );
+  $form['signup']['anchor'] = array(
+    '#value' => '<a name="signup"></a>',
+  );
   $form['signup']['comment'] = array(
     '#type' => 'textarea',
     '#title' => t('Signup comment'),
@@ -511,8 +514,8 @@ global $user;
     case 1: // approval required      
       if ($user->uid == 0) {  
       //this is an anonymous user, then display the login link
-        $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination()), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination()));
-        $output .= '<div class="signup_anonymous_login">'. t('Please %login or %register to sign up for this event.', $login_array) .'</div>';
+        $login_array = array('%login' => l(t('login'), 'user/login', array(), drupal_get_destination() . urlencode('#signup') ), '%register' => l(t('register'), 'user/register', array(), drupal_get_destination() . urlencode('#signup')));
+        $output .= '<div class="signup_anonymous_login">'. t("Please first %login or %register. You'll return here to sign up for this event.", $login_array) .'</div>';
       } elseif($user_status) {
       //this user already signup for a walk in this campaign
         if( ($user_status['wid']==$node->nid) ) {

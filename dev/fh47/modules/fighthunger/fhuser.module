@@ -387,12 +387,15 @@ function fhuser_user_register_submit($form_id, $form_values) {
 }
 
 function fhuser_user_register_validate($form_id, $form_values) {
+  drupal_set_message('pippo');
+
   // Make temporary name to replace with email later
   if(isset($form_values['name'])) {
     $form_values['name'] = "fhuser_name_".time();
   }
   user_register_validate($form_id, $form_values);
 }
+
 /**
  * Try login with e-mail and password. If unsuccessful, fallback to normal login.
  */
@@ -821,6 +824,15 @@ function fhuser_user($op, &$edit, &$account, $category = NULL) {
       break;
     case 'categories':
       //return fhuser_user_categories();
+      break;
+    case 'validate':
+      if( isset($edit['location']['province']) && substr($edit['location']['province'],2)=='000' ) {
+        form_set_error('location][province', ''); // just in case is not already set
+        form_set_error('', t('Please make sure to select a state/province from the country you have selected.'));
+      }
+      if( isset($edit['profile_phone']) && ($edit['profile_phone']=='') ) {
+        form_set_error('profile_phone', t('Phone field is required.')); // just in case is not already set
+      }
       break;
   }  
 }

@@ -515,6 +515,18 @@ function fhwalk_validate($node, $form = array()) {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_submit(&$node) {
+//            $node->location['lat'] = $node->location['latitude'];
+//            $node->location['lon'] = $node->location['longitude'];
+  if ($node->nid) {
+    $result = db_query("SELECT * FROM {location} WHERE type = 'node' AND oid = %d", $node->nid);
+    if ($location = db_fetch_object($result)) {
+      if ($location->source = LOCATION_LATLON_USER_SUBMITTED) {
+        $node->location['lon'] = $location->latitude;
+        $node->location['lat'] = $location->longitude;
+      }
+    }
+  }
+
   // recover end date
   $node->end_day  =  $node->start_day;
   $node->end_month = $node->start_month;
@@ -843,9 +855,6 @@ global $user;
         $tid = $campaign->tid;
         // Parse ISO date
         list($year, $month, $day) = explode("-", $campaign->startdate);
-        $form['event_start']['date']['start_day']['#default_value']   = $day;
-        $form['event_start']['date']['start_month']['#default_value'] = $month;
-        $form['event_start']['date']['start_year']['#default_value']  = $year;
       } elseif( ($vid = variable_get('fhwalk_vocabulary', 0)) 
           && $tid = $form['taxonomy'][$vid]['#default_value'][0]
           && $campaign = fhcampaign_get_campaign($tid)) {
@@ -853,6 +862,16 @@ global $user;
       } else {
         // Just set date from latest campaign
         list($year, $month, $day) = explode("-", fhcampaign_default_date());
+      }
+      // set default date if a new walk
+      if(!$node->nid) {
+        $form['event_start']['date']['start_day']['#default_value']   = $day;
+        $form['event_start']['date']['start_month']['#default_value'] = $month;
+        $form['event_start']['date']['start_year']['#default_value']  = $year;
+      } else {
+        $day   = $form['event_start']['date']['start_day']['#default_value'];
+        $month = $form['event_start']['date']['start_month']['#default_value'];
+        $year  =$form['event_start']['date']['start_year']['#default_value'];
       }
 
       // change location form
@@ -919,13 +938,13 @@ global $user;
         $form['whenwhere']['close_day'] = array('#type' => 'markup','#value' => '</div></div>');
       } else {
         //list($day, $month, $year) = explode("/", variable_get("fhwalk_date_$tid", '13/05/2007'));
-        
+        $date = date("d F Y", mktime(0, 0, 0, $month, $day, $year));
         $form['whenwhere']['start_day']   = array('#type' => 'hidden', '#value' => $day );
         $form['whenwhere']['start_month'] = array('#type' => 'hidden', '#value' => $month );
         $form['whenwhere']['start_year']  = array('#type' => 'hidden', '#value' => $year );
         $form['whenwhere']['day'] = array('#type' => 'markup', 
             '#value' => '<div class="container-inline"><div class="day"><h4>' . t('Day') . ":</h4>\n" .
-            '<strong>' . variable_get("fhwalk_date_$tid", '13/05/2007') . "</strong>\n" .
+            '<strong>' . $date . "</strong>\n" .
             '</div></div>');
       }
 

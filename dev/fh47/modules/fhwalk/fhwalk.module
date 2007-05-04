@@ -515,18 +515,7 @@ function fhwalk_validate($node, $form = array()) {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_submit(&$node) {
-//            $node->location['lat'] = $node->location['latitude'];
-//            $node->location['lon'] = $node->location['longitude'];
-  if ($node->nid) {
-    $result = db_query("SELECT * FROM {location} WHERE type = 'node' AND oid = %d", $node->nid);
-    if ($location = db_fetch_object($result)) {
-      if ($location->source = LOCATION_LATLON_USER_SUBMITTED) {
-        $node->location['lon'] = $location->latitude;
-        $node->location['lat'] = $location->longitude;
-      }
-    }
-  }
-
+ 
   // recover end date
   $node->end_day  =  $node->start_day;
   $node->end_month = $node->start_month;
@@ -535,6 +524,18 @@ function fhwalk_submit(&$node) {
   // Get path alias. Check for existing path before messing with aliases
   if(!$node->path) $node->path =  _fhwalk_get_alias($node);
 
+  // check if user CAN'T submit latitude and longitude
+  if ($node->nid && !user_access('submit latitude/longitude')) {
+    $result = db_query("SELECT * FROM {location} WHERE type = 'node' AND oid = %d", $node->nid);
+    if ( ($location = db_fetch_object($result)) && $location->latitude && $location->longitude) {
+      $node->location['lon'] = $location->longitude;
+      $node->location['lat'] = $location->latitude;
+      $node->location['latitude']  = $location->latitude;
+      $node->location['longitude'] = $location->longitude;
+      $node->location['previous_latitude']  = $location->latitude;
+      $node->location['previous_longitude'] = $location->longitude;
+    }
+  }
   // get latitude and longitude from google
   if( !($node->location['latitude'] && $node->location['longitude']) &&
       !($node->location['previous_latitude'] && $node->location['previous_longitude']) ) {

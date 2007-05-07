@@ -161,7 +161,7 @@ function devel_block($op = 'list', $delta = 0) {
       case 0:
         $block['subject'] = t('switch user');
         if (user_access('switch users')) {
-          $users = db_query_range('SELECT uid, name FROM {users} WHERE uid > 0 ORDER BY access', 0, 10);
+          $users = db_query_range('SELECT uid, name FROM {users} WHERE uid > 0 ORDER BY access DESC', 0, 10);
           while ($user = db_fetch_object($users)) {
             $dest = drupal_get_destination();
             $links[] = l(check_plain($user->name), 'devel/switch/'. $user->uid, array(), $dest);
@@ -647,7 +647,8 @@ function devel_query_table($queries, $counts) {
     else {
       $cell[$i][] = $count;
     }
-    $cell[$i][] = l($function, "http://api.drupal.org/api/HEAD/function/$function");
+    $link = variable_get('devel_api_url_base', "http://api.drupal.org/api/4.7") . "/function/$function";
+    $cell[$i][] = l($function, $link);
     $cell[$i][] = check_plain($query[0]);
     $i++;
     unset($diff, $count);

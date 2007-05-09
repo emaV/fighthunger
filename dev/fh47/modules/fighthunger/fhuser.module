@@ -383,11 +383,9 @@ function fhuser_user_register_submit($form_id, $form_values) {
   // Add user name = email, quick registration
   $form_values['name'] = $form_values['mail'];    
   user_register_submit($form_id, $form_values);
-	
 }
 
 function fhuser_user_register_validate($form_id, $form_values) {
-  drupal_set_message('pippo');
 
   // Make temporary name to replace with email later
   if(isset($form_values['name'])) {
@@ -537,7 +535,7 @@ function fhuser_subform_user_display(){
   // Check for location fields. If the user has no country, shows a drop down else the country
   fhuser_user_location($user);
   $country = isset($user->location) && isset($user->location['country']) ? $user->location['country'] : NULL;
-	if($country) {
+	if($country && $country<>'xx') {
 	  $form['country'] = array('#type' => 'value', '#value' => $country);
 	  $form['show_country'] = array('#type' => 'item', '#title' => t("Country"), '#value' => fh_get_country_name($country));
 	} else {

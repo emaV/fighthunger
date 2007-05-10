@@ -670,10 +670,12 @@ function _i18ntrans_settings_functions($all = FALSE) {
  * check for translations 
  */
 function i18ntrans_get_links($path = '') {
-  $links = i18n_get_links($path);
+//  $links = i18n_get_links($path);
+  $links = array();
   $supported = i18n_supported_languages();
   
   if (arg(0) == 'node' && is_numeric(arg(1))) {
+    $links = array();
     $nid = arg(1);
     $trid = db_result(db_query("SELECT trid FROM {i18n_node} WHERE nid=%d", $nid));
     if($trid) {

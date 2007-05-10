@@ -65,5 +65,18 @@ function fhflickr_update_3() {
   return $ret;
 }
 
+/*
+ * Schema change 4: Modify fh_flickr table
+ * add license
+ */
+function fhflickr_update_4() {
+  $ret = array();
+
+  $sql = "ALTER TABLE {fh_flickr} " . 
+    "ADD license INT( 2 ) NOT NULL AFTER tags"; 
+  $ret[] =  update_sql($sql);
+
+  return $ret;
+}
 
 ?>

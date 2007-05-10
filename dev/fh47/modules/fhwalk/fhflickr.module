@@ -869,13 +869,13 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
         // save data in DB
         $sql = "INSERT INTO {fh_flickr} 
           (nid, filename, 
-           title, caption, tags, photo_id, 
+           title, caption, tags, license, photo_id, 
            secret, server, farm, timestamp) " .
           "VALUES (%d, '%s', 
                    '%s', '%s', '%s', '%s', 
                    '%s', '%s', '%s', %d)";
         $result = db_query($sql, $file_info['nid'],  $file_info['filename'],  
-          $file_info['title'],  $file_info['caption'],  $file_info['tags'], $file_info['photo_id'], 
+          $file_info['title'],  $file_info['caption'],  $file_info['tags'], $file_info['image_license'], $file_info['photo_id'], 
           $photo_info['photo']['secret'], $photo_info['photo']['server'], $photo_info['photo']['farm'], $photo_info['photo']['dateuploaded']);
   
         drupal_set_message(t("Thank you for uploading. Your photo will show shortly on this page."));

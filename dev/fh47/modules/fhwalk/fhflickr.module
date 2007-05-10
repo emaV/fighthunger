@@ -40,21 +40,190 @@ function fhflickr_perm() {
 }
 
 /**
+ * Implementation of hook_menu().
+ */
+function fhflickr_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+	 $items[] = array('path' => 'fhflickr/action', 
+        'type' => MENU_CALLBACK,
+        'weight' => 0,
+        'callback' => 'fhflickr_action',
+        'access' => user_access('administer fhflickr')
+    );
+  }
+  return $items;
+}
+
+/**
+ * fhflickr get authorization:
+ * 
+ * step 1: get frob 
+ *   
+ */  
+function fhflicker_auth_submit($form_id, $form_values) {
+  drupal_set_message("pippo ($form_id) dice: " . print_r($form_values, true));
+/*
+  switch($form_values['submit']) {
+    case t('Get Frob'):
+      $res = _fhflickr_serv('flickr.auth.getFrob',array(), true);
+      if ($res['stat'] == 'ok') {
+        variable_set('fhflickr_frob', $res['frob']['_content']);
+      } else {
+        drupal_set_message(t('Failed to get a frob') . ': ' . print_r($res, true));
+      }
+      break;
+    case t('Get Token (write)'):
+      $res = _fhflickr_serv('flickr.auth.getToken', array('frob'=>variable_get('fhflickr_frob','')), true);
+      if ($res['stat'] == 'ok') {
+        variable_set('fhflickr_token_write', $res['auth']['token']['_content']);
+      } else {
+        variable_set('fhflickr_frob', '');
+        drupal_set_message(t('Failed to get a token') . ': ' . print_r($res, true));
+      }
+      break;
+  }
+*/  
+}
+
+/**
+ * fhflickr action callback
+ *  
+ * @ingroup fhwalk_core
+ */  
+function fhflickr_action($op) {
+  switch($op) {
+    case 'frob_reset':
+      variable_set('fhflickr_frob','');
+      variable_set('fhflickr_token_write','');
+      drupal_set_message("API frob and API token was reset");
+      break;
+    case 'frob_get':
+      $res = _fhflickr_serv('flickr.auth.getFrob',array(), true);
+      if ($res['stat'] == 'ok') {
+        variable_set('fhflickr_frob', $res['frob']['_content']);
+        drupal_set_message(t('API frob') . ': ' . $res['frob']['_content']);
+      } else {
+        drupal_set_message(t('Failed to get a frob') . ': ' . print_r($res, true));
+      }
+      break;
+    case 'token_reset':
+       variable_set('fhflickr_token_write','');
+      drupal_set_message("API token was reset");
+      break;
+    case 'token_get':
+      $res = _fhflickr_serv('flickr.auth.getToken', array('frob'=>variable_get('fhflickr_frob','')), true);
+      if ($res['stat'] == 'ok') {
+        variable_set('fhflickr_token_write', $res['auth']['token']['_content']);
+        drupal_set_message(t('API token') . ': ' . $res['auth']['token']['_content']);
+      } else {
+        drupal_set_message(t('Failed to get a token') . ': ' . print_r($res, true));
+      }
+      break;
+  }
+  drupal_goto();
+}
+
+/**
  * Implementation of hook_settings().
  *  
  * @ingroup fhflickr_core
+ * OLD b9937eed5e47e753b717ddd7a2045bc7
+ * from 20070316 f8654f49edc0cc5fc304c607c748ed67  
+ *  secret 7bc4224955212703  
  */
 function fhflickr_settings() {
   $form['fhflickr_user_id'] = array(
     '#type'  => 'textfield', 
     '#title' => t('flickr user id'),
-    '#default_value' => variable_get('fhflickr_user_id', '62728578@N00'),
+    '#default_value' => variable_get('fhflickr_user_id', ''),
   );
   $form['fhflickr_apiKey'] = array(
     '#type'  => 'textfield', 
     '#title' => t('flickr apiKey'),
-    '#default_value' => variable_get('fhflickr_apiKey', 'b9937eed5e47e753b717ddd7a2045bc7'),
+    '#default_value' => variable_get('fhflickr_apiKey', ''),
   );
+  $form['fhflickr_apiSecret'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('flickr apiSecret'),
+    '#default_value' => variable_get('fhflickr_apiSecret', ''),
+  );
+  
+  // Authorization Sub form
+  $apiKey    = variable_get('fhflickr_apiKey', '');
+  $apiSecret = variable_get('fhflickr_apiSecret', '');
+
+  $sub_form['auth'] = array(
+    '#type'  => 'fieldset', 
+    '#title' => t('Flickr Authorize'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+  );
+  $sub_form['auth']['frob'] = array(
+    '#value' => "<strong>api Frob:</strong>",
+  );
+  if($frob=variable_get('fhflickr_frob','')) {
+    $sub_form['auth']['frob']['value'] = array(
+      '#value' => "<div>$frob [" . l(t('Reset Frob'), 'fhflickr/action/frob_reset', NULL, drupal_get_destination() ) . ']</div>',
+    );
+    $sub_form['auth']['token'] = array(
+      '#value' => "<strong>api Token (write):</strong>",
+    );
+    if($token=variable_get('fhflickr_token_write','') ) {
+      $sub_form['auth']['token']['value'] = array(
+        '#value' => "<div>$token [" . l(t('Reset API Token'), 'fhflickr/action/token_reset', NULL, drupal_get_destination() ) . ']</div>',
+      );
+    } else {
+      $request = _fhflickr_get_request( array('frob' => $frob, 'perms' => 'write'), true);
+       $url = "http://flickr.com/services/auth/?$request";
+     $sub_form['auth']['token']['value'] = array(
+        '#value' => "<div>[<a href='$url'>" . t('Check authorization') . "</a>] ".  
+          "[" . l(t('Get new API token'), 'fhflickr/action/token_get', NULL, drupal_get_destination() ) . "]</div>",
+      );
+    }
+  } else {
+    $sub_form['auth']['frob']['value'] = array(
+      '#value' => "<div>[" . l(t('Get new API Frob'), 'fhflickr/action/frob_get', NULL, drupal_get_destination() ) . "]</div>",
+    );
+  }
+  $form['fhflickr_CURL_proxy'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('CURL proxy'),
+    '#default_value' => variable_get('fhflickr_CURL_proxy', '10.11.40.110:8080'),
+  );
+  
+  $form['fhflickr_auth'] = array(
+    '#value' => drupal_get_form('fhflicker_auth', $sub_form, 'fhflicker_auth'),
+  );
+  
+  $form['ftp'] = array(
+    '#type'  => 'fieldset', 
+    '#title' => t('FTP data'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+  );
+  $form['ftp']['fhflickr_ftp_server'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('FTP server'),
+    '#default_value' => variable_get('fhflickr_ftp_server', ''),
+  );
+  $form['ftp']['fhflickr_ftp_user_name'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('FTP user name'),
+    '#default_value' => variable_get('fhflickr_ftp_user_name', ''),
+  );
+  $form['ftp']['fhflickr_ftp_user_pass'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('FTP user password'),
+    '#default_value' => variable_get('fhflickr_ftp_user_pass', ''),
+  );
+  $form['ftp']['fhflickr_ftp_remote_dir'] = array(
+    '#type'  => 'textfield', 
+    '#title' => t('FTP remote directory'),
+    '#default_value' => variable_get('fhflickr_ftp_remote_dir', ''),
+  );
+
   return $form;
 }
 
@@ -185,6 +354,7 @@ global $user;
       break;
     case 'view':
       $node->body .= fhflickr_nodeapi_view($node);
+      $node->body .= _fhflickr_upload_form($node);
       break;
   }
 }
@@ -204,6 +374,28 @@ function fhflickr_get_rnd_photo($nid) {
     $out = '';
   }
   return $out;
+}
+
+/**
+ * get photos from flickr
+ *  
+ * @ingroup fhflickr_helpers
+ */
+function fhflickr_photos_getInfo($photo_id, $secret='') {
+
+  if($secret);
+  $params = array(
+    'photo_id' => $photo_id,
+	  'format'   => 'php_serial',  
+    'method'   => 'flickr.photos.getInfo', 
+  );
+  $encoded_params = _fhflickr_get_request($params);
+
+  // call the API and decode the response
+  $url = "http://api.flickr.com/services/rest/?$encoded_params";
+  $rsp = fh_file_get_contents($url);
+  $rsp_obj = unserialize($rsp);
+  return ($rsp_obj['stat'] == 'ok') ? $rsp_obj : $url;
 }
 
 /**
@@ -269,7 +461,7 @@ function fhflickr_refresh_node($node) {
     $sql = "INSERT INTO {fh_flickr} " .
       "(nid, title, tags, photo_id, secret, server, farm, timestamp) " .
       " VALUES " . 
-      "(%d,  '%s',  '%s', '%d',     '%s',   '%s',   '%s', %d);";
+      "(%d,  '%s',  '%s', '%d',  '%s',  '%s',  '%s', %d);";
 
     foreach ($rsp_obj['photos']['photo'] as $photo) {
       db_query($sql, $node->nid, $photo['title'], $tags, $photo['id'], $photo['secret'],$photo['server'],$photo['farm'], time() );
@@ -323,4 +515,480 @@ function _fhflickr_set_node_flickrtag() {
       db_query($sql, $tag_event, $nid );
     }
   }
+}
+
+
+/*******************************
+ * Flicker API helpers
+ *******************************/   
+/**
+ * Get a signature
+ * All API calls using an authentication token must be signed.
+ * The process of signing is as follows:
+ *  
+ * Sort your argument list into alphabetical order based on the parameter name.
+ *    e.g. foo=1, bar=2, baz=3 sorts to bar=2, baz=3, foo=1
+ * concatenate the shared secret and argument name-value pairs
+ *    e.g. SECRETbar2baz3foo1
+ * calculate the md5() hash of this string
+ * append this value to the argument list with the name api_sig, in hexidecimal string form
+ *    e.g. api_sig=1f3870be274f6c49b3e31a0c6728957f
+ *     
+ **/
+function _fhflickr_get_api_sig($params) {
+  ksort($params);
+  $string = variable_get('fhflickr_apiSecret', '');
+  foreach ($params as $k => $v) {
+	  $string .= $k . $v;
+  }
+  return md5($string);
+}
+
+/**
+ * Generate a GET request from parameters (signed with secret if needed)
+ */  
+function _fhflickr_get_request($params_add=array(), $signed=FALSE, $auth='') {
+  
+  // set auth param 
+  $params = array(
+    'api_key'  => variable_get('fhflickr_apiKey', ''),
+  );
+  switch($auth) {
+    case 'write':
+      $params['auth_token'] = variable_get("fhflickr_token_$auth", '');
+      break;
+  }
+  $params = array_merge($params, $params_add);
+  if($signed) $params['api_sig'] =_fhflickr_get_api_sig($params);
+
+  // encode params
+  $encoded_params = array();
+  foreach ($params as $k => $v) {
+	  $encoded_params[] = urlencode($k).'='.urlencode($v);
+  }
+  return implode('&', $encoded_params);
+}
+
+/**
+ * Generate a GET request from parameters (signed with secret if needed)
+ */  
+function _fhflickr_post_request($params_add=array(), $signed=FALSE, $auth='') {
+
+  // set auth param 
+  $params['api_key'] = variable_get('fhflickr_apiKey', '');
+  switch($auth) {
+    case 'write':
+      $params['auth_token'] = variable_get("fhflickr_token_$auth", '');
+      break;
+  }
+  $params = array_merge($params, $params_add);
+  if($signed) $params['api_sig'] =_fhflickr_get_api_sig($params);
+/*
+  // encode params
+  $encoded_params = array();
+  foreach ($params as $k => $v) {
+	  $encoded_params[urlencode($k)] = urlencode($v);
+  }
+*/
+  
+  return $params;
+}
+
+function _fhflickr_serv($method, $params_add=array(), $signed=FALSE, $auth='', $http_method='GET') {
+  $params_add['method'] = $method;
+  $params_add['format'] = 'php_serial';
+
+  switch($http_method) {
+
+    case 'POST':
+      $params = _fhflickr_post_request($params, $auth, $signed, $auth);
+//      $url = "http://upcoming.yahooapis.com/services/rest/";
+      // create a new cURL resource
+      // http://www.faqts.com/knowledge_base/view.phtml/aid/15705/fid/342
+      $ch = curl_init();
+      curl_setopt($ch, CURLOPT_URL, $url);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
+      curl_setopt($ch, CURLOPT_REFERER, $_SERVER["SCRIPT_URI"] );
+      curl_setopt($ch, CURLOPT_POST,1);
+      curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+      curl_setopt($ch, CURLOPT_PROXY , variable_get('fhflickr_CURL_proxy', '10.11.40.110:8080'));   
+      $rsp = curl_exec ($ch);
+      curl_close ($ch);    
+      break;
+    case 'GET':
+      $request = _fhflickr_get_request($params_add, $signed, $auth);
+      // call the API and decode the response
+      $url = "http://api.flickr.com/services/rest/?$request";
+      $rsp = fh_file_get_contents($url);
+      $rsp_obj = unserialize($rsp);
+      break;
+  }
+  return $rsp_obj;
+}
+
+function fhflickr_getToken($auth) {
+  $res = _fhflickr_serv('flickr.auth.getToken', array('frob'=>variable_get('fhflickr_frob','')), true);
+  if ($res['stat'] == 'ok') {
+    variable_set("fhflickr_token_$auth", $res['frob']['_content']);
+  }
+}
+function fhflickr_checkToken($auth) {
+  $token = variable_get("fhflickr_token_$auth",'');
+  $res = _fhflickr_serv('flickr.auth.checkToken', array('auth_token'=> $token), true);
+  return $res;
+}
+
+/*
+function _fhflickr_getfrob() {
+  $res = _fhflickr_serv('flickr.auth.getFrob',array(), true);
+  return ($res['stat'] == 'ok') ? $res['frob']['_content'] :  print_r($res, true);
+}
+*/
+/*
+function _fhflickr_get_url_auth($frob, $perms) {
+  $params = array('frob' => $frob, 'perms' => $perms);
+  return _fhflickr_get_request($params, TRUE);
+}
+*/
+function _fhflickr_geotag($photo) {
+
+  $method = 'flickr.photos.geo.setLocation';
+  
+  $params = array(
+    'photo_id' => $photo->photo_id,
+    'lat'      => $photo->lat,
+    'lon'      => $photo->lon,
+    'accuracy' => 11,
+  );
+  
+  return  _fhflickr_serv($method, $params, TRUE, 'write');
+/*
+  $params['method'] = $method;
+  $params['format'] = 'php_serial';
+  $request = _fhflickr_get_request($params, TRUE, 'write');
+  return $request;
+*/
+  
+}
+function _fhflickr_node_setLocation($nid) {
+  $sql = "SELECT * FROM {fh_flickr_geocode} WHERE nid=%d";
+  $result = db_query($sql, $nid);
+  while ($photo = db_fetch_object($result)) {
+    print "<h3>$photo->photo_id</h3>" . print_r(_fhflickr_geotag($photo)) . "<br/>";
+  }
+}
+
+/*
+http://flickr.com/services/rest/?
+method=flickr.people.getInfo&
+api_key=987654321&
+auth_token=9765984&
+api_sig=8f3870be274f6c49b3e31a0c6728957f.
+*/
+
+/**
+ * Upload photo to flickr
+ **/
+
+/**
+ * Image licenses (values come from flickr.com)
+ * 0 -> None (All rights reserved)
+ * 4 -> Attribution License
+ * 6 -> Attribution-NoDerivs License
+ * 3 -> Attribution-NonCommercial-NoDerivs License
+ * 2 -> Attribution-NonCommercial License
+ * 1 -> Attribution-NonCommercial-ShareAlike License
+ * 5 -> Attribution-ShareAlike License
+ **/  
+ 
+function _fhflickr_licenses($key=-1) {
+  static $licenses;
+  if (!is_array($licenses)) {
+    $licenses = array(
+      '0' => t('Copyright (All rights reserved)'),
+      '1' => t('Creative Commons 3.0 by-nc-sa (Attribution-Noncommercial-Share Alike)'),
+      '5' => t('Creative Commons 3.0 by-sa (Attribution-Share Alike)')
+    );
+  }
+  if (array_key_exists($key, $licenses)) {
+    $out = $licenses[$key];
+  } else {
+    $out = $licenses;
+  }
+  return $licenses;
+} 
+
+/**
+ *
+ *
+ * Uploading
+ * Photos should be POSTed to the following URL:
+ * http://api.flickr.com/services/upload/
+ *  
+ * Arguments
+ * photo
+ *     The file to upload.
+ * title (optional)
+ *     The title of the photo.
+ * description (optional)
+ *     A description of the photo. May contain some limited HTML.
+ * tags (optional)
+ *     A space-seperated list of tags to apply to the photo.
+ * is_public, is_friend, is_family (optional)
+ *     Set to 0 for no, 1 for yes. Specifies who can view the photo. 
+ **/  
+function _fhflickr_upload_flickr($file_info) {
+
+  $file_path = file_directory_path() . '/' . variable_get('fhflickr_directory', 'flickr') .'/' . $file_info['filename'];
+  $post_data = array(
+    'title'       => $file_info['title'],
+    'description' => $file_info['caption'],
+    'tags'        => $file_info['tags'],
+  );
+  $post_data = _fhflickr_post_request($post_data, TRUE, 'write');
+  $post_data['photo']  = "@$file_path";
+
+  // create a new cURL resource
+  // http://www.faqts.com/knowledge_base/view.phtml/aid/15705/fid/342
+  $url = "http://api.flickr.com/services/upload/";
+  $rsp = fh_http_POST($url, $post_data);
+  
+//  $status = curl_getinfo($ch);
+  
+  // parse simple xml response
+  $parser = xml_parser_create();
+  xml_parse_into_struct($parser, $rsp, $values, $index);
+  xml_parser_free($parser);
+
+  $out = array(
+    'STAT'     => $values[0]['attributes']['STAT'],
+    'photo_id' => ($values[0]['attributes']['STAT'] == 'ok') ? $values[1]['value'] : 0,
+    'XML'      => $rsp,
+  );
+  if($out['STAT']<>'ok') watchdog('fhflickr', 'XML response: ' . $out['XML']);
+
+  return $out['photo_id'];
+//  return $out;
+  
+}
+
+function _fhflickr_upload_ftp($filename, $mode=FTP_ASCII) {
+  // copy with ftpl
+  $ftp =  array(
+    'server'     => variable_get('fhflickr_ftp_server', ''),
+    'user_name'  => variable_get('fhflickr_ftp_user_name', ''),
+    'user_pass'  => variable_get('fhflickr_ftp_user_pass', ''),
+    'remote_dir' => variable_get('fhflickr_ftp_remote_dir', ''),
+  );
+  $local_file  = file_directory_path() . '/' . variable_get('fhflickr_directory', 'flickr') . "/$filename";
+  $remote_file = $ftp['remote_dir'] . "/$filename";
+  
+  if($ftp['server'] && $ftp['user_name'] && $ftp['user_pass'] && $ftp['remote_dir']) {
+    // set up basic connection
+    $conn_id = ftp_connect($ftp['server']);
+           
+    // login with username and password
+    $login_result = ftp_login($conn_id, $ftp['user_name'], $ftp['user_pass']); 
+  
+    // upload the file
+    $upload = ftp_put($conn_id, $remote_file, $local_file, $mode);
+  
+    // close the FTP stream
+    ftp_close($conn_id);
+  } else {
+    $upload = NULL;
+  }
+/*
+drupal_set_message("Pippo conn_id: " . print_r($conn_id, true));
+drupal_set_message("Pippo login_result: " . print_r($login_result, true));
+drupal_set_message("Pippo upload: " . print_r($upload, true));
+drupal_set_message("Pippo upload TO $remote_file FROM $local_file");
+*/
+  return $upload;
+}
+
+function fhflickr_upload_form_submit($form_id, $form_values) {
+/*
+  drupal_set_message("Pippo on '$form_id' says: " . print_r($form_values, true));
+  drupal_set_message("Pippo _FILES: " . print_r($_FILES, true));
+*/
+  // Save new file uploads to tmp dir.
+  if (($file = file_check_upload('image'))) {
+
+    // check if is a valid image
+    if( $info = image_get_info($file->filepath)) {
+
+      // create file names
+      $sql = "SELECT count(*) from {fh_flickr} where nid=%d";
+      $count = db_result(db_query($sql, $form_values['nid']));
+      $file_base  = variable_get('fhflickr_directory', 'flickr');
+      $file_image = $form_values['tag_campaign'] . '_' . $form_values['tag_walk'] . '_' . sprintf('%03d', $count+1) . '.' . $info['extension'] ;
+      $file_text  = $form_values['tag_campaign'] . '_' . $form_values['tag_walk'] . '_' . sprintf('%03d', $count+1) . '.txt' ;
+
+      // create info data
+      $file_info = array(
+        'filename'     => $file_image,
+        'title'        => $form_values['image_title'],
+        'caption'      => $form_values['image_caption'],
+        'location'     => $form_values['image_location'],
+        'photographer' => $form_values['image_author'],
+        'city'         => $form_values['city'],
+        'province'     => $form_values['province'],
+        'country'      => $form_values['country'],
+        'latitude'     => $form_values['latitude'],
+        'longitude'    => $form_values['longitude'],
+        'uid'          => $form_values['uid'],
+        'nid'          => $form_values['nid'],
+        'tags'         => $form_values['tag_campaign'] . ', ' . $form_values['tag_walk'],
+      );
+      $file_info = array_merge($file_info, $info);
+      
+      // move image file
+      $file = file_save_upload($file, "$file_base/$file_image", FILE_EXISTS_REPLACE);
+
+      // upload to flickr.com
+      $file_info['photo_id'] = _fhflickr_upload_flickr($file_info);
+
+      // write info file
+      $file_temp = file_directory_path() . "/$file_base/$file_text";
+      if ($fp = fopen($file_temp, 'wb')) {
+        foreach($file_info as $key => $value) {
+          fwrite($fp, "$key\t$value\n");
+        }
+        fclose($fp);       
+      }
+     
+      // upload with ftp
+      _fhflickr_upload_ftp($file_text,  FTP_ASCII);
+      _fhflickr_upload_ftp($file_image, FTP_BINARY);
+
+      // get full info from flickr
+      if($file_info['photo_id']>0) {
+        $photo_info = fhflickr_photos_getInfo($file_info['photo_id']);
+      } 
+      
+//      $secret = $photo_info['photo']['secret'];
+//drupal_set_message('photo_info: ' . print_r($photo_info, true));
+      
+      // save data in DB
+      $sql = "INSERT INTO {fh_flickr} 
+        (nid, filename, 
+         title, caption, tags, photo_id, 
+         secret, server, farm, timestamp) " .
+        "VALUES (%d, '%s', 
+                 '%s', '%s', '%s', '%s', 
+                 '%s', '%s', '%s', %d)";
+      $result = db_query($sql, $file_info['nid'],  $file_info['filename'],  
+        $file_info['title'],  $file_info['caption'],  $file_info['tags'], $file_info['photo_id'], 
+        $photo_info['photo']['secret'], $photo_info['photo']['server'], $photo_info['photo']['farm'], $photo_info['photo']['dateuploaded']);
+
+      drupal_set_message(t("Thank you for uploading. Your photo will show shortly on this page."));
+
+    } else {
+      if($file->filepath) file_delete($file->filepath);
+      drupal_set_message(t("The file you try to upload isn't a valid image file"));    
+    }
+  }
+}
+
+function _fhflickr_upload_form($node) {
+global $user;
+
+  $form['flickr_upload'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Upload Images'), 
+    '#collapsible' => TRUE, 
+    '#collapsed' => FALSE,
+    '#description' => t('Changes made to the attachments are not permanent until you save this post. The first "listed" file will be included in RSS feeds.'),
+    '#prefix' => '<div class="fhflickr_upload">',
+    '#suffix' => '</div>',
+  );
+/*
+  // Wrapper for fieldset contents (used by upload JS).
+  $form['attachments']['wrapper'] = array(
+    '#prefix' => '<div id="attach-wrapper">',
+    '#suffix' => '</div>',
+  );
+  $form['attachments']['wrapper'] += _upload_form($node);
+*/
+  $form['flickr_upload']['image'] = array(
+    '#type' => 'file',
+    '#title' => t('Upload Image')
+  );
+  $form['flickr_upload']['image_title'] = array(
+    '#type' => 'textfield', 
+    '#required' => TRUE,
+    '#title' => t('Image Title'),
+    '#default_value' => $node->title,
+    '#description' => t('The title the image will be shown with.')
+  );
+  $form['flickr_upload']['image_caption'] = array(
+    '#type' => 'textarea', 
+    '#required' => FALSE,
+    '#title' => t('Image Caption'),
+    '#default_value' => '',
+    '#description' => t('The caption the image will be shown with.'),
+  );
+  $form['flickr_upload']['image_location'] = array(
+    '#type' => 'textfield', 
+    '#required' => TRUE,
+    '#title' => t('Image Location'),
+    '#default_value' => $node->location['city'] . " - (" . $node->location['country'] . ')',
+    '#description' => t('The caption the image will be shown with.')
+  );
+  $form['flickr_upload']['image_author'] = array(
+    '#type' => 'textfield', 
+    '#required' => TRUE,
+    '#title' => t('Photographer'),
+    '#default_value' => $user->name,
+    '#description' => t('The author the image will be credited.')
+  );
+  $form['flickr_upload']['image_license'] = array(
+    '#type' => 'select', 
+    '#required' => TRUE,
+    '#title' => t('Image License'),
+    '#default_value' => 1, 
+    '#options' => _fhflickr_licenses(),
+    '#description' => t('The license the image will be used.<br/><i>' .
+      'If you wish, you can associate a Creative Commons license with your photo, to grant people the ' .
+      'right to use your work under certain circumstances.  For more information on what your options are, ' .
+      'please visit the <a href="http://www.creativecommons.org/">Creative Commons</a> website.</i>')
+  );
+  $form['flickr_upload']['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
+  $form['flickr_upload']['uid'] = array('#type' => 'hidden', '#value' => $user->uid);
+  $form['flickr_upload']['tag_campaign'] = array('#type' => 'hidden', '#value' => $node->campaign->shortname);
+  $form['flickr_upload']['tag_walk'] = array('#type' => 'hidden', '#value' => $node->tag);
+  $form['flickr_upload']['city']      = array('#type' => 'hidden', '#value' => $node->location['city']);
+  $form['flickr_upload']['province']  = array('#type' => 'hidden', '#value' => $node->location['province']);
+  $form['flickr_upload']['country']   = array('#type' => 'hidden', '#value' => $node->location['country']);
+  $form['flickr_upload']['latitude']  = array('#type' => 'hidden', '#value' => $node->location['latitude']);
+  $form['flickr_upload']['longitude'] = array('#type' => 'hidden', '#value' => $node->location['longitude']);
+
+  $mail_subject = $node->location['city'] . ' (' . $node->location['country'] . ')';
+  $help = "Please upload <b>photos</b> as soon as you can. If you have any problems send your photos, " .
+    "with the walk city and country in the subject line, the name of who took the photo " .
+    "and a caption in the body of the email to <a href='mailto:photos@fighthunger.org?subject=$mail_subject'>photos@fighthunger.org.</a><br/>" . 
+    "Please send your <b>story</b> (with the city and country in the subject line) to " .
+    "<a href='mailto:story@fighthunger.org?subject=$mail_subject'>story@fighthunger.org.</a> " .
+    "or post in your personal blog with '" . $node->campaign->shortname . "' and '" . $node->tag . "' as the tag.<br/>" .
+    "For other <b>media</b> (video clips, podcasts, press cuttings, etc.) send to " .
+    "<a href='mailto:media@fighthunger.org?subject=$mail_subject'>media@fighthunger.org.</a> " .
+    "with city and country in the subject line.";
+
+  
+  $form['flickr_upload']['help'] = array(
+    '#prefix' => '<div id="flickr_upload_help">',
+    '#suffix' => '</div>',
+    '#value' => t($help),
+  );
+
+  $form['flickr_upload']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Upload'),
+  );
+  $form['#attributes']['enctype'] = 'multipart/form-data'; 
+
+  
+  $output =  drupal_get_form('fhflickr_upload_form', $form);
+  return $output;
 }

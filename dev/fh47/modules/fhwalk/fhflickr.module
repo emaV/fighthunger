@@ -844,46 +844,42 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
       $file_info = array_merge($file_info, $info);
       
       // move image file
-      $file = file_save_upload($file, "$file_base/$file_image", FILE_EXISTS_REPLACE);
-
-      // upload to flickr.com
-      $file_info['photo_id'] = _fhflickr_upload_flickr($file_info);
-
-      // write info file
-      $file_temp = file_directory_path() . "/$file_base/$file_text";
-      if ($fp = fopen($file_temp, 'wb')) {
-        foreach($file_info as $key => $value) {
-          fwrite($fp, "$key\t$value\n");
+      if($file = file_save_upload($file, "$file_base/$file_image", FILE_EXISTS_REPLACE)) {
+        // upload to flickr.com
+        $file_info['photo_id'] = _fhflickr_upload_flickr($file_info);
+  
+        // write info file
+        $file_temp = file_directory_path() . "/$file_base/$file_text";
+        if ($fp = fopen($file_temp, 'wb')) {
+          foreach($file_info as $key => $value) {
+            fwrite($fp, "$key\t$value\n");
+          }
+          fclose($fp);       
         }
-        fclose($fp);       
-      }
      
-      // upload with ftp
-      _fhflickr_upload_ftp($file_text,  FTP_ASCII);
-      _fhflickr_upload_ftp($file_image, FTP_BINARY);
+        // upload with ftp
+        _fhflickr_upload_ftp($file_text,  FTP_ASCII);
+        _fhflickr_upload_ftp($file_image, FTP_BINARY);
 
-      // get full info from flickr
-      if($file_info['photo_id']>0) {
-        $photo_info = fhflickr_photos_getInfo($file_info['photo_id']);
-      } 
-      
-//      $secret = $photo_info['photo']['secret'];
-//drupal_set_message('photo_info: ' . print_r($photo_info, true));
-      
-      // save data in DB
-      $sql = "INSERT INTO {fh_flickr} 
-        (nid, filename, 
-         title, caption, tags, photo_id, 
-         secret, server, farm, timestamp) " .
-        "VALUES (%d, '%s', 
-                 '%s', '%s', '%s', '%s', 
-                 '%s', '%s', '%s', %d)";
-      $result = db_query($sql, $file_info['nid'],  $file_info['filename'],  
-        $file_info['title'],  $file_info['caption'],  $file_info['tags'], $file_info['photo_id'], 
-        $photo_info['photo']['secret'], $photo_info['photo']['server'], $photo_info['photo']['farm'], $photo_info['photo']['dateuploaded']);
-
-      drupal_set_message(t("Thank you for uploading. Your photo will show shortly on this page."));
-
+        // get full info from flickr
+        if($file_info['photo_id']>0) {
+          $photo_info = fhflickr_photos_getInfo($file_info['photo_id']);
+        } 
+     
+        // save data in DB
+        $sql = "INSERT INTO {fh_flickr} 
+          (nid, filename, 
+           title, caption, tags, photo_id, 
+           secret, server, farm, timestamp) " .
+          "VALUES (%d, '%s', 
+                   '%s', '%s', '%s', '%s', 
+                   '%s', '%s', '%s', %d)";
+        $result = db_query($sql, $file_info['nid'],  $file_info['filename'],  
+          $file_info['title'],  $file_info['caption'],  $file_info['tags'], $file_info['photo_id'], 
+          $photo_info['photo']['secret'], $photo_info['photo']['server'], $photo_info['photo']['farm'], $photo_info['photo']['dateuploaded']);
+  
+        drupal_set_message(t("Thank you for uploading. Your photo will show shortly on this page."));
+      }
     } else {
       if($file->filepath) file_delete($file->filepath);
       drupal_set_message(t("The file you try to upload isn't a valid image file"));    

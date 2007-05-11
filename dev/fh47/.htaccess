@@ -40,6 +40,8 @@ DirectoryIndex index.php
   php_value magic_quotes_gpc                0
   php_value register_globals                0
   php_value session.auto_start              0
+  php_value upload_max_filesize           16M
+  php_value post_max_size                 32M
 </IfModule>
 
 # Requires mod_expires to be enabled.

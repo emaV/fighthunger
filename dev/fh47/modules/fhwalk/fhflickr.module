@@ -832,6 +832,7 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
         'caption'      => $form_values['image_caption'],
         'location'     => $form_values['image_location'],
         'photographer' => $form_values['image_author'],
+        'email'        => $form_values['image_email'],
         'city'         => $form_values['city'],
         'province'     => $form_values['province'],
         'country'      => $form_values['country'],
@@ -868,15 +869,24 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
      
         // save data in DB
         $sql = "INSERT INTO {fh_flickr} 
-          (nid, filename, 
-           title, caption, tags, license, photo_id, 
-           secret, server, farm, timestamp) " .
-          "VALUES (%d, '%s', 
-                   '%s', '%s', '%s', '%s', 
-                   '%s', '%s', '%s', %d)";
-        $result = db_query($sql, $file_info['nid'],  $file_info['filename'],  
-          $file_info['title'],  $file_info['caption'],  $file_info['tags'], $file_info['image_license'], $file_info['photo_id'], 
-          $photo_info['photo']['secret'], $photo_info['photo']['server'], $photo_info['photo']['farm'], $photo_info['photo']['dateuploaded']);
+          (nid, filename,
+           uid, author, author_mail, 
+           title, caption, tags, 
+           license, photo_id, 
+           secret, server, 
+           farm, timestamp) " .
+          "VALUES (%d, '%s',
+                   %d, '%s', '%s', 
+                   '%s', '%s', '%s', 
+                   '%s', '%s', 
+                   '%s', '%s', 
+                   '%s', %d)";
+        $result = db_query($sql, $file_info['nid'],  $file_info['filename'],
+          $file_info['uid'],  $file_info['photographer'], $file_info['email'],  
+          $file_info['title'],  $file_info['caption'],  $file_info['tags'], 
+          $file_info['image_license'], $file_info['photo_id'], 
+          $photo_info['photo']['secret'], $photo_info['photo']['server'], 
+          $photo_info['photo']['farm'], $photo_info['photo']['dateuploaded']);
   
         drupal_set_message(t("Thank you for uploading. Your photo will show shortly on this page."));
       }
@@ -890,12 +900,33 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
 function _fhflickr_upload_form($node) {
 global $user;
 
+  $vars = array('%mail_subject'      => $node->location['city'] . ' (' . $node->location['country'] . ') - ' . $node->campaign->shortname,
+                '%blog_walk_tag'     => $node->campaign->shortname,
+                '%blog_campaign_tag' => $node->tag);
+  $help = "Please upload <b>photos</b> as soon as you can. If you have any problems send your photos, " .
+    "with the walk city and country in the subject line, the name of who took the photo " .
+    "and a caption in the body of the email to <a href='mailto:photos@fighthunger.org?subject=%mail_subject'>photos@fighthunger.org.</a><br/>" . 
+    "Please send your <b>story</b> (with the city and country in the subject line) to " .
+    "<a href='mailto:story@fighthunger.org?subject=%mail_subject'>story@fighthunger.org.</a> " .
+    "or post in your personal blog with <b>%blog_walk_tag</b> and <b>%blog_campaign_tag</b> as the tag.<br/>" .
+    "For other <b>media</b> (video clips, podcasts, press cuttings, etc.) send to " .
+    "<a href='mailto:media@fighthunger.org?subject=%mail_subject'>media@fighthunger.org.</a> " .
+    "with city and country in the subject line.";
+    
+  if(!($user->uid)) {
+    $login_array = array(
+      '%login' => l(t('login'), 'user/login', array(), drupal_get_destination() ), 
+      '%register' => l(t('register'), 'user/register', array(), drupal_get_destination())
+    );
+    $help .= "<br /><br /><strong>" . t('Please %login or %register before upload!', $login_array) . "</strong>";
+  }
+
   $form['flickr_upload'] = array(
     '#type' => 'fieldset', 
     '#title' => t('Upload Images'), 
     '#collapsible' => TRUE, 
     '#collapsed' => FALSE,
-    '#description' => t('Changes made to the attachments are not permanent until you save this post. The first "listed" file will be included in RSS feeds.'),
+    '#description' => t($help, $vars),
     '#prefix' => '<div class="fhflickr_upload">',
     '#suffix' => '</div>',
   );
@@ -936,8 +967,15 @@ global $user;
     '#type' => 'textfield', 
     '#required' => TRUE,
     '#title' => t('Photographer'),
-    '#default_value' => $user->name,
+    '#default_value' => ($user->first_name && $user->last_name) ? "$user->first_name $user->last_name" : $user->name,
     '#description' => t('The author the image will be credited.')
+  );
+  $form['flickr_upload']['image_email'] = array(
+    '#type' => 'textfield', 
+    '#required' => TRUE,
+    '#title' => t('Photographer email'),
+    '#default_value' => $user->mail,
+    '#description' => t('The author email.')
   );
   $form['flickr_upload']['image_license'] = array(
     '#type' => 'select', 
@@ -959,24 +997,6 @@ global $user;
   $form['flickr_upload']['country']   = array('#type' => 'hidden', '#value' => $node->location['country']);
   $form['flickr_upload']['latitude']  = array('#type' => 'hidden', '#value' => $node->location['latitude']);
   $form['flickr_upload']['longitude'] = array('#type' => 'hidden', '#value' => $node->location['longitude']);
-
-  $mail_subject = $node->location['city'] . ' (' . $node->location['country'] . ')';
-  $help = "Please upload <b>photos</b> as soon as you can. If you have any problems send your photos, " .
-    "with the walk city and country in the subject line, the name of who took the photo " .
-    "and a caption in the body of the email to <a href='mailto:photos@fighthunger.org?subject=$mail_subject'>photos@fighthunger.org.</a><br/>" . 
-    "Please send your <b>story</b> (with the city and country in the subject line) to " .
-    "<a href='mailto:story@fighthunger.org?subject=$mail_subject'>story@fighthunger.org.</a> " .
-    "or post in your personal blog with '" . $node->campaign->shortname . "' and '" . $node->tag . "' as the tag.<br/>" .
-    "For other <b>media</b> (video clips, podcasts, press cuttings, etc.) send to " .
-    "<a href='mailto:media@fighthunger.org?subject=$mail_subject'>media@fighthunger.org.</a> " .
-    "with city and country in the subject line.";
-
-  
-  $form['flickr_upload']['help'] = array(
-    '#prefix' => '<div id="flickr_upload_help">',
-    '#suffix' => '</div>',
-    '#value' => t($help),
-  );
 
   $form['flickr_upload']['submit'] = array(
     '#type' => 'submit',

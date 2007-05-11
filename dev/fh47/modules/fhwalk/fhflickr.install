@@ -62,6 +62,7 @@ function fhflickr_update_3() {
     "ADD filename VARCHAR( 255 ) NOT NULL AFTER nid, " . 
     "ADD license INT( 10 ) NOT NULL AFTER tags, " . 
     "ADD author VARCHAR( 128 ) NOT NULL AFTER license , " .
+    "ADD author_mail VARCHAR( 128 ) NOT NULL AFTER author , " .
     "ADD uid INT( 2 ) NOT NULL AFTER nid "; 
   $ret[] =  update_sql($sql);
 

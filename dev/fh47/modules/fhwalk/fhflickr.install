@@ -38,23 +38,9 @@ function fhflickr_update_1() {
 
 /*
  * Schema change 2: Modify fh_flickr table
- */
-function fhflickr_update_2() {
-  $ret = array();
-
-  $sql = "ALTER TABLE {fh_flickr} " . 
-    "ADD caption LONGTEXT NOT NULL AFTER title, " . 
-    "ADD filename VARCHAR( 255 ) NOT NULL AFTER nid"; 
-  $ret[] =  update_sql($sql);
-
-  return $ret;
-}
-
-/*
- * Schema change 3: Modify fh_flickr table
  * server and secret field longer 
  */
-function fhflickr_update_3() {
+function fhflickr_update_2() {
   $ret = array();
 
   $sql = "ALTER TABLE {fh_flickr} " . 
@@ -66,14 +52,17 @@ function fhflickr_update_3() {
 }
 
 /*
- * Schema change 4: Modify fh_flickr table
- * add license
+ * Schema change 3: Modify fh_flickr table
  */
-function fhflickr_update_4() {
+function fhflickr_update_3() {
   $ret = array();
 
   $sql = "ALTER TABLE {fh_flickr} " . 
-    "ADD license INT( 2 ) NOT NULL AFTER tags"; 
+    "ADD caption LONGTEXT NOT NULL AFTER title, " . 
+    "ADD filename VARCHAR( 255 ) NOT NULL AFTER nid, " . 
+    "ADD license INT( 2 ) NOT NULL AFTER tags, " . 
+    "ADD author VARCHAR( 128 ) NOT NULL AFTER license , " .
+    "ADD uid INT( 2 ) NOT NULL AFTER author "; 
   $ret[] =  update_sql($sql);
 
   return $ret;

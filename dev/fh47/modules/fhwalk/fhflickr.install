@@ -60,9 +60,9 @@ function fhflickr_update_3() {
   $sql = "ALTER TABLE {fh_flickr} " . 
     "ADD caption LONGTEXT NOT NULL AFTER title, " . 
     "ADD filename VARCHAR( 255 ) NOT NULL AFTER nid, " . 
-    "ADD license INT( 2 ) NOT NULL AFTER tag, " . 
+    "ADD license INT( 2 ) NOT NULL AFTER tags, " . 
     "ADD author VARCHAR( 128 ) NOT NULL AFTER license , " .
-    "ADD uid INT( 2 ) NOT NULL AFTER author "; 
+    "ADD uid INT( 2 ) NOT NULL AFTER nid "; 
   $ret[] =  update_sql($sql);
 
   return $ret;

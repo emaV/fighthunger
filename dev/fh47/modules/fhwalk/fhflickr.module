@@ -339,7 +339,7 @@ global $user;
       return fhflickr_settings();
       break;
     case 'insert':
-//    case 'update':
+    case 'update':
       if(!$node->tag && $node->path) {
         $tags = split('/',  $node->path );
         $tag_event = fhflickr_tags4flickr(array_pop($tags));

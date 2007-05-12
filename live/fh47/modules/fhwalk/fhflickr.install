@@ -23,18 +23,50 @@ function fhflickr_install() {
   db_query($sql);
 }
 
-
 /*
- * Schema change 1: Modify gathering_node tables
+ * Schema change 1: Modify gathering_node table
  */
 function fhflickr_update_1() {
   $ret = array();
 
-  $sql = "ALTER TABLE {gathering_node} ADD tag VARCHAR( 50 ) NOT NULL AFTER camid;";  
+  $sql = "ALTER TABLE {gathering_node} ADD tags VARCHAR( 50 ) NOT NULL AFTER camid;";  
   $ret[] =  update_sql($sql);
 
   return $ret;
 
+}
+
+/*
+ * Schema change 2: Modify fh_flickr table
+ * server and secret field longer 
+ */
+function fhflickr_update_2() {
+  $ret = array();
+
+  $sql = "ALTER TABLE {fh_flickr} " . 
+    "CHANGE server server CHAR( 12 )," . 
+    "CHANGE farm farm CHAR( 12 )"; 
+  $ret[] =  update_sql($sql);
+
+  return $ret;
+}
+
+/*
+ * Schema change 3: Modify fh_flickr table
+ */
+function fhflickr_update_3() {
+  $ret = array();
+
+  $sql = "ALTER TABLE {fh_flickr} " . 
+    "ADD caption LONGTEXT NOT NULL AFTER title, " . 
+    "ADD filename VARCHAR( 255 ) NOT NULL AFTER nid, " . 
+    "ADD license INT( 10 ) NOT NULL AFTER tags, " . 
+    "ADD author VARCHAR( 128 ) NOT NULL AFTER license , " .
+    "ADD author_mail VARCHAR( 128 ) NOT NULL AFTER author , " .
+    "ADD uid INT( 2 ) NOT NULL AFTER nid "; 
+  $ret[] =  update_sql($sql);
+
+  return $ret;
 }
 
 ?>

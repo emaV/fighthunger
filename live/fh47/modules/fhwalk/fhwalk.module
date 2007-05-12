@@ -515,18 +515,7 @@ function fhwalk_validate($node, $form = array()) {
  * @ingroup fhwalk_core
  */ 
 function fhwalk_submit(&$node) {
-//            $node->location['lat'] = $node->location['latitude'];
-//            $node->location['lon'] = $node->location['longitude'];
-  if ($node->nid) {
-    $result = db_query("SELECT * FROM {location} WHERE type = 'node' AND oid = %d", $node->nid);
-    if ($location = db_fetch_object($result)) {
-      if ($location->source = LOCATION_LATLON_USER_SUBMITTED) {
-        $node->location['lon'] = $location->latitude;
-        $node->location['lat'] = $location->longitude;
-      }
-    }
-  }
-
+ 
   // recover end date
   $node->end_day  =  $node->start_day;
   $node->end_month = $node->start_month;
@@ -535,6 +524,18 @@ function fhwalk_submit(&$node) {
   // Get path alias. Check for existing path before messing with aliases
   if(!$node->path) $node->path =  _fhwalk_get_alias($node);
 
+  // check if user CAN'T submit latitude and longitude
+  if ($node->nid && !user_access('submit latitude/longitude')) {
+    $result = db_query("SELECT * FROM {location} WHERE type = 'node' AND oid = %d", $node->nid);
+    if ( ($location = db_fetch_object($result)) && $location->latitude && $location->longitude) {
+      $node->location['lon'] = $location->longitude;
+      $node->location['lat'] = $location->latitude;
+      $node->location['latitude']  = $location->latitude;
+      $node->location['longitude'] = $location->longitude;
+      $node->location['previous_latitude']  = $location->latitude;
+      $node->location['previous_longitude'] = $location->longitude;
+    }
+  }
   // get latitude and longitude from google
   if( !($node->location['latitude'] && $node->location['longitude']) &&
       !($node->location['previous_latitude'] && $node->location['previous_longitude']) ) {
@@ -1215,6 +1216,39 @@ global $user;
 }
 
 /**
+ * History forms
+ * 
+ * @ingroup fhwalk_helpers
+ */
+function _fhwalk_history($node) {
+  $out = '';
+  // Check for each campaign
+  foreach(fhcampaign_get_all_campaigns() as $campaign) {
+    if( ($campaign->status < CAMPAIGN_STATUS_ACTIVE) && ($campaign->tid <> $node->camid) ) {
+      $walk_list = fhwalk_get_walks($campaign->tid, $node->location['country']);
+      if($walk_list) {
+        $form = array();
+        $walk_option = array();
+        foreach ($walk_list as $walk) {
+          $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
+        }
+        $form['pre'] = array('#value' => '<div class="container-inline">');
+        $form["walk_nid_".$campaign->tid] = array(
+          '#type'    => 'select',
+          '#title'   => $campaign->name,
+          '#options' => $walk_option,
+        );
+        $form['submit'] = array('#type' => 'submit', '#value' => t('Visit Walk Page'));
+        $form['tid'] = array('#type' => 'hidden', '#value' => $campaign->tid);
+        $form['post'] = array('#value' => '</div>');
+        $out .= drupal_get_form("fhwalk_history_" . $campaign->tid, $form, 'fhwalk_history_goto');
+      } 
+    }
+  }
+  return $out;
+} 
+
+/**
  * Implementation of hook_view().
  * 
  * Call all module hook but don't append to body
@@ -1268,6 +1302,25 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
     '#weight' => 0,
     '#value'  => $walk_details
   );
+
+  // set donation (unset only if WALK_STATUS_CLOSED)
+  if($node->hook_view['donation']) {
+    $link = l(t('How to fundraise for this walk'), "help/fundraising", array('target' => 'nwin'));
+    $node->hook_view['donation'] .= "<center>$link</center>";
+    $node->hook_view['donation'] .= "<div class='donation-list'>" . donation_list(array('nid' => $node->nid, 'type' => 'event')) . "</div>";
+  }
+
+  // last minut fix!!!!!
+  // check walk day
+  $date_walk = localtime($node->event_start, true);
+  $date_now  = localtime(time(), true);
+  $walk_status = ($date_now['tm_year'] >= $date_walk['tm_year']) &&
+            ($date_now['tm_yday'] >= $date_walk['tm_yday']);
+  if($node->fhwalk_status <> WALK_STATUS_CLOSED) {
+    $node->fhwalk_status = $walk_status ? WALK_STATUS_POST : WALK_STATUS_ACTIVE;
+  }
+//  $status_out = "<h3>Check localtime ($walk_status) $node->fhwalk_status</h3>startdate: " . print_r($date_walk, true) . "<br/>today:  " . print_r($date_now , true) . "<hr />";
+//  $node->body_plain .= $status_out;
   
   switch ($node->fhwalk_status) {
     case WALK_STATUS_CLOSED:
@@ -1288,45 +1341,6 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
       break;
 
     case WALK_STATUS_ACTIVE:  
-
-      if($node->hook_view['donation']) {
-        $link = l(t('How to fundraise for this walk'), "help/fundraising", array('target' => 'nwin'));
-        $node->hook_view['donation'] .= "<center>$link</center>";
-        $node->hook_view['donation'] .= "<div class='donation-list'>" . donation_list(array('nid' => $node->nid, 'type' => 'event')) . "</div>";
-      }
-      
-      // Walk History
-      $footers['history']  = array(
-        '#title'  => t('Previous Walks in this country'),
-        '#weight' => 1,
-        '#value'  => ''
-      );
-      
-      // Check for each campaign
-      foreach(fhcampaign_get_all_campaigns() as $campaign) {
-        if($campaign->status < CAMPAIGN_STATUS_ACTIVE) {
-          $walk_list = fhwalk_get_walks($campaign->tid, $node->location['country']);
-          if($walk_list) {
-            $form = array();
-            $walk_option = array();
-            foreach ($walk_list as $walk) {
-              $walk_option[$walk['nid']] = $walk['city'] . ' (' . $walk['title'] . ')';
-            }
-            $form['pre'] = array('#value' => '<div class="container-inline">');
-            $form["walk_nid_".$campaign->tid] = array(
-              '#type'    => 'select',
-              '#title'   => $campaign->name,
-              '#options' => $walk_option,
-  //            '#description'  => $term->description
-            );
-            $form['submit'] = array('#type' => 'submit', '#value' => t('Visit Walk Page'));
-            $form['tid'] = array('#type' => 'hidden', '#value' => $campaign->tid);
-            $form['post'] = array('#value' => '</div>');
-            $footers['history']['#value'] .= drupal_get_form("fhwalk_history_" . $campaign->tid, $form, 'fhwalk_history_goto');
-          } 
-        }
-      }
-      
       // show signup
       $actions['signup'] = array(
         '#title'  => t('Signup'),
@@ -1378,6 +1392,13 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
   $LCP_list = fhlocalpage_get_nodes($node->location['country'], $node->camid);
   $node->tabs['LCP'] = theme('fhwalk_LCP', $LCP_list);
    
+  // Walk History
+  $footers['history']  = array(
+    '#title'  => t('Previous Walks in this country'),
+    '#weight' => 1,
+    '#value'  => _fhwalk_history($node)
+  );
+
   // Set footer tabs (only history now)
   $node->tabs['footer'] = theme('fhwalk_tabs', $footers);
 

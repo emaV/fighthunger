@@ -327,3 +327,23 @@ function fh_file_get_contents($url, $use_include_path=False, $cxContext=NULL ) {
   }
   return file_get_contents($url, $use_include_path, $cxContext );
 }
+
+/**
+ * Implement http POST with proxy
+ * string file_get_contents ( 
+ *   string $filename [, bool $use_include_path [, resource $context [, int $offset [, int $maxlen]]]] 
+ */  
+function fh_http_POST($url, $post_data) {
+
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
+  curl_setopt($ch, CURLOPT_REFERER, $_SERVER["SCRIPT_URI"] );
+  curl_setopt($ch, CURLOPT_POST,1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
+  if($proxy=variable_get('fh_proxy', '')) curl_setopt($ch, CURLOPT_PROXY , $proxy);   
+  $rsp = curl_exec($ch);
+  curl_close($ch);
+
+  return $rsp;
+}

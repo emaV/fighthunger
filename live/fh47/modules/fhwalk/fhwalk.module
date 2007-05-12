@@ -1316,9 +1316,11 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
   $date_now  = localtime(time(), true);
   $walk_status = ($date_now['tm_year'] >= $date_walk['tm_year']) &&
             ($date_now['tm_yday'] >= $date_walk['tm_yday']);
+/*
   if($node->fhwalk_status <> WALK_STATUS_CLOSED) {
     $node->fhwalk_status = $walk_status ? WALK_STATUS_POST : WALK_STATUS_ACTIVE;
   }
+*/
 //  $status_out = "<h3>Check localtime ($walk_status) $node->fhwalk_status</h3>startdate: " . print_r($date_walk, true) . "<br/>today:  " . print_r($date_now , true) . "<hr />";
 //  $node->body_plain .= $status_out;
   
@@ -1341,6 +1343,17 @@ function fhwalk_view(&$node, $teaser = FALSE, $page = FALSE) {
       break;
 
     case WALK_STATUS_ACTIVE:  
+    
+      // Scrapbook from the day
+      if($walk_status) {
+        $details['scrapbook']  = array(
+          '#title'  => t('Scrapbook'),
+          '#weight' => -1,
+          '#value'  => $node->hook_view['fhflickr']
+        );
+        if(!$details['scrapbook']['#value']) unset($details['scrapbook']);
+      } 
+    
       // show signup
       $actions['signup'] = array(
         '#title'  => t('Signup'),

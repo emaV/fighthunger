@@ -662,14 +662,8 @@ function _fhflickr_geotag($photo) {
   );
   
   return  _fhflickr_serv($method, $params, TRUE, 'write');
-/*
-  $params['method'] = $method;
-  $params['format'] = 'php_serial';
-  $request = _fhflickr_get_request($params, TRUE, 'write');
-  return $request;
-*/
-  
 }
+
 function _fhflickr_node_setLocation($nid) {
   $sql = "SELECT * FROM {fh_flickr_geocode} WHERE nid=%d";
   $result = db_query($sql, $nid);
@@ -716,11 +710,51 @@ function _fhflickr_licenses($key=-1) {
     $out = $licenses;
   }
   return $licenses;
-} 
+}
+
+function _flickr_photos_geo_setLocation($photo_id, $latitude, $longitude) {
+  $method = 'flickr.photos.geo.setLocation';
+  $params = array(
+    'photo_id' => $photo_id,
+    'lat'      => $latitude,
+    'lon'      => $longitude,
+    'accuracy' => 11,
+  );
+  return  _fhflickr_serv($method, $params, TRUE, 'write');
+}
+function _flickr_photos_licenses_setLicense($photo_id, $license_id) {
+  $method = 'flickr.photos.licenses.setLicense';
+  $params = array(
+    'photo_id'   => $photo_id,
+    'license_id' => $license_id,
+  );
+  return  _fhflickr_serv($method, $params, TRUE, 'write');
+}
 
 /**
+ * Updating flickr info
+ * flickr.photos.geo.setLocation     -> _flickr_photos_geo_setLocation
+ * flickr.photos.licenses.setLicense -> _flickr_photos_licenses_setLicense
  *
- *
+ */    
+function _fhflickr_flickr_update($photo) {
+  _flickr_photos_geo_setLocation($photo['photo_id'], $photo['latitude'], $photo['longitude']);
+  _flickr_photos_licenses_setLicense($photo['photo_id'], $photo['license']);
+}
+
+function _flickr_get_photoinfo_by_id($photo_id) {
+  $photo_info = array();
+  $sql = "SELECT * FROM {fh_flickr} WHERE photo_id =%d";
+  if($photo_info = db_fetch_array(db_query($sql, $photo_id))) {
+    $sql = "SELECT * FROM {location} WHERE oid=%d AND type='node'";
+    if($location_info = db_fetch_array(db_query($sql, $photo_info['nid']))) {
+      $photo_info = array_merge($location_info, $photo_info);
+    }
+  }
+  return $photo_info;
+}
+
+/**
  * Uploading
  * Photos should be POSTed to the following URL:
  * http://api.flickr.com/services/upload/
@@ -831,8 +865,8 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
         'title'        => $form_values['image_title'],
         'caption'      => $form_values['image_caption'],
         'location'     => $form_values['image_location'],
-        'photographer' => $form_values['image_author'],
-        'email'        => $form_values['image_email'],
+        'author'       => $form_values['image_author'],
+        'author_mail'  => $form_values['image_email'],
         'city'         => $form_values['city'],
         'province'     => $form_values['province'],
         'country'      => $form_values['country'],
@@ -840,6 +874,7 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
         'longitude'    => $form_values['longitude'],
         'uid'          => $form_values['uid'],
         'nid'          => $form_values['nid'],
+        'license'      => $form_values['image_license'],
         'tags'         => $form_values['tag_campaign'] . ', ' . $form_values['tag_walk'],
       );
       $file_info = array_merge($file_info, $info);
@@ -862,8 +897,9 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
         _fhflickr_upload_ftp($file_text,  FTP_ASCII);
         _fhflickr_upload_ftp($file_image, FTP_BINARY);
 
-        // get full info from flickr
+        // set and get full info from flickr
         if($file_info['photo_id']>0) {
+          _fhflickr_flickr_update($file_info);
           $photo_info = fhflickr_photos_getInfo($file_info['photo_id']);
         } 
      
@@ -882,9 +918,9 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
                    '%s', '%s', 
                    '%s', %d)";
         $result = db_query($sql, $file_info['nid'],  $file_info['filename'],
-          $file_info['uid'],  $file_info['photographer'], $file_info['email'],  
+          $file_info['uid'],  $file_info['author'], $file_info['author_mail'],  
           $file_info['title'],  $file_info['caption'],  $file_info['tags'], 
-          $file_info['image_license'], $file_info['photo_id'], 
+          $file_info['license'], $file_info['photo_id'], 
           $photo_info['photo']['secret'], $photo_info['photo']['server'], 
           $photo_info['photo']['farm'], $photo_info['photo']['dateuploaded']);
   

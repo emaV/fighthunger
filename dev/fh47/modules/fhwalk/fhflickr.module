@@ -868,7 +868,7 @@ function _fhflickr_upload_notify($photo_info) {
 
   $subject = t("Photo upload NOTIFICATION (%photo_id)", $photo_info);
   $body = theme('email_message', $vars);
-  $to   = 'photos@fightunger.org';
+  $to   = 'photos@fighthunger.org';
   $from = 'webadmin@fighthunger.org';
 
   fhmail_send($to, $from, $subject, $body);

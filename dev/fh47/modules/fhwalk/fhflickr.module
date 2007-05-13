@@ -851,7 +851,7 @@ drupal_set_message("Pippo upload TO $remote_file FROM $local_file");
  */  
 function _fhflickr_upload_notify($photo_info) {
   
-  $message = t("<p>%image_author upload a photo for walk in %city</p>", $photo_info);
+  $message = t('<p>%author upload a photo for walk in %city</p>', $photo_info);
   $message .= '<ul>';
   foreach($photo_info as $key => $value) {
     $message .= "<li><b>$key: </b>$value</li>";
@@ -866,7 +866,11 @@ function _fhflickr_upload_notify($photo_info) {
 	  'message'              => check_markup($message),
   );
 
-  $subject = t("Photo upload NOTIFICATION (%photo_id)", $photo_info);
+  if($photo_info['photo_id']) {
+    $subject = t('Photo upload - SUCCESS (%photo_id)', $photo_info);
+  } else {
+    $subject = t('Photo upload - FAILED');
+  }
   $body = theme('email_message', $vars);
   $to   = 'photos@fighthunger.org';
   $from = 'webadmin@fighthunger.org';

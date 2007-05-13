@@ -713,22 +713,26 @@ function _fhflickr_licenses($key=-1) {
 }
 
 function _flickr_photos_geo_setLocation($photo_id, $latitude, $longitude) {
-  $method = 'flickr.photos.geo.setLocation';
-  $params = array(
-    'photo_id' => $photo_id,
-    'lat'      => $latitude,
-    'lon'      => $longitude,
-    'accuracy' => 11,
-  );
-  return  _fhflickr_serv($method, $params, TRUE, 'write');
+  if($photo_id && $latitude && $longitude) {
+    $method = 'flickr.photos.geo.setLocation';
+    $params = array(
+      'photo_id' => $photo_id,
+      'lat'      => $latitude,
+      'lon'      => $longitude,
+      'accuracy' => 11,
+    );
+    return  _fhflickr_serv($method, $params, TRUE, 'write');
+  }
 }
 function _flickr_photos_licenses_setLicense($photo_id, $license_id) {
-  $method = 'flickr.photos.licenses.setLicense';
-  $params = array(
-    'photo_id'   => $photo_id,
-    'license_id' => $license_id,
-  );
-  return  _fhflickr_serv($method, $params, TRUE, 'write');
+  if($photo_id && $license_id) {
+    $method = 'flickr.photos.licenses.setLicense';
+    $params = array(
+      'photo_id'   => $photo_id,
+      'license_id' => $license_id,
+    );
+    return  _fhflickr_serv($method, $params, TRUE, 'write');
+  }
 }
 
 /**
@@ -799,7 +803,7 @@ function _fhflickr_upload_flickr($file_info) {
     'photo_id' => ($values[0]['attributes']['STAT'] == 'ok') ? $values[1]['value'] : 0,
     'XML'      => $rsp,
   );
-  if($out['STAT']<>'ok') watchdog('fhflickr', 'XML response: ' . $out['XML']);
+  if($out['STAT']<>'ok') watchdog('fhflickr', '<b>file_info: </b>' . print_r($file_info, true) . "<br/><b>XML response: </b>" . htmlentities($rsp) );
 
   return $out['photo_id'];
 //  return $out;
@@ -839,6 +843,35 @@ drupal_set_message("Pippo upload: " . print_r($upload, true));
 drupal_set_message("Pippo upload TO $remote_file FROM $local_file");
 */
   return $upload;
+}
+
+/**
+ * email notify
+ * 
+ */  
+function _fhflickr_upload_notify($photo_info) {
+  
+  $message = t("<p>%image_author upload a photo for walk in %city</p>", $photo_info);
+  $message .= '<ul>';
+  foreach($photo_info as $key => $value) {
+    $message .= "<li><b>$key: </b>$value</li>";
+  }
+  $message .= '</ul>';
+  $vars = array(
+	  'forward_header_image' => variable_get('forward_header_image', ''),
+	  'site_name'            => variable_get('site_name', 'fighthunger.org'),
+	  'forward_ad_footer'    => variable_get('forward_ad_footer', ''),
+	  'forward_footer'       => variable_get('fhsignup_email_footer', ''),
+	  'yemail'               => 'webadmin@fighthunger.org',
+	  'message'              => check_markup($message),
+  );
+
+  $subject = t("Photo upload NOTIFICATION (%photo_id)", $photo_info);
+  $body = theme('email_message', $vars);
+  $to   = 'photos@fightunger.org';
+  $from = 'webadmin@fighthunger.org';
+
+  fhmail_send($to, $from, $subject, $body);
 }
 
 function fhflickr_upload_form_submit($form_id, $form_values) {
@@ -901,6 +934,7 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
         if($file_info['photo_id']>0) {
           _fhflickr_flickr_update($file_info);
           $photo_info = fhflickr_photos_getInfo($file_info['photo_id']);
+          if($photo_info['photo']) $file_info = array_merge($file_info, $photo_info['photo']);
         } 
      
         // save data in DB
@@ -924,7 +958,10 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
           $photo_info['photo']['secret'], $photo_info['photo']['server'], 
           $photo_info['photo']['farm'], $photo_info['photo']['dateuploaded']);
   
+        _fhflickr_upload_notify($file_info); 
         drupal_set_message(t("Thank you for uploading. Your photo will show shortly on this page."));
+
+        
       }
     } else {
       if($file->filepath) file_delete($file->filepath);

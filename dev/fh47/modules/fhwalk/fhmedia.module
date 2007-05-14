@@ -1,0 +1,109 @@
+<?php
+// $Id: media.module,v 0.1 2007/05/14 18:02:48 ema Exp $
+
+/**
+ * @file
+ * Media clips management
+ * 
+ * Dependencies
+ *   fhwalk.module
+ *     Only for the fhwalk_vocabulary variable
+ *   fhcampaign 
+ *  
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function fhmedia_help($section) {
+  switch ($section) {
+    case 'admin/help#fhmedia':
+      $output = '<p>'. t('The media module is used to create and manage media clips.') .'</p>';
+      return $output;
+    case 'admin/modules#description':
+      return t('<strong>FH:</strong> Media clips management.');
+/*
+    case 'node/add#fhmedia':
+      return t('Create a newmedia clips.');
+*/
+  }
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function fhmedia_form_alter($form_id, &$form) {
+  if (isset($form['type']) && $type = $form['type']['#value']) {
+    switch ($form_id) {
+      case $type.'_node_settings':
+        $form['workflow']['fhmedia_support_'. $type] = array(
+          '#type' => 'radios',
+          '#title' => t('Media'),
+          '#options' => array(t('Disabled'), t('Enabled')),
+          '#default_value' => variable_get('fhmedia_support_'. $type, 0),
+          '#description' => t('Enable media clips for this content type'),
+        );
+        return $form;
+      case $type.'_node_form':
+        // Adding a node with campaign support enabled.
+        if (variable_get('fhmedia_support_'.$type, 0) ) {
+          $form['media info'] = array(
+            '#type' => 'fieldset', 
+            '#title' => t('Media info'), 
+            '#weight' => -1
+          );
+          $form['media info']['releasedate_string'] = array(
+            '#type' => 'textfield', 
+            '#title' => t('Release Date'),
+            '#maxlength' => 25, 
+            '#default_value' => $node->releasedate_string ? $node->releasedate_string : '', 
+            '#weight' => -2, 
+            '#description' => t("Use this for any node with a release date separate from its creation date. Use the format 'Aug 05 1980'.")
+          );
+        } 
+        break;
+    }
+  }
+}
+
+function theme_fhmedia_release($releasedate) {
+  $out = '<div class="fhmedia_release">' . t('Release date: %date', array('%date' => format_date($releasedate, 'custom', 'M d Y'))) . '</div>';
+  return $out;
+}
+
+/**
+ * Implementation of hook_nodeapi()
+ */  
+function fhmedia_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  if (variable_get('fhmedia_support_'.$node->type, 0) ) {
+    switch ($op) {
+      case 'load':
+        $sql = "SELECT releasedate FROM {releasedate} WHERE nid = %d";
+        $releasedate = db_result(db_query($sql, $node->nid));
+        if ($releasedate){
+          $additions['releasedate'] = $releasedate;
+          $additions['releasedate_string'] = format_date($releasedate, 'custom', 'M d Y');
+        }
+        return $additions;
+        break;
+      case 'update':
+      case 'delete':
+        $sql = 'DELETE from {releasedate} WHERE nid = %d';
+        db_query($sql, $node->nid);
+        if($op<>'update') break;
+      case 'insert':
+        if ($node->releasedate_string) {
+          $node->releasedate = strtotime($node->releasedate_string);       
+          $sql = "INSERT INTO {releasedate} SET nid=%d, releasedate=%d";
+          if ($node->releasedate) db_query($sql, $node->nid, $node->releasedate);
+        }
+        break;
+      case 'view':
+        $node->body .= theme('fhmedia_release', $node->releasedate);
+        break;
+    }
+  }
+}
+
+
+

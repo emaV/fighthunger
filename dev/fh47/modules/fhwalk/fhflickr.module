@@ -874,12 +874,12 @@ function _fhflickr_upload_notify($photo_info) {
 
   $subject = t('Photo upload (node: %nid)', $mail_info);
   if($photo_info['photo_id']) {
-    $subject = ' - ' . t('SUCCESS (%photo_id)', $mail_info);
+    $subject .= ' - ' . t('SUCCESS (%photo_id)', $mail_info);
   } else {
-    $subject = ' - ' . t('FAILED (%filename)', $mail_info);
+    $subject .= ' - ' . t('FAILED (%filename)', $mail_info);
   }
-  if(!$photo_info['upload_txt']) $subject = ' - ' . t('FAILED ftp upload txt');
-  if(!$photo_info['upload_jpg']) $subject = ' - ' . t('FAILED ftp upload jpg');
+  if(!$photo_info['upload_txt']) $subject .= ' - ' . t('FAILED ftp upload txt');
+  if(!$photo_info['upload_jpg']) $subject .= ' - ' . t('FAILED ftp upload jpg');
   
   $body = theme('email_message', $vars);
   $to   = 'photos@fighthunger.org';

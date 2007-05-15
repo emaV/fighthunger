@@ -823,26 +823,30 @@ function _fhflickr_upload_ftp($filename, $mode=FTP_ASCII) {
   
   if($ftp['server'] && $ftp['user_name'] && $ftp['user_pass'] && $ftp['remote_dir']) {
     // set up basic connection
-    $conn_id = ftp_connect($ftp['server']);
-           
-    // login with username and password
-    $login_result = ftp_login($conn_id, $ftp['user_name'], $ftp['user_pass']); 
-  
-    // upload the file
-    $upload = ftp_put($conn_id, $remote_file, $local_file, $mode);
-  
+    if($conn_id = ftp_connect($ftp['server'])) {
+      // login with username and password
+      if($login_result = ftp_login($conn_id, $ftp['user_name'], $ftp['user_pass'])) {
+        // upload the file
+        if($upload = ftp_put($conn_id, $remote_file, $local_file, $mode)) {
+          $out = $remote_file;
+        } else {
+          watchdog('fhflickr', "ftp_put of $local_file to $remote_file failed"); 
+          $out = NULL;
+        } 
+      } else {
+        watchdog('fhflickr', 'ftp_login of user ' . $ftp['user_name'] . ' failed'); 
+        $out = NULL;
+      } 
+    } else {
+      watchdog('fhflickr', 'ftp_connect to ' . $ftp['server'] . ' failed'); 
+      $out = NULL;
+    }
     // close the FTP stream
     ftp_close($conn_id);
   } else {
-    $upload = NULL;
+    $out = NULL;
   }
-/*
-drupal_set_message("Pippo conn_id: " . print_r($conn_id, true));
-drupal_set_message("Pippo login_result: " . print_r($login_result, true));
-drupal_set_message("Pippo upload: " . print_r($upload, true));
-drupal_set_message("Pippo upload TO $remote_file FROM $local_file");
-*/
-  return $upload;
+  return $out;
 }
 
 /**
@@ -850,8 +854,10 @@ drupal_set_message("Pippo upload TO $remote_file FROM $local_file");
  * 
  */  
 function _fhflickr_upload_notify($photo_info) {
+
+  foreach($photo_info as $key => $values) $mail_info["%$key"] = $values;
   
-  $message = t('<p>%author upload a photo for walk in %city</p>', $photo_info);
+  $message = t('<p>%author upload a photo for walk in %city</p>', $mail_info);
   $message .= '<ul>';
   foreach($photo_info as $key => $value) {
     $message .= "<li><b>$key: </b>$value</li>";
@@ -866,11 +872,15 @@ function _fhflickr_upload_notify($photo_info) {
 	  'message'              => check_markup($message),
   );
 
+  $subject = t('Photo upload (node: %nid)', $mail_info);
   if($photo_info['photo_id']) {
-    $subject = t('Photo upload - SUCCESS (%photo_id)', $photo_info);
+    $subject = ' - ' . t('SUCCESS (%photo_id)', $mail_info);
   } else {
-    $subject = t('Photo upload - FAILED');
+    $subject = ' - ' . t('FAILED (%filename)', $mail_info);
   }
+  if(!$photo_info['upload_txt']) $subject = ' - ' . t('FAILED ftp upload txt');
+  if(!$photo_info['upload_jpg']) $subject = ' - ' . t('FAILED ftp upload jpg');
+  
   $body = theme('email_message', $vars);
   $to   = 'photos@fighthunger.org';
   $from = 'webadmin@fighthunger.org';
@@ -927,12 +937,12 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
           foreach($file_info as $key => $value) {
             fwrite($fp, "$key\t$value\n");
           }
-          fclose($fp);       
+          fclose($fp);
         }
      
         // upload with ftp
-        _fhflickr_upload_ftp($file_text,  FTP_ASCII);
-        _fhflickr_upload_ftp($file_image, FTP_BINARY);
+        $file_info['upload_txt'] = _fhflickr_upload_ftp($file_text,  FTP_ASCII);
+        $file_info['upload_jpg'] = _fhflickr_upload_ftp($file_image, FTP_BINARY);
 
         // set and get full info from flickr
         if($file_info['photo_id']>0) {

@@ -30,7 +30,7 @@ function fhmedia_help($section) {
 }
 
 function fhmedia_form_validate($form) {
-  $releasedate = strtotime($form['releasedate_string']['#value'] );       
+  if($form['releasedate_string']['#value']) $releasedate = strtotime($form['releasedate_string']['#value']);       
   if(!$releasedate) form_error($form, t('An illegal date has been entered: %date', array('%date' => $form['releasedate_string']['#value'] )));
 }
 

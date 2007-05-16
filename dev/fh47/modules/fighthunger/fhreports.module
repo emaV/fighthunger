@@ -25,7 +25,12 @@ function fhreports_help($section) {
     case 'admin/modules#description':
       return t('<strong>FH:</strong> Fighthunger reports.');
     case 'admin/store/reports':
-      return t("<p>These are some pre-defined reports. You can also <a href=\"%transaction_search\">search</a> all transactions.</p>", array("%transaction_search" => url("admin/store/search"), "%show_all_transactions" => url("admin/store/transaction")));
+      return '<p>'.t("These are some pre-defined reports. You can also:").'</p>'.
+      '<ul>'.'<li>'.
+      t('Search <a href="%transaction_search">all transactions</a>', array("%transaction_search" => url("admin/store/search"), "%show_all_transactions" => url("admin/store/transaction"))).
+      '</li><li>'.
+      t('Create <a href="%profit_reports">custom profit reports</a>', array('%profit_reports' => url('admin/store/reports/profit'))).
+      '</li></ul>';
   }
 }
 
@@ -38,8 +43,14 @@ function fhreports_menu($may_cache) {
   if($may_cache) {
     $items[] = array(
       'path' => 'admin/store/reports',
-      'title' => 'reports',
+      'title' => t('reports'),
       'callback' => 'fhreports_ecommerce',
+      'access' => $access
+    );
+    $items[] = array(
+      'path' => 'admin/store/reports/profit',
+      'title' => t('profit reports'),
+      'callback' => 'fhreports_ecommerce_profit',
       'access' => $access
     );
   }
@@ -71,6 +82,10 @@ function fhreports_ecommerce($type = NULL) {
       return fhreports_ecommerce_textfile('transaction');
     case 'items.'.REPORTS_FILE_EXTENSION:
       return fhreports_ecommerce_textfile('items');
+    case 'profit.'.REPORTS_FILE_EXTENSION:
+      return fhreports_ecommerce_textfile('profit');
+    case 'profit':
+      return fhreports_ecommerce_profit();
     default:
       return fhreports_ecommerce_overview();
   }
@@ -108,42 +123,139 @@ function fhreports_ecommerce_overview() {
   $output .= theme('box', t('Items'), theme("table", $header, $row, $style));
   $row = null;
   
-  $beg_month   = mktime(0, 0, 0, date('m'), 1, date('Y'));
+  // Some dates for predefined reports
+  $year = date('Y');
+  $month = date('m');
+  $beg_month = mktime(0, 0, 0, $month, 1, $year); // First day of this month
+  $end_month = $beg_month - 24 * 60 * 60; // Last day of last month
+  $month_current = array(mktime(0, 0, 0, $month, 1, $year), mktime(0, 0, 0, $month + 1, 1, $year) - 24 * 60 * 60);
+  $year_current  = array(mktime(0, 0, 0, 1, 1, $year), mktime(0, 0, 0, 12, 31, $year));
+  $month_last = array(mktime(0,0,0, date('m',$end_month), 1, date('y', $end_month)), $end_month);
+  $year_last = array(mktime(0,0,0, 1, 1, $year -1), mktime(0,0,0, 12, 31, $year-1));
+  
   $num_orders  = db_result(db_query("SELECT COUNT(txnid) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month));
   $mon_sales   = payment_format(db_result(db_query("SELECT SUM(gross) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_month)));
 
   $base = $base_path.'/transaction.'.REPORTS_FILE_EXTENSION;
 
-  $row[] = array(array("data" => l(t("monthly orders"), $base, array(), "date=>". date('m/d/Y', $beg_month)), "align" => "right"), $num_orders);
+  $row[] = array(array("data" => l(t("monthly orders"), $base, array(), "date=". date('m/d/Y', $beg_month)), "align" => "right"), $num_orders);
   $row[] = array(array("data" => t('monthly sales'), "align" => "right"), $mon_sales);
   $output .= theme('box', t('Monthly figures'), theme("table", $header, $row, $style) );
   $row = null;
-  /*
-  if (variable_get('payment_recurring', 0)) {
-    $num_orders  = db_result(db_query("SELECT COUNT(st.txnid) FROM {ec_transaction} AS st, {ec_product} AS p, {ec_transaction_product} AS stp WHERE p.nid = stp.nid AND st.txnid = stp.txnid AND stp.expires > %d AND payment_status = 2 AND workflow = 6", time()));
-    $header = array(array("data" => t('Recurring Payments'), "colspan" => 2));
-    $row[] = array(array("data" => l(t("active transactions"), $base, array(), "is_recurring=1&nid_expires=>now&workflow=6"), "align" => "right"), $num_orders);
-    $output .= theme("table", $header, $row, $style) . '<br />';
-    $row = null;
+  
+  // Profit reports
+  $format = 'Y-m-d';
+  $base = $base_path.'/profit.'.REPORTS_FILE_EXTENSION;
+  // Latest 12 months
+  for ($m=0;$m<=12;$m++) {
+    $begin = mktime(0,0,0,$month + $m,1, $year -1);
+    $end = mktime(0,0,0, $month + $m + 1, 1, $year -1) - 24 * 60 * 60;
+    $predefined['month'][] = l(date('m/y', $begin), $base, array(), 'date_start=' . date($format, $begin).'&date_end='.date($format, $end));
   }
-  */
-  /*
-  $beg_year       = mktime(0, 0, 0, 1, 1, date('Y'));
-  $num_customers  = db_result(db_query("SELECT COUNT(DISTINCT uid) FROM {ec_transaction}"));
-  $num_products   = db_result(db_query("SELECT COUNT(nid) FROM {ec_product}"));
-  $year_sales     = payment_format(db_result(db_query("SELECT SUM(gross) FROM {ec_transaction} where created >= '%d' AND payment_status = '2' AND workflow = '6'", $beg_year)));
+  // Quarters from two latest years
+  foreach (array($year - 1, $year) as $y) {
+    for($q = 1; $q <=4 ;$q++) {
+      $begin = mktime(0,0,0, 1 + 3*($q-1), 1 , $y);
+      $end = mktime(0,0,0, 1 + 3* $q, 1, $y) - 24 * 60 * 60;
+      if ($begin <= time()) {
+        $predefined['quarter'][] = l("Q$q $y", $base, array(),'date_start='.date($format, $begin).'&date_end='.date($format, $end));
+    
+      }
+    }
+  }
+  // Latest 2 years
+  $predefined['year'] = array(
+    l(date('Y', time()) - 1, $base, array(), 'date_start='. date($format, $year_last[0]).'&date_end='.date($format, $year_last[1])),
+    l(date('Y',time()), $base, array(), 'date_start=' . date($format, $year_current[0]).'&date_end='.date($format)),
+   );
 
-  $header = array(array("data" => t('General statistics'), "colspan" => 2));
-  $row[] = array(array("data" => l(t("customers"), "admin/user"), "align" => "right"), $num_customers);
-  $row[] = array(array("data" => l(t('products'), 'product'), "align" => "right"), $num_products);
-  $row[] = array(array("data" => t('yearly sales'), "align" => "right"), $year_sales);
-
-  $output .= theme("table", $header, $row, $style);
-  */
-
+  foreach($predefined as $title => $serie) {
+    $row[] = array(t($title), implode(' | ', $serie));
+  }
+  $row[] = array(array('data' => l(t('custom profit report'), $base_path.'/profit'), 'colspan' => 2));
+  $output .= theme('box', t('Profit reports'), theme("table", array(), $row, $style) );
+  
   return $output;
 }
 
+/**
+ * Menu callback. Custom profit reports
+ */
+function fhreports_ecommerce_profit(){
+  $output = '';
+  $query = fhreports_ecommerce_search_query();
+  
+  $output .= fhreports_ecommerce_profit_form((array)$query);
+  if(isset($query->date_start) && isset($query->date_end)) {
+    $output .= fhreports_ecommerce_profit_result($query);
+  }
+  return $output;
+}
+
+function fhreports_ecommerce_profit_form($edit = array()) {
+   $date_format = format_date(time(), 'custom', 'Y-m-d');
+   $form['date_start'] = array('#default_value' => isset($edit['date_start']) ? $edit['date_start'] : '','#type' => 'textfield', '#title' => t('Start date'), '#maxlength' => 12, '#description' => t('Format: %time.', array('%time' => $date_format)));
+   $form['date_end'] = array('#default_value' => isset($edit['date_end']) ? $edit['date_end'] : '', '#type' => 'textfield', '#title' => t('End date'), '#maxlength' => 12, '#description' => t('Format: %time.', array('%time' => $date_format)));
+   $form['submit'] = array('#type' => 'submit', '#value' => t('Submit'));
+   return drupal_get_form(NULL, $form);
+}
+
+function fhreports_ecommerce_profit_result($query) {
+  list($header, $data, $summary) = fhreports_ecommerce_profit_data($query);
+  $output = '';
+  if (count($data)) {
+    $output .= theme('box', t('Download'), l('profit.'.REPORTS_FILE_EXTENSION, '/admin/store/reports/profit.' . REPORTS_FILE_EXTENSION, array(), fhreports_query_string()));
+    $output .= theme('box', t('Report'), theme('table', $header, $data));
+    $output .= theme('box', t('Summary'), theme('table', array(), $summary));
+  } else {
+    $output .= t('No completed transactions found for this period.');
+  }
+  return $output;
+}
+
+/**
+ * Produces data for profit reports
+ * 
+ * @param $query
+ *   object with query parameters
+ * @return
+ *   list($header, $rows, $summary), both arrays of text data
+ */
+function fhreports_ecommerce_profit_data($query) {
+  // Prepare data: transaction status and dates to timestamp
+  $query->workflow = transaction_get_workflow_id(t('completed'));
+  $time_start = strtotime($query->date_start);
+  $time_end = strtotime($query->date_end) + 24 * 60 * 60 - 1; // We add 1 day - 1 second to end date to include the full last day
+   
+  // Step 1. Product data
+  // We are contemplating the possibility that articles may have been deleted, that's why the LEFT JOIN
+  // And that prices may have changed producing a row for each product price
+  $sql = "SELECT tp.nid, n.title, p.cost, tp.price, SUM(tp.qty) AS quantity, SUM(tp.price * tp.qty) AS sales ".
+    "FROM {ec_transaction_product} tp INNER JOIN {ec_transaction} t ON tp.txnid = t.txnid ".
+    "LEFT JOIN {ec_product} p ON tp.vid = p.vid LEFT JOIN {node} n ON tp.nid = n.nid ".
+    "WHERE t.workflow = %d AND t.created BETWEEN %d AND %d GROUP BY tp.nid, n.title, p.cost, tp.price ORDER BY tp.nid";
+  $result = db_query($sql, $query->workflow , $time_start, $time_end);
+  $product_cost = 0;
+  while($product = db_fetch_object($result)) {
+    $product_cost += $product->cost * $product->quantity;
+    $rows[] = array($product->title, $product->price, $product->cost, $product->quantity, $product->sales );
+  }  
+  $header = array(t('Article'), t('Unit price'), t('Unit cost'), t('Units sold'), t('Product sales'));
+
+  // Step 2. Transaction summary data
+  // Shipping cost data is in ec_shipping_transaction
+  $sql = "SELECT SUM(t.gross) AS sales, SUM(t.shipping_cost) + SUM(s.cost) AS shipping_total ".
+    "FROM {ec_transaction} t LEFT JOIN {ec_shipping_transaction} s ON t.txnid = s.txnid ".
+    "WHERE workflow = %d AND created BETWEEN %d AND %d";
+  $transaction = db_fetch_object(db_query($sql, $query->workflow, $time_start, $time_end));
+
+  $summary[] = array(t('Total sales'), $transaction->sales);
+  $summary[] = array(t('Shipping costs'), $transaction->shipping_total);
+  $summary[] = array(t('Products cost'), $product_cost);
+  $summary[] = array(t('Total costs'), $product_cost + $transaction->shipping_total);
+  $summary[] = array(t('Total profit'), $transaction->sales - $transaction->shipping_total - $product_cost );
+  return array($header, $rows, $summary);
+}
 /**
  * Produces output file
  * 
@@ -154,9 +266,19 @@ function fhreports_ecommerce_textfile($type = 'transaction') {
   $query = fhreports_ecommerce_search_query();
 
   // Fetch data for this type of report
-  list($header, $rows) = fhreports_ecommerce_data($query, $type);
+  switch ($type) {
+    case 'profit':
+      list($header, $rows, $summary) = fhreports_ecommerce_profit_data($query);
+      break;
+    default:
+      list($header, $rows, $summary) = fhreports_ecommerce_data($query, $type);
+  }
+  
   // Output data
   if($header && count($header) && $rows && count($rows)) {
+    if ($summary && count($summary)) {
+      $rows = array_merge($rows, array(),$summary);
+    }
     fhreports_output_tabfile($header, $rows);
   } else {
     drupal_set_message(t('Your search returned no data.'), 'error');
@@ -544,7 +666,7 @@ function fhreports_ecommerce_data($query, $type) {
             $row[] = $data->qty * $data->price;
             break;
           case 'items_cost':
-            $row[] = $data->gross - $data->cost;
+            $row[] = $data->qty * $data->cost;
             break;
           default:
             $row[] = $data->$col;
@@ -574,7 +696,7 @@ function fhreports_ecommerce_data($query, $type) {
  */
 function fhreports_ecommerce_search_query() {
   // List the available items to search for.
-  $fields = array('text', 'txnid', 'uid', 'is_recurring', 'nid', 'nid_expires', 'date', 'gross', 'status', 'workflow', 'method', 'ptype');
+  $fields = array('text', 'txnid', 'uid', 'is_recurring', 'nid', 'nid_expires', 'date', 'gross', 'status', 'workflow', 'method', 'ptype', 'date_start', 'date_end');
 
    // If we have an edit array, recompose the array into separate stand-alone variables.
   $edit = ($_POST['edit']) ? $_POST['edit'] : array();
@@ -625,7 +747,8 @@ function fhreports_ecommerce_search_query_string($query) {
         $data     = explode(',', $criterion_value);
         $data = array_map('db_escape_string', $data);
       }
-      elseif (strpos($criterion_value, '-') !== false) {
+      // Do not scape slash for dates
+      elseif (strpos($criterion_value, '-') !== false && strpos($criterion, 'date') === false) {
         $operator = '-';
         $data     = explode('-', $criterion_value);
         $data = array_map('db_escape_string', $data);

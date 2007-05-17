@@ -925,7 +925,7 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
         'tags'         => $form_values['tag_campaign'] . ', ' . $form_values['tag_walk'],
       );
       $file_info = array_merge($file_info, $info);
-      
+
       // move image file
       if($file = file_save_upload($file, "$file_base/$file_image", FILE_EXISTS_REPLACE)) {
         // upload to flickr.com
@@ -948,7 +948,7 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
         if($file_info['photo_id']>0) {
           _fhflickr_flickr_update($file_info);
           $photo_info = fhflickr_photos_getInfo($file_info['photo_id']);
-          if($photo_info['photo']) $file_info = array_merge($file_info, $photo_info['photo']);
+          if($photo_info['photo']) $file_info = array_merge($photo_info['photo'], $file_info);
         } 
      
         // save data in DB
@@ -965,6 +965,7 @@ function fhflickr_upload_form_submit($form_id, $form_values) {
                    '%s', '%s', 
                    '%s', '%s', 
                    '%s', %d)";
+
         $result = db_query($sql, $file_info['nid'],  $file_info['filename'],
           $file_info['uid'],  $file_info['author'], $file_info['author_mail'],  
           $file_info['title'],  $file_info['caption'],  $file_info['tags'], 
@@ -1078,7 +1079,7 @@ global $user;
   $form['flickr_upload']['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
   $form['flickr_upload']['uid'] = array('#type' => 'hidden', '#value' => $user->uid);
   $form['flickr_upload']['tag_campaign'] = array('#type' => 'hidden', '#value' => $node->campaign->shortname);
-  $form['flickr_upload']['tag_walk'] = array('#type' => 'hidden', '#value' => $node->tag);
+  $form['flickr_upload']['tag_walk']  = array('#type' => 'hidden', '#value' => $node->tag);
   $form['flickr_upload']['city']      = array('#type' => 'hidden', '#value' => $node->location['city']);
   $form['flickr_upload']['province']  = array('#type' => 'hidden', '#value' => $node->location['province']);
   $form['flickr_upload']['country']   = array('#type' => 'hidden', '#value' => $node->location['country']);
@@ -1095,3 +1096,5 @@ global $user;
   $output =  drupal_get_form('fhflickr_upload_form', $form);
   return $output;
 }
+
+

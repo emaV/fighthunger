@@ -275,7 +275,7 @@ function theme_flickr_album_plain($node) {
     if (($i%$photos_x_rows)==0) $out_album.= "  <tr class='photo_album'>\n";
     $out_album .= "    <td class='photo_album'>\n";
 //    $out_album .= "<a href='$flickr_link'><img src='$flickr_square' alt='$photo->title' title='$photo->title' width='75' height='75' vspace='5' hspace='5'></a>\n";
-    $out_album .= l(theme('flickr_img_s', $photo), $flickr_link, array('class' => 'flickr_img_s'),  NULL,  NULL, FALSE,  TRUE);
+    $out_album .= l(theme('flickr_img_s', $photo), $flickr_link, array('class' => 'flickr_img_s', 'target' => 'nwin'),  NULL,  NULL, FALSE,  TRUE);
     $out_album .= "    </td>\n";
     if (($i%$photos_x_rows)==($photos_x_rows-1)) $out_album .= "  </tr>\n";
     $i++;
@@ -722,6 +722,8 @@ function _flickr_photos_geo_setLocation($photo_id, $latitude, $longitude) {
       'accuracy' => 11,
     );
     return  _fhflickr_serv($method, $params, TRUE, 'write');
+  } else {
+    return NULL;
   }
 }
 function _flickr_photos_licenses_setLicense($photo_id, $license_id) {
@@ -732,6 +734,20 @@ function _flickr_photos_licenses_setLicense($photo_id, $license_id) {
       'license_id' => $license_id,
     );
     return  _fhflickr_serv($method, $params, TRUE, 'write');
+  } else {
+    return NULL;
+  }
+}
+function _flickr_photos_addTags($photo_id, $tags) {
+  if($photo_id && $tags) {
+    $method = 'flickr.photos.addTags';
+    $params = array(
+      'photo_id' => $photo_id,
+      'tags'     => $tags,
+    );
+    return  _fhflickr_serv($method, $params, TRUE, 'write');
+  } else {
+    return NULL;
   }
 }
 

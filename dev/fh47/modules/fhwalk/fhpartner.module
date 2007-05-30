@@ -838,13 +838,13 @@ function fhpartner_node_get_partners($node, $conditions = array('audience' => 'L
  */  
 function fhpartner_admin_get_partners($sql_array) {
 
-  $headers = array(
-    array('data' => t('Title'),      'field' => 'title', 'sort' => 'asc'),
+  // set header
+  $header = array(
+    array('data' => t('Name'),       'field' => 'title', 'sort' => 'asc'),
     array('data' => t('Campaign'),   'field' => 'shortname'),
     array('data' => t('Audience'),   'field' => 'paud'),
     array('data' => t('Country'),    'field' => 'country'),
     array('data' => t('Type'),       'field' => 'ptid'),
-    array('data' => t('Operations'), 'colspan' => 2)
   );
 
   // set condition from array
@@ -869,15 +869,18 @@ function fhpartner_admin_get_partners($sql_array) {
     }
   }
 
-  $sql = "SELECT n.*, pn.*, gn.* FROM {partners_node} pn " .
+  foreach($header as $column) $fields[] = $column['field'];
+  $header_dl = $header;
+  $sql_dl = "SELECT " . implode (', ', $fields) .
+    " FROM {partners_node} pn " .
     "INNER JOIN {node} n ON pn.nid = n.nid " . 
-    "JOIN {term_node} tn ON pn.nid = tn.nid " .
-    "JOIN {gathering_campaign} gn ON tn.tid = gn.camid " .
+    " JOIN {term_node} tn ON pn.nid = tn.nid " .
+    " JOIN {gathering_campaign} gc ON tn.tid = gc.camid " .
     implode(' ', $join). " WHERE ". implode( ' AND ', $where);
 
-  $sql .= tablesort_sql($headers);
-
+  $sql = $sql_dl . tablesort_sql($header);
   $result = pager_query($sql, 25);
+  $header[] = array('data' => t('Operations'), 'colspan' => 2);
 
   if (db_num_rows($result) > 0) {
 
@@ -895,11 +898,10 @@ function fhpartner_admin_get_partners($sql_array) {
 
       $rows[] = $row;
     }
-    if($pager = theme('pager', NULL, 25, 0)) {
-      $rows[] = array(array('data' => $pager, 'colspan' => 9));
-    }
 
-    $output = theme('table', $headers, $rows);
+    $output  = theme('table', $header, $rows);
+    $output .= theme('pager', NULL, 25);    
+    $output .= theme('fh_table', 'download', $sql_dl, $header_dl);
   } else {
     $output = theme('box', t('No partners found.'), '');
   }

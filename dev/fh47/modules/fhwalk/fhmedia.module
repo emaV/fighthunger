@@ -14,7 +14,7 @@
 
 /**
  * Implementation of hook_help().
- */
+
 function fhmedia_help($section) {
   switch ($section) {
     case 'admin/help#fhmedia':
@@ -22,13 +22,11 @@ function fhmedia_help($section) {
       return $output;
     case 'admin/modules#description':
       return t('<strong>FH:</strong> Media clips management.');
-/*
     case 'node/add#fhmedia':
       return t('Create a newmedia clips.');
-*/
   }
 }
-
+*/
 function fhmedia_form_validate($form) {
   if($form['releasedate_string']['#value']) {
     $releasedate = strtotime($form['releasedate_string']['#value']);       
@@ -117,5 +115,109 @@ function fhmedia_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   }
 }
 
+/**
+ * Get fhmedia nodes list.
+ * 
+ * @param $country 
+ *   string (country)
+ * @param $tid 
+ *   integer (campaign)
+ * @return 
+ *   an array (indexed by language) with nid and title.
+ *    
+ */
+function fhmedia_get_nodes($tid, $country='') {
+  $sql = "SELECT n.nid, n.title, r.releasedate, l.country ".
+      "FROM node n " . 
+      "LEFT JOIN releasedate r ON n.nid = r.nid ".
+      "LEFT JOIN location l ON n.nid = l.oid ".
+      "LEFT JOIN term_node tn ON n.nid=tn.nid ";
+  $where = array("l.type = 'node'", "n.type = 'fhmedia'");
+  if($country) {
+    if(is_array($country)) {
+      $where_country =  array();
+      foreach($country as $each_country) {
+        $where_country[] = "l.country = '$each_country'";
+      }
+      $where[] = '(' . implode(' OR ', $where_country) . ')' ;
+    } else {
+      $where[] = "l.country = $country";
+    }
+  }
+  $where[] = 'tn.tid = %d';
+  $sql .= "WHERE " . implode(' AND ', $where) . " ORDER BY r.releasedate DESC";
 
+  $rs = db_query($sql, $tid);
+  while ($media = db_fetch_array($rs)){
+    $date    = date( 'M j Y' , $media['releasedate'] );
+    $link    = l($media['title'], "node/".$media['nid']);
+    $country = fhlocation_get_iso3166_list($media['country']);
+    $stories[] = "$date: $link - $country";
+  }
+
+  if (!empty($stories)) {
+    $out .= "<h3>" . t("In the News") . "</h3>";
+    $out .= theme("item_list",$stories);
+  }
+  return $out;
+}
+
+/**
+ * Implementation of hook_filter()
+ */  
+function fhmedia_filter($op, $delta = 0, $format = -1, $text = '') {
+  // The "list" operation provides the module an opportunity to declare both how
+  // many filters it defines and a human-readable name for each filter. Note that
+  // the returned name should be passed through t() for translation.
+  if ($op == 'list') {
+    return array(
+      0 => t('List of media (country and campaign)'),
+//      1 => t('List of media (custom)'),
+    );
+  }
+  // All operations besides "list" provide a $delta argument so we know which
+  // filter they refer to. We'll switch on that argument now so that we can
+  // discuss each filter in turn.
+  switch ($delta) {
+
+    // List of media (country and campaign selected).
+    case 0:   
+      switch ($op) {
+        // This description is shown in the administrative interface, unlike the
+        // filter tips which are shown in the content editing interface.
+        case 'description':
+          return t('Print a list of media');
+
+        // This filter is a little trickier to implement than the previous one.
+        // Since the input involves special HTML characters (< and >) we have to
+        // run the filter before HTML is escaped/stripped by other filters. But
+        // we want to use HTML in our result as well, and so if we run this filter
+        // first our replacement string could be escaped or stripped. The solution
+        // is to use the "prepare" operation to escape the special characters, and
+        // to later replace our escaped version in the "process" step.
+        //
+        // We'll use the bytes 0xFE and 0xFF to replace < and > here. These bytes
+        // are not valid in UTF-8 data and thus unlikely to cause problems.
+        case 'prepare':
+          return preg_replace('!<fhmedia ?([^>]*)/>!', '\xFEfhmedia \1/\xFF', $text);
+
+        // Now, in the "process" step, we'll search for our escaped time tags and
+        // to the real filtering.
+        case 'process':
+          $pattern = "!\\\\xFEfhmedia ([^\\\\xFF]*)/\\\\xFF!";  
+          if (preg_match_all($pattern, $text, $matches)) {
+            foreach($matches[0] as $key => $val) {
+              $attrs = array();
+              preg_match_all('/(\w+)=[\'"]([^\'"]+)[\'"]/', $matches[1][$key], $attrs);
+              foreach($attrs[0] as $akey => $aval) $attr[$attrs[1][$akey]] = $attrs[2][$akey];
+              $out = "<i>" . $attr['country'] . ' - ' . $attr['campaign'] . '</i>';
+              if($camid = fhcampaign_get_campaign_tid($attr['campaign'])) $out = fhmedia_get_nodes($camid, explode(',', $attr['country']));
+              $text = str_replace($val, $out, $text);
+            }
+          }
+          return $text;
+      }
+      break;
+  }  
+}
 

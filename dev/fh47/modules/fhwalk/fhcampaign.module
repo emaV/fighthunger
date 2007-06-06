@@ -1057,6 +1057,16 @@ function fhcampaign_get_campaign($cid) {
 }
 
 /**
+ * Get campaign camid/tid
+ * 
+ * @return
+ *   Campaign camid/tid
+ */
+function fhcampaign_get_campaign_tid($shortname) {
+  return db_result(db_query("SELECT camid FROM {gathering_campaign} WHERE shortname = '%s'", $shortname));
+}
+
+/**
  * Get all campaigns
  * 
  * @return

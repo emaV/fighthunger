@@ -121,6 +121,10 @@ function donation_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
               $dl['text'] = t('Make a donation');
               $dl['link'] = 'donation';
 			        break;
+			      case 'node':
+              $dl['text'] = t('Make a donation');
+              $dl['link'] = "donation/$node->nid";
+			        break;
 			      case 'event':
               $dl['text'] = t('Donate to this event');
               $dl['link'] = "donation/$node->nid";
@@ -386,10 +390,11 @@ function donation_prepare($nid) {
       $donation->fixed = TRUE; // For fixed amount and currency
       $donation->concept = $donation->title;
       break;
+		case 'node':
     case 'event':
       $donation->title = t('Donate to %name', array('%name' => $node->title));
       $donation->partners = fh_node_get_partners($node->nid);
-      $donation->affiliation = $donation->partners;
+//      $donation->affiliation = $donation->partners;
       $donation->concept = t('Donation to %name', array('%name' => $node->title));
       break;
     case 'campaign':
@@ -932,9 +937,11 @@ function donation_form($donation) {
 	// Add a fieldset to be filled by fhuser
   $form['fhuser'] = array('#type' => 'fieldset', '#title' => t('Contact information'));
   // Partners
+/*
 	if($donation->partners) {
     $form['partners'] = array('#title' => t('Partners'), '#value' => theme('item_list', $donation->partners));
   }
+*/
   // Donation source. Must be a hidden value to be passed over when validating the field
   $form['source'] = array('#type' => 'hidden', '#value' => ($edit['source'] ? $edit['source'] : 'plain_page'));
   //drupal_set_message("Source is:".$form['source']['#value']);
@@ -949,7 +956,7 @@ function donation_form($donation) {
     $form['donation']['currency'] = array('#type' => 'item', '#title' => t('Currency'), '#value' => _donation_currency_name($donation->currency));
   } else {
     $form['donation']['amount'] = array('#type' => 'textfield', '#title' => t('Amount'), '#size' => 10);
-    $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency') . $donation->type, '#options' => _donation_currencies(array('' => '--')));
+    $form['donation']['currency'] = array('#type' => 'select', '#title' => t('Currency'), '#options' => _donation_currencies(array('' => '--')));
     // There may be recommended values, though not fixed
     if($donation->amount && $donation->currency) {
     	$form['donation']['amount']['#default_value'] = $donation->amount;
@@ -1077,6 +1084,7 @@ function _donation_event_list($key = NULL, $list_event=TRUE) {
 
 function _donation_types($types = array()) {
   $types['plain']    = t('Plain donation');
+  $types['node']      = t('Node donation');
   $types['fee']      = t('Event fee');
   $types['event']    = t('Event donation');
   $types['campaign'] = t('Campaign donation');

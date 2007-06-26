@@ -870,6 +870,7 @@ function fhpartner_admin_get_partners($sql_array) {
   }
 
   foreach($header as $column) $fields[] = $column['field'];
+  $fields[] = 'n.nid';
   $header_dl = $header;
   $sql_dl = "SELECT " . implode (', ', $fields) .
     " FROM {partners_node} pn " .

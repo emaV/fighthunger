@@ -165,47 +165,70 @@ global $user;
   $validation_type = $form_values['validation_type'];
   $data = ($user) ? $user->mail : ''; 
   $userip = $_SERVER['REMOTE_ADDR'];
-  
-  $from = $_SERVER[HTTP_REFERER];
-  $bat_value  = $form_values['bat_value'];
-  
-  db_query( "INSERT INTO {wtw_bat_clicks}  
-               (bid, timestamp, validation_type, data, IP)
-             VALUES 
-               (%d, UNIX_TIMESTAMP(NOW()), '%s', '%s', '%s')",
-             $bid, $validation_type, $data, $userip);
-
-  $message = variable_get('fhbat_thanks', 'Thanks for visiting our site and clicking to feed a child.'); 
-  $redirect = variable_get('fhbat_redirect', '');
-  
-// get random banner
-  $fhbat_category = variable_get('fhbat_category', 0);
-  $banner_nid = fhbat_banner_get($fhbat_category);
-  $banner = node_load($banner_nid);
-  
-// Update banner statistics and redirect user to target URL
-  if ($banner) {
-    // don't update banner stats for site admin or banner owner
-    if ($user->uid != 1 && $user->uid != $banner->uid) {
-      db_query('UPDATE {banner} SET clicks = clicks + 1, clicks_day = clicks_day + 1, clicks_week = clicks_week + 1 WHERE nid = %d', $banner_nid);
-    }
-
-    if ($banner->clicks_max > 0 && ($banner->clicks + 1) == $banner->clicks_max) {
-      watchdog('special', t("banner: '%banner' %status, reached max of %clicks clicks.", array('%banner' => l($banner->title, 'node/'. $banner->id, NULL, NULL, FALSE, TRUE), '%status' => _banner_workflow(BANNER_BLOCKED), '%clicks' => $banner->max_clicks)));
-      db_query('UPDATE {banner} SET workflow = %d WHERE vid = %d', BANNER_BLOCKED, $banner->vid);
-    }
+  // If Drupal is behind a proxy, use the X-Forwarded-For header
+  // instead of the straight IP address http://drupal.org/node/169263
+  if ($_SERVER['HTTP_X_FORWARDED_FOR']) {
+   $userip = array_pop(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
   }
   
-// redirect using banner system
-//  $redirect = "banner/$banner_nid";
+  switch($validation_type) {
+    case 'timer':
+      if($user->mail) {
+        $sql = "SELECT timestamp FROM wtw_bat_clicks WHERE data='%s' ORDER BY timestamp DESC LIMIT 1";
+        $timestamp_last = db_result(db_query($sql, $user->mail));
+//$message .= "USER: $user->mail<br/>";
+      } else {
+        $sql = "SELECT timestamp FROM wtw_bat_clicks WHERE IP='%s' ORDER BY timestamp DESC LIMIT 1";
+        $timestamp_last = db_result(db_query($sql, $userip));       
+//$message .= "IP: $userip<br/>";
+      }
+      $validation = ((time() - $timestamp_last) > variable_get('fhbat_validation_timer', '60'));
+      break;
+    case 'none':
+    default:
+      $validation = true;
+      break;
+  }
+  
+//  $teswe = ($validation) ? "OK" : "NOOK";
+//  $message .= "$validation_type -  $validation - $teswe -" . time() . " - " . $timestamp_last . " - " . variable_get('fhbat_validation_timer', '60');
 
-  $message .= theme('fhbat_banner_view', node_load($banner_nid));
-
-//  $message .= theme('fhbat_banner_list', $fhbat_category);
-
-  drupal_get_messages();
-  drupal_set_message($message);
-  drupal_goto($redirect);
+  if($validation) {
+    $from = $_SERVER['HTTP_REFERER'];
+    $bat_value  = $form_values['bat_value'];
+    db_query( "INSERT INTO {wtw_bat_clicks}  
+                 (bid, timestamp, validation_type, data, IP)
+               VALUES 
+                 (%d, UNIX_TIMESTAMP(NOW()), '%s', '%s', '%s')",
+               $bid, $validation_type, $data, $userip);
+  
+    $message .= variable_get('fhbat_thanks', 'Thanks for visiting our site and clicking to feed a child.'); 
+    $redirect = variable_get('fhbat_redirect', '');
+    
+    // get random banner
+    $fhbat_category = variable_get('fhbat_category', 0);
+    $banner_nid = fhbat_banner_get($fhbat_category);
+    $banner = node_load($banner_nid);
+    $message .= theme('fhbat_banner_view', node_load($banner_nid));
+    
+    // Update banner statistics and redirect user to target URL
+    if ($banner) {
+      // don't update banner stats for site admin or banner owner
+      if ($user->uid != 1 && $user->uid != $banner->uid) {
+        db_query('UPDATE {banner} SET clicks = clicks + 1, clicks_day = clicks_day + 1, clicks_week = clicks_week + 1 WHERE nid = %d', $banner_nid);
+      }
+      if ($banner->clicks_max > 0 && ($banner->clicks + 1) == $banner->clicks_max) {
+        watchdog('special', t("banner: '%banner' %status, reached max of %clicks clicks.", array('%banner' => l($banner->title, 'node/'. $banner->id, NULL, NULL, FALSE, TRUE), '%status' => _banner_workflow(BANNER_BLOCKED), '%clicks' => $banner->max_clicks)));
+        db_query('UPDATE {banner} SET workflow = %d WHERE vid = %d', BANNER_BLOCKED, $banner->vid);
+      }
+    }
+    drupal_get_messages();
+    drupal_set_message($message);
+    drupal_goto($redirect);
+  } else {
+//    drupal_get_messages();
+//    drupal_set_message($message);
+  }
 }  
 
 /*
@@ -214,13 +237,38 @@ global $user;
  
 function fhbat_settings() {
 
+  $form['fhbat_validation_options'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Validation options'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+    '#weight'      => -1,
+  );  
+  $options = array(
+    'none'  => t('None'),
+    'timer' => t('Timer')
+  );
+  $form['fhbat_validation_options']['fhbat_validation'] = array(
+    '#type' => 'select',
+    '#title' => t('Validation rule'),
+    '#default_value' => variable_get('fhbat_validation','none'),
+    '#options' => $options,
+    '#description' => t('Select a validation rule'),  
+  );
+  $form['fhbat_validation_options']['fhbat_validation_timer'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Timer'),
+    '#default_value' => variable_get('fhbat_validation_timer', '60'), 
+    '#description' => t('Seconds between clicks.')
+  );
+
   $form['fhbat_thanks'] = array(
     '#type' => 'textarea',
     '#title' => t('Thanks message'),
     '#default_value' => variable_get('fhbat_thanks', 'Thanks for visiting our site and clicking to feed a child.'), 
     '#cols' => 70,
     '#rows' => 5,
-    '#description' => t('This text will be displayed as thanks message.')
+    '#description' => t('This text will be displayed as thanks message.'),
   );
 
   $form['fhbat_redirect'] = array(
@@ -230,7 +278,6 @@ function fhbat_settings() {
     '#maxlength' => 50,
     '#default_value' => variable_get('fhbat_redirect', 'node'),
     '#description' => t('Redirect Path'),
-    '#weight' => -10
   );
 
   $form['fhbat_fluff'] = array(
@@ -240,7 +287,6 @@ function fhbat_settings() {
     '#maxlength' => 50,
     '#default_value' => variable_get('fhbat_fluff', 0),
     '#description' => t('Amount to "fluff" by'),
-    '#weight' => -10
   );
   
   $fhbat_block_default = "<CENTER><img src='/files/emptybowlgif.gif'></CENTER><br />\n " .
@@ -253,7 +299,6 @@ function fhbat_settings() {
     '#maxlength' => 50,
     '#default_value' => variable_get('fhbat_block', $fhbat_block_default),
     '#description' => t('Enter HTML bat block, use %%VALUE%% for current bat value and %%NEXT%% for value increased by one'),
-    '#weight' => -10,
   );
   
   $vocabulary_options = array();
@@ -317,19 +362,19 @@ function _fhbat_block_get_block($delta) {
 // Setting form
   $form['html'] = array( '#value' => $form_html);
   $form['bid'] = array(
-    '#type' => 'hidden',
+    '#type'  => 'hidden',
     '#value' => $bid
   );
   $form['validation_type'] = array(
-    '#type' => 'hidden',
-    '#value' => 'none'
+    '#type'  => 'hidden',
+    '#value' => variable_get('fhbat_validation','none'),
   );
   $form['bat_value'] = array(
-    '#type' => 'hidden',
+    '#type'  => 'hidden',
     '#value' => $bat_plot_value
   );
   $form['submit'] = array(
-    '#type' => 'submit',
+    '#type'  => 'submit',
     '#value' => t('Click to Feed a Child')
   );
   $out_form = drupal_get_form('fhbat_page', $form);
@@ -363,7 +408,6 @@ global $user;
       $form['message']['#title'] = t('Tell a friend about FightHunger.org');
       $form['message']['#collapsed'] = FALSE;
       break;
-
   }
 
   return $form;

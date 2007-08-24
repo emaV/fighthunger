@@ -226,8 +226,9 @@ global $user;
     drupal_set_message($message);
     drupal_goto($redirect);
   } else {
-//    drupal_get_messages();
-//    drupal_set_message($message);
+    $message = variable_get('fhbat_validation_timer_msg', '');
+    drupal_get_messages();
+    drupal_set_message($message);
   }
 }  
 
@@ -260,6 +261,15 @@ function fhbat_settings() {
     '#title' => t('Timer'),
     '#default_value' => variable_get('fhbat_validation_timer', '60'), 
     '#description' => t('Seconds between clicks.')
+  );
+  $txt = 'You (or someone else) has already clicked from this IP address today.<br/>' .
+    'Please come again tomorrow and click again.<br/>' .
+    'In the meantime please use the form below to tell all your friends about click to feed!';
+  $form['fhbat_validation_options']['fhbat_validation_timer_msg'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Timer message'),
+    '#default_value' => variable_get('fhbat_validation_timer_msg', $txt), 
+    '#description' => t('Timer message')
   );
 
   $form['fhbat_thanks'] = array(

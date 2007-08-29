@@ -172,17 +172,19 @@ global $user;
   }
   
   switch($validation_type) {
-    case 'timer':
+    case 'time':
+      $timestamp_check = time() - variable_get('fhbat_validation_time_term', '60');
       if($user->mail) {
-        $sql = "SELECT timestamp FROM wtw_bat_clicks WHERE data='%s' ORDER BY timestamp DESC LIMIT 1";
-        $timestamp_last = db_result(db_query($sql, $user->mail));
-//$message .= "USER: $user->mail<br/>";
+        
+        $sql = "SELECT COUNT(timestamp) FROM wtw_bat_clicks WHERE data='%s' AND timestamp >%d";
+        $timestamp_count = db_result(db_query($sql, $user->mail, $timestamp_check));
+$message .= "USER: $user->mail -> $timestamp_count<br/>";
       } else {
-        $sql = "SELECT timestamp FROM wtw_bat_clicks WHERE IP='%s' ORDER BY timestamp DESC LIMIT 1";
-        $timestamp_last = db_result(db_query($sql, $userip));       
-//$message .= "IP: $userip<br/>";
+        $sql = "SELECT COUNT(timestamp) FROM wtw_bat_clicks WHERE IP='%s' AND timestamp >%d";
+        $timestamp_count = db_result(db_query($sql, $userip, $timestamp_check));       
+$message .= "IP: $userip -> $timestamp_count<br/>";
       }
-      $validation = ((time() - $timestamp_last) > variable_get('fhbat_validation_timer', '60'));
+      $validation = ($timestamp_count < variable_get('fhbat_validation_time_clicks', '1'));
       break;
     case 'none':
     default:
@@ -190,8 +192,8 @@ global $user;
       break;
   }
   
-//  $teswe = ($validation) ? "OK" : "NOOK";
-//  $message .= "$validation_type -  $validation - $teswe -" . time() . " - " . $timestamp_last . " - " . variable_get('fhbat_validation_timer', '60');
+  $teswe = ($validation) ? "OK" : "NOOK";
+  $message .= "$validation_type -  $validation - $teswe -" . time() . " - " . $timestamp_last . " - " . variable_get('fhbat_validation_timer', '60');
 
   if($validation) {
     $from = $_SERVER['HTTP_REFERER'];
@@ -226,7 +228,7 @@ global $user;
     drupal_set_message($message);
     drupal_goto($redirect);
   } else {
-    $message = variable_get('fhbat_validation_timer_msg', '');
+    $message .= variable_get('fhbat_validation_timer_msg', '');
     drupal_get_messages();
     drupal_set_message($message);
   }
@@ -247,7 +249,7 @@ function fhbat_settings() {
   );  
   $options = array(
     'none'  => t('None'),
-    'timer' => t('Timer')
+    'time'  => t('Time')
   );
   $form['fhbat_validation_options']['fhbat_validation'] = array(
     '#type' => 'select',
@@ -256,19 +258,25 @@ function fhbat_settings() {
     '#options' => $options,
     '#description' => t('Select a validation rule'),  
   );
-  $form['fhbat_validation_options']['fhbat_validation_timer'] = array(
+  $form['fhbat_validation_options']['fhbat_validation_time_term'] = array(
     '#type' => 'textfield',
-    '#title' => t('Timer'),
-    '#default_value' => variable_get('fhbat_validation_timer', '60'), 
-    '#description' => t('Seconds between clicks.')
+    '#title' => t('Term'),
+    '#default_value' => variable_get('fhbat_validation_time_term', '60'), 
+    '#description' => t('Time period for max cliks check.')
+  );
+  $form['fhbat_validation_options']['fhbat_validation_time_clicks'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Clicks'),
+    '#default_value' => variable_get('fhbat_validation_time_clicks', '1'), 
+    '#description' => t('Max number of clicks in term.'),
   );
   $txt = 'You (or someone else) has already clicked from this IP address today.<br/>' .
     'Please come again tomorrow and click again.<br/>' .
     'In the meantime please use the form below to tell all your friends about click to feed!';
-  $form['fhbat_validation_options']['fhbat_validation_timer_msg'] = array(
+  $form['fhbat_validation_options']['fhbat_validation_time_msg'] = array(
     '#type' => 'textarea',
     '#title' => t('Timer message'),
-    '#default_value' => variable_get('fhbat_validation_timer_msg', $txt), 
+    '#default_value' => variable_get('fhbat_validation_time_msg', $txt), 
     '#description' => t('Timer message')
   );
 

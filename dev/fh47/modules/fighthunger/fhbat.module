@@ -178,11 +178,11 @@ global $user;
         
         $sql = "SELECT COUNT(timestamp) FROM wtw_bat_clicks WHERE data='%s' AND timestamp >%d";
         $timestamp_count = db_result(db_query($sql, $user->mail, $timestamp_check));
-$message .= "USER: $user->mail -> $timestamp_count<br/>";
+//$message .= "USER: $user->mail -> $timestamp_count<br/>";
       } else {
         $sql = "SELECT COUNT(timestamp) FROM wtw_bat_clicks WHERE IP='%s' AND timestamp >%d";
         $timestamp_count = db_result(db_query($sql, $userip, $timestamp_check));       
-$message .= "IP: $userip -> $timestamp_count<br/>";
+//$message .= "IP: $userip -> $timestamp_count<br/>";
       }
       $validation = ($timestamp_count < variable_get('fhbat_validation_time_clicks', '1'));
       break;
@@ -192,8 +192,8 @@ $message .= "IP: $userip -> $timestamp_count<br/>";
       break;
   }
   
-  $teswe = ($validation) ? "OK" : "NOOK";
-  $message .= "$validation_type -  $validation - $teswe -" . time() . " - " . $timestamp_last . " - " . variable_get('fhbat_validation_timer', '60');
+//  $teswe = ($validation) ? "OK" : "NOOK";
+//  $message .= "$validation_type -  $validation - $teswe -" . time() . " - " . $timestamp_last . " - " . variable_get('fhbat_validation_timer', '60');
 
   if($validation) {
     $from = $_SERVER['HTTP_REFERER'];
@@ -228,7 +228,7 @@ $message .= "IP: $userip -> $timestamp_count<br/>";
     drupal_set_message($message);
     drupal_goto($redirect);
   } else {
-    $message .= variable_get('fhbat_validation_timer_msg', '');
+    $message .= variable_get('fhbat_validation_time_msg', '');
     drupal_get_messages();
     drupal_set_message($message);
   }

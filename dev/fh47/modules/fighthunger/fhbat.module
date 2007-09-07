@@ -27,7 +27,10 @@
  * - multiple bat
  * - custom bat page 
  */
- 
+
+// Loads simple xml library
+require_once drupal_get_path('module', 'webcollect') . '/xmlsimpleapi.inc'; 
+
 /**
  * Implementation of hook_help().
  */
@@ -44,6 +47,223 @@ function fhbat_help($section) {
 function fhbat_perm() {
   return array('administer fhbat');
 }
+
+/**
+ * Implementation of hook_menu().
+ */
+function fhbat_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'title'    => t('clicks'),
+      'path'     => 'fhbat_map',
+      'callback' => 'fhbat_map',
+      'access'   => true,
+    );
+
+    // Ajax callback
+    $items[] = array(
+      'path' => 'fhbat_clicks', 
+      'callback' => 'fhbat_clicks', 
+      'access' => true, 
+      'type' => MENU_CALLBACK
+    );
+    
+  }
+  return $items;
+}
+
+/**
+ * Get last clicks for ajax connection
+ *  
+ * @param   $country
+ * @return  provinces arrays js filtered
+ */
+function fhbat_clicks($timestamp=-1) {
+
+//  if($ip_geolocation)
+//  $provinces = (array)_fhlocation_country_provinces($country);
+  if($timestamp>0) {
+    $sql = "SELECT * FROM wtw_bat_clicks WHERE timestamp > %d ORDER BY timestamp DESC";
+    $result = db_query($sql, $timestamp);
+  } else {
+    $sql = "SELECT * FROM wtw_bat_clicks ORDER BY timestamp DESC LIMIT 5";
+    $result = db_query($sql);
+  }
+  while($click = db_fetch_array($result)) {
+    $ip = $click['IP']; 
+    if($timestamp==-1) $timestamp = $click['timestamp'];
+    if($click['timestamp'] < $timestamp) $timestamp = $click['timestamp'];
+    
+    $data = _fhbat_hostip_get($ip);
+    $data = array(
+      'country_name' => 'Italy',
+      'country_code' => 'IT',
+      'name'         => 'VIRT_' . $click['timestamp'],
+      'longitude' => rand(0, 360) - 180,
+      'latitude'  => rand(0, 120) - 60,
+    );
+    $geodata[] = array_merge($click, $data);
+  }
+
+/*
+  $click = array(
+    'country_name' => 'Italy',
+    'country_code' => 'IT',
+    'name'         => 'Rome',
+    'longitude' => 41,
+    'latitude'  => 21,
+  );
+  $clicks = array($click);
+*/
+  $geodata = array_reverse($geodata);
+  $result = array(
+    'timestamp'    => time(),
+    'oldtimestamp' => $timestamp,
+    'clicks'       => $geodata,
+  );
+ 
+  print drupal_to_js($result);
+  exit();
+}
+
+
+/**
+ * Get geolocation from IP using
+ * http://api.hostip.info API service 
+ *
+ * @param
+ *    $ip IP number 
+ * @return 
+ *    $data array with location info (name, country, lat and lon) 
+ */
+function _fhbat_hostip_get($ip) {
+global $ip_geolocation;
+
+  if($ip_geolocation[$ip]) {
+    $data = $ip_geolocation[$ip];
+    $data['cached'] = true;
+  } else {
+    $url = "http://api.hostip.info/?ip=$ip&position=true";
+    $result  = fh_file_get_contents($url);
+    $result = xml_xml2object($result);
+/*  
+Object ( 
+  [gml:description] => This is the Hostip Lookup Service 
+  [gml:name] => hostip 
+  [gml:boundedby] => Array ( 
+      [0] => stdClass Object ( 
+          [gml:null] => inapplicable ) ) 
+  [gml:featuremember] => Array ( 
+      [0] => stdClass Object ( 
+          [hostip] => Array ( 
+              [0] => stdClass Object ( 
+                  [gml:name] => Rome 
+                  [countryname] => ITALY 
+                  [countryabbrev] => IT 
+                  [iplocation] => Array ( 
+                      [0] => stdClass Object ( 
+                          [gml:pointproperty] => Array ( 
+                              [0] => stdClass Object ( 
+                                  [c] => Array ( 
+                                      [0] => stdClass Object ( 
+                                          [gml:coordinates] => 12.45,41.9 ) ) ) ) ) ) ) ) ) ) )  
+*/
+    $gml1 = 'gml:featuremember';
+    $hostip = $result->$gml1;
+    $hostip =  $hostip[0]->hostip[0];
+  
+    $data['country_name']  = $hostip->countryname;
+    $data['country_code']  = $hostip->countryabbrev;
+    $gml1 = 'gml:name';
+    $data['name'] = $hostip->$gml1;
+    $gml1 = 'gml:pointproperty';
+    $gml2 = 'gml:coordinates';
+    list($data['longitude'], $data['latitude']) = split(",", $hostip->iplocation[0]->$gml1[0]->c[0]->$gml2);
+    $ip_geolocation[$ip] = $data;
+  }
+  // shorten the cache
+  if(count($ip_geolocation)>=25) array_shift($ip_geolocation);
+  return $data;
+}
+
+/**
+ * Display gmap of last clicks 
+ *
+ */ 
+function fhbat_map() {
+
+  // Get last then clicks
+  $sql = "SELECT * FROM wtw_bat_clicks ORDER BY timestamp DESC LIMIT 10";
+  $result = db_query($sql);
+  
+/*
+  // Get geolocation from hostip.info
+  // http://api.hostip.info/?ip=12.215.42.19&position=true
+  while($click = db_fetch_array($result)) {
+    $ip = $click['IP']; 
+    $data = _fhbat_hostip_get($ip);
+    
+    $out .= "<h3>$ip</h3>";
+    $out .= $data['name'] . ' - ' . $data['country_name'] . ' - ' . $data['longitude'] . ', ' . $data['latitude'] . '<br/>' . print_r($data, true);
+  }
+*/
+  drupal_add_js(drupal_get_path('module', 'fhbat') . '/fhbat.js');
+  $ajax_url = url('fhbat_clicks', NULL,  NULL, TRUE);
+/*  
+  $out .='<div id="'.$gmap['id'].'" style="'.$style.'" class="gmap-map"></div>
+          <script type="text/javascript">
+          //<![CDATA[
+          //initialize global gmap variables
+          var  geocoder = null;
+          var mycontrol=null;
+          var mytypecontrol=null;
+          var '.$gmap['id'].'=null;
+          var gxmarkerjs='.$gxmarkerjs.';
+          var gmapMarkerLocation="/'.variable_get('gmap_markerfiles',drupal_get_path('module', 'gmap') .'/markers').'";
+          var markerlink='.variable_get('gmap_on_click',0).';
+          var bounds = new GLatLngBounds();
+          addLoadEvent(gmap_init);  
+          addLoadEvent(gmap_load_'.$gmap['id'].');
+
+         
+            function gmap_load_'.$gmap['id'].'() {
+               '.$gmap['id'].' = new GMap2($("'.$gmap['id'].'"));
+                 geocoder = new GClientGeocoder();
+               ';
+*/
+
+
+  
+  $gmap_array =array(
+    'id'        => 'map',
+    'width'     => '700px',
+    'height'    => '500px',
+    'control'   => 'None', 
+    'type'      => 'Map',
+    'tcontrol'  => 'on',
+    'latitude'  => 0, 
+    'longitude' => 0,
+    'span'      => 0,
+    'zoom'      => 2,
+  );
+/*
+  $gmap_array['latitude']  = 0;
+  $gmap_array['longitude'] = 0;
+//  $span = 0.1;
+  $gmap_array['span'] = 0;
+  $gmap_array['zoom'] = 1;
+*/
+  $out .= gmap_draw_map($gmap_array);
+
+  $out .= "<div id='fhbat_map' fh_clicks='$ajax_url'>";
+  $out .= '<button onclick="refreshMap();" id="fhbat_button">refresh</button>';
+  $out .= '</div>';
+
+  
+  return $out;
+}
+
 
 /**
  * Get random banner 

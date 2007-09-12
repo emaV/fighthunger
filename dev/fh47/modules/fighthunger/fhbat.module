@@ -90,6 +90,8 @@ function fhbat_clicks($timestamp=-1) {
     $sql = "SELECT * FROM wtw_bat_clicks ORDER BY timestamp DESC LIMIT 5";
     $result = db_query($sql);
   }
+watchdog('fhbat', "TIMSTAMP: $timestamp<br/>SQL: $sql");
+  $geodata = array();
   while($click = db_fetch_array($result)) {
     $ip = $click['IP']; 
     if($timestamp==-1) $timestamp = $click['timestamp'];
@@ -116,14 +118,14 @@ function fhbat_clicks($timestamp=-1) {
   );
   $clicks = array($click);
 */
-  $geodata = array_reverse($geodata);
+  if($geodata) $geodata = array_reverse($geodata);
   $result = array(
     'timestamp'    => time(),
     'oldtimestamp' => $timestamp,
     'clicks'       => $geodata,
   );
- 
   print drupal_to_js($result);
+ 
   exit();
 }
 

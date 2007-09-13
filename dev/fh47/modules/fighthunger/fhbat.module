@@ -186,11 +186,12 @@ global $ip_geolocation;
     
       $data['country_name']  = $hostip->countryname;
       $data['country_code']  = $hostip->countryabbrev;
-      $gml1 = 'gml:name';
-      $data['name'] = $hostip->$gml1;
-      $gml1 = 'gml:pointproperty';
-      $gml2 = 'gml:coordinates';
-      list($data['longitude'], $data['latitude']) = split(",", $hostip->iplocation[0]->$gml1[0]->c[0]->$gml2);
+      $gml_name = 'gml:name';
+      $data['name'] = $hostip->$gml_name;
+      $gml_pointproperty = 'gml:pointproperty';
+      $gml_coordinates = 'gml:coordinates';
+      list($data['longitude'], $data['latitude']) = split(",", $hostip->iplocation[0]->$gml_pointproperty[0]->c[0]->$gml_coordinates);
+      $data['coordinates'] = $hostip->iplocation[0]->$gml_pointproperty[0]->c[0]->$gml_coordinates;
       $ip_geolocation[$ip] = $data;
     }
   }

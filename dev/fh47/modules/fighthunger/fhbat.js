@@ -147,11 +147,8 @@ fh_jsAC.prototype.setIdle = function (value) {
 
 
     var theNewParagraph = document.createElement('h3');
-    var theTextOfTheParagraph = document.createTextNode('isIdle: ' + this.isIdle);
-
-    if(map) theTextOfTheParagraph += " - habemus mappa";
-
-    theNewParagraph.appendChild(theTextOfTheParagraph);
+    $txt = 'isIdle: ' + this.isIdle + ( (map) ? " - habemus mappa" : "";
+    theNewParagraph.appendChild(document.createTextNode($txt));
     this.content.appendChild(theNewParagraph);
   
     this.content.appendChild(this.statusMessage);

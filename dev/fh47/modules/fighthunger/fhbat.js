@@ -250,7 +250,13 @@ fh_jsAC.prototype.mapClick = function (click) {
       txtTimeAgo = click['delay'] + ( (click['delay']>1) ? ' seconds' : ' second') + ' ago.';
     }
   }
-  txt = 'A visitor in ' + click['name'] + ', ' + click['contry_name'] + ' clicked to feed a child.';
+  txt = 'A visitor in ' + click['name'] + ', ' + click['contry_name'] + ' clicked to feed a child.' + '<br/>';
+  txt += 'IP: ' + click['IP'] + '<br/>';
+  txt += 'name: ' + click['name'] + '<br/>';
+  txt += 'country_code: ' + click['country_code'] + '<br/>';
+  txt += 'country_name: ' + click['country_name'] + '<br/>';
+  txt += 'longitude: ' + click['longitude'] + '<br/>';
+  txt += 'latitude: ' + click['latitude'] + '<br/>'; 
   txt += '<br/>' + click['IP'] + ', ' + click['data'] + ', ' + click['timestamp'] + '<br/>';
   txt += 'delay: ' + this.i + ' <b>' + click['delay'] + '</b><br/>';
   txt += click['delay'] / 3600 + ' <b>' + txtTimeAgo + '</b>';

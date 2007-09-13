@@ -180,6 +180,7 @@ global $ip_geolocation;
     if($result) {
       $data['result'] = htmlentities($result);
       $result = xml_xml2object($result);
+      $data['resultOBJ'] = print_r($result, true);
       $gml1 = 'gml:featuremember';
       $hostip = $result->$gml1;
       $hostip =  $hostip[0]->hostip[0];
@@ -193,7 +194,7 @@ global $ip_geolocation;
       $gml_coordinates = 'gml:coordinates';
       list($data['longitude'], $data['latitude']) = split(",", $hostip->iplocation[0]->$gml_pointproperty[0]->$gml_point[0]->$gml_coordinates);
       $data['pointproperty'] = $hostip->iplocation[0]->$gml_pointproperty;
-      $data['point']         = $hostip->iplocation[0]->$gml_pointproperty[0]->$gml_point;
+      $data['point']         = $data['pointproperty'][0];
       $data['coordinates']   = $hostip->iplocation[0]->$gml_pointproperty[0]->$gml_point[0]->$gml_coordinates;
       $ip_geolocation[$ip] = $data;
     }

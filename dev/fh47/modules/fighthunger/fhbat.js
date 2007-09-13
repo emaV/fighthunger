@@ -142,16 +142,25 @@ fh_jsAC.prototype.createStatusMessage = function() {
 }
 
 fh_jsAC.prototype.setIdle = function (value) {
-  this.isIdle = true;
-  var theNewParagraph = document.createElement('h3');
-  var theTextOfTheParagraph = document.createTextNode('isIdle now');
-  theNewParagraph.appendChild(theTextOfTheParagraph);
-  this.content.appendChild(theNewParagraph);
-
-  this.content.appendChild(this.statusMessage);
   
-  map_div = document.getElementById('map'); 
-  map_div.appendChild(this.statusMessage);
+  if(this.isIdle <> value) {
+
+
+    var theNewParagraph = document.createElement('h3');
+    var theTextOfTheParagraph = document.createTextNode('isIdle: ' + this.isIdle);
+
+    if(map) theTextOfTheParagraph += " - habemus mappa";
+
+    theNewParagraph.appendChild(theTextOfTheParagraph);
+    this.content.appendChild(theNewParagraph);
+  
+    this.content.appendChild(this.statusMessage);
+  }
+  this.isIdle = value;
+//  map_div = document.getElementById('map'); 
+//  map_div.appendChild(this.statusMessage);
+
+
 }
 
 /**
@@ -165,6 +174,8 @@ fh_jsAC.prototype.setIdle = function (value) {
  */
 fh_jsAC.prototype.process = function () {
   if(this.clicks && this.clicks.length>0) {
+
+    this.setIdle(false);
     
 //    alert('queue has now: ' + this.clicks.length);
 
@@ -173,6 +184,8 @@ fh_jsAC.prototype.process = function () {
     this.mapClick(click);
     
   } else {
+    this.setIdle(true);
+    
 
 //    alert('queue empty');
     

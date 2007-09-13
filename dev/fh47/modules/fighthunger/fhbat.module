@@ -178,6 +178,7 @@ global $ip_geolocation;
     $url = "http://api.hostip.info/?ip=$ip&position=true";
     $result  = fh_file_get_contents($url);
     if($result) {
+      $data['ip'] = $ip;
 //      $data['result'] = htmlentities($result);
       $result = xml_xml2object($result);
 //      $data['resultOBJ'] = print_r($result, true);

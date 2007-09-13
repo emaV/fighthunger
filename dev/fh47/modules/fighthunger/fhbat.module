@@ -197,7 +197,7 @@ global $ip_geolocation;
       $gml_pointproperty = $hostip->iplocation[0]->$gml_pointproperty;
       $gml_point         = $gml_pointproperty[0]->$gml_point;
       $gml_coordinates   = $gml_point[0]->$gml_coordinates;
-      list($data['longitude'], $data['latitude']) = split(",", $gml_point[0]->$gml_coordinates;
+      list($data['longitude'], $data['latitude']) = split(",", $gml_point[0]->$gml_coordinates);
       
       $ip_geolocation[$ip] = $data;
     }

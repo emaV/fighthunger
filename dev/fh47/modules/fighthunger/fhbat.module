@@ -97,7 +97,7 @@ function fhbat_clicks($timestamp=-1) {
     if($timestamp==-1) $timestamp = $click['timestamp'];
     if($click['timestamp'] < $timestamp) $timestamp = $click['timestamp'];
     
-    $data = _fhbat_hostip_get($ip);
+    $data = fhbat_geolocateIP($ip);
     
     watchdog('fhbat', 'DATA: ' . print_r($data, true));
 /*
@@ -142,7 +142,13 @@ function fhbat_clicks($timestamp=-1) {
  *    $ip IP number 
  * @return 
  *    $data array with location info (name, country, lat and lon)
- *      
+ * 
+ */
+ 
+/**
+ * Get from hostip.info
+ *   
+  
 Object ( 
   [gml:description] => This is the Hostip Lookup Service 
   [gml:name] => hostip 
@@ -166,8 +172,56 @@ Object (
  *
  */
  
+function _fhbat_geolocateIP_hostip($ip) {
 
-function _fhbat_hostip_get($ip) {
+  $url = "http://api.hostip.info/?ip=$ip&position=true";
+  $result  = fh_file_get_contents($url);
+  if($result) {
+    $data['ip'] = $ip;
+//      $data['result'] = htmlentities($result);
+    $result = xml_xml2object($result);
+//      $data['resultOBJ'] = print_r($result, true);
+    $gml_featuremember = 'gml:featuremember';
+    $hostip = $result->$gml_featuremember;
+    $hostip =  $hostip[0]->hostip[0];
+  
+    $data['country_name']  = $hostip->countryname;
+    $data['country_code']  = $hostip->countryabbrev;
+    $gml_name = 'gml:name';
+    $data['name'] = $hostip->$gml_name;
+    // tricky get la and lon
+    $gml_pointproperty = 'gml:pointproperty';
+    $gml_point = 'gml:point';
+    $gml_coordinates = 'gml:coordinates';
+      
+/*
+      $data['pointproperty'] = $hostip->iplocation[0]->$gml_pointproperty;
+      $data['point']         = $data['pointproperty'][0]->$gml_point;
+      $data['coordinates']   = $data['point'][0]->$gml_coordinates;
+*/      
+    $gml_pointproperty = $hostip->iplocation[0]->$gml_pointproperty;
+    $gml_point         = $gml_pointproperty[0]->$gml_point;
+    $gml_coordinates   = $gml_point[0]->$gml_coordinates;
+    
+    list($data['longitude'], $data['latitude']) = split(",", $gml_coordinates);
+  }
+  return $data;
+} 
+ 
+/**
+ * Get from iplocatethis.com
+ *
+ *
+
+http://www.iplocatethis.com/location.php?ip=83.241.186.194
+<iplocatethis>
+	<marker lat="59.3333" lng="18.05" notes="83.241.186.194 is located here!"  c1="Sweden" c2="26" c3="Stockholm (26)" c4="" c5="59.3333" c6="18.05" c7="" c8="" />
+</iplocatethis>
+
+ *   
+ */  
+
+function fhbat_geolocateIP($ip) {
 global $ip_geolocation;
 
 //  if($ip_geolocation[$ip]) {
@@ -175,39 +229,8 @@ global $ip_geolocation;
     $data = $ip_geolocation[$ip];
     $data['cached'] = true;
   } else {
-    $url = "http://api.hostip.info/?ip=$ip&position=true";
-    $result  = fh_file_get_contents($url);
-    if($result) {
-      $data['ip'] = $ip;
-//      $data['result'] = htmlentities($result);
-      $result = xml_xml2object($result);
-//      $data['resultOBJ'] = print_r($result, true);
-      $gml_featuremember = 'gml:featuremember';
-      $hostip = $result->$gml_featuremember;
-      $hostip =  $hostip[0]->hostip[0];
-    
-      $data['country_name']  = $hostip->countryname;
-      $data['country_code']  = $hostip->countryabbrev;
-      $gml_name = 'gml:name';
-      $data['name'] = $hostip->$gml_name;
-      // tricky get la and lon
-      $gml_pointproperty = 'gml:pointproperty';
-      $gml_point = 'gml:point';
-      $gml_coordinates = 'gml:coordinates';
-      
-/*
-      $data['pointproperty'] = $hostip->iplocation[0]->$gml_pointproperty;
-      $data['point']         = $data['pointproperty'][0]->$gml_point;
-      $data['coordinates']   = $data['point'][0]->$gml_coordinates;
-*/      
-      $gml_pointproperty = $hostip->iplocation[0]->$gml_pointproperty;
-      $gml_point         = $gml_pointproperty[0]->$gml_point;
-      $gml_coordinates   = $gml_point[0]->$gml_coordinates;
-      
-      list($data['longitude'], $data['latitude']) = split(",", $gml_coordinates);
-      
-      $ip_geolocation[$ip] = $data;
-    }
+    $data = _fhbat_geolocateIP_hostip($ip);
+    $ip_geolocation[$ip] = $data;
   }
   // shorten the cache
   if(count($ip_geolocation)>=25) array_shift($ip_geolocation);

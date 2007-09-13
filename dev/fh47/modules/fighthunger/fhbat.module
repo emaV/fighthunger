@@ -178,11 +178,11 @@ global $ip_geolocation;
     $url = "http://api.hostip.info/?ip=$ip&position=true";
     $result  = fh_file_get_contents($url);
     if($result) {
-      $data['result'] = htmlentities($result);
+//      $data['result'] = htmlentities($result);
       $result = xml_xml2object($result);
-      $data['resultOBJ'] = print_r($result, true);
-      $gml1 = 'gml:featuremember';
-      $hostip = $result->$gml1;
+//      $data['resultOBJ'] = print_r($result, true);
+      $gml_featuremember = 'gml:featuremember';
+      $hostip = $result->$gml_featuremember;
       $hostip =  $hostip[0]->hostip[0];
     
       $data['country_name']  = $hostip->countryname;
@@ -194,10 +194,11 @@ global $ip_geolocation;
       $gml_point = 'gml:point';
       $gml_coordinates = 'gml:coordinates';
       
+/*
       $data['pointproperty'] = $hostip->iplocation[0]->$gml_pointproperty;
       $data['point']         = $data['pointproperty'][0]->$gml_point;
       $data['coordinates']   = $data['point'][0]->$gml_coordinates;
-      
+*/      
       $gml_pointproperty = $hostip->iplocation[0]->$gml_pointproperty;
       $gml_point         = $gml_pointproperty[0]->$gml_point;
       $gml_coordinates   = $gml_point[0]->$gml_coordinates;

@@ -160,7 +160,7 @@ Object (
                       [0] => stdClass Object ( 
                           [gml:pointproperty] => Array ( 
                               [0] => stdClass Object ( 
-                                  [c] => Array ( 
+                                  [gml:point] => Array ( 
                                       [0] => stdClass Object ( 
                                           [gml:coordinates] => 12.45,41.9 ) ) ) ) ) ) ) ) ) ) )
  *
@@ -189,10 +189,12 @@ global $ip_geolocation;
       $gml_name = 'gml:name';
       $data['name'] = $hostip->$gml_name;
       $gml_pointproperty = 'gml:pointproperty';
+      $gml_point = 'gml:point';
       $gml_coordinates = 'gml:coordinates';
-      list($data['longitude'], $data['latitude']) = split(",", $hostip->iplocation[0]->$gml_pointproperty[0]->c[0]->$gml_coordinates);
-      $data['coordinates'] = $hostip->iplocation[0]->$gml_pointproperty[0]->c[0]->$gml_coordinates;
+      list($data['longitude'], $data['latitude']) = split(",", $hostip->iplocation[0]->$gml_pointproperty[0]->$gml_point[0]->$gml_coordinates);
       $data['pointproperty'] = $hostip->iplocation[0]->$gml_pointproperty;
+      $data['point']         = $hostip->iplocation[0]->$gml_pointproperty->$gml_point;
+      $data['coordinates']   = $hostip->iplocation[0]->$gml_pointproperty[0]->$gml_point[0]->$gml_coordinates;
       $ip_geolocation[$ip] = $data;
     }
   }

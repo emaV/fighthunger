@@ -170,13 +170,15 @@ Object (
 function _fhbat_hostip_get($ip) {
 global $ip_geolocation;
 
-  if($ip_geolocation[$ip]) {
+//  if($ip_geolocation[$ip]) {
+  if(false) {
     $data = $ip_geolocation[$ip];
     $data['cached'] = true;
   } else {
     $url = "http://api.hostip.info/?ip=$ip&position=true";
     $result  = fh_file_get_contents($url);
     if($result) {
+      $data['result'] = htmlentities($result);
       $result = xml_xml2object($result);
       $gml1 = 'gml:featuremember';
       $hostip = $result->$gml1;

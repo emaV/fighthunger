@@ -109,7 +109,7 @@ function fh_jsAC(content, button, db) {
   var ac = this;
 
   this.clicks = new Array();
-  this.delay  = 10000;  // delay in millisecond between showing clicks
+  this.delay  = 5000;  // delay in millisecond between showing clicks
 
   this.isIdle = true;
   

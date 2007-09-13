@@ -90,7 +90,7 @@ function fhbat_clicks($timestamp=-1) {
     $sql = "SELECT * FROM wtw_bat_clicks ORDER BY timestamp DESC LIMIT 5";
     $result = db_query($sql);
   }
-watchdog('fhbat', "TIMSTAMP: $timestamp<br/>SQL: $sql");
+
   $geodata = array();
   while($click = db_fetch_array($result)) {
     $ip = $click['IP']; 
@@ -98,6 +98,9 @@ watchdog('fhbat', "TIMSTAMP: $timestamp<br/>SQL: $sql");
     if($click['timestamp'] < $timestamp) $timestamp = $click['timestamp'];
     
     $data = _fhbat_hostip_get($ip);
+    
+    watchdog('fhbat', 'DATA: ' . print_r($data, true));
+/*
     $data = array(
       'country_name' => 'Italy',
       'country_code' => 'IT',
@@ -105,6 +108,7 @@ watchdog('fhbat', "TIMSTAMP: $timestamp<br/>SQL: $sql");
       'longitude' => rand(0, 360) - 180,
       'latitude'  => rand(0, 120) - 60,
     );
+*/
     $geodata[] = array_merge($click, $data);
   }
 
@@ -137,19 +141,8 @@ watchdog('fhbat', "TIMSTAMP: $timestamp<br/>SQL: $sql");
  * @param
  *    $ip IP number 
  * @return 
- *    $data array with location info (name, country, lat and lon) 
- */
-function _fhbat_hostip_get($ip) {
-global $ip_geolocation;
-
-  if($ip_geolocation[$ip]) {
-    $data = $ip_geolocation[$ip];
-    $data['cached'] = true;
-  } else {
-    $url = "http://api.hostip.info/?ip=$ip&position=true";
-    $result  = fh_file_get_contents($url);
-    $result = xml_xml2object($result);
-/*  
+ *    $data array with location info (name, country, lat and lon)
+ *      
 Object ( 
   [gml:description] => This is the Hostip Lookup Service 
   [gml:name] => hostip 
@@ -169,20 +162,35 @@ Object (
                               [0] => stdClass Object ( 
                                   [c] => Array ( 
                                       [0] => stdClass Object ( 
-                                          [gml:coordinates] => 12.45,41.9 ) ) ) ) ) ) ) ) ) ) )  
-*/
-    $gml1 = 'gml:featuremember';
-    $hostip = $result->$gml1;
-    $hostip =  $hostip[0]->hostip[0];
-  
-    $data['country_name']  = $hostip->countryname;
-    $data['country_code']  = $hostip->countryabbrev;
-    $gml1 = 'gml:name';
-    $data['name'] = $hostip->$gml1;
-    $gml1 = 'gml:pointproperty';
-    $gml2 = 'gml:coordinates';
-    list($data['longitude'], $data['latitude']) = split(",", $hostip->iplocation[0]->$gml1[0]->c[0]->$gml2);
-    $ip_geolocation[$ip] = $data;
+                                          [gml:coordinates] => 12.45,41.9 ) ) ) ) ) ) ) ) ) ) )
+ *
+ */
+ 
+
+function _fhbat_hostip_get($ip) {
+global $ip_geolocation;
+
+  if($ip_geolocation[$ip]) {
+    $data = $ip_geolocation[$ip];
+    $data['cached'] = true;
+  } else {
+    $url = "http://api.hostip.info/?ip=$ip&position=true";
+    $result  = fh_file_get_contents($url);
+    if($result) {
+      $result = xml_xml2object($result);
+      $gml1 = 'gml:featuremember';
+      $hostip = $result->$gml1;
+      $hostip =  $hostip[0]->hostip[0];
+    
+      $data['country_name']  = $hostip->countryname;
+      $data['country_code']  = $hostip->countryabbrev;
+      $gml1 = 'gml:name';
+      $data['name'] = $hostip->$gml1;
+      $gml1 = 'gml:pointproperty';
+      $gml2 = 'gml:coordinates';
+      list($data['longitude'], $data['latitude']) = split(",", $hostip->iplocation[0]->$gml1[0]->c[0]->$gml2);
+      $ip_geolocation[$ip] = $data;
+    }
   }
   // shorten the cache
   if(count($ip_geolocation)>=25) array_shift($ip_geolocation);

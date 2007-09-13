@@ -206,7 +206,7 @@ function _fhbat_geolocateIP_hostip($ip) {
     list($data['longitude'], $data['latitude']) = split(",", $gml_coordinates);
   }
   return $data;
-} 
+}
  
 /**
  * Get from iplocatethis.com
@@ -219,7 +219,34 @@ http://www.iplocatethis.com/location.php?ip=83.241.186.194
 </iplocatethis>
 
  *   
- */  
+ **/  
+   
+function _fhbat_geolocateIP_iplocatethis($ip) {
+  $data['ip'] = $ip;
+
+  $url = "http://www.iplocatethis.com/location.php?ip=$ip";
+  $result  = fh_file_get_contents($url);
+  $data['result'] = htmlentities($result);
+  if($result) {
+    // latitude  
+    $pattern = '/lat="([^"]*)"/';
+    preg_match($pattern, $result, $matches);
+    if($matches) $data['latitude'] = $matches[1];
+    // longitude  
+    $pattern = '/lng="([^"]*)"/';
+    preg_match($pattern, $result, $matches);
+    if($matches) $data['longitude'] = $matches[1];
+    // country  
+    $pattern = '/c1="([^"]*)"/';
+    preg_match($pattern, $result, $matches);
+    if($matches) $data['country_name'] = $matches[1];
+    // country  
+    $pattern = '/c3="([^"]*)"/';
+    preg_match($pattern, $result, $matches);
+    if($matches) $data['name'] = $matches[1];
+  }
+  return $data;
+}
 
 function fhbat_geolocateIP($ip) {
 global $ip_geolocation;
@@ -229,7 +256,8 @@ global $ip_geolocation;
     $data = $ip_geolocation[$ip];
     $data['cached'] = true;
   } else {
-    $data = _fhbat_geolocateIP_hostip($ip);
+//    $data = _fhbat_geolocateIP_hostip($ip);
+    $data = _fhbat_geolocateIP_iplocatethis($ip);
     $ip_geolocation[$ip] = $data;
   }
   // shorten the cache

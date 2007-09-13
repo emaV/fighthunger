@@ -143,7 +143,7 @@ fh_jsAC.prototype.createStatusMessage = function() {
 
 fh_jsAC.prototype.setIdle = function (value) {
   
-  if(this.isIdle <> value) {
+  if(this.isIdle != value) {
 
 
     var theNewParagraph = document.createElement('h3');

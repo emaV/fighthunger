@@ -79,24 +79,26 @@ function fhbat_menu($may_cache) {
  * @param   $country
  * @return  provinces arrays js filtered
  */
-function fhbat_clicks($timestamp=-1) {
+function fhbat_clicks($timestamp_old=-1) {
 
 //  if($ip_geolocation)
 //  $provinces = (array)_fhlocation_country_provinces($country);
-  if($timestamp>0) {
+  if($timestamp_old > 0) {
     $sql = "SELECT * FROM wtw_bat_clicks WHERE timestamp > %d ORDER BY timestamp DESC";
-    $result = db_query($sql, $timestamp);
+    $result = db_query($sql, $timestamp_old);
   } else {
     $sql = "SELECT * FROM wtw_bat_clicks ORDER BY timestamp DESC LIMIT 5";
     $result = db_query($sql);
   }
+  $timestamp_new = $timestamp_old;
 
   $geodata = array();
   while($click = db_fetch_array($result)) {
     $ip = $click['IP']; 
-    if($timestamp==-1) $timestamp = $click['timestamp'];
-    if($click['timestamp'] < $timestamp) $timestamp = $click['timestamp'];
-    
+    if($timestamp_old == -1) $timestamp_old = $click['timestamp'];
+    if($timestamp_old > $click['timestamp']) $timestamp_old = $click['timestamp'];
+    if($timestamp_new < $click['timestamp']) $timestamp_new = $click['timestamp'];
+   
     $data = fhbat_geolocateIP($ip);
     
     watchdog('fhbat', 'DATA: ' . print_r($data, true));
@@ -124,9 +126,9 @@ function fhbat_clicks($timestamp=-1) {
 */
   if($geodata) $geodata = array_reverse($geodata);
   $result = array(
-    'timestamp'    => time(),
-    'oldtimestamp' => $timestamp,
-    'clicks'       => $geodata,
+    'timestamp_new' => $timestamp_new,
+    'timestamp_old' => $timestamp_old,
+    'clicks'        => $geodata,
   );
   print drupal_to_js($result);
  
@@ -271,47 +273,8 @@ global $ip_geolocation;
  */ 
 function fhbat_map() {
 
-  // Get last then clicks
-  $sql = "SELECT * FROM wtw_bat_clicks ORDER BY timestamp DESC LIMIT 10";
-  $result = db_query($sql);
-  
-/*
-  // Get geolocation from hostip.info
-  // http://api.hostip.info/?ip=12.215.42.19&position=true
-  while($click = db_fetch_array($result)) {
-    $ip = $click['IP']; 
-    $data = _fhbat_hostip_get($ip);
-    
-    $out .= "<h3>$ip</h3>";
-    $out .= $data['name'] . ' - ' . $data['country_name'] . ' - ' . $data['longitude'] . ', ' . $data['latitude'] . '<br/>' . print_r($data, true);
-  }
-*/
   drupal_add_js(drupal_get_path('module', 'fhbat') . '/fhbat.js');
   $ajax_url = url('fhbat_clicks', NULL,  NULL, TRUE);
-/*  
-  $out .='<div id="'.$gmap['id'].'" style="'.$style.'" class="gmap-map"></div>
-          <script type="text/javascript">
-          //<![CDATA[
-          //initialize global gmap variables
-          var  geocoder = null;
-          var mycontrol=null;
-          var mytypecontrol=null;
-          var '.$gmap['id'].'=null;
-          var gxmarkerjs='.$gxmarkerjs.';
-          var gmapMarkerLocation="/'.variable_get('gmap_markerfiles',drupal_get_path('module', 'gmap') .'/markers').'";
-          var markerlink='.variable_get('gmap_on_click',0).';
-          var bounds = new GLatLngBounds();
-          addLoadEvent(gmap_init);  
-          addLoadEvent(gmap_load_'.$gmap['id'].');
-
-         
-            function gmap_load_'.$gmap['id'].'() {
-               '.$gmap['id'].' = new GMap2($("'.$gmap['id'].'"));
-                 geocoder = new GClientGeocoder();
-               ';
-*/
-
-
   
   $gmap_array =array(
     'id'        => 'map',
@@ -325,18 +288,13 @@ function fhbat_map() {
     'span'      => 0,
     'zoom'      => 2,
   );
-/*
-  $gmap_array['latitude']  = 0;
-  $gmap_array['longitude'] = 0;
-//  $span = 0.1;
-  $gmap_array['span'] = 0;
-  $gmap_array['zoom'] = 1;
-*/
   $out .= gmap_draw_map($gmap_array);
 
   $out .= "<div id='fhbat_map' fh_clicks='$ajax_url'>";
 //  $out .= '<button onclick="refreshMap();" id="fhbat_button">refresh</button>';
   $out .= '</div>';
+  $link = '<a href="http://www.iplocatethis.com">iplocatethis.com</a>';
+  $out .= "<p style='text-align: right'>Powered by $link</p>";
   
   return $out;
 }

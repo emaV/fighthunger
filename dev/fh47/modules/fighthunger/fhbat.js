@@ -29,77 +29,20 @@ function camelize(property) {
   return camelized;
 }
 
-  
 function clicksMap() {
 //  alert("Hello 1");
 
   content = document.getElementById('fhbat_map');
   button  = document.getElementById('fhbat_button');
-/*
-  var theNewParagraph = document.createElement('p');
-  var theTextOfTheParagraph = document.createTextNode('Content width: ' + content.clientWidth);
-  theNewParagraph.appendChild(theTextOfTheParagraph);
-  content.appendChild(theNewParagraph);
-*/
+
   uri = content.getAttribute("fh_clicks");
   cDB = new fh_cDB(uri);
   jsAC = new fh_jsAC(content, button, cDB);
   
-//  alert("Hello 2");
+  // redim map
+  $("map").style['width'] = content.clientWidth + 'px';
 
   jsAC.initialize();
-/*
-  var statusMessage = document.createElement("div");
-  statusMessage.setAttribute("id", "qwer");
-  statusMessage.setAttribute("class", "button");
-
-  statusMessage.innerHTML = '<p><b>Waiting&hellip;</b></p>';
-/*  
-statusMessage.style["color"] = "#006699";
-statusMessage.style["backgroundColor"] = "#ff6600";
-
-  
-  stylesCSS = {
-    "padding": "10px 15px 0px",
-    "position": "absolute",
-    "top"  : "50px",
-    "left": String(Math.ceil((content.clientWidth - statusMessage.clientWidth) / 2)) + "px"
-  };
-
-setStyle(statusMessage, stylesCSS);
-
-/*
-    "opacity": "0"
-  with (statusMessage.style) {
-//    color = '#006699';
-//    'background-color' = '#006699';
-  };
-  */
-/*
-   with (statusMessage.style) {
-    "position" = "absolute";
-    "opacity"= "0";
-    "border-width"= "1px";
-    "border-style"= "solid";
-    "border-color"= "#ff6600";
-    "padding"="2px 15px";
-    "background-color"= "#ffffff";
-    "color"= "#006699";
-    "bottom"= "52px";
-  });
-
-  content.appendChild(statusMessage);
-*/ 
-//    "left": String(Math.ceil((content.clientWidth - statusMessage.getWidth()) / 2)) + "px"
-  
-//  content.appendChild(statusMessage);
-
-//  alert("Hello 3");
-
-//  if(province.selectedIndex<0)  ac.populateProvince();
-//  if(country.selectedIndex>0 && province.selectedIndex<0)  ac.populateProvince();
-
-//  map.createMap();
 }
 
 /**
@@ -111,34 +54,27 @@ function fh_jsAC(content, button, db) {
   this.clicks = new Array();
   this.delay  = 5000;  // delay in millisecond between showing clicks
 
+  // status
   this.isIdle = true;
-  
   this.isRefreshing = false;
   this.isMapping = false;
+  this.isWaiting = true;
   
+  // waiting message
   this.opacity = 0;
   this.swirl = null;
+  this.statusMessage = null;
   
-  this.isWaiting = true;
+  // elements
   this.content = content;
   this.button  = button;
   this.fhGMarker = null;
   this.db = db;
-//  this.button.onclick = function () { ac.process(); };
-  
-  this.statusMessage = null;
 };
 
 fh_jsAC.prototype.swirlStatusMessage = function() {
   this.opacity++;
   this.opacity = (this.opacity) % 2;
-
-  styleOpacity = this.opacity - (this.opacity % 5);
-  styleOpacity = ( this.opacity - (this.opacity % 5) ) * 2 ;
-  styleOpacity = this.opacity - ( ( this.opacity - (this.opacity % 5) ) * 2 );
-  styleOpacity = ( this.opacity - ( ( this.opacity - (this.opacity % 5) ) * 2 ) ) / 10;
-//  this.statusMessage.style.opacity = styleOpacity;
-//  styleOpacity = 1 - ( this.opacity - ( ( this.opacity - (this.opacity % 5) ) * 2 ) ) / 10;
   this.statusMessage.style["opacity"] = 1 - this.opacity / 2;
 }
 
@@ -163,12 +99,14 @@ fh_jsAC.prototype.createStatusMessage = function() {
 fh_jsAC.prototype.setIdle = function (value) {
   
   if(this.isIdle != value) {
+
     txt = 'CHANGE: ';
     var theNewParagraph = document.createElement('h3');
     txt += 'isIdle: ' + this.isIdle + '#' + value ;
     txt += ( (map) ? " - habemus mappa" : " - no habemus" );
     
     if(map) {
+      txt += "MAP: " + map.Ta.width + " - " + content.clientWidth;
       if(value) {
         txt += ' # MOSTRA waiting!';
         this.opacity = 0;
@@ -182,20 +120,14 @@ fh_jsAC.prototype.setIdle = function (value) {
         this.statusMessage.style.display = "none";
       }
     }
+/*
     theNewParagraph.appendChild(document.createTextNode(txt));
     this.content.appendChild(theNewParagraph);
+*/
   } else {
     txt = '';
   }
   this.isIdle = value;
-
-//   this.createStatusMessage();
-  
-//    this.content.appendChild(this.statusMessage);
-
-//  map_div = document.getElementById('map'); 
-//  map_div.appendChild(this.statusMessage);
-
 
 }
 
@@ -209,29 +141,16 @@ fh_jsAC.prototype.setIdle = function (value) {
  *     -> shift the data and process  
  */
 fh_jsAC.prototype.process = function () {
+
   if(this.clicks && this.clicks.length>0) {
-
     this.setIdle(false);
-    
-//    alert('queue has now: ' + this.clicks.length);
-
-    // map clicks
     click = this.clicks.shift();
     this.mapClick(click);
-    
   } else {
     this.setIdle(true);
-    
-
-//    alert('queue empty');
-    
-    // reload the queue
     this.refreshClicks();
-    
   }
-
 }
-
 
 /**
  * Start the engine:
@@ -246,9 +165,6 @@ fh_jsAC.prototype.initialize = function () {
   self = this;
   setInterval(function() { self.process(); } , this.delay);
   
-//  this.refreshClicks();
-  
-//  this.setIdle(true);
 }
 
 /**
@@ -256,24 +172,12 @@ fh_jsAC.prototype.initialize = function () {
  */
 fh_jsAC.prototype.refreshClicks = function () {
 
-
   var myTime = new Date();
-  
-  // call DB object
-//  this.db.owner = this;
-//  alert("refreshClicks: Refreshing? " + this.isRefreshing);
   
   if(!this.isRefreshing) {
     this.isRefreshing = true;
     this.db.getClicks(this.timestamp);
   }
-  
-/*  
-  var theNewParagraph = document.createElement('p');
-  var theTextOfTheParagraph = document.createTextNode('Some content at ' + myTime.toString() + ': refreshClicks # ' + txt);
-  theNewParagraph.appendChild(theTextOfTheParagraph);
-  content.appendChild(theNewParagraph);
-*/ 
 }
 
 /**
@@ -282,13 +186,10 @@ fh_jsAC.prototype.refreshClicks = function () {
 
 fh_jsAC.prototype.mapClick = function (click) {
 
-//  alert('Click is ' + click['name']);
-
-  //delay = click['delay'];
-
   lat = click['latitude'];
   lon = click['longitude'];
-// seet text messagge with time
+
+  // seet text messagge with time
   if( (click['delay'] / 3600)>1 ) {
     txtTimeAgo = 'more than 1 hour ago.';
   } else {
@@ -299,7 +200,8 @@ fh_jsAC.prototype.mapClick = function (click) {
       txtTimeAgo = click['delay'] + ( (click['delay']>1) ? ' seconds' : ' second') + ' ago.';
     }
   }
-  txt  = 'A visitor in ' + click['name'] + ', ' + click['country_name'] + ' clicked to feed a child.' + '<br/>';
+  txt  = 'A visitor in ' + click['name'] + ', ' + click['country_name'] + '<br/>';
+  txt += ' clicked to feed a child.' + '<br/>';
   txt += '<b>' + txtTimeAgo + '</b>';
 
 /*
@@ -321,22 +223,9 @@ fh_jsAC.prototype.mapClick = function (click) {
     map.removeOverlay(this.fhGMarker);
     this.fhGMarker = null;
   }
-//  this.fhGmarker = createGMarker(new GLatLng(lat,lon),txt,url,tit,'');
   this.fhGMarker = new GMarker(new GLatLng(lat,lon));
   map.addOverlay(this.fhGMarker);
   this.fhGMarker.openInfoWindowHtml(txt);
-//  map.panTo(new GLatLon(lat, lon));
-  
-/*
-  var theNewParagraph = document.createElement('p');
-//  var theTextOfTheParagraph = document.createTextNode('IP clicks: ' + click['latitude'] + '<br/>' + click['timestamp']);
-  var theTextOfTheParagraph = document.createTextNode('mapClick: ' + this.i);
-  theNewParagraph.appendChild(theTextOfTheParagraph);
-  content.appendChild(theNewParagraph);
-/*
-  pane = map.getPane(G_MAP_MAP_PANE);
-  pane.appendChild(theNewParagraph);
-*/
   
 }
 
@@ -348,14 +237,10 @@ fh_jsAC.prototype.found = function (result) {
   // get clicks array
   newClicks = result['clicks'];
 
-  
   if (newClicks) {
   
-//    alert("found: " + newClicks.length );
-  
-  
-    startTime = result['oldtimestamp'];
-    endTime   = result['timestamp'];
+    startTime = result['timestamp_old'];
+    endTime   = result['timestamp_new'];
     delay = 0;
     
     for(j=0; j < newClicks.length; j++) {
@@ -363,33 +248,24 @@ fh_jsAC.prototype.found = function (result) {
       newClicks[j]['delay'] = endTime - timestamp + j * (this.delay / 1000);
       
       this.clicks.push(newClicks[j]);
-
-//      var self = this;
-//      setTimeout(function() { self.mapClick(); } , delay);
-
-  var theNewParagraph = document.createElement('p');
-  ztxt  = endTime + ' - ' + timestamp + ' - ' + delay;
-  ztxt += ' <i>' + this.clicks + '</i>';
-  
-//  var theTextOfTheParagraph = document.createTextNode('IP clicks: ' + click['latitude'] + '<br/>' + click['timestamp']);
-  var theTextOfTheParagraph = document.createTextNode('ZZZ: ' + j + ' -<b>' +ztxt + '</b> ' + this.clicks[j]['delay'] );
-  theNewParagraph.appendChild(theTextOfTheParagraph);
-  content.appendChild(theNewParagraph);
-      
+/*
+      var theNewParagraph = document.createElement('p');
+      ztxt  = endTime + ' - ' + timestamp + ' - ' + newClicks[j]['delay'];
+      var theTextOfTheParagraph = document.createTextNode('ZZZ: ' + j + ' -<b>' +ztxt + '</b> ' + this.clicks[j]['delay'] );
+      theNewParagraph.appendChild(theTextOfTheParagraph);
+      content.appendChild(theNewParagraph);
+*/      
     }
   
-  } else {
-//    alert("Hello no clicks found.");
   }
   this.isRefreshing = false;
-
 }
 
 /**
  * A clicks DataBase object
  */
 function fh_cDB(uri) {
-  this.uri = uri;
+  this.uri   = uri;
   this.delay = 300;
   this.cache = {};
   this.timestamp = -1; 
@@ -401,16 +277,11 @@ function fh_cDB(uri) {
 fh_cDB.prototype.getClicks = function() {
 
   var db = this;
-
   this.timer = setTimeout(function() {
     db.transport = HTTPGet(db.uri + '/' + encodeURIComponent(db.timestamp) , db.receive, db);
   }, this.delay);
 
-//  alert("Run getClicks: " + db.timestamp + ' # ' + this.owner.isRefreshing);
-  
-//  db.receive()
 }
-
 
 /**
  * HTTP callback function. Passes suggestions to the autocomplete object
@@ -421,41 +292,8 @@ fh_cDB.prototype.receive = function(string, xmlhttp, acdb) {
     return alert('An HTTP error '+ xmlhttp.status +' occured.\n'+ acdb.uri);
   }
 
-//  alert("Hello receive: " + string);
-
-
   // Parse back result
   var result = parseJson(string);
-  acdb.timestamp = result['timestamp'];
-  
-//  if (typeof matches['status'] == 'undefined' || matches['status'] != 0) {
-//    acdb.cache[acdb.searchString] = matches;
-    acdb.owner.found(result);
-//  }
-}
-
-
-function dump(arr,level) {
-  var dumped_text = "";
-  if(!level) level = 0;
-  
-  //The padding given at the beginning of the line.
-  var level_padding = "";
-  for(var j=0;j<level+1;j++) level_padding += " ";
-  
-  if(typeof(arr) == 'object') { //Array/Hashes/Objects
-    for(var i=0;i<arr.length;i++) {
-      var value = arr[i];
-      
-      if(typeof(value) == 'object') { //If it is an array,
-        dumped_text += level_padding + "'" + i + "' ==> ";
-        dumped_text += "{\n" + dump(value,level+1) + level_padding + "}\n";
-      } else {
-        dumped_text += level_padding + "'" + i + "' ==> \"" + value + "\"\n";
-      }
-    }
-  } else { //Stings/Chars/Numbers etc.
-    dumped_text = "===>"+arr+"<===("+typeof(arr)+")\n";
-  }
-  return dumped_text;
+  acdb.timestamp = result['timestamp_new'];
+  acdb.owner.found(result);
 }

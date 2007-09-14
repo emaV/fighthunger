@@ -245,7 +245,11 @@ function _fhbat_geolocateIP_iplocatethis($ip) {
     // country  
     $pattern = '/c3="([^"]*)"/';
     preg_match($pattern, $result, $matches);
-    if($matches) $data['name'] = $matches[1];
+    if($matches) {
+      $name =  $matches[1];
+      preg_match('/(.*) \(/', $name, $matches);
+      $data['name'] = $matches[1];
+    } 
   }
   return $data;
 }

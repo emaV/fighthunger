@@ -35,12 +35,12 @@ function clicksMap() {
 
   content = document.getElementById('fhbat_map');
   button  = document.getElementById('fhbat_button');
-
+/*
   var theNewParagraph = document.createElement('p');
   var theTextOfTheParagraph = document.createTextNode('Content width: ' + content.clientWidth);
   theNewParagraph.appendChild(theTextOfTheParagraph);
   content.appendChild(theNewParagraph);
-
+*/
   uri = content.getAttribute("fh_clicks");
   cDB = new fh_cDB(uri);
   jsAC = new fh_jsAC(content, button, cDB);
@@ -116,44 +116,83 @@ function fh_jsAC(content, button, db) {
   this.isRefreshing = false;
   this.isMapping = false;
   
+  this.opacity = 0;
+  this.swirl = null;
+  
   this.isWaiting = true;
   this.content = content;
   this.button  = button;
   this.fhGMarker = null;
   this.db = db;
-  this.button.onclick = function () { ac.process(); };
+//  this.button.onclick = function () { ac.process(); };
   
   this.statusMessage = null;
 };
 
+fh_jsAC.prototype.swirlStatusMessage = function() {
+  this.opacity++;
+  this.opacity = (this.opacity) % 2;
+
+  styleOpacity = this.opacity - (this.opacity % 5);
+  styleOpacity = ( this.opacity - (this.opacity % 5) ) * 2 ;
+  styleOpacity = this.opacity - ( ( this.opacity - (this.opacity % 5) ) * 2 );
+  styleOpacity = ( this.opacity - ( ( this.opacity - (this.opacity % 5) ) * 2 ) ) / 10;
+//  this.statusMessage.style.opacity = styleOpacity;
+//  styleOpacity = 1 - ( this.opacity - ( ( this.opacity - (this.opacity % 5) ) * 2 ) ) / 10;
+  this.statusMessage.style["opacity"] = 1 - this.opacity / 2;
+}
+
 fh_jsAC.prototype.createStatusMessage = function() {
-  this.statusMessage = document.createElement("div");
-  this.statusMessage.setAttribute("id", "fhbat_StatusMessage");
-  this.statusMessage.setAttribute("class", "button");
-  this.statusMessage.innerHTML = '<p><b>Waiting&hellip;</b></p>';
+  new_statusMessage = document.createElement("div");
+  new_statusMessage.setAttribute("id", "fhbat_StatusMessage");
+  new_statusMessage.setAttribute("class", "button");
+  new_statusMessage.innerHTML = '<p><b>Waiting&hellip;</b></p>';
   stylesCSS = {
-    "padding": "10px 15px 0px",
-    "position": "absolute",
-    "top"  : "50px",
-    "left" : String(Math.ceil((this.content.clientWidth - this.statusMessage.clientWidth) / 2)) + "px"
+    "padding"  : "10px 15px 0px",
+    "position" : "relative",
+    "bottom"   : "90px",
+    "left"     : "10px",
   };
-  setStyle(this.statusMessage, stylesCSS);
-//  this.statusMessage = statusMessageN;
+  setStyle(new_statusMessage, stylesCSS);
+  new_statusMessage.style.display = "none";
+  
+  this.content.appendChild(new_statusMessage);
+  this.statusMessage = document.getElementById('fhbat_StatusMessage');
 }
 
 fh_jsAC.prototype.setIdle = function (value) {
   
   if(this.isIdle != value) {
-
-
+    txt = 'CHANGE: ';
     var theNewParagraph = document.createElement('h3');
-    $txt = 'isIdle: ' + this.isIdle + ( (map) ? " - habemus mappa" : "" );
-    theNewParagraph.appendChild(document.createTextNode($txt));
+    txt += 'isIdle: ' + this.isIdle + '#' + value ;
+    txt += ( (map) ? " - habemus mappa" : " - no habemus" );
+    
+    if(map) {
+      if(value) {
+        txt += ' # MOSTRA waiting!';
+        this.opacity = 0;
+        this.statusMessage.style.display = "inline";
+        self = this;
+        this.swirl = setInterval(function() { self.swirlStatusMessage(); } , 500);
+//        this.swirl = setInterval(this.swirlStatusMessage, 100);
+      } else {
+        txt += ' # NASCONDI waiting!';
+        clearInterval(this.swirl);
+        this.statusMessage.style.display = "none";
+      }
+    }
+    theNewParagraph.appendChild(document.createTextNode(txt));
     this.content.appendChild(theNewParagraph);
-  
-    this.content.appendChild(this.statusMessage);
+  } else {
+    txt = '';
   }
   this.isIdle = value;
+
+//   this.createStatusMessage();
+  
+//    this.content.appendChild(this.statusMessage);
+
 //  map_div = document.getElementById('map'); 
 //  map_div.appendChild(this.statusMessage);
 
@@ -200,9 +239,9 @@ fh_jsAC.prototype.process = function () {
  * 2 - start the interval queue check process  
  */
 fh_jsAC.prototype.initialize = function () {
-  this.createStatusMessage();
 
   this.db.owner = this;
+  this.createStatusMessage();
 
   self = this;
   setInterval(function() { self.process(); } , this.delay);
@@ -288,6 +327,7 @@ fh_jsAC.prototype.mapClick = function (click) {
   this.fhGMarker.openInfoWindowHtml(txt);
 //  map.panTo(new GLatLon(lat, lon));
   
+/*
   var theNewParagraph = document.createElement('p');
 //  var theTextOfTheParagraph = document.createTextNode('IP clicks: ' + click['latitude'] + '<br/>' + click['timestamp']);
   var theTextOfTheParagraph = document.createTextNode('mapClick: ' + this.i);

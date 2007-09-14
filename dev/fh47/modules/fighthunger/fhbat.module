@@ -335,9 +335,8 @@ function fhbat_map() {
   $out .= gmap_draw_map($gmap_array);
 
   $out .= "<div id='fhbat_map' fh_clicks='$ajax_url'>";
-  $out .= '<button onclick="refreshMap();" id="fhbat_button">refresh</button>';
+//  $out .= '<button onclick="refreshMap();" id="fhbat_button">refresh</button>';
   $out .= '</div>';
-
   
   return $out;
 }

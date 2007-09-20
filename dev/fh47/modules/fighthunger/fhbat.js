@@ -106,7 +106,7 @@ fh_jsAC.prototype.setIdle = function (value) {
     txt += ( (map) ? " - habemus mappa" : " - no habemus" );
     
     if(map) {
-      txt += "MAP: " + map.Ta.width + " - " + content.clientWidth;
+//      txt += "MAP: " + map.Ta.width + " - " + content.clientWidth;
       if(value) {
         txt += ' # MOSTRA waiting!';
         this.opacity = 0;

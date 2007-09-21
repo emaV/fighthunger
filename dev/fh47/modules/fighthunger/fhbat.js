@@ -245,7 +245,7 @@ fh_jsAC.prototype.found = function (result) {
     
     for(j=0; j < newClicks.length; j++) {
       timestamp = newClicks[j]['timestamp'];
-      newClicks[j]['delay'] = endTime - timestamp + j * (this.delay / 1000);
+      newClicks[j]['delay'] = endTime - timestamp + j * (this.delay / 1000) + 2;
       
       this.clicks.push(newClicks[j]);
 /*

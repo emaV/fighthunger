@@ -60,6 +60,12 @@ function fhbat_menu($may_cache) {
       'callback' => 'fhbat_map',
       'access'   => true,
     );
+    $items[] = array(
+      'path'     => 'SpareAClick',
+      'callback' => 'fhbat_SpareAClick',
+      'access'   => true,
+      'type' => MENU_CALLBACK
+    );
 
     // Ajax callback
     $items[] = array(
@@ -409,8 +415,70 @@ function theme_fhbat_banner_list($tid, $banner_exclude = 0) {
   return $output;
 }
 
+
 /**
- * After click action
+ * After click action GET
+ * redirect to banner/nid 
+ */
+function fhbat_SpareAClick() {
+global $base_url;
+global $user;
+
+  $bid = 2;
+  $validation_type = 'facebook';
+  $data = '';
+  
+  $authkey = $_GET['auth'];
+  $userip  = $_GET['ip'];
+
+  // check mda5 auth key
+  $validation = ($authkey==='26cae7718c32180a7a0f8e19d6d40a59');
+ 
+  $teswe = ($validation) ? "OK" : "NOOK";
+  $message .= print_r($_GET, true);
+  $message .= "<br/>AUTH: $authkey, IP: $userip";
+  $message .= "<hr/>$validation_type -  $validation - $teswe -" . time() . " - " . $timestamp_last . " - " . variable_get('fhbat_validation_timer', '60');
+
+//  if($validation) {
+  if($validation) {
+    $bat_value  = fhbat_get_plot_value($bid);
+    db_query( "INSERT INTO {wtw_bat_clicks}  
+                 (bid, timestamp, validation_type, data, IP)
+               VALUES 
+                 (%d, UNIX_TIMESTAMP(NOW()), '%s', '%s', '%s')",
+               $bid, $validation_type, $data, $userip);
+  
+    $message .= variable_get('fhbat_thanks', 'Thanks for visiting our site and clicking to feed a child.'); 
+    
+    // get random banner
+    $fhbat_category = variable_get('fhbat_category', 0);
+    $banner_nid = fhbat_banner_get($fhbat_category);
+    $banner = node_load($banner_nid);
+    $message .= theme('fhbat_banner_view', node_load($banner_nid));
+    
+    // Update banner statistics and redirect user to target URL
+    if ($banner) {
+      // don't update banner stats for site admin or banner owner
+      if ($user->uid != 1 && $user->uid != $banner->uid) {
+        db_query('UPDATE {banner} SET clicks = clicks + 1, clicks_day = clicks_day + 1, clicks_week = clicks_week + 1 WHERE nid = %d', $banner_nid);
+      }
+      if ($banner->clicks_max > 0 && ($banner->clicks + 1) == $banner->clicks_max) {
+        watchdog('special', t("banner: '%banner' %status, reached max of %clicks clicks.", array('%banner' => l($banner->title, 'node/'. $banner->id, NULL, NULL, FALSE, TRUE), '%status' => _banner_workflow(BANNER_BLOCKED), '%clicks' => $banner->max_clicks)));
+        db_query('UPDATE {banner} SET workflow = %d WHERE vid = %d', BANNER_BLOCKED, $banner->vid);
+      }
+    }
+  } else {
+    $message .= variable_get('fhbat_validation_time_msg', '');
+  }
+  $redirect = variable_get('fhbat_redirect', 'home');
+  drupal_get_messages();
+  drupal_set_message($message);
+  drupal_goto($redirect);
+  
+}
+
+/**
+ * After click action POST
  * redirect to banner/nid 
  */
 function fhbat_page_submit($form_id, $form_values) {

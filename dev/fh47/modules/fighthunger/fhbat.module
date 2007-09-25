@@ -451,8 +451,8 @@ global $user;
  
   $teswe = ($validation) ? "OK" : "NOOK";
   $message .= print_r($_GET, true);
-  $message .= "<br/>AUTH: $authkey, VALIDATE: $teswe";
-  $message .= "BID: $bid, VAL.TYPE: $validation_type, DATA: $data, USERIP: $userip";
+  $message .= "<br/>AUTH: $authkey, VALIDATE: $teswe,";
+  $message .= "<br/>BID: $bid, VAL.TYPE: $validation_type, DATA: $data, USERIP: $userip";
 
 //  if($validation) {
   if(false) {

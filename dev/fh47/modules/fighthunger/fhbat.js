@@ -189,7 +189,7 @@ fh_jsAC.prototype.mapClick = function (click) {
   lat = click['latitude'];
   lon = click['longitude'];
 
-  // seet text messagge with time
+  // set time text message
   if( (click['delay'] / 3600)>1 ) {
     txtTimeAgo = 'more than 1 hour ago.';
   } else {
@@ -200,8 +200,19 @@ fh_jsAC.prototype.mapClick = function (click) {
       txtTimeAgo = click['delay'] + ( (click['delay']>1) ? ' seconds' : ' second') + ' ago.';
     }
   }
-  txt  = 'A visitor in ' + click['name'] + ', ' + click['country_name'] + '<br/>';
-  txt += ' clicked to feed a child.' + '<br/>';
+  // set location text message
+  if( click['country_name'] ) {
+    if( click['name'] ) {
+      txtLocation = ' in ' + click['name'] + ', ' + click['country_name'];
+    } else {
+      txtLocation = ' in ' + click['country_name'];
+    }
+  } else {
+    txtLocation = '';
+  }
+  
+  txt  = 'A visitor' + txtLocation + '<br/>';
+  txt += 'clicked to feed a child.' + '<br/>';
   txt += '<b>' + txtTimeAgo + '</b>';
 
 /*

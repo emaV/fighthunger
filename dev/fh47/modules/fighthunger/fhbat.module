@@ -55,7 +55,7 @@ function fhbat_menu($may_cache) {
   $items = array();
   if ($may_cache) {
     $items[] = array(
-      'title'    => t('clicks'),
+      'title'    => variable_get('fhbat_map_title', 'Click to Feed around the world'),
       'path'     => 'fhbat_map',
       'callback' => 'fhbat_map',
       'access'   => true,
@@ -107,7 +107,6 @@ function fhbat_clicks($timestamp_old=-1) {
    
     $data = fhbat_geolocateIP($ip);
     
-    watchdog('fhbat', 'DATA: ' . print_r($data, true));
 /*
     $data = array(
       'country_name' => 'Italy',
@@ -263,17 +262,33 @@ function _fhbat_geolocateIP_iplocatethis($ip) {
 function fhbat_geolocateIP($ip) {
 global $ip_geolocation;
 
-//  if($ip_geolocation[$ip]) {
-  if(false) {
+  if($ip_geolocation[$ip]) {
     $data = $ip_geolocation[$ip];
     $data['cached'] = true;
   } else {
 //    $data = _fhbat_geolocateIP_hostip($ip);
     $data = _fhbat_geolocateIP_iplocatethis($ip);
-    $ip_geolocation[$ip] = $data;
+    if($data['longitude'] && $data['latitude'] ) {
+      $ip_geolocation[$ip] = $data;
+      $data['cached'] = false;
+    } else {
+      if($ip_geolocation) {
+        $data_fake = $ip_geolocation[array_rand($ip_geolocation)];
+        $data_fake['result'] = $data['result'];
+        $data_fake['ip'] = $data['ip'];
+        $data = $data_fake;
+      } else {
+        $data['latitude'] = '47.61';
+        $data['longitude'] = '122.33';
+        $data['country_name'] = 'United States';
+        $data['name'] = 'Seattle';
+      }
+      $data['recovered'] = true;
+    }
+    watchdog('fhbat', 'geolocateIP: ' . print_r($data, true));
   }
   // shorten the cache
-  if(count($ip_geolocation)>=25) array_shift($ip_geolocation);
+  if(count($ip_geolocation)>=100) array_shift($ip_geolocation);
   return $data;
 }
 
@@ -619,8 +634,6 @@ function fhbat_settings() {
   $form['fhbat_redirect'] = array(
     '#type' => 'textfield',
     '#title' => t('Redirect Path'),
-    '#size' => 25,
-    '#maxlength' => 50,
     '#default_value' => variable_get('fhbat_redirect', 'node'),
     '#description' => t('Redirect Path'),
   );
@@ -662,6 +675,20 @@ function fhbat_settings() {
     '#default_value' => variable_get('fhbat_category', 0),
     '#options' => $vocabulary_options
   );
+  $form['fhbat_map_options'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Map options'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+    '#weight'      => -1,
+  );
+  $form['fhbat_map_options']['title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Map page title'),
+    '#default_value' => variable_get('fhbat_map_title', 'Click to Feed around the world'),
+  );
+  
+  
   return $form;
 }
 

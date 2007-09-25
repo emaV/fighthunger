@@ -279,7 +279,7 @@ global $ip_geolocation;
         $data = $data_fake;
       } else {
         $data['latitude'] = '47.61';
-        $data['longitude'] = '122.33';
+        $data['longitude'] = '-122.33';
         $data['country_name'] = 'United States';
         $data['name'] = 'Seattle';
       }

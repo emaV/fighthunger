@@ -166,9 +166,9 @@ define( 'CIVICRM_CUSTOM_FILE_UPLOADDIR'    , '/var/www/vhosts_balanced/dev47.fig
  *      define( 'CIVICRM_IMAGE_UPLOADURL'    , 'http://www.example.com/joomla/media/civicrm/persist/' );
  *
  */
-define( 'CIVICRM_UF_BASEURL'      , 'http://dev.fighthunger.org/' );
-define( 'CIVICRM_UF_RESOURCEURL'  , 'http://dev.fighthunger.org/modules/civicrm/' );
-define( 'CIVICRM_IMAGE_UPLOADURL' , 'http://dev.fighthunger.org/files/crm_files/persist/' );
+define( 'CIVICRM_UF_BASEURL'      , 'http://test.fighthunger.org/' );
+define( 'CIVICRM_UF_RESOURCEURL'  , 'http://test.fighthunger.org/modules/civicrm/' );
+define( 'CIVICRM_IMAGE_UPLOADURL' , 'http://test.fighthunger.org/files/crm_files/persist/' );
 
 /**
  * CiviCRM Database Settings:

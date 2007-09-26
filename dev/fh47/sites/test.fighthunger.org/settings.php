@@ -91,7 +91,8 @@ $db_url = array(
   'civicrm' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/dev47_crm');
 
 $db_prefix = array(
-  'system' => 'crm_');
+  'system'   => 'crm_',
+  'variable' => 'crm_');
 
 /**
  * Base URL (optional).

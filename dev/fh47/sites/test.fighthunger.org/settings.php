@@ -89,7 +89,9 @@ $db_url = array(
   'default' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/dev47_www',
   'gis'     => 'mysql://gis:NzH82tu5@ewhserver358/gis',
   'civicrm' => 'mysql://fighthunger_www:alsdajfd7sas@ewhserver358/dev47_crm');
-$db_prefix = '';
+
+$db_prefix = array(
+  'system' => 'crm_');
 
 /**
  * Base URL (optional).

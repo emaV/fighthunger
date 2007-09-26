@@ -150,7 +150,7 @@ if (isset($_SERVER['HTTP_HOST'])) {
   }
 }
 */
-ini_set('session.cookie_domain', '.dev.fighthunger.org');
+ini_set('session.cookie_domain', '.test.fighthunger.org');
 
 /**
  * Variable overrides:

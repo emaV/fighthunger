@@ -70,6 +70,18 @@ function fhcommerce_form_alter($form_id, &$form) {
   elseif (preg_match("|.*_checkout_form$|", $form_id) && !fhcommerce_validate_cart(FALSE)) {
     drupal_goto('cart/view');
   }
+  // Add product cost to product node form
+  elseif ($form['type'] && $form_id == $form['type']['#value'] . '_node_form' && isset($form['#node']->ptype)) {
+    $node = $form['#node'];
+    $form['product']['cost'] = array(
+      '#type' => 'textfield',
+      '#title' => t("Product cost"),
+      '#default_value' => isset($node->cost) ? $node->cost : '',
+      '#size' => 25,
+      '#maxlength' => 50,
+      '#description' => t("Unit cost for inventory management."),
+    );
+  }
 }
 
 /**
@@ -92,15 +104,35 @@ function fhcommerce_settings() {
     '#options' => array('LBS' => t('pounds'), '' => t('kilograms'))
   );
   
+  $form['fhcommerce_store'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Store names options'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+    '#weight'      => -1,
+  );  
   $vocabulary_options = array();
   $vocabularies = taxonomy_get_vocabularies('product');
   foreach($vocabularies as $voc) {
     $vocabulary_options[$voc->vid] = $voc->name;
-  }  
-  $form['fhcommerce_store_vocabulary'] = array('#type' => 'radios', '#title' => t('fhcommerce default vocabulary'),
-    '#default_value' => variable_get('fhcommerce_store_vocabulary', 5),
-    '#options' => $vocabulary_options
+  } 
+  $vocabulary_current = variable_get('fhcommerce_store_vocabulary', 5);
+  $form['fhcommerce_store']['fhcommerce_store_vocabulary'] = array(
+    '#type'  => 'radios', 
+    '#title' => t('fhcommerce default vocabulary'),
+    '#default_value' => $vocabulary_current,
+    '#options'       => $vocabulary_options
   );
+  $stores = taxonomy_get_tree($vocabulary_current);
+  if($stores) {
+    foreach($stores as $store) {
+      $s = $store->tid;
+      $store_title_default = t('Welcome to %storename Online Shop!', array('%storename' => $store->name));
+      $store_title = variable_get("fhcommerce_store_title_$s", $store_title_default);
+      $form['fhcommerce_store']["fhcommerce_store_title_$s"] = array('#type' => 'textfield', '#title' => $store->name, '#default_value' => $store_title);
+    }
+  }
+  $form['fhcommerce_store']['description'] = array('#value' => t('Set store page titles'));
 
   $form['fhcommerce_table_items'] = array(
     '#type' => 'textfield', 
@@ -159,7 +191,9 @@ function fhcommerce_product_page($tid = NULL) {
   if(is_numeric($tid) && $term = taxonomy_get_term($tid)) {
     $output = '';
     // Title and description
-    drupal_set_title(t('Welcome to %storename Online Shop!', array('%storename' => $term->name)));
+    $store_title_default = t('Welcome to %storename Online Shop!', array('%storename' => $term->name));
+    $store_title = variable_get("fhcommerce_store_title_$tid", $store_title_default);
+    drupal_set_title($store_title);
     $output .= '<div class="store-description">'.$term->description."</div>\n";
     // Get products
     $tids = array($tid);
@@ -201,6 +235,18 @@ function fhcommerce_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
         $node->body .= $output;
       }
       break;
+    case 'validate':
+      if (isset($node->ptype) && $node->ptype) {
+        if (!is_numeric($node->cost)) {
+          form_set_error('cost', t('Please enter a numeric value for product cost.'));
+        }
+      }
+      break;
+    case 'update':
+    case 'insert':
+      if (isset($node->ptype) && $node->ptype && isset($node->cost)) {
+        db_query("UPDATE {ec_product} SET cost = '%s' WHERE vid = %d", $node->cost, $node->vid);
+      }    
   }
 } 
 /**
@@ -352,6 +398,7 @@ function fhcommerce_admin_inventory() {
     array('data' => t('sku'), 'field' => 'p.sku'),
     array('data' => t('title'), 'field' => 'n.title'),
     array('data' => t('price'), 'field' => 'p.price'),
+    array('data' => t('cost'), 'field' => 'p.cost'),
     array('data' => t('type'), 'field' => 'p.ptype'),
     array('data' => t('stock'), 'field' => 't.stock', 'sort' => 'asc'),
   );
@@ -359,7 +406,7 @@ function fhcommerce_admin_inventory() {
   $result = pager_query(db_rewrite_sql($sql), 50);
 
   while ($data = db_fetch_object($result)) {
-    $rows[] = array($data->nid, $data->sku, l($data->title, "node/$data->nid"), product_adjust_price($data)+product_get_specials($data, true), $data->ptype, $data->stock);
+    $rows[] = array($data->nid, $data->sku, l($data->title, "node/$data->nid"), module_invoke('payment', 'format', product_adjust_price($data)+product_get_specials($data, true)), module_invoke('payment', 'format', $data->cost), $data->ptype, $data->stock);
   }
 
   $pager = theme('pager', NULL, 50, 0);

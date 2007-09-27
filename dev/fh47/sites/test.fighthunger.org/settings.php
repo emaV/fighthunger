@@ -140,7 +140,7 @@ ini_set('session.save_handler',     'user');
 ini_set('session.use_only_cookies', 1);
 ini_set('session.use_trans_sid',    0);
 ini_set('url_rewriter.tags',        '');
-ini_set('max_execution_time',       300);
+ini_set('max_execution_time',       600);
 
 /**
  * We try to set the correct cookie domain. If you are experiencing problems

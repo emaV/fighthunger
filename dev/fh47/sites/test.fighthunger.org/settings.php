@@ -92,7 +92,11 @@ $db_url = array(
 
 $db_prefix = array(
   'system'   => 'crm_',
-  'variable' => 'crm_');
+  'variable' => 'crm_',
+  'cache'    => 'crm_',
+  'menu'     => 'crm_',
+  'blocks'   => 'crm_',
+);
 
 /**
  * Base URL (optional).

@@ -1,0 +1,305 @@
+-- Handles all domain-keyed data. Included in civicrm_data.tpl for base initialization (@domain_id = 1).
+-- When invoked by itself, includes logic to insert data for next available domain_id.
+
+    -- This syntax apparently doesn't work in 4.0 and some 4.1 versions
+    -- select max(id) + 1 from civicrm_domain into @domain_id;
+    SELECT @domain_id := max(id) + 1 from civicrm_domain;
+
+SET @domain_name := CONCAT('Domain Name ',@domain_id);
+
+INSERT INTO civicrm_domain( id, name, contact_name, email_domain ) 
+    VALUES ( @domain_id, @domain_name, 'Domain Contact Name', 'FIXME.ORG' );
+
+-- Sample location types
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active, is_default ) VALUES( @domain_id, 'Acasă', 'HOME', 'Locul rezidenţei', 0, 1, 1 );
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active ) VALUES( @domain_id, 'Servici', 'WORK', 'Locaţie servici', 0, 1 );
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active ) VALUES( @domain_id, 'Principal', NULL, 'Principala locaţie servici', 0, 1 );
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active ) VALUES( @domain_id, 'Altele', NULL, 'Altă locaţie', 0, 1 );
+-- the following location must stay with the untranslated Billing name, CRM-2064
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active ) VALUES( @domain_id, 'Billing', NULL, 'Adresă chitanţă', 1, 1 );
+
+-- Sample relationship types
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Copilul lui', 'Părintele lui', 'Relaţie părinte/copil', 'Individual', 'Individual', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Căsătorit(ă) cu', 'Căsătorit(ă) cu', 'Relaţie căsătorie', 'Individual', 'Individual', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Frate al','Frate al', 'Relaţie fraţi','Individual','Individual', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Angajat al', 'Angajator al', 'Relaţie angajat','Individual','Organization', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Voluntar al', 'Al cărui voluntar este', 'Relaţie voluntariat','Individual','Organization', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Capul familiei', 'Capul familiei este', 'Capul familiei.','Individual','Household', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Membru al familiei', 'Membrul familiei este', 'Membru familie.','Individual','Household', 0 );
+
+-- Sample Tags
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Non-profit', 'Orice organizaţie non-profit.', NULL );
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Companie', 'Organizaţie profit.', NULL );
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Entitate a Guvernului', 'Orice entitate guvernamentală.', NULL );
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Donator major', 'Suporter important al organizaţiei noastre', NULL );
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Voluntar', 'Voluntari activi.', NULL );
+
+-- sample CiviCRM mailing components
+INSERT INTO civicrm_mailing_component
+    (domain_id,name,component_type,subject,body_html,body_text,is_default,is_active)
+VALUES
+    (@domain_id,'Antet scrisori','Header','Acesta este antetul','Corp HTML al antetului','Corp text al antetului',1,1),
+    (@domain_id,'Subsol scrisoare','Footer','Acesta este subsolul','Corp HTML al subsolului','Corp text subsol',1,1),
+    (@domain_id,'Mesaj abonare','Subscribe','Solicitare de confirmare a abonării','You have a pending subscription to {subscribe.group}. To confirm this subscription, reply to this email.','You have a pending subscription to {subscribe.group}. To confirm this subscription, reply to this email.',1,1),
+    (@domain_id,'Mesaj de bun venit','Welcome','Bun venit','Welcome to {welcome.group}!','Welcome to {welcome.group}!',1,1),
+    (@domain_id,'Mesaj dezabonare','Unsubscribe','Rezultat dezabonare','You have been unsubscribed from {unsubscribe.group}.','You have been unsubscribed from {unsubscribe.group}.',1,1),
+    (@domain_id,'Mesaj Opt-out','OptOut','La revedere','You have been removed from {domain.name}. Goodbye.','You have been removed from {domain.name}. Goodbye.',1,1),
+    (@domain_id,'Răspuns automat','Reply','Răspuns automat','Mulţumesc pentru răspuns.','Mulţumesc pentru răspuns.',1,1);
+
+
+
+INSERT INTO civicrm_dupe_match (domain_id, entity_table , rule) VALUES ( @domain_id,'contact_individual','first_name AND last_name AND email');
+
+-- contribution types
+INSERT INTO
+   civicrm_contribution_type(name, domain_id, is_reserved, is_active, is_deductible)
+VALUES
+  ( 'Donaţie'             , @domain_id, 0, 1, 1 ),
+  ( 'Cotizaţie membrii'          , @domain_id, 0, 1, 1 ), 
+  ( 'Contribuţie Campanie', @domain_id, 0, 1, 0 ),
+  ( 'Taxă eveniment'            , @domain_id, 0, 1, 0 );
+
+-- option groups and values for 'preferred communication methods' , 'activity types', 'gender', etc.
+
+INSERT INTO 
+   `civicrm_option_group` (`domain_id`, `name`, `description`, `is_reserved`, `is_active`) 
+VALUES 
+   (@domain_id, 'preferred_communication_method', 'Metoda de Comunicare Preferată'     , 0, 1),
+   (@domain_id, 'activity_type'                 , 'Tip activitate'                      , 0, 1),
+   (@domain_id, 'gender'                        , 'Gen'                             , 0, 1),
+   (@domain_id, 'instant_messenger_service'     , 'Instant Messenger (IM) screen-names', 0, 1),
+   (@domain_id, 'mobile_provider'               , 'Furnizori telefonie mobilă'             , 0, 1),
+   (@domain_id, 'individual_prefix'             , 'Prefixe persoană'        , 0, 1),
+   (@domain_id, 'individual_suffix'             , 'Sufixe persoană'        , 0, 1),
+   (@domain_id, 'acl_role'                      , 'Rol ACL'                           , 0, 1),
+   (@domain_id, 'accept_creditcard'             , 'Acceptă carduri de credit'              , 0, 1),
+   (@domain_id, 'payment_instrument'            , 'Instrumente de Plată'                , 0, 1),
+   (@domain_id, 'contribution_status'           , 'Stare Contribuţie'                , 0, 1),
+   (@domain_id, 'participant_status'            , 'Stare participant'                 , 0, 1),
+   (@domain_id, 'participant_role'              , 'Rol participant'                   , 0, 1),
+   (@domain_id, 'event_type'                    , 'Tip eveniment'                         , 0, 1),
+   (@domain_id, 'contact_view_options'          , 'Contact View Options'               , 0, 1),
+   (@domain_id, 'contact_edit_options'          , 'Contact Edit Options'               , 0, 1),
+   (@domain_id, 'advanced_search_options'       , 'Advanced Search Options'            , 0, 1),
+   (@domain_id, 'user_dashboard_options'        , 'User Dashboard Options'             , 0, 1),
+   (@domain_id, 'address_options'               , 'Addressing Options'                 , 0, 1);
+   
+SELECT @option_group_id_pcm            := max(id) from civicrm_option_group where name = 'preferred_communication_method';
+SELECT @option_group_id_act            := max(id) from civicrm_option_group where name = 'activity_type';
+SELECT @option_group_id_gender         := max(id) from civicrm_option_group where name = 'gender';
+SELECT @option_group_id_IMProvider     := max(id) from civicrm_option_group where name = 'instant_messenger_service';
+SELECT @option_group_id_mobileProvider := max(id) from civicrm_option_group where name = 'mobile_provider';
+SELECT @option_group_id_prefix         := max(id) from civicrm_option_group where name = 'individual_prefix';
+SELECT @option_group_id_suffix         := max(id) from civicrm_option_group where name = 'individual_suffix';
+SELECT @option_group_id_aclRole        := max(id) from civicrm_option_group where name = 'acl_role';
+SELECT @option_group_id_acc            := max(id) from civicrm_option_group where name = 'accept_creditcard';
+SELECT @option_group_id_pi             := max(id) from civicrm_option_group where name = 'payment_instrument';
+SELECT @option_group_id_cs             := max(id) from civicrm_option_group where name = 'contribution_status';
+SELECT @option_group_id_ps             := max(id) from civicrm_option_group where name = 'participant_status';
+SELECT @option_group_id_pRole          := max(id) from civicrm_option_group where name = 'participant_role';
+SELECT @option_group_id_etype          := max(id) from civicrm_option_group where name = 'event_type';
+SELECT @option_group_id_cvOpt          := max(id) from civicrm_option_group where name = 'contact_view_options';
+SELECT @option_group_id_ceOpt          := max(id) from civicrm_option_group where name = 'contact_edit_options';
+SELECT @option_group_id_asOpt          := max(id) from civicrm_option_group where name = 'advanced_search_options';
+SELECT @option_group_id_udOpt          := max(id) from civicrm_option_group where name = 'user_dashboard_options';
+SELECT @option_group_id_adOpt          := max(id) from civicrm_option_group where name = 'address_options';
+
+INSERT INTO 
+   `civicrm_option_value` (`option_group_id`, `label`, `value`, `name`, `grouping`, `filter`, `is_default`, `weight`, `description`, `is_optgroup`, `is_reserved`, `is_active`) 
+VALUES
+   (@option_group_id_pcm, 'Telefon', 1, NULL, NULL, 0, NULL, 1, NULL, 0, 0, 1),
+   (@option_group_id_pcm, 'Email', 2, NULL, NULL, 0, NULL, 2, NULL, 0, 0, 1),
+   (@option_group_id_pcm, 'Adresă poştală', 3, NULL, NULL, 0, NULL, 3, NULL, 0, 0, 1),
+   (@option_group_id_pcm, 'SMS', 4, NULL, NULL, 0, NULL, 4, NULL, 0, 0, 1),
+   (@option_group_id_pcm, 'Fax', 5, NULL, NULL, 0, NULL, 5, NULL, 0, 0, 1),
+ 
+   (@option_group_id_act, 'Întâlnire',    1, 'Meeting',    NULL, 0, NULL, 1, 'Schedule a meeting',    0, 1, 1),
+   (@option_group_id_act, 'Apel telefon', 2, 'Phone Call', NULL, 0, NULL, 2, 'Programează un apel telefonic', 0, 1, 1),
+   (@option_group_id_act, 'Email',      3, 'Email',      NULL, 0, NULL, 3, 'E-mail trimis',            0, 1, 1),
+   (@option_group_id_act, 'SMS',        4, 'SMS',        NULL, 0, NULL, 4, 'SMS',                   0, 1, 1),
+   (@option_group_id_act, 'Eveniment',      5, 'Event',      NULL, 0, NULL, 5, 'Eveniment',                 0, 0, 1),
+
+   (@option_group_id_gender, 'Femeie',      1, 'Female',      NULL, 0, NULL, 1, NULL, 0, 0, 1),
+   (@option_group_id_gender, 'Bărbat',        2, 'Male',        NULL, 0, NULL, 2, NULL, 0, 0, 1),
+   (@option_group_id_gender, 'Transsexual', 3, 'Transgender', NULL, 0, NULL, 3, NULL, 0, 0, 1),
+
+   (@option_group_id_IMProvider, 'Yahoo', 1, 'Yahoo', NULL, 0, NULL, 1, NULL, 0, 0, 1),
+   (@option_group_id_IMProvider, 'MSN',   2, 'Msn',   NULL, 0, NULL, 2, NULL, 0, 0, 1),
+   (@option_group_id_IMProvider, 'AIM',   3, 'Aim',   NULL, 0, NULL, 3, NULL, 0, 0, 1),
+   (@option_group_id_IMProvider, 'GTalk', 4, 'Gtalk', NULL, 0, NULL, 4, NULL, 0, 0, 1),
+   (@option_group_id_IMProvider, 'Jabber',5, 'Jabber',NULL, 0, NULL, 5, NULL, 0, 0, 1),
+   (@option_group_id_IMProvider, 'Skype', 6, 'Skype', NULL, 0, NULL, 6, NULL, 0, 0, 1),
+
+   (@option_group_id_mobileProvider, 'Sprint'  , 1, 'Sprint'  , NULL, 0, NULL, 1, NULL, 0, 0, 1),
+   (@option_group_id_mobileProvider, 'Verizon' , 2, 'Verizon' , NULL, 0, NULL, 2, NULL, 0, 0, 1),
+   (@option_group_id_mobileProvider, 'Cingular', 3, 'Cingular', NULL, 0, NULL, 3, NULL, 0, 0, 1),
+
+   (@option_group_id_prefix, 'Dna', 1, 'Mrs', NULL, 0, NULL, 1, NULL, 0, 0, 1),
+   (@option_group_id_prefix, 'Dl',  2, 'Ms', NULL, 0, NULL, 2, NULL, 0, 0, 1),
+   (@option_group_id_prefix, 'Dl',  3, 'Mr', NULL, 0, NULL, 3, NULL, 0, 0, 1),
+   (@option_group_id_prefix, 'Dr',  4, 'Dr', NULL, 0, NULL, 4, NULL, 0, 0, 1),
+
+   (@option_group_id_suffix, 'Jr',  1, 'Jr', NULL, 0, NULL, 1, NULL, 0, 0, 1),
+   (@option_group_id_suffix, 'Sr',  2, 'Sr', NULL, 0, NULL, 2, NULL, 0, 0, 1),
+   (@option_group_id_suffix, 'II',  3, 'II', NULL, 0, NULL, 3, NULL, 0, 0, 1),
+   (@option_group_id_suffix, 'III', 4, 'III', NULL, 0, NULL, 4, NULL, 0, 0, 1),
+   (@option_group_id_suffix, 'IV',  5, 'IV',  NULL, 0, NULL, 5, NULL, 0, 0, 1),
+   (@option_group_id_suffix, 'V',   6, 'V',   NULL, 0, NULL, 6, NULL, 0, 0, 1),
+   (@option_group_id_suffix, 'VI',  7, 'VI',  NULL, 0, NULL, 7, NULL, 0, 0, 1),
+   (@option_group_id_suffix, 'VII', 8, 'VII', NULL, 0, NULL, 8, NULL, 0, 0, 1),
+
+   (@option_group_id_aclRole, 'Administrator',  1, 'Admin', NULL, 0, NULL, 1, NULL, 0, 0, 1),
+   (@option_group_id_aclRole, 'Identificat',  2, 'Auth' , NULL, 0, NULL, 2, NULL, 0, 0, 1),
+
+   (@option_group_id_acc, 'Visa'      ,  1, 'Visa'      , NULL, 0, NULL, 1, NULL, 0, 0, 1),
+   (@option_group_id_acc, 'MasterCard',  2, 'MasterCard', NULL, 0, NULL, 2, NULL, 0, 0, 1),
+   (@option_group_id_acc, 'Amex'      ,  3, 'Amex'      , NULL, 0, NULL, 3, NULL, 0, 0, 1),
+   (@option_group_id_acc, 'Discover'  ,  4, 'Discover'  , NULL, 0, NULL, 4, NULL, 0, 0, 1),
+
+  (@option_group_id_pi, 'Card credit',  1, 'Credit Card', NULL, 0, NULL, 1, NULL, 0, 0, 1),
+  (@option_group_id_pi, 'Card debit',  2, 'Debit Card', NULL, 0, NULL, 2, NULL, 0, 0, 1),
+  (@option_group_id_pi, 'Cash',  3, 'Cash', NULL, 0, NULL, 3, NULL, 0, 0, 1),
+  (@option_group_id_pi, 'Cec',  4, 'Check', NULL, 0, NULL, 4, NULL, 0, 0, 1),
+  (@option_group_id_pi, 'EFT',  5, 'EFT', NULL, 0, NULL, 5, NULL, 0, 0, 1),
+
+  (@option_group_id_cs, 'Finalizat'  , 1, 'Completed'  , NULL, 0, NULL, 1, NULL, 0, 0, 1),
+  (@option_group_id_cs, 'În aşteptare'    , 2, 'Pending'    , NULL, 0, NULL, 2, NULL, 0, 0, 1),
+  (@option_group_id_cs, 'Abandonat'  , 3, 'Cancelled'  , NULL, 0, NULL, 3, NULL, 0, 0, 1),
+  (@option_group_id_cs, 'Eşuat'     , 4, 'Failed'     , NULL, 0, NULL, 4, NULL, 0, 0, 1),
+  (@option_group_id_cs, 'În curs', 5, 'In Progress', NULL, 0, NULL, 5, NULL, 0, 0, 1),
+
+  (@option_group_id_ps, 'Înregistrat', 1, 'Registered', NULL, 0, NULL, 1, NULL, 0, 1, 1),
+  (@option_group_id_ps, 'A fost prezent',   2, 'Attended',   NULL, 0, NULL, 2, NULL, 0, 0, 1),
+  (@option_group_id_ps, 'Nu arăta',    3, 'No-show',    NULL, 0, NULL, 3, NULL, 0, 0, 1),
+  (@option_group_id_ps, 'Abandonat',  4, 'Cancelled',  NULL, 0, NULL, 4, NULL, 0, 1, 1),
+
+  (@option_group_id_pRole, 'Aşteptaţi',  1, 'Attendee',  NULL, 0, NULL, 1, NULL, 0, 0, 1),
+  (@option_group_id_pRole, 'Voluntar', 2, 'Volunteer', NULL, 0, NULL, 2, NULL, 0, 0, 1),
+  (@option_group_id_pRole, 'Host',      3, 'Host',      NULL, 0, NULL, 3, NULL, 0, 0, 1),
+  (@option_group_id_pRole, 'Vorbitor',   4, 'Speaker',   NULL, 0, NULL, 4, NULL, 0, 0, 1),
+
+  (@option_group_id_etype, 'Conferinţă', 1, 'Conference',  NULL, 0, NULL, 1, NULL, 0, 0, 1 ),
+  (@option_group_id_etype, 'Expoziţie', 2, 'Exhibition',  NULL, 0, NULL, 2, NULL, 0, 0, 1 ),
+  (@option_group_id_etype, 'Fundraiser', 3, 'Fundraiser',  NULL, 0, NULL, 3, NULL, 0, 0, 1 ),
+  (@option_group_id_etype, 'Întâlnire',    4, 'Meeting',     NULL, 0, NULL, 4, NULL, 0, 0, 1 ),
+  (@option_group_id_etype, 'Performanţă',5, 'Performance', NULL, 0, NULL, 5, NULL, 0, 0, 1 ),
+  (@option_group_id_etype, 'Grup de lucru',   6, 'Workshop',    NULL, 0, NULL, 6, NULL, 0, 0, 1 ),
+
+-- note that these are not ts'ed since they are used for logic in most cases and not display
+-- they are used for display only in the prefernces field settings
+  (@option_group_id_cvOpt, 'Activities'   ,   1, NULL, NULL, 0, NULL,  1, NULL, 0, 0, 1 ),
+  (@option_group_id_cvOpt, 'Relationships',   2, NULL, NULL, 0, NULL,  2, NULL, 0, 0, 1 ),
+  (@option_group_id_cvOpt, 'Groups'       ,   3, NULL, NULL, 0, NULL,  3, NULL, 0, 0, 1 ),
+  (@option_group_id_cvOpt, 'Notes'        ,   4, NULL, NULL, 0, NULL,  4, NULL, 0, 0, 1 ),
+  (@option_group_id_cvOpt, 'Tags'         ,   5, NULL, NULL, 0, NULL,  5, NULL, 0, 0, 1 ),
+  (@option_group_id_cvOpt, 'Change Log'   ,   6, NULL, NULL, 0, NULL,  6, NULL, 0, 0, 1 ),
+  (@option_group_id_cvOpt, 'Contributions',   7, NULL, NULL, 0, NULL,  7, NULL, 0, 0, 1 ),
+  (@option_group_id_cvOpt, 'Memberships'  ,   8, NULL, NULL, 0, NULL,  8, NULL, 0, 0, 1 ),
+  (@option_group_id_cvOpt, 'Events'       ,   9, NULL, NULL, 0, NULL,  9, NULL, 0, 0, 1 ),
+
+  (@option_group_id_ceOpt, 'Communication Preferences',   1, NULL, NULL, 0, NULL, 1, NULL, 0, 0, 1 ),
+  (@option_group_id_ceOpt, 'Demographics'             ,   2, NULL, NULL, 0, NULL, 2, NULL, 0, 0, 1 ),
+  (@option_group_id_ceOpt, 'Tags and Groups'          ,   3, NULL, NULL, 0, NULL, 3, NULL, 0, 0, 1 ),
+  (@option_group_id_ceOpt, 'Notes'                    ,   4, NULL, NULL, 0, NULL, 4, NULL, 0, 0, 1 ),
+
+  (@option_group_id_asOpt, 'Address Fields'      ,   1, NULL, NULL, 0, NULL,  1, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Custom Fields'       ,   2, NULL, NULL, 0, NULL,  2, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Activity History'    ,   3, NULL, NULL, 0, NULL,  3, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Scheduled Activities',   4, NULL, NULL, 0, NULL,  4, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Relationships'       ,   5, NULL, NULL, 0, NULL,  5, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Notes'               ,   6, NULL, NULL, 0, NULL,  6, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Change Log'          ,   7, NULL, NULL, 0, NULL,  7, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Contributions'       ,   8, NULL, NULL, 0, NULL,  8, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Memberships'         ,   9, NULL, NULL, 0, NULL,  9, NULL, 0, 0, 1 ),
+  (@option_group_id_asOpt, 'Events'              ,  10, NULL, NULL, 0, NULL, 10, NULL, 0, 0, 1 ),
+
+  (@option_group_id_udOpt, 'Groups'       , 1, NULL, NULL, 0, NULL, 1, NULL, 0, 0, 1 ),
+  (@option_group_id_udOpt, 'Contributions', 2, NULL, NULL, 0, NULL, 2, NULL, 0, 0, 1 ),
+  (@option_group_id_udOpt, 'Memberships'  , 3, NULL, NULL, 0, NULL, 3, NULL, 0, 0, 1 ),
+  (@option_group_id_udOpt, 'Events'       , 4, NULL, NULL, 0, NULL, 4, NULL, 0, 0, 1 ),
+
+  (@option_group_id_adOpt, 'Street Address'   ,  1, NULL, NULL, 0, NULL,  1, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'Addt\'l Address 1' ,  2, NULL, NULL, 0, NULL,  2, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'Addt\'l Address 2' ,  3, NULL, NULL, 0, NULL,  3, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'City'             ,  4, NULL, NULL, 0, NULL,  4, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'Zip / Postal Code',  5, NULL, NULL, 0, NULL,  5, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'Postal Code Suffix',  6, NULL, NULL, 0, NULL,  6, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'County'           ,  7, NULL, NULL, 0, NULL,  7, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'State / Province' ,  8, NULL, NULL, 0, NULL,  8, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'Country'          ,  9, NULL, NULL, 0, NULL,  9, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'Latitude'         , 10, NULL, NULL, 0, NULL, 10, NULL, 0, 0, 1 ),
+  (@option_group_id_adOpt, 'Longitude'        , 11, NULL, NULL, 0, NULL, 11, NULL, 0, 0, 1 );
+
+-- sample membership status entries
+INSERT INTO
+    civicrm_membership_status(domain_id, name, start_event, start_event_adjust_unit, start_event_adjust_interval, end_event, end_event_adjust_unit, end_event_adjust_interval, is_current_member, is_admin, weight, is_default, is_active)
+VALUES
+    (@domain_id,'Nou', 'join_date', null, null,'join_date','month',3, 1, 0, 1, 0, 1),
+    (@domain_id,'Curent', 'start_date', null, null,'end_date', null, null, 1, 0, 2, 1, 1),
+    (@domain_id,'Graţie', 'end_date', null, null,'end_date','month', 1, 1, 0, 3, 0, 1),
+    (@domain_id,'Expirat', 'end_date', 'month', 1, null, null, null, 0, 0, 4, 0, 1);
+
+
+-- Initial state of system preferences
+INSERT INTO 
+     civicrm_preferences(domain_id, contact_id, is_domain, location_count, contact_view_options, contact_edit_options, advanced_search_options, user_dashboard_options, address_options, address_format, mailing_format, individual_name_format, address_standardization_provider, address_standardization_userid, address_standardization_url )
+VALUES 
+     (@domain_id,NULL,1,1,'123456789','1234','12345678910','1234','123456891011','{street_address}\n{supplemental_address_1}\n{supplemental_address_2}\n{city}{, }{state_province}{ }{postal_code}\n{country}','{street_address}\n{supplemental_address_1}\n{supplemental_address_2}\n{city}{, }{state_province}{ }{postal_code}\n{country}','{individual_prefix}{ } {first_name}{ }{middle_name}{ }{last_name}{ }{individual_suffix}',NULL,NULL,NULL);
+
+
+-- various processor options
+--
+-- Table structure for table `civicrm_payment_processor_type`
+--
+
+INSERT INTO `civicrm_payment_processor_type` 
+ (domain_id, name, title, description, is_active, is_default, user_name_label, password_label, signature_label, subject_label, class_name, url_site_default, url_recur_default, url_button_default, url_site_test_default, url_recur_test_default, url_button_test_default, billing_mode, is_recur )
+VALUES 
+ (@domain_id,'Dummy','Dummy Payment Processor',NULL,1,1,'User Name',NULL,NULL,NULL,'Payment_Dummy',NULL,NULL,NULL,NULL,NULL,NULL,1,NULL),
+ (@domain_id,'PayPal_Standard','PayPal - Website Payments Standard',NULL,1,0,'Merchant Account Email',NULL,NULL,NULL,'Payment_PayPalImpl','https://www.paypal.com/','https://www.paypal.com/',NULL,'https://www.sandbox.paypal.com/','https://www.sandbox.paypal.com/',NULL,4,1),
+ (@domain_id,'PayPal','PayPal - Website Payments Pro',NULL,1,0,'User Name','Password','Signature',NULL,'Payment_PayPalImpl','https://www.paypal.com/',NULL,'https://www.paypal.com/en_US/i/btn/btn_xpressCheckout.gif','https://www.sandbox.paypal.com/',NULL,'https://www.paypal.com/en_US/i/btn/btn_xpressCheckout.gif',3,NULL),
+ (@domain_id,'PayPal_Express','PayPal - Express',NULL,1,0,'User Name','Password','Signature',NULL,'Payment_PayPalImpl','https://www.paypal.com/',NULL,'https://www.paypal.com/en_US/i/btn/btn_xpressCheckout.gif','https://www.sandbox.paypal.com/',NULL,'https://www.paypal.com/en_US/i/btn/btn_xpressCheckout.gif',3,NULL),
+ (@domain_id,'Google_Checkout','Google Checkout',NULL,1,0,'Merchant ID','Key',NULL,NULL,'Payment_Google','https://checkout.google.com/',NULL,'http://checkout.google.com/buttons/checkout.gif','https://sandbox.google.com/checkout',NULL,'http://sandbox.google.com/checkout/buttons/checkout.gif',4,NULL),
+ (@domain_id,'Moneris','Moneris',NULL,1,0,'User Name','Password','Store ID',NULL,'Payment_Moneris','https://www3.moneris.com/',NULL,NULL,'https://esqa.moneris.com/',NULL,NULL,1,1),
+ (@domain_id,'AuthNet_AIM','Authorize.Net - AIM',NULL,1,0,'API Login','Payment Key','MD5 Hash',NULL,'Payment_AuthorizeNet','https://secure.authorize.net/gateway/transact.dll','https://api.authorize.net/xml/v1/request.api',NULL,'https://secure.authorize.net/gateway/transact.dll','https://apitest.authorize.net/xml/v1/request.api',NULL,1,1);
+
+-- the default dedupe rules
+INSERT INTO civicrm_dedupe_rule_group (domain_id, contact_type, threshold) VALUES (@domain_id, 'Individual', 20);
+
+SELECT @dedupe_rule_group_id := MAX(id) FROM civicrm_dedupe_rule_group;
+
+INSERT INTO civicrm_dedupe_rule (dedupe_rule_group_id, rule_table, rule_field, rule_weight)
+VALUES
+  (@dedupe_rule_group_id, 'civicrm_individual', 'first_name', 5),
+  (@dedupe_rule_group_id, 'civicrm_individual', 'last_name',  7),
+  (@dedupe_rule_group_id, 'civicrm_email',      'email',     10);
+
+INSERT INTO civicrm_dedupe_rule_group (domain_id, contact_type, threshold) VALUES (@domain_id, 'Organization', 10);
+
+SELECT @dedupe_rule_group_id := MAX(id) FROM civicrm_dedupe_rule_group;
+
+INSERT INTO civicrm_dedupe_rule (dedupe_rule_group_id, rule_table, rule_field, rule_weight)
+VALUES
+  (@dedupe_rule_group_id, 'civicrm_organization', 'organization_name', 5),
+  (@dedupe_rule_group_id, 'civicrm_email',        'email',             5);
+
+INSERT INTO civicrm_dedupe_rule_group (domain_id, contact_type, threshold) VALUES (@domain_id, 'Household', 10);
+
+SELECT @dedupe_rule_group_id := MAX(id) FROM civicrm_dedupe_rule_group;
+
+INSERT INTO civicrm_dedupe_rule (dedupe_rule_group_id, rule_table, rule_field, rule_weight)
+VALUES
+  (@dedupe_rule_group_id, 'civicrm_household', 'household_name', 5),
+  (@dedupe_rule_group_id, 'civicrm_email',     'email',          5);

@@ -41,7 +41,7 @@ function clicksMap() {
   jsAC = new fh_jsAC(content, button, cDB);
   
   // redim map
-  $("map").style['width'] = content.clientWidth + 'px';
+//  $("map").style['width'] = content.clientWidth + 'px';
 
   jsAC.initialize();
 }

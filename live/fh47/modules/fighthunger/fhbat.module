@@ -448,14 +448,14 @@ global $user;
 
   // check mda5 auth key
   $validation = ($authkey==='26cae7718c32180a7a0f8e19d6d40a59');
- 
+/* 
   $teswe = ($validation) ? "OK" : "NOOK";
   $message .= print_r($_GET, true);
-  $message .= "<br/>AUTH: $authkey, IP: $userip";
-  $message .= "<hr/>$validation_type -  $validation - $teswe -" . time() . " - " . $timestamp_last . " - " . variable_get('fhbat_validation_timer', '60');
-
+  $message .= "<br/>AUTH: $authkey, VALIDATE: $teswe,";
+  $message .= "<br/>BID: $bid, VAL.TYPE: $validation_type, DATA: $data, USERIP: $userip";
+*/
 //  if($validation) {
-  if($validation) {
+  if(false) {
     $bat_value  = fhbat_get_plot_value($bid);
     db_query( "INSERT INTO {wtw_bat_clicks}  
                  (bid, timestamp, validation_type, data, IP)
@@ -489,7 +489,6 @@ global $user;
   drupal_get_messages();
   drupal_set_message($message);
   drupal_goto($redirect);
-  
 }
 
 /**

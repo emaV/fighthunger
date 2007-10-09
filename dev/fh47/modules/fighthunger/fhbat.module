@@ -266,8 +266,8 @@ global $ip_geolocation;
     $data = $ip_geolocation[$ip];
     $data['cached'] = true;
   } else {
-//    $data = _fhbat_geolocateIP_hostip($ip);
-    $data = _fhbat_geolocateIP_iplocatethis($ip);
+    $data = _fhbat_geolocateIP_hostip($ip);
+//    $data = _fhbat_geolocateIP_iplocatethis($ip);
     if($data['longitude'] && $data['latitude'] ) {
       $ip_geolocation[$ip] = $data;
       $data['cached'] = false;

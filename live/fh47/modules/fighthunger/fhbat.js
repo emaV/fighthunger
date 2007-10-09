@@ -87,7 +87,7 @@ fh_jsAC.prototype.createStatusMessage = function() {
     "padding"  : "10px 15px 0px",
     "position" : "relative",
     "bottom"   : "90px",
-    "left"     : "10px",
+    "left"     : "10px"
   };
   setStyle(new_statusMessage, stylesCSS);
   new_statusMessage.style.display = "none";

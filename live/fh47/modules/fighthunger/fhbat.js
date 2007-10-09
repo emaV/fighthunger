@@ -32,8 +32,9 @@ function camelize(property) {
 function clicksMap() {
 //  alert("Hello 1");
 
-  content = document.getElementById('fhbat_map');
-  button  = document.getElementById('fhbat_button');
+ // content = document.getElementById('fhbat_map');
+  var content = $('fhbat_map');
+  var button  = $('fhbat_button');
 
   uri = content.getAttribute("fh_clicks");
   cDB = new fh_cDB(uri);
@@ -162,7 +163,7 @@ fh_jsAC.prototype.initialize = function () {
   this.db.owner = this;
   this.createStatusMessage();
 
-  self = this;
+  var self = this;
   setInterval(function() { self.process(); } , this.delay);
   
 }

@@ -448,12 +448,12 @@ global $user;
 
   // check mda5 auth key
   $validation = ($authkey==='26cae7718c32180a7a0f8e19d6d40a59');
- 
+/* 
   $teswe = ($validation) ? "OK" : "NOOK";
   $message .= print_r($_GET, true);
   $message .= "<br/>AUTH: $authkey, VALIDATE: $teswe,";
   $message .= "<br/>BID: $bid, VAL.TYPE: $validation_type, DATA: $data, USERIP: $userip";
-
+*/
 //  if($validation) {
   if(false) {
     $bat_value  = fhbat_get_plot_value($bid);

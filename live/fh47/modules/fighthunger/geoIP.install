@@ -14,6 +14,7 @@ function geoIP_install() {
       country_name varchar(64) NOT NULL,
       name varchar(64) NOT NULL,
       county varchar(64) NOT NULL,
+      timestamp int(10) NOT NULL default '0',
       PRIMARY KEY  (`ip`)
     ) DEFAULT CHARSET=utf8;";
   $ret[] = db_query($sql);

@@ -105,7 +105,7 @@ function fhbat_clicks($timestamp_old=-1) {
     if($timestamp_old > $click['timestamp']) $timestamp_old = $click['timestamp'];
     if($timestamp_new < $click['timestamp']) $timestamp_new = $click['timestamp'];
    
-    $data = fhbat_geolocateIP($ip);
+    $data = geoIP_geolocateIP($ip);
     
 /*
     $data = array(

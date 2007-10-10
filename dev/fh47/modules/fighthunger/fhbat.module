@@ -260,7 +260,7 @@ function _fhbat_geolocateIP_iplocatethis($ip) {
 }
 
 function fhbat_geolocateIP($ip) {
-global $ip_geolocation;
+static $ip_geolocation;
 
   if($ip_geolocation[$ip]) {
     $data = $ip_geolocation[$ip];

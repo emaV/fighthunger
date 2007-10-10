@@ -16,7 +16,7 @@ function geoIP_install() {
       county varchar(64) NOT NULL,
       PRIMARY KEY  (`ip`)
     ) DEFAULT CHARSET=utf8;";
-  $ret[] = update_sql($sql);
+  $ret[] = db_query($sql);
   
   return $ret;
 }

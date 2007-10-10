@@ -1,0 +1,210 @@
+<?php
+// $Id: geoIP.module, v 0.0.1 2007-10-10 14:26:00 ema Exp $
+
+/**
+ * @file
+ * geolocate ip using online services.
+ * 
+ * Developed by Emanuele Quinto for fighthunger.org
+ * Released under the GNU General Public License
+ * http://www.gnu.org/licenses/gpl.txt  
+ * 
+ *
+ * TODO
+ * - invite
+ * - multiple bat
+ * - custom bat page 
+ */
+
+// Loads simple xml library
+require_once drupal_get_path('module', 'webcollect') . '/xmlsimpleapi.inc'; 
+
+/**
+ * Implementation of hook_help().
+ */
+function geoIP_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Geolocate ip using online services.');
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+
+/**
+ * Get geolocation from IP using
+ * http://api.hostip.info API service 
+ *
+ * @param
+ *    $ip IP number 
+ * @return 
+ *    $data array with location info (name, country, lat and lon)
+ * 
+ */
+ 
+/**
+ * Get from hostip.info
+ *   
+  
+Object ( 
+  [gml:description] => This is the Hostip Lookup Service 
+  [gml:name] => hostip 
+  [gml:boundedby] => Array ( 
+      [0] => stdClass Object ( 
+          [gml:null] => inapplicable ) ) 
+  [gml:featuremember] => Array ( 
+      [0] => stdClass Object ( 
+          [hostip] => Array ( 
+              [0] => stdClass Object ( 
+                  [gml:name] => Rome 
+                  [countryname] => ITALY 
+                  [countryabbrev] => IT 
+                  [iplocation] => Array ( 
+                      [0] => stdClass Object ( 
+                          [gml:pointproperty] => Array ( 
+                              [0] => stdClass Object ( 
+                                  [gml:point] => Array ( 
+                                      [0] => stdClass Object ( 
+                                          [gml:coordinates] => 12.45,41.9 ) ) ) ) ) ) ) ) ) ) )
+ *
+ */
+ 
+function _geoIP_hostip($ip) {
+
+  $url = "http://api.hostip.info/?ip=$ip&position=true";
+  $result  = fh_file_get_contents($url);
+  if($result) {
+    $data['ip'] = $ip;
+//      $data['result'] = htmlentities($result);
+    $result = xml_xml2object($result);
+//      $data['resultOBJ'] = print_r($result, true);
+    $gml_featuremember = 'gml:featuremember';
+    $hostip = $result->$gml_featuremember;
+    $hostip =  $hostip[0]->hostip[0];
+  
+    $data['country_name']  = $hostip->countryname;
+    $data['country_code']  = $hostip->countryabbrev;
+    $gml_name = 'gml:name';
+    $data['name'] = $hostip->$gml_name;
+    // tricky get la and lon
+    $gml_pointproperty = 'gml:pointproperty';
+    $gml_point = 'gml:point';
+    $gml_coordinates = 'gml:coordinates';
+      
+/*
+      $data['pointproperty'] = $hostip->iplocation[0]->$gml_pointproperty;
+      $data['point']         = $data['pointproperty'][0]->$gml_point;
+      $data['coordinates']   = $data['point'][0]->$gml_coordinates;
+*/      
+    $gml_pointproperty = $hostip->iplocation[0]->$gml_pointproperty;
+    $gml_point         = $gml_pointproperty[0]->$gml_point;
+    $gml_coordinates   = $gml_point[0]->$gml_coordinates;
+    
+    list($data['longitude'], $data['latitude']) = split(",", $gml_coordinates);
+  }
+  watchdog('geoIP', 'geolocateIP (hostip): ' . print_r($data, true));
+  return $data;
+}
+ 
+/**
+ * Get from iplocatethis.com
+ *
+ *
+
+http://www.iplocatethis.com/location.php?ip=83.241.186.194
+<iplocatethis>
+	<marker lat="59.3333" lng="18.05" notes="83.241.186.194 is located here!"  c1="Sweden" c2="26" c3="Stockholm (26)" c4="" c5="59.3333" c6="18.05" c7="" c8="" />
+</iplocatethis>
+
+ *   
+ **/  
+   
+function _geoIP_geolocateIP_iplocatethis($ip) {
+  $data['ip'] = $ip;
+
+  $url = "http://www.iplocatethis.com/location.php?ip=$ip";
+  $result  = fh_file_get_contents($url);
+  $data['result'] = htmlentities($result);
+  if($result) {
+    // latitude  
+    $pattern = '/lat="([^"]*)"/';
+    preg_match($pattern, $result, $matches);
+    if($matches) $data['latitude'] = $matches[1];
+    // longitude  
+    $pattern = '/lng="([^"]*)"/';
+    preg_match($pattern, $result, $matches);
+    if($matches) $data['longitude'] = $matches[1];
+    // country  
+    $pattern = '/c1="([^"]*)"/';
+    preg_match($pattern, $result, $matches);
+    if($matches) $data['country_name'] = $matches[1];
+    // country  
+    $pattern = '/c3="([^"]*)"/';
+    preg_match($pattern, $result, $matches);
+    if($matches) {
+      $name =  $matches[1];
+      preg_match('/(.*) \(/', $name, $matches);
+      $data['name'] = $matches[1];
+    } 
+  }
+  return $data;
+}
+
+function _geoIP_cache_get($ip) {
+  $sql = "SELECT * FROM geoIP WHERE ip=%d";
+  $result = db_query($sql, ip2long($ip));
+  return ($result ? db_fetch_array($result) : NULL);
+}
+
+function _geoIP_cache_set($data) {
+  $sql = "SELECT ip FROM geoIP WHERE ip='%s'";
+  if(db_num_rows(db_query($sql, $data['ip']))) {
+    $sql = "UPDATE geoip SET country_name='%s','name = '%s' " .
+      "latitude = %d, longitude = %d WHERE ip=%d";
+  } else {
+    $sql = "INSERT INTO geoip SET country_name='%s','name = '%s' " .
+      "latitude = %d, longitude = %d, ip=%d";
+  }
+  db_query($sql, $data['country_name'], $data['name'], 
+    $data['latitude'], $data['longitude'], 
+    ip2long($data['ip']));
+}
+
+function _geoIP_cache_get_random() {
+  $sql = "SELECT * FROM geoIP ORDER BY rand()";
+  $result = db_query($sql);
+  if($result) {
+    $data = db_fetch_array($result);
+  } else {
+    $data['latitude'] = '47.61';
+    $data['longitude'] = '-122.33';
+    $data['country_name'] = 'United States';
+    $data['name'] = 'Seattle';
+  }
+  return $data;
+}
+
+
+function geoIP_geolocateIP($ip) {
+
+  if( $data = _geoIP_cache_get($ip) ) {
+    $data['source'] = 'cache';
+  } else {
+    $data = _geoIP_geolocateIP_hostip($ip);
+//    $data = _fhbat_geolocateIP_iplocatethis($ip);
+    if( $data['longitude'] && $data['latitude'] ) {
+      _geoIP_cache_set($data);
+      $data['source'] = 'hostip';
+    } else {
+      $data = _geoIP_cache_get_random();
+      $data['ip'] = $ip;
+      $data['source'] = 'RND';
+    }
+  }
+  // shorten the cache
+  watchdog('geoIP', 'geolocateIP: ' . print_r($data, true));
+  return $data;
+}
+

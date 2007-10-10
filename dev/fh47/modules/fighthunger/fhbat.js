@@ -112,7 +112,7 @@ fh_jsAC.prototype.setIdle = function (value) {
         txt += ' # MOSTRA waiting!';
         this.opacity = 0;
         this.statusMessage.style.display = "inline";
-        self = this;
+        var self = this;
         this.swirl = setInterval(function() { self.swirlStatusMessage(); } , 500);
 //        this.swirl = setInterval(this.swirlStatusMessage, 100);
       } else {

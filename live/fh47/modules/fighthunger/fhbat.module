@@ -212,6 +212,7 @@ function _fhbat_geolocateIP_hostip($ip) {
     
     list($data['longitude'], $data['latitude']) = split(",", $gml_coordinates);
   }
+  watchdog('fhbat', 'geolocateIP (hostip): ' . print_r($data, true));
   return $data;
 }
  

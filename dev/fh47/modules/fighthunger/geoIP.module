@@ -161,11 +161,11 @@ function _geoIP_cache_get($ip) {
 function _geoIP_cache_set($data) {
   $sql = "SELECT ip FROM geoIP WHERE ip='%s'";
   if(db_num_rows(db_query($sql, $data['ip']))) {
-    $sql = "UPDATE geoIP SET country_name='%s','name = '%s' " .
+    $sql = "UPDATE geoIP SET country_name='%s',name = '%s', " .
       "latitude = %d, longitude = %d WHERE ip=%d";
   } else {
-    $sql = "INSERT INTO geoIP SET country_name='%s','name = '%s' " .
-      "latitude = %d, longitude = %d, ip=%d";
+    $sql = "INSERT INTO geoIP SET country_name='%s', name = '%s', " .
+      "latitude = %d, longitude = %d, ip = %d";
   }
   db_query($sql, $data['country_name'], $data['name'], 
     $data['latitude'], $data['longitude'], 

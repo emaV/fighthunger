@@ -289,6 +289,7 @@ static $ip_geolocation;
     watchdog('fhbat', 'geolocateIP: ' . print_r($data, true));
   }
   // shorten the cache
+  watchdog('fhbat', 'geolocate cache: ' . print_r($ip_geolocation, true));
   if(count($ip_geolocation)>=100) array_shift($ip_geolocation);
   return $data;
 }

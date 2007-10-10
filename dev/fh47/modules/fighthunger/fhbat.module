@@ -270,7 +270,7 @@ static $ip_geolocation;
     $data = _fhbat_geolocateIP_hostip($ip);
 //    $data = _fhbat_geolocateIP_iplocatethis($ip);
     if($data['longitude'] && $data['latitude'] ) {
-      $ip_geolocation[$ip] = $data;
+      $ip_geolocation = array_merge(array($ip => $data), $ip_geolocation);
       $data['cached'] = false;
     } else {
       if($ip_geolocation) {

@@ -162,14 +162,14 @@ function _geoIP_cache_set($data) {
   $sql = "SELECT ip FROM geoIP WHERE ip='%s'";
   if(db_num_rows(db_query($sql, $data['ip']))) {
     $sql = "UPDATE geoIP SET country_name='%s',name = '%s', " .
-      "latitude = %f, longitude = %f WHERE ip = '%s'";
+      "latitude = %f, longitude = %f, timestamp = %d WHERE ip = '%s'";
   } else {
     $sql = "INSERT INTO geoIP SET country_name='%s', name = '%s', " .
-      "latitude = %f, longitude = %f, ip = '%s'";
+      "latitude = %f, longitude = %f, timestamp = %d, ip = '%s'";
   }
   db_query($sql, $data['country_name'], $data['name'], 
     $data['latitude'], $data['longitude'], 
-    $data['ip']);
+    time(), $data['ip']);
 }
 
 function _geoIP_cache_get_random() {

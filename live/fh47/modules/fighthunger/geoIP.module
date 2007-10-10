@@ -104,7 +104,7 @@ function _geoIP_hostip($ip) {
     
     list($data['longitude'], $data['latitude']) = split(",", $gml_coordinates);
   }
-  watchdog('geoIP', 'geolocateIP (hostip): ' . print_r($data, true));
+//  watchdog('geoIP', 'geolocateIP (hostip): ' . print_r($data, true));
   return $data;
 }
  
@@ -203,8 +203,7 @@ function geoIP_geolocateIP($ip) {
       $data['source'] = 'RND';
     }
   }
-  // shorten the cache
-  watchdog('geoIP', 'geolocateIP: ' . print_r($data, true));
+// watchdog('geoIP', 'geolocateIP: ' . print_r($data, true));
   return $data;
 }
 

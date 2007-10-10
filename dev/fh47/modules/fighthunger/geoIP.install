@@ -1,0 +1,24 @@
+<?php
+// $Id: geoIP.install,v 1.0.0 2007/10/09 09:04:20 ema Exp $
+
+/**
+ * @file
+ * Installation for db table for geoIP.
+ */
+function geoIP_install() {
+  $ret = array();
+  $sql ="CREATE TABLE geoIP (
+      ip int(10) NOT NULL,
+      latitude double default NULL,
+      longitude double default NULL,
+      country_name varchar(64) NOT NULL,
+      name varchar(64) NOT NULL,
+      county varchar(64) NOT NULL,
+      PRIMARY KEY  (`ip`)
+    ) DEFAULT CHARSET=utf8;";
+  $ret[] = update_sql($sql);
+  
+  return $ret;
+}
+
+?>

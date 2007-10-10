@@ -8,7 +8,7 @@
 function geoIP_install() {
   $ret = array();
   $sql ="CREATE TABLE geoIP (
-      ip int(10) NOT NULL,
+      ip varchar(16) NOT NULL,
       latitude double default NULL,
       longitude double default NULL,
       country_name varchar(64) NOT NULL,

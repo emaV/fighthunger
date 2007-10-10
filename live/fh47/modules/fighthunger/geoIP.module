@@ -153,8 +153,8 @@ function _geoIP_iplocatethis($ip) {
 }
 
 function _geoIP_cache_get($ip) {
-  $sql = "SELECT * FROM geoIP WHERE ip=%d";
-  $result = db_query($sql, ip2long($ip));
+  $sql = "SELECT * FROM geoIP WHERE ip='%s'";
+  $result = db_query($sql, $ip);
   return ($result ? db_fetch_array($result) : NULL);
 }
 
@@ -162,14 +162,14 @@ function _geoIP_cache_set($data) {
   $sql = "SELECT ip FROM geoIP WHERE ip='%s'";
   if(db_num_rows(db_query($sql, $data['ip']))) {
     $sql = "UPDATE geoIP SET country_name='%s',name = '%s', " .
-      "latitude = %d, longitude = %d WHERE ip=%d";
+      "latitude = %d, longitude = %d WHERE ip = '%s'";
   } else {
     $sql = "INSERT INTO geoIP SET country_name='%s', name = '%s', " .
-      "latitude = %d, longitude = %d, ip = %d";
+      "latitude = %d, longitude = %d, ip = '%s'";
   }
   db_query($sql, $data['country_name'], $data['name'], 
     $data['latitude'], $data['longitude'], 
-    ip2long($data['ip']));
+    $data['ip']);
 }
 
 function _geoIP_cache_get_random() {

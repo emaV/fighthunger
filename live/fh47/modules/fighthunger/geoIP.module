@@ -121,7 +121,7 @@ http://www.iplocatethis.com/location.php?ip=83.241.186.194
  *   
  **/  
    
-function _geoIP_geolocateIP_iplocatethis($ip) {
+function _geoIP_iplocatethis($ip) {
   $data['ip'] = $ip;
 
   $url = "http://www.iplocatethis.com/location.php?ip=$ip";
@@ -192,8 +192,8 @@ function geoIP_geolocateIP($ip) {
   if( $data = _geoIP_cache_get($ip) ) {
     $data['source'] = 'cache';
   } else {
-    $data = _geoIP_geolocateIP_hostip($ip);
-//    $data = _fhbat_geolocateIP_iplocatethis($ip);
+    $data = _geoIP_hostip($ip);
+//    $data = _geoIP_iplocatethis($ip);
     if( $data['longitude'] && $data['latitude'] ) {
       _geoIP_cache_set($data);
       $data['source'] = 'hostip';

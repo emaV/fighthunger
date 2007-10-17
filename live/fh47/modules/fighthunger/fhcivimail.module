@@ -4,9 +4,6 @@
 
 $mod_path = drupal_get_path('module', 'fhcivimail');
 require_once $mod_path . "/libgmailer.php";
-$mod_path = drupal_get_path('module', 'civicrm');
-require_once $mod_path . "/../api/Mailer.php";
-
 
 /**
  * Implementation of hook_settings
@@ -156,6 +153,8 @@ function fhcivimail_help($section) {
 function fhcivimail_check_init() {
   if (function_exists('civicrm_initialize')) {
     civicrm_initialize(TRUE);
+    $mod_path = drupal_get_path('module', 'civicrm');
+    require_once $mod_path . "/../api/Mailer.php";
     return TRUE;
   }
   return FALSE;

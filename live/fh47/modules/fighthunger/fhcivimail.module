@@ -164,6 +164,7 @@ function _fhcivimail_crm_action($action, $mail) {
   list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
   
   if(fhcivimail_check_init()) {
+    watchdog('fhcivimal', 'civicrm_initialize TRUE');
     if($dest===$action) {
       switch ($dest) {
         case 'bounce':

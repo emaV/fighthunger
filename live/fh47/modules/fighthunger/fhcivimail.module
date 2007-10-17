@@ -224,6 +224,7 @@ function _fhcivimail_check_mail_box($action) {
         if(_fhcivimail_crm_action($action, $mail)) {
           $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, $action . "_done");
           $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
+          $gmailer->performAction(GM_ACT_ARCHIVE,     $message_id);
           $count++;
         } else {
           $gmailer->performAction(GM_ACT_STAR,  $message_id);

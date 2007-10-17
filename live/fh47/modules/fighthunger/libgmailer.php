@@ -582,7 +582,7 @@ class GMailer {
 		$c = curl_init();
 
 		curl_setopt($c, CURLOPT_URL, "https://www.google.com/accounts/Captcha?ctoken=".$logintoken."&email=".$login."%40gmail.com&cstyle=0");
-		$this->CURL_PROXY(&$c);
+		$this->CURL_PROXY($c);
 		curl_setopt($c, CURLOPT_SSL_VERIFYHOST,  2);
 		curl_setopt($c, CURLOPT_SSL_VERIFYPEER, FALSE);
 		curl_setopt($c, CURLOPT_USERAGENT, GM_USER_AGENT);
@@ -1668,7 +1668,7 @@ class GMailer {
 				curl_setopt($c, CURLOPT_COOKIE, $this->cookie_str);
 				curl_setopt($c, CURLOPT_URL, $query);
 				//curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
-				$this->CURL_PROXY(&$c);
+				$this->CURL_PROXY($c);
 				curl_setopt($c, CURLOPT_SSL_VERIFYHOST, 2);	 
 				curl_setopt($c, CURLOPT_SSL_VERIFYPEER, FALSE);
 				curl_setopt($c, CURLOPT_USERAGENT, GM_USER_AGENT);
@@ -2888,7 +2888,7 @@ class GMailer {
 			$c = curl_init();
 			curl_setopt($c, CURLOPT_URL, $this->GM_LNK_GMAIL."?".$query);
 			// NOTE: DO NOT SEND REFERRER
-			$this->CURL_PROXY(&$c);
+			$this->CURL_PROXY($c);
 			curl_setopt($c, CURLOPT_HEADER, 1);
 			curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
 			//curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
@@ -2947,7 +2947,7 @@ class GMailer {
 			$c = curl_init();
 			curl_setopt($c, CURLOPT_URL, $this->GM_LNK_GMAIL."?".$query);
 			// NOTE: DO NOT SEND REFERRER
-			$this->CURL_PROXY(&$c);
+			$this->CURL_PROXY($c);
 			curl_setopt($c, CURLOPT_HEADER, 1);
 			curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
 			//curl_setopt($c, CURLOPT_FOLLOWLOCATION, 1);
@@ -3872,7 +3872,7 @@ Referer: http://mail.google.com/mail/?&ik=xxxxxxx&view=pr&pnl=g&zx=xorfqampe0ml
 			if ($referrer != "") {
 				curl_setopt($c, CURLOPT_REFERER, $referrer);
 			}
-			$this->CURL_PROXY(&$c);
+			$this->CURL_PROXY($c);
 			curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
 /* 				//if ($follow) { */
 /* 				//	$manual_followlocation = true; */
@@ -3892,7 +3892,7 @@ Referer: http://mail.google.com/mail/?&ik=xxxxxxx&view=pr&pnl=g&zx=xorfqampe0ml
 			if ($referrer != "") {
 				curl_setopt($c, CURLOPT_REFERER, $referrer);
 			}
-			$this->CURL_PROXY(&$c);
+			$this->CURL_PROXY($c);
 			curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
 /* 				//if ($extra_type == "nocookie" or !$follow) { */
 /* 				//	// already false */

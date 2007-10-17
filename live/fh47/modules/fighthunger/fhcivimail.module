@@ -177,6 +177,7 @@ function _fhcivimail_crm_action($action, $mail) {
           $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
           break;
       }
+      watchdog('fhcivimal', "$dest (". $mail['id'] . " - $job, $queue, $hash): $result");
     } else {
       $result = false;
     }

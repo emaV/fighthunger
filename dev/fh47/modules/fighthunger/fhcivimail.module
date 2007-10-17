@@ -11,6 +11,12 @@ require_once $mod_path . "/libgmailer.php";
  */
 function fhcivimail_settings(){
 
+  $form['fhcivimail_verp'] = array(
+    '#type' => 'textfield',
+    '#title' => t('verp'),
+    '#default_value' => variable_get('fhcivimail_verp', '-'), 
+  );
+
   $form['fhcivimail_domain'] = array(
     '#type' => 'textfield',
     '#title' => t('GMail domain'),
@@ -195,24 +201,32 @@ function fhcivimail_check_init() {
   return FALSE;
 }
 
+function _fhcivimail_extract_data($recv_email) {
+  $data = array();
+  list($to, $data['domain']) = split("@",  $recv_email );
+  list($data1, $data2)  = split( variable_get('fhcivimail_verp', '-'),  $to );
+  list($data['dest'], $data['domain_id'], $data['job'], $data['queue'], $data['hash']) = split("\.", $data1);
+  if($data2) $data['bounce_address'] = str_replace("=", "@", $data2);
+  return $data;
+}
+
 function _fhcivimail_crm_action($action, $mail) {
 
-  list($to, $domain) = split("@",  $mail['recv_email'][0] );
-  list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
+  $data = _fhcivimail_extract_data($mail['recv_email'][0]);
   
-  if( fhcivimail_check_init() && ($dest===$action) ) {
-    switch ($dest) {
+  if( fhcivimail_check_init() && ($data['dest']===$action) ) {
+    switch ($data['dest']) {
       case 'bounce':
-        $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);
+        $result = crm_mailer_event_bounce($data['job'], $data['queue'], $data['hash'], $mail['body']);
         break;
       case 'optout':
-        $result = crm_mailer_event_domain_unsubscribe($job, $queue, $hash);
+        $result = crm_mailer_event_domain_unsubscribe($data['job'], $data['queue'], $data['hash']);
         break;
       case 'unsubscribe':
-        $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
+        $result = crm_mailer_event_unsubscribe($data['job'], $data['queue'], $data['hash']);
         break;
     }
-    watchdog('fhcivimal', "<b>$dest</b>: " .  $mail['sender_email'] . " (" .  $mail['id'] . " - $job, $queue, $hash): $result");
+    watchdog('fhcivimal', "<b>" . $mail['sender_email'] . "</b>: (" . implode(', ', $data) . "): $result");
   } else {
     $result = false;
   }
@@ -325,9 +339,8 @@ function fhcivimail_bounces() {
     $gmailer->fetchBox(GM_CONVERSATION, $message_id, 0);
     $snapshot = $gmailer->getSnapshot(GM_CONVERSATION);
     $mail = $snapshot->conv[0];
-    list($to, $domain) = split("@",  $mail['recv_email'][0] );
-    list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
-    $rows[] = array($mail['sender_email'], $dest, $domain_id, $job, $queue, $hash);
+    $data = _fhcivimail_extract_data($mail['recv_email'][0]);
+    $rows[] = array($mail['sender_email'], $data['dest'], $data['domain_id'], $data['job'], $data['queue'], $data['hash']);
   }
   $output  = theme('table', $header, $rows);
   return $output;

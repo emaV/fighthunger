@@ -212,7 +212,7 @@ function _fhcivimail_check_mail_box($action) {
 
 // process mail 
         if(_fhcivimail_crm_action($action, $mail)) {
-          $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, "$action_done");
+          $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, $action . "_done");
           $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
           $count++;
         } else {

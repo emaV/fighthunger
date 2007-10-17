@@ -219,13 +219,12 @@ function _fhcivimail_crm_action($action, $mail) {
   return $result;
 }
 
-function _fhcivimail_get_box($action) {
+function _fhcivimail_get_box($gmailer, $action) {
   $gmail_acc = variable_get('fhcivimail_' . $action . '_user', '');
   $gmail_pwd = variable_get('fhcivimail_' . $action . '_password', ''); 
   $gmail_domain = variable_get('fhcivimail_domain', 'fighthunger.org'); 
   $my_timezone = '+1';
   
-  $gmailer = new GMailer();
   if ($gmailer->created) {
   
 // connect to gmail account
@@ -315,13 +314,14 @@ function fhcivimail_bounces() {
     array('data' => t('hash')   ),
   );
 
-  // get 100 bounces
-  $box = _fhcivimail_get_box('bounce');
+  // get bounces
+  $gmailer = new GMailer();
+  $box = _fhcivimail_get_box($gmailer, 'bounce');
 
 // fetch mail
   foreach($box as $conv) {
     $message_id = $conv['id'];
-    $data = array();        
+    $data = array();    
     $gmailer->fetchBox(GM_CONVERSATION, $message_id, 0);
     $snapshot = $gmailer->getSnapshot(GM_CONVERSATION);
     $mail = $snapshot->conv[0];

@@ -117,9 +117,44 @@ function fhcivimail_cron() {
  */
 function fhcivimail_menu($may_cache){
   $items = array();
-  if (!fhcivimail_check_init())
-    return NULL;
   if ($may_cache) {
+
+    $items[] = array(
+      'path'     => 'admin/fhcivimail',
+      'title'    => t('CiviMail helpers'), 
+      'callback' => 'fhcivimail_helpers',
+      'access'   => user_access('administer CiviCRM')
+    );
+    $items[] = array(
+      'path'     => 'admin/fhcivimail/helpers',
+      'title'    => t('CiviMail helpers'), 
+      'callback' => 'fhcivimail_helpers',
+      'type'     => MENU_DEFAULT_LOCAL_TASK,
+      'access'   => user_access('administer CiviCRM'),
+      'weight'   => -99
+    );
+
+    $items[] = array(
+      'path' => 'admin/fhcivimail/bounce',
+      'title' => t('CiviMail bounces'), 
+      'callback' => 'fhcivimail_bounces',
+      'type' => MENU_LOCAL_TASK,
+      'access' => user_access('administer CiviCRM')
+    );
+    $items[] = array(
+      'path' => 'admin/fhcivimail/optout',
+      'title' => t('CiviMail optouts'), 
+      'callback' => 'fhcivimail_optout',
+      'type' => MENU_LOCAL_TASK,
+      'access' => user_access('administer CiviCRM')
+    );
+    $items[] = array(
+      'path' => 'admin/fhcivimail/unsubscribe',
+      'title' => t('CiviMail unsubscriptions'), 
+      'callback' => 'fhcivimail_unsubscribe',
+      'type' => MENU_LOCAL_TASK,
+      'access' => user_access('administer CiviCRM')
+    );
   }      
   return $items;
 }
@@ -165,27 +200,51 @@ function _fhcivimail_crm_action($action, $mail) {
   list($to, $domain) = split("@",  $mail['recv_email'][0] );
   list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
   
-  if(fhcivimail_check_init()) {
-    watchdog('fhcivimal', 'civicrm_initialize TRUE');
-    if($dest===$action) {
-      switch ($dest) {
-        case 'bounce':
-          $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);
-          break;
-        case 'optout':
-          $result = crm_mailer_event_domain_unsubscribe($job, $queue, $hash);
-          break;
-        case 'unsubscribe':
-          $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
-          break;
-      }
-      watchdog('fhcivimal', "$dest (". $mail['id'] . " - $job, $queue, $hash): $result");
+  if( fhcivimail_check_init() && ($dest===$action) ) {
+    switch ($dest) {
+      case 'bounce':
+        $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);
+        break;
+      case 'optout':
+        $result = crm_mailer_event_domain_unsubscribe($job, $queue, $hash);
+        break;
+      case 'unsubscribe':
+        $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
+        break;
+    }
+    watchdog('fhcivimal', "<b>$dest</b>: " .  $mail['sender_email'] . " (" .  $mail['id'] . " - $job, $queue, $hash): $result");
+  } else {
+    $result = false;
+  }
+  return $result;
+}
+
+function _fhcivimail_get_box($action) {
+  $gmail_acc = variable_get('fhcivimail_' . $action . '_user', '');
+  $gmail_pwd = variable_get('fhcivimail_' . $action . '_password', ''); 
+  $gmail_domain = variable_get('fhcivimail_domain', 'fighthunger.org'); 
+  $my_timezone = '+1';
+  
+  $gmailer = new GMailer();
+  if ($gmailer->created) {
+  
+// connect to gmail account
+    $gmailer->setDomain($gmail_domain);
+    $gmailer->setLoginInfo($gmail_acc, $gmail_pwd, $my_timezone);
+    if ($gmailer->connect()) {
+      $count = 0;
+
+// fetch mailbox
+      $gmailer->fetchBox(GM_LABEL, $action, 0);
+      $snapshot = $gmailer->getSnapshot(GM_STANDARD);
+      $result = $snapshot->box;
     } else {
-      $result = false;
+      watchdog('fhcivimail', "Fail to connect because: ".$gmailer->lastActionStatus());
+      $result = NULL;
     }
   } else {
-    watchdog('fhcivimal', 'civicrm_initialize FALSE');
-    $result = false;
+    watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus());
+    $result = NULL;
   }
   return $result;
 }
@@ -208,7 +267,7 @@ function _fhcivimail_check_mail_box($action) {
       $count = 0;
 
 // fetch mailbox
-      $gmailer->fetchBox(GM_STANDARD, "inbox", 0);
+      $gmailer->fetchBox(GM_LABEL, $action, 0);
       $snapshot = $gmailer->getSnapshot(GM_STANDARD);
       $box = $snapshot->box;
 
@@ -237,6 +296,49 @@ function _fhcivimail_check_mail_box($action) {
     watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus());
   }
   return $count;
+}
+
+
+function fhcivimail_helpers() {
+  return 'pippo';
+}
+
+function fhcivimail_bounces() {
+
+  // set header
+  $header = array(
+    array('data' => t('email')  ),
+    array('data' => t('dest')   ),
+    array('data' => t('domain') ),
+    array('data' => t('job')    ),
+    array('data' => t('queue')  ),
+    array('data' => t('hash')   ),
+  );
+
+  // get 100 bounces
+  $box = _fhcivimail_get_box('bounce');
+
+// fetch mail
+  foreach($box as $conv) {
+    $message_id = $conv['id'];
+    $data = array();        
+    $gmailer->fetchBox(GM_CONVERSATION, $message_id, 0);
+    $snapshot = $gmailer->getSnapshot(GM_CONVERSATION);
+    $mail = $snapshot->conv[0];
+    list($to, $domain) = split("@",  $mail['recv_email'][0] );
+    list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
+    $rows[] = array($mail['sender_email'], $dest, $domain_id, $job, $queue, $hash);
+  }
+  $output  = theme('table', $header, $rows);
+  return $output;
+}
+
+function fhcivimail_optout() {
+  return 'pippo optout';
+}
+
+function fhcivimail_unsubscribe() {
+  return 'pippo unsubscribe';
 }
 
 ?>

@@ -165,26 +165,20 @@ function _fhcivimail_crm_action($action, $mail) {
   list($to, $domain) = split("@",  $mail['recv_email'][0] );
   list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
   
-  if(fhcivimail_check_init()) {
-    watchdog('fhcivimal', 'civicrm_initialize TRUE');
-    if($dest===$action) {
-      switch ($dest) {
-        case 'bounce':
-          $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);
-          break;
-        case 'optout':
-          $result = crm_mailer_event_domain_unsubscribe($job, $queue, $hash);
-          break;
-        case 'unsubscribe':
-          $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
-          break;
-      }
-      watchdog('fhcivimal', "$dest (". $mail['id'] . " - $job, $queue, $hash): $result");
-    } else {
-      $result = false;
+  if( fhcivimail_check_init() && ($dest===$action) ) {
+    switch ($dest) {
+      case 'bounce':
+        $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);
+        break;
+      case 'optout':
+        $result = crm_mailer_event_domain_unsubscribe($job, $queue, $hash);
+        break;
+      case 'unsubscribe':
+        $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
+        break;
     }
+    watchdog('fhcivimal', "<b>$dest</b>: " .  $mail['sender_email'] . " (" .  $mail['id'] . " - $job, $queue, $hash): $result");
   } else {
-    watchdog('fhcivimal', 'civicrm_initialize FALSE');
     $result = false;
   }
   return $result;

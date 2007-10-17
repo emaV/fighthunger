@@ -1,0 +1,227 @@
+<?php
+// $Id: fhcivimail.module,v 0.1 2007/10/11 14:18:34 ema Exp $
+
+
+$mod_path = drupal_get_path('module', 'fhcivimail');
+require_once $mod_path . "/libgmailer.php";
+
+/**
+ * Implementation of hook_settings
+ *
+ */
+function fhcivimail_settings(){
+
+  $form['fhcivimail_domain'] = array(
+    '#type' => 'textfield',
+    '#title' => t('GMail domain'),
+    '#default_value' => variable_get('fhcivimail_domain', 'fighthunger.org'), 
+  );
+  
+  // Bounces
+  $form['fhcivimail_bounce_group'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Bounce mailbox options'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+  );  
+  $form['fhcivimail_bounce_group']['fhcivimail_bounce_user'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Username'),
+    '#default_value' => variable_get('fhcivimail_bounce_user', ''), 
+  );
+  $form['fhcivimail_bounce_group']['fhcivimail_bounce_password'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Password'),
+    '#default_value' => variable_get('fhcivimail_bounce_password', ''), 
+  );
+  $form['fhcivimail_bounce_group']['fhcivimail_bounce_status'] = array(
+    '#type' => 'select',
+    '#title' => t('Status'),
+    '#default_value' => variable_get('fhcivimail_bounce_status',false),
+    '#options' => array(false => t('Inactive'), true => t('Active')),
+  );
+
+  // Unsubscriptions
+  $form['fhcivimail_unsubscribe_group'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Unsubscribe mailbox options'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+  );  
+  $form['fhcivimail_unsubscribe_group']['fhcivimail_unsubscribe_user'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Username'),
+    '#default_value' => variable_get('fhcivimail_unsubscribe_user', ''), 
+  );
+  $form['fhcivimail_unsubscribe_group']['fhcivimail_unsubscribe_password'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Password'),
+    '#default_value' => variable_get('fhcivimail_unsubscribe_password', ''), 
+  );
+  $form['fhcivimail_unsubscribe_group']['fhcivimail_unsubscribe_status'] = array(
+    '#type' => 'select',
+    '#title' => t('Status'),
+    '#default_value' => variable_get('fhcivimail_unsubscribe_status',false),
+    '#options' => array(false => t('Inactive'), true => t('Active')),
+  );
+
+  // Optout
+  $form['fhcivimail_optout_group'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Optout mailbox options'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => FALSE,
+  );  
+  $form['fhcivimail_optout_group']['fhcivimail_optout_user'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Username'),
+    '#default_value' => variable_get('fhcivimail_optout_user', ''), 
+  );
+  $form['fhcivimail_optout_group']['fhcivimail_optout_password'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Password'),
+    '#default_value' => variable_get('fhcivimail_optout_password', ''), 
+  );
+  $form['fhcivimail_optout_group']['fhcivimail_optout_status'] = array(
+    '#type' => 'select',
+    '#title' => t('Status'),
+    '#default_value' => variable_get('fhcivimail_optout_status',false),
+    '#options' => array(false => t('Inactive'), true => t('Active')),
+  );
+
+  return $form;
+}
+
+function fhcivimail_cron() {
+  if(variable_get('fhcivimail_optout_status',false)) {
+    watchdog('fhcivimail', 'Check optouts');
+  
+  }
+  if(variable_get('fhcivimail_unsubscribe_status',false)) {
+    watchdog('fhcivimail', 'Check unsubscriptions');
+  
+  }
+  if(variable_get('fhcivimail_bounce_status',false)) {
+    watchdog('fhcivimail', 'Check bounces');
+  
+  }
+}
+
+
+
+
+/**
+ * Implementation of hook_menu
+ *
+ *
+ */
+function fhcivimail_menu($may_cache){
+  $items = array();
+  if (!fhcivimail_check_init())
+    return NULL;
+  if ($may_cache) {
+  }      
+  return $items;
+}
+
+function fhcivimail_access($op, $node) {
+  global $user;
+  //Administrator can see all contacts
+  if (user_access('administer CiviCRM'))
+    return TRUE;
+
+  //We must explicitly return to deny access
+  return FALSE;
+}
+
+function fhcivimail_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      // This description is shown in the listing at admin/modules.
+      return t('<b>FH:</b> A module that helps CiviMail. <b>Require CiviCRM</b>');
+  }
+} 
+
+
+/**
+ * fhCiviMail: CiviNail helpers
+ */
+
+/**
+ * Initialization checks
+ */
+function fhcivimail_check_init() {
+  if (function_exists('civicrm_initialize')) {
+    civicrm_initialize(TRUE);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+function _fhcivimail_crm_action($action, $mail) {
+
+  list($to, $domain) = split("@",  $mail['recv_email'][0] );
+  list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
+  
+/*  
+  switch ($action) {
+    case 'bounce':
+      $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);
+      break;
+    case 'optout':
+      $result = crm_mailer_event_domain_unsubscribe($job, $queue, $hash);
+      break;
+    case 'unsubscribe':
+      $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
+      break;
+  }
+*/
+ $result = ($dest===$action);
+ return $result;
+}
+
+function _fhcivimail_check_mail_box($action) {
+
+  $gmail_acc = variable_get('fhcivimail_' . $action . '_user', '');
+  $gmail_pwd = variable_get('fhcivimail_' . $action . '_password', ''); 
+  $gmail_domain = variable_get('fhcivimail_domain', 'fighthunger.org'); 
+  $my_timezone = '+1';
+  
+  $gmailer = new GMailer();
+  if ($gmailer->created) {
+  
+// connect to gmail account
+    $gmailer->setDomain($gmail_domain);
+    $gmailer->setLoginInfo($gmail_acc, $gmail_pwd, $my_timezone);
+    if ($gmailer->connect()) {
+
+// fetch mailbox
+      $gmailer->fetchBox(GM_STANDARD, "inbox", 0);
+      $snapshot = $gmailer->getSnapshot(GM_STANDARD);
+      $box = $snapshot->box;
+
+// fetch mail
+      foreach($box as $conv) {
+        $message_id = $conv['id'];
+        $data = array();        
+        $gmailer->fetchBox(GM_CONVERSATION, $message_id, 0);
+        $snapshot = $gmailer->getSnapshot(GM_CONVERSATION);
+        $mail = $snapshot->conv[0];
+
+// process mail 
+        if(_fhcivimail_crm_action($action, $mail)) {
+          $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, "$action_done");
+          $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
+        } else {
+          $gmailer->performAction(GM_ACT_STAR,  $message_id);
+        }
+      } 
+    } else {
+      die("Fail to connect because: ".$gmailer->lastActionStatus());
+    }
+  } else {
+     die("Failed to create GMailer because: ".$gmailer->lastActionStatus());
+  }
+}
+
+?>

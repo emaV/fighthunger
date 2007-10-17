@@ -164,7 +164,7 @@ function _fhcivimail_crm_action($action, $mail) {
   list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
   
   if(fhcivimail_check_init()) {
-    if( ($dest===$action) {
+    if($dest===$action) {
       switch ($dest) {
         case 'bounce':
           $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);

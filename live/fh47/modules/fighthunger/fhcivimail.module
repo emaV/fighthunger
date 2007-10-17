@@ -96,17 +96,17 @@ function fhcivimail_cron() {
   if(variable_get('fhcivimail_optout_status',false)) {
     watchdog('fhcivimail', 'Check optouts');
     $result = _fhcivimail_check_mail_box('optout');
-    if($result>0) watchdog('fhcivimail', 'optouts processed: $result');  
+    if($result>0) watchdog('fhcivimail', "optouts processed: $result");  
   }
   if(variable_get('fhcivimail_unsubscribe_status',false)) {
     watchdog('fhcivimail', 'Check unsubscriptions');
     $result = _fhcivimail_check_mail_box('unsubscribe');
-    if($result>0) watchdog('fhcivimail', 'Unsubriptions processed: $result');  
+    if($result>0) watchdog('fhcivimail', "Unsubriptions processed: $result");  
   }
   if(variable_get('fhcivimail_bounce_status',false)) {
     watchdog('fhcivimail', 'Check bounces');
     $result = _fhcivimail_check_mail_box('bounce');
-    if($result>0) watchdog('fhcivimail', 'Bounces processed: $result');  
+    if($result>0) watchdog('fhcivimail', "Bounces processed: $result");  
   }
 }
 

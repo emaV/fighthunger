@@ -95,20 +95,20 @@ function fhcivimail_settings(){
 function fhcivimail_cron() {
   if(variable_get('fhcivimail_optout_status',false)) {
     watchdog('fhcivimail', 'Check optouts');
-  
+    $result = _fhcivimail_check_mail_box('optout');
+    if($result>0) watchdog('fhcivimail', 'optouts processed: $result');  
   }
   if(variable_get('fhcivimail_unsubscribe_status',false)) {
     watchdog('fhcivimail', 'Check unsubscriptions');
-  
+    $result = _fhcivimail_check_mail_box('unsubscribe');
+    if($result>0) watchdog('fhcivimail', 'Unsubriptions processed: $result');  
   }
   if(variable_get('fhcivimail_bounce_status',false)) {
     watchdog('fhcivimail', 'Check bounces');
-  
+    $result = _fhcivimail_check_mail_box('bounce');
+    if($result>0) watchdog('fhcivimail', 'Bounces processed: $result');  
   }
 }
-
-
-
 
 /**
  * Implementation of hook_menu
@@ -186,6 +186,7 @@ function _fhcivimail_check_mail_box($action) {
   $gmail_pwd = variable_get('fhcivimail_' . $action . '_password', ''); 
   $gmail_domain = variable_get('fhcivimail_domain', 'fighthunger.org'); 
   $my_timezone = '+1';
+  $count = false;
   
   $gmailer = new GMailer();
   if ($gmailer->created) {
@@ -194,6 +195,7 @@ function _fhcivimail_check_mail_box($action) {
     $gmailer->setDomain($gmail_domain);
     $gmailer->setLoginInfo($gmail_acc, $gmail_pwd, $my_timezone);
     if ($gmailer->connect()) {
+      $count = 0;
 
 // fetch mailbox
       $gmailer->fetchBox(GM_STANDARD, "inbox", 0);
@@ -212,16 +214,18 @@ function _fhcivimail_check_mail_box($action) {
         if(_fhcivimail_crm_action($action, $mail)) {
           $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, "$action_done");
           $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
+          $count++;
         } else {
           $gmailer->performAction(GM_ACT_STAR,  $message_id);
         }
       } 
     } else {
-      die("Fail to connect because: ".$gmailer->lastActionStatus());
+      watchdog('fhcivimail', "Fail to connect because: ".$gmailer->lastActionStatus());
     }
   } else {
-     die("Failed to create GMailer because: ".$gmailer->lastActionStatus());
+    watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus());
   }
+  return $count;
 }
 
 ?>

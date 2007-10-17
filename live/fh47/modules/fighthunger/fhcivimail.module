@@ -163,21 +163,27 @@ function _fhcivimail_crm_action($action, $mail) {
   list($to, $domain) = split("@",  $mail['recv_email'][0] );
   list($dest, $domain_id, $job, $queue, $hash) = split("\.", $to);
   
-/*  
-  switch ($action) {
-    case 'bounce':
-      $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);
-      break;
-    case 'optout':
-      $result = crm_mailer_event_domain_unsubscribe($job, $queue, $hash);
-      break;
-    case 'unsubscribe':
-      $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
-      break;
+  if(fhcivimail_check_init()) {
+    if($dest===$action) {
+      switch ($dest) {
+        case 'bounce':
+          $result = crm_mailer_event_bounce($job, $queue, $hash, $mail['body']);
+          break;
+        case 'optout':
+          $result = crm_mailer_event_domain_unsubscribe($job, $queue, $hash);
+          break;
+        case 'unsubscribe':
+          $result = crm_mailer_event_unsubscribe($job, $queue, $hash);
+          break;
+      }
+    } else {
+      $result = false;
+    }
+  } else {
+    watchdog('fhcivimal', 'civicrm_initialize FALSE');
+    $result = false;
   }
-*/
- $result = ($dest===$action);
- return $result;
+  return $result;
 }
 
 function _fhcivimail_check_mail_box($action) {

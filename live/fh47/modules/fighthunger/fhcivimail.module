@@ -112,7 +112,7 @@ function fhcivimail_cron() {
       $run++;
     } 
     $time = time() - $time;
-    watchdog('fhcivimail', "optouts processed: $processed in $run run ($time s)");
+    watchdog('fhcivimail', "optouts processed: $processed in $run run ($time/$maxtime s)");
   }
   if(variable_get('fhcivimail_unsubscribe_status',false)) {
     $time = time();
@@ -126,7 +126,7 @@ function fhcivimail_cron() {
       $run++;
     } 
     $time = time() - $time;
-    watchdog('fhcivimail', "Unsubriptions processed: $processed in $run run ($time s)");
+    watchdog('fhcivimail', "Unsubriptions processed: $processed in $run run ($time/$maxtime s)");
   }
   if(variable_get('fhcivimail_bounce_status',false)) {
     $time = time();
@@ -140,7 +140,7 @@ function fhcivimail_cron() {
       $run++;
     } 
     $time = time() - $time;
-    watchdog('fhcivimail', "Bounces processed: $processed in $run run ($time s)");
+    watchdog('fhcivimail', "Bounces processed: $processed in $run run ($time/$maxtime s)");
   }
 }
 

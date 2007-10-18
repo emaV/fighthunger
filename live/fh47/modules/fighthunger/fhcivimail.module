@@ -99,20 +99,42 @@ function fhcivimail_settings(){
 }
 
 function fhcivimail_cron() {
+  $maxtime = ini_get('max_execution_time')/12;
   if(variable_get('fhcivimail_optout_status',false)) {
+    $time = time();
+    $processed = 0;
+    $result = true;
     watchdog('fhcivimail', 'Check optouts');
-    $result = _fhcivimail_check_mail_box('optout');
-    if($result>0) watchdog('fhcivimail', "optouts processed: $result");  
+    while( ((time() - $time) < $maxtime) && $result ) {
+      $result = _fhcivimail_check_mail_box('optout');
+      if($result) $processed += $result;
+    } 
+    $time = time() - $time;
+    watchdog('fhcivimail', "optouts processed: $processed ($time s)");
   }
   if(variable_get('fhcivimail_unsubscribe_status',false)) {
+    $time = time();
+    $processed = 0;
+    $result = true;
     watchdog('fhcivimail', 'Check unsubscriptions');
-    $result = _fhcivimail_check_mail_box('unsubscribe');
-    if($result>0) watchdog('fhcivimail', "Unsubriptions processed: $result");  
+    while( ((time() - $time) < $maxtime) && $result ) {
+      $result = _fhcivimail_check_mail_box('unsubscribe');
+      if($result) $processed += $result;
+    } 
+    $time = time() - $time;
+    watchdog('fhcivimail', "Unsubriptions processed: $processed ($time s)");
   }
   if(variable_get('fhcivimail_bounce_status',false)) {
+    $time = time();
+    $processed = 0;
+    $result = true;
     watchdog('fhcivimail', 'Check bounces');
-    $result = _fhcivimail_check_mail_box('bounce');
-    if($result>0) watchdog('fhcivimail', "Bounces processed: $result");  
+    while( ((time() - $time) < $maxtime) && $result ) {
+      $result = _fhcivimail_check_mail_box('bounce');
+      if($result) $processed += $result;
+    } 
+    $time = time() - $time;
+    watchdog('fhcivimail', "Bounces processed: $processed ($time s)");
   }
 }
 
@@ -284,7 +306,7 @@ function _fhcivimail_check_mail_box($action) {
       $snapshot = $gmailer->getSnapshot(GM_STANDARD);
       $box = $snapshot->box;
 
-// fetch mail
+      // fetch mail
       foreach($box as $conv) {
         $message_id = $conv['id'];
         $data = array();        
@@ -292,11 +314,15 @@ function _fhcivimail_check_mail_box($action) {
         $snapshot = $gmailer->getSnapshot(GM_CONVERSATION);
         $mail = $snapshot->conv[0];
 
-// process mail 
+        // process mail 
         if(_fhcivimail_crm_action($action, $mail)) {
-          $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, $action . "_done");
-          $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
-          $gmailer->performAction(GM_ACT_ARCHIVE,     $message_id);
+          if($action=='bounce') {
+            $gmailer->performAction(GM_ACT_TRASHMSG,  $message_id);
+          } else {
+            $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, $action . "_done");
+            $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
+            $gmailer->performAction(GM_ACT_ARCHIVE,     $message_id);
+          }
           $count++;
         } else {
           $gmailer->performAction(GM_ACT_STAR,  $message_id);

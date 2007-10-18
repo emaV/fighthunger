@@ -126,7 +126,7 @@ function fhcivimail_cron() {
       $run++;
     } 
     $time = time() - $time;
-    watchdog('fhcivimail', "Unsubriptions processed: $$processed in $run run ($time s)");
+    watchdog('fhcivimail', "Unsubriptions processed: $processed in $run run ($time s)");
   }
   if(variable_get('fhcivimail_bounce_status',false)) {
     $time = time();
@@ -255,7 +255,7 @@ function _fhcivimail_crm_action($action, $mail) {
         break;
     }
   } else {
-    watchdog('fhcivimal', "<b>" . $mail['sender_email'] . "</b>: (" . implode(', ', $data) . "): $result");
+    watchdog('fhcivimal', "<b>" . $mail['sender_email'] . "</b>: (" . implode(', ', $data) . "): $result", WATCHDOG_WARNING);
     $result = false;
   }
   return $result;
@@ -280,11 +280,11 @@ function _fhcivimail_get_box($gmailer, $action) {
       $snapshot = $gmailer->getSnapshot(GM_STANDARD);
       $result = $snapshot->box;
     } else {
-      watchdog('fhcivimail', "Fail to connect because: ".$gmailer->lastActionStatus());
+      watchdog('fhcivimail', "Fail to connect because: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
       $result = NULL;
     }
   } else {
-    watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus());
+    watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
     $result = NULL;
   }
   return $result;
@@ -335,10 +335,10 @@ function _fhcivimail_check_mail_box($action) {
         }
       } 
     } else {
-      watchdog('fhcivimail', "Fail to connect because: ".$gmailer->lastActionStatus());
+      watchdog('fhcivimail', "Fail to connect because: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
     }
   } else {
-    watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus());
+    watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
   }
   return $count;
 }

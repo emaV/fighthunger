@@ -104,37 +104,43 @@ function fhcivimail_cron() {
     $time = time();
     $processed = 0;
     $result = true;
+    $run = 0;
     watchdog('fhcivimail', 'Check optouts');
     while( ((time() - $time) < $maxtime) && $result ) {
       $result = _fhcivimail_check_mail_box('optout');
       if($result) $processed += $result;
+      $run++;
     } 
     $time = time() - $time;
-    watchdog('fhcivimail', "optouts processed: $processed ($time s)");
+    watchdog('fhcivimail', "optouts processed: $processed in $run run ($time s)");
   }
   if(variable_get('fhcivimail_unsubscribe_status',false)) {
     $time = time();
     $processed = 0;
     $result = true;
+    $run = 0;
     watchdog('fhcivimail', 'Check unsubscriptions');
     while( ((time() - $time) < $maxtime) && $result ) {
       $result = _fhcivimail_check_mail_box('unsubscribe');
       if($result) $processed += $result;
+      $run++;
     } 
     $time = time() - $time;
-    watchdog('fhcivimail', "Unsubriptions processed: $processed ($time s)");
+    watchdog('fhcivimail', "Unsubriptions processed: $$processed in $run run ($time s)");
   }
   if(variable_get('fhcivimail_bounce_status',false)) {
     $time = time();
     $processed = 0;
     $result = true;
+    $run = 0;
     watchdog('fhcivimail', 'Check bounces');
     while( ((time() - $time) < $maxtime) && $result ) {
       $result = _fhcivimail_check_mail_box('bounce');
       if($result) $processed += $result;
+      $run++;
     } 
     $time = time() - $time;
-    watchdog('fhcivimail', "Bounces processed: $processed ($time s)");
+    watchdog('fhcivimail', "Bounces processed: $processed in $run run ($time s)");
   }
 }
 
@@ -248,8 +254,8 @@ function _fhcivimail_crm_action($action, $mail) {
         $result = crm_mailer_event_unsubscribe($data['job'], $data['queue'], $data['hash']);
         break;
     }
-    watchdog('fhcivimal', "<b>" . $mail['sender_email'] . "</b>: (" . implode(', ', $data) . "): $result");
   } else {
+    watchdog('fhcivimal', "<b>" . $mail['sender_email'] . "</b>: (" . implode(', ', $data) . "): $result");
     $result = false;
   }
   return $result;

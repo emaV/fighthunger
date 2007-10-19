@@ -99,7 +99,7 @@ function fhcivimail_settings(){
 }
 
 function fhcivimail_cron() {
-  $maxtime = ini_get('max_execution_time')/12;
+  $maxtime = ini_get('max_execution_time');
   if(variable_get('fhcivimail_optout_status',false)) {
     $time = time();
     $processed = 0;
@@ -134,7 +134,7 @@ function fhcivimail_cron() {
     $result = true;
     $run = 0;
     watchdog('fhcivimail', 'Check bounces');
-    while( ((time() - $time) < $maxtime) && $result ) {
+    while( ((time() - $time) < 500) && $result ) {
       $result = _fhcivimail_check_mail_box('bounce');
       if($result) $processed += $result;
       $run++;

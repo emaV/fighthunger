@@ -16,6 +16,11 @@ function fhcivimail_settings(){
     '#title' => t('verp'),
     '#default_value' => variable_get('fhcivimail_verp', '-'), 
   );
+  $form['fhcivimail_max_execution_time'] = array(
+    '#type' => 'textfield',
+    '#title' => 'max_execution_time',
+    '#default_value' => variable_get('fhcivimail_max_execution_time', ini_get('max_execution_time')), 
+  );
 
   $form['fhcivimail_domain'] = array(
     '#type' => 'textfield',
@@ -99,7 +104,7 @@ function fhcivimail_settings(){
 }
 
 function fhcivimail_cron() {
-  $maxtime = ini_get('max_execution_time');
+  $maxtime = variable_get('fhcivimail_max_execution_time', ini_get('max_execution_time')) / 12;
   if(variable_get('fhcivimail_optout_status',false)) {
     $time = time();
     $processed = 0;
@@ -134,7 +139,7 @@ function fhcivimail_cron() {
     $result = true;
     $run = 0;
     watchdog('fhcivimail', 'Check bounces');
-    while( ((time() - $time) < 500) && $result ) {
+    while( ((time() - $time) < $maxtime) && $result ) {
       $result = _fhcivimail_check_mail_box('bounce');
       if($result) $processed += $result;
       $run++;
@@ -331,6 +336,8 @@ function _fhcivimail_check_mail_box($action) {
           }
           $count++;
         } else {
+          $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, $action . "_check");
+          $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
           $gmailer->performAction(GM_ACT_STAR,  $message_id);
         }
       } 

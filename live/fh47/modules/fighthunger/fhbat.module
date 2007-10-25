@@ -460,8 +460,8 @@ global $user;
   $message .= "<br/>AUTH: $authkey, VALIDATE: $teswe,";
   $message .= "<br/>BID: $bid, VAL.TYPE: $validation_type, DATA: $data, USERIP: $userip";
 */
-//  if($validation) {
-  if(false) {
+  if($validation) {
+//  if(false) {
     $bat_value  = fhbat_get_plot_value($bid);
     db_query( "INSERT INTO {wtw_bat_clicks}  
                  (bid, timestamp, validation_type, data, IP)

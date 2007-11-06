@@ -1699,7 +1699,7 @@ function theme_fhwalk_banner($nid) {
   $output .= '<p>' . t ("Help spread the word about Fight Hunger: Walk the World 
     by including a banner on your website. Simply copy and paste the code 
     snippets below.") . '</p>';
-  $output .= "<img src='$url_img_dyn'>";
+  $output .= "<img src='$url_img'>";
   $output .= '<pre class="button" style="float: none">';
   $output .= '&lt;a href="' . $url_walk .'" target="_blank"&gt;' . "\n";
   $output .= '&lt;img src="' . $url_img . '" width="180" border="0"&gt;&lt;/a&gt;';

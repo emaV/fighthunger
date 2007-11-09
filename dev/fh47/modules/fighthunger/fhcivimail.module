@@ -2,8 +2,8 @@
 // $Id: fhcivimail.module,v 0.1 2007/10/11 14:18:34 ema Exp $
 
 
-$mod_path = drupal_get_path('module', 'fhcivimail');
-require_once $mod_path . "/libgmailer.php";
+// $mod_path = drupal_get_path('module', 'fhcivimail');
+// require_once $mod_path . "/libgmailer.php";
 
 /**
  * Implementation of hook_settings
@@ -16,16 +16,17 @@ function fhcivimail_settings(){
     '#title' => t('verp'),
     '#default_value' => variable_get('fhcivimail_verp', '-'), 
   );
-  $form['fhcivimail_max_execution_time'] = array(
+  $form['fhcivimail_batch_process'] = array(
     '#type' => 'textfield',
-    '#title' => 'max_execution_time',
-    '#default_value' => variable_get('fhcivimail_max_execution_time', ini_get('max_execution_time')/12), 
+    '#title' => 'batch email',
+    '#default_value' => variable_get('fhcivimail_batch_process', 100), 
   );
 
-  $form['fhcivimail_domain'] = array(
+  // imap configuration
+  $form['fhcivimail_imap_server'] = array(
     '#type' => 'textfield',
-    '#title' => t('GMail domain'),
-    '#default_value' => variable_get('fhcivimail_domain', 'fighthunger.org'), 
+    '#title' => t('GMail server'),
+    '#default_value' => variable_get('fhcivimail_imap_server', 'imap.gmail.com'), 
   );
   
   // Bounces
@@ -38,7 +39,7 @@ function fhcivimail_settings(){
   $form['fhcivimail_bounce_group']['fhcivimail_bounce_user'] = array(
     '#type' => 'textfield',
     '#title' => t('Username'),
-    '#default_value' => variable_get('fhcivimail_bounce_user', ''), 
+    '#default_value' => variable_get('fhcivimail_bounce_user', 'bounce@fighthunger.org'), 
   );
   $form['fhcivimail_bounce_group']['fhcivimail_bounce_password'] = array(
     '#type' => 'textfield',
@@ -62,7 +63,7 @@ function fhcivimail_settings(){
   $form['fhcivimail_unsubscribe_group']['fhcivimail_unsubscribe_user'] = array(
     '#type' => 'textfield',
     '#title' => t('Username'),
-    '#default_value' => variable_get('fhcivimail_unsubscribe_user', ''), 
+    '#default_value' => variable_get('fhcivimail_unsubscribe_user', 'unsubscribe@fighthunger.org'), 
   );
   $form['fhcivimail_unsubscribe_group']['fhcivimail_unsubscribe_password'] = array(
     '#type' => 'textfield',
@@ -86,7 +87,7 @@ function fhcivimail_settings(){
   $form['fhcivimail_optout_group']['fhcivimail_optout_user'] = array(
     '#type' => 'textfield',
     '#title' => t('Username'),
-    '#default_value' => variable_get('fhcivimail_optout_user', ''), 
+    '#default_value' => variable_get('fhcivimail_optout_user', 'optout@fighthunger.org'), 
   );
   $form['fhcivimail_optout_group']['fhcivimail_optout_password'] = array(
     '#type' => 'textfield',
@@ -104,7 +105,9 @@ function fhcivimail_settings(){
 }
 
 function fhcivimail_cron() {
-  $maxtime = variable_get('fhcivimail_max_execution_time', ini_get('max_execution_time')/12);
+  $maxtime = ini_get('max_execution_time')/6;
+  
+  // Check optouts
   if(variable_get('fhcivimail_optout_status',false)) {
     $time = time();
     $processed = 0;
@@ -119,6 +122,8 @@ function fhcivimail_cron() {
     $time = time() - $time;
     watchdog('fhcivimail', "optouts processed: $processed in $run run ($time/$maxtime s)");
   }
+  
+  // Check unsubscriptions
   if(variable_get('fhcivimail_unsubscribe_status',false)) {
     $time = time();
     $processed = 0;
@@ -133,6 +138,8 @@ function fhcivimail_cron() {
     $time = time() - $time;
     watchdog('fhcivimail', "Unsubriptions processed: $processed in $run run ($time/$maxtime s)");
   }
+  
+  // Check bounces
   if(variable_get('fhcivimail_bounce_status',false)) {
     $time = time();
     $processed = 0;
@@ -151,7 +158,6 @@ function fhcivimail_cron() {
 
 /**
  * Implementation of hook_menu
- *
  *
  */
 function fhcivimail_menu($may_cache){
@@ -234,23 +240,74 @@ function fhcivimail_check_init() {
   return FALSE;
 }
 
-function _fhcivimail_extract_data($recv_email) {
+/**
+ * Extract data from header
+ *  
+ * @param   $address address from header
+ * @return  $data array with verp fields
+ * 
+ * EX:
+ * $address: 
+ *   bounce.1.21.8463.77294ccf0e506891f040c52b9ba15f2d2eeddc38-emize.bidon=dubaiaidcute.ae@fighthunger.org
+ *   |      | |  |    |                                        |                           | 
+ *   |      | |  |    |                                        |                           |=> [domain] => fighthunger.org
+ *   |      | |  |    |                                        |=> [bounce_address] => emize.bidon@dubaiaidcute.ae
+ *   |      | |  |    |=> [hash] => 77294ccf0e506891f040c52b9ba15f2d2eeddc38                                                              
+ *   |      | |  |=> [queue] => 8463
+ *   |      | |=> [job] => 21
+ *   |      |=> [domain_id] => 1
+ *   |=> [action] => bounce
+ * 
+ *  $data = Array (
+ *    [domain] => fighthunger.org
+ *    [hash] => 77294ccf0e506891f040c52b9ba15f2d2eeddc38
+ *    [queue] => 8463
+ *    [job] => 21
+ *    [domain_id] => 1
+ *    [action] => bounce
+ *    [bounce_address] => emize.bidon@dubaiaidcute.ae
+ *  )
+ */
+function _fhcivimail_extract_data($address) {
+  static $decodeMap;
+  if (!is_array($decodeMap)) {
+    $decodeMap = array(
+      '='  => '@',
+      '40' => '@',
+      '3A' => ':',
+      '25' => '%',
+      '21' => '!',
+      '2D' => '-',
+      '5B' => '[',
+      '5D' => ']',
+      '2B' => '+'
+    );
+  }
   $data = array();
-  list($to, $data['domain']) = split("@",  $recv_email );
+  list($to, $data['domain']) = split("@",  $address );
   list($data1, $data2)  = split( variable_get('fhcivimail_verp', '-'),  $to );
-  list($data['dest'], $data['domain_id'], $data['job'], $data['queue'], $data['hash']) = split("\.", $data1);
-  if($data2) $data['bounce_address'] = str_replace("=", "@", $data2);
+  list($data['action'], $data['domain_id'], $data['job'], $data['queue'], $data['hash']) = split("\.", $data1);
+  if($data2) {
+    foreach ($decodeMap as $code => $char) $data2 = preg_replace("/$code/i", $char, $data2);
+    $data['bounce_address'] = $data2;
+  }
   return $data;
 }
 
-function _fhcivimail_crm_action($action, $mail) {
+/**
+ * Process email for action (optout, unsubscribe, bounce)
+ *  
+ * @param   $action ("optout", "unsubscribe", "bounce")
+ * @param   $mail   array with data from mail
+ * @return  result from civicrm routines
+ */
+function _fhcivimail_crm_action($action, $data) {
 
-  $data = _fhcivimail_extract_data($mail['recv_email'][0]);
-  
-  if( fhcivimail_check_init() && ($data['dest']===$action) ) {
-    switch ($data['dest']) {
+  // check init and action is on the address
+  if( fhcivimail_check_init() && ($data['action']===$action) ) {
+    switch ($action) {
       case 'bounce':
-        $result = crm_mailer_event_bounce($data['job'], $data['queue'], $data['hash'], $mail['body']);
+        $result = crm_mailer_event_bounce($data['job'], $data['queue'], $data['hash'], $data['body']);
         break;
       case 'optout':
         $result = crm_mailer_event_domain_unsubscribe($data['job'], $data['queue'], $data['hash']);
@@ -260,100 +317,73 @@ function _fhcivimail_crm_action($action, $mail) {
         break;
     }
   } else {
-    watchdog('fhcivimal', "<b>" . $mail['sender_email'] . "</b>: (" . implode(', ', $data) . "): $result", WATCHDOG_WARNING);
+    watchdog('fhcivimal', "<b>crm_mailer_event $action failed</b>: $result (" . implode(', ', $data) . ")", WATCHDOG_WARNING);
     $result = false;
   }
   return $result;
 }
 
-function _fhcivimail_get_box($gmailer, $action) {
-  $gmail_acc = variable_get('fhcivimail_' . $action . '_user', '');
-  $gmail_pwd = variable_get('fhcivimail_' . $action . '_password', ''); 
-  $gmail_domain = variable_get('fhcivimail_domain', 'fighthunger.org'); 
-  $my_timezone = '+1';
-  
-  if ($gmailer->created) {
-  
-// connect to gmail account
-    $gmailer->setDomain($gmail_domain);
-    $gmailer->setLoginInfo($gmail_acc, $gmail_pwd, $my_timezone);
-    if ($gmailer->connect()) {
-      $count = 0;
-
-// fetch mailbox
-      $gmailer->fetchBox(GM_LABEL, $action, 0);
-      $snapshot = $gmailer->getSnapshot(GM_STANDARD);
-      $result = $snapshot->box;
-    } else {
-      watchdog('fhcivimail', "Fail to connect because: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
-      $result = NULL;
-    }
-  } else {
-    watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
-    $result = NULL;
-  }
-  return $result;
-}
-
+/**
+ * Check mailbox for action (optout, unsubscribe, bounce)
+ *  
+ * @param   $action ("optout", "unsubscribe", "bounce")
+ * @return  $count number of email processed
+ */
 function _fhcivimail_check_mail_box($action) {
 
-  $gmail_acc = variable_get('fhcivimail_' . $action . '_user', '');
-  $gmail_pwd = variable_get('fhcivimail_' . $action . '_password', ''); 
-  $gmail_domain = variable_get('fhcivimail_domain', 'fighthunger.org'); 
-  $my_timezone = '+1';
-  $count = false;
+  // set connection variables
+  $mail_user          = variable_get('fhcivimail_' . $action . '_user', '');
+  $mail_pwd           = variable_get('fhcivimail_' . $action . '_password', ''); 
+  $mail_imap_server   = variable_get('fhcivimail_imap_server', '');
+  $mail_imap_ref      = "{" . $mail_imap_server . ":993/imap/ssl}";
+  $mail_batch_process = variable_get('fhcivimail_batch_process', 100);
+   
+  // connect to imap server $action
+  if($mbox = imap_open($mail_imap_ref . $action, $mail_user, $mail_pwd)) {
+   
+    // gets headers and uid
+    $num_msg = min(imap_num_msg($mbox), $mail_batch_process);
+    for($i=1; $i<=$num_msg; $i++) {
+      $uid =  imap_uid ($mbox, $i);
+      if($uid) $batch[$uid] = imap_header($mbox, $i);
+    }
+    
+    // process email
+    $count = 0;
+    if($batch) foreach($batch as $uid => $header) {
+    
+      // get data for processing (body only for 'bounce')
+      $data = _fhcivimail_extract_data($header->toaddress);
+      if($action=='bounce') $data['body'] = imap_body ($mbox, $i);
   
-  $gmailer = new GMailer();
-  if ($gmailer->created) {
-  
-// connect to gmail account
-    $gmailer->setDomain($gmail_domain);
-    $gmailer->setLoginInfo($gmail_acc, $gmail_pwd, $my_timezone);
-    if ($gmailer->connect()) {
+      // check mail processed and move emails
+      if(_fhcivimail_crm_action($action, $data)) {
 
-// fetch mailbox
-      $gmailer->fetchBox(GM_LABEL, $action, 0);
-      $snapshot = $gmailer->getSnapshot(GM_STANDARD);
-      $box = $snapshot->box;
-
-      if($box) {
-        // fetch mail
-        $count = 0;
-        foreach($box as $conv) {
-          $message_id = $conv['id'];
-          $data = array();        
-          $gmailer->fetchBox(GM_CONVERSATION, $message_id, 0);
-          $snapshot = $gmailer->getSnapshot(GM_CONVERSATION);
-          $mail = $snapshot->conv[0];
-  
-          // process mail 
-          if(_fhcivimail_crm_action($action, $mail)) {
-            if($action=='bounce') {
-              $gmailer->performAction(GM_ACT_TRASHMSG,  $message_id);
-            } else {
-              $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, $action . "_done");
-              $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
-              $gmailer->performAction(GM_ACT_ARCHIVE,     $message_id);
-            }
-            $count++;
-          } else {
-            $gmailer->performAction(GM_ACT_APPLYLABEL,  $message_id, $action . "_check");
-            $gmailer->performAction(GM_ACT_REMOVELABEL, $message_id, "$action");
-            $gmailer->performAction(GM_ACT_STAR,  $message_id);
-          }
-        } 
+        if($action=='bounce') {
+          // delete email
+          $destination = '[Gmail]/Trash';
+        } else {
+          // change label to $action_done and archive it
+          $destination = $action . "_done";
+        }
+        $result = imap_mail_move($mbox, $i, $action . "_done");
+        if($result) $count++;
       } else {
-        watchdog('fhcivimail', "Fail to fetch mail: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
+        // change label to $action_check and star it
+        imap_mail_move($mbox, $i, $action . "_check");
+        imap_setflag_full($mbox, $i, "\\Flagged");
       }
-    } else {
-      watchdog('fhcivimail', "Fail to connect because: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
+      // After using imap_mail_move it is necesary to call imap_expunge() function.
+      // http://www.php.net/manual/en/function.imap-mail-move.php#58929
+      imap_expunge($mbox);
     }
   } else {
-    watchdog('fhcivimail', "Failed to create GMailer because: ".$gmailer->lastActionStatus(), WATCHDOG_ERROR);
+    watchdog('fhcivimail', "Failed to connect:\n" . print_r(imap_errors(), true), WATCHDOG_ERROR);
+    variable_set('fhcivimail_' .$action . 'status', false);
+    $count = false;
   }
   return $count;
 }
-
 
 function fhcivimail_helpers() {
   return 'pippo';

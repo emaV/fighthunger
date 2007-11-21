@@ -1,0 +1,18 @@
+== Question ==
+
+  * How to integrate with taxonomy?
+  * Flexinode or custom module node (as now with gathering.module) 
+
+
+== Modules ==
+
+||module 4.6 	|| description 	|| proposal ||
+||campaign 	||	        || REMOVE   ||
+||echo_action 	|| Creates flexible / templated nodes for online political organizing. 	|| REMOVE ||
+||echo_action_transition 	|| Adds some information for gathering-1 node typ 	|| REMOVE ||
+||echo_slideshow 	|| Displays flicker image. Has heavyweight init hook 	|| use template and flickr (flash and little square)  ||
+||flashcard 	||      ||CHECK ||
+||gathering 	|| Gathering node type. Interfaces with CiviCRM 	|| REMOVE ||
+||wtw 	        || Walk administration. Node type: walk action story 	|| ||
+||wtw_map 	|| Draws maps 	|| location + gmap ||
+||wtw_signup 	|| Walk sign-up || ||
